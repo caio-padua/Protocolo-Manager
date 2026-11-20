@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "wouter";
-import { FileText, Loader2, Stethoscope } from "lucide-react";
+import { Stethoscope } from "lucide-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { usePermissoes } from "@/lib/permissoes";
 import { SegundasVias } from "./SegundasVias";
+import { FilaPedidos } from "./FilaPedidos";
 
 // Fila do medico para pedidos de receita/exames pagos pelo cliente.
 // A emissao do documento e feita no Cockpit, com o certificado do proprio medico logado.
@@ -89,7 +89,7 @@ function ExamesAvulsosFila() {
               <button type="button" onClick={() => publish(a)} className="btn-3d px-4 h-10 text-xs font-black uppercase tracking-wider">Publicar orçamento</button>
             </div>
           )}
-          {a.status === "aceito" && a.quoteAmount !== null && <p className="text-sm">Valor aceito: {a.quoteAmount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}. Cobrança e emissão dependem de etapa seguinte.</p>}
+          {a.status === "aceito" && a.quoteAmount !== null && <p className="text-sm">Valor aceito: {a.quoteAmount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}. Cobrança e emissão seguem o fluxo próprio.</p>}
         </article>
       ))}
     </section>
@@ -98,20 +98,10 @@ function ExamesAvulsosFila() {
 
 export default function PedidosMedicosPage() {
   const { isCeo } = usePermissoes();
-  const [items, setItems] = useState<Item[] | null>(null);
   const [error, setError] = useState("");
-  const [busyId, setBusyId] = useState<number | null>(null);
-  const [refusing, setRefusing] = useState<number | null>(null);
-  const [reason, setReason] = useState("");
   const [precos, setPrecos] = useState<Precos | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState("");
-
-  const load = useCallback(async () => {
-    try { setItems(await api<Item[]>("/fila")); setError(""); }
-    catch (e) { setError((e as Error).message); }
-  }, []);
-  useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
     if (!isCeo) return;
@@ -120,15 +110,6 @@ export default function PedidosMedicosPage() {
       setDraft(Object.fromEntries(Object.entries(p.valores).map(([k, v]) => [k, v === null ? "" : String(v).replace(".", ",")])));
     }).catch((e) => setError((e as Error).message));
   }, [isCeo]);
-
-  async function act(id: number, path: string, body?: unknown) {
-    setBusyId(id); setError("");
-    try {
-      await api(`/${id}/${path}`, { method: "POST", body: JSON.stringify(body ?? {}) });
-      setRefusing(null); setReason(""); await load();
-    } catch (e) { setError((e as Error).message); }
-    finally { setBusyId(null); }
-  }
 
   async function savePrices() {
     setSaved(""); setError("");
@@ -152,7 +133,7 @@ export default function PedidosMedicosPage() {
         <h1 className="text-xl font-black uppercase tracking-wider text-primary">Pedidos dos clientes</h1>
       </header>
       <p className="text-sm text-muted-foreground">
-        Pedidos de receita e de exames já pagos. Você emite o documento no Cockpit, com o seu certificado, e depois marca aqui como emitido.
+        Pedidos pagos ou isentos por benefício. Cada pedido chega pré-pronto: veja a prévia, confira os itens e assine e envie num clique, com o seu certificado digital.
       </p>
       {error && <p role="alert" className="text-destructive text-sm">{error}</p>}
 
@@ -179,64 +160,7 @@ export default function PedidosMedicosPage() {
         </section>
       )}
 
-      <section className="space-y-3">
-        {items === null && !error && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
-        {items?.length === 0 && <p className="text-sm text-muted-foreground">Nenhum pedido na fila.</p>}
-        {(items ?? []).map((it) => {
-          const mine = it.assignedProfessionalId !== null && !it.asResponsible;
-          const canStart = it.status === "pago" && (mine || it.assignedProfessionalId === null);
-          const canFinish = it.status === "em_analise" && mine;
-          const aba = it.kind === "receita" ? "prescricao" : "exames";
-          return (
-            <article key={it.id} className="panel-3d-sub rounded-lg p-4 space-y-2">
-              <div className="flex items-start gap-2">
-                <FileText className="w-5 h-5 text-accent shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-primary text-sm">{it.kindLabel} · {it.clientName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {it.status === "pago" ? "Aguardando análise" : "Em análise"}
-                    {it.assignedReason ? ` · ${REASON[it.assignedReason] ?? it.assignedReason}` : ""}
-                  </p>
-                </div>
-              </div>
-              <p className="text-sm break-words">{it.details}</p>
-              {it.asResponsible && it.assignedProfessionalId !== null && (
-                <p className="text-xs text-muted-foreground">Este pedido está com outro médico. Você o vê como responsável técnico.</p>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {canStart && (
-                  <button type="button" disabled={busyId === it.id} onClick={() => act(it.id, "iniciar")}
-                    className="btn-3d px-4 h-10 text-xs font-black uppercase tracking-wider disabled:opacity-40">Iniciar análise</button>
-                )}
-                {canFinish && (
-                  <>
-                    <Link href={`/cockpit/${it.clientId}/${aba}`}
-                      className="btn-3d-soft px-4 h-10 text-xs font-black uppercase tracking-wider inline-flex items-center">Abrir no Cockpit</Link>
-                    <button type="button" disabled={busyId === it.id}
-                      onClick={() => { if (window.confirm("Confirme que o documento já foi emitido e assinado no Cockpit.")) void act(it.id, "emitido"); }}
-                      className="btn-3d px-4 h-10 text-xs font-black uppercase tracking-wider disabled:opacity-40">Marcar como emitido</button>
-                  </>
-                )}
-                {(canStart || canFinish) && mine && (
-                  <button type="button" onClick={() => { setRefusing(refusing === it.id ? null : it.id); setReason(""); }}
-                    className="btn-3d-soft px-4 h-10 text-xs font-black uppercase tracking-wider">Recusar</button>
-                )}
-              </div>
-              {refusing === it.id && (
-                <div className="space-y-2">
-                  <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={1000}
-                    placeholder="Motivo da recusa (o cliente verá este texto). Mínimo de 10 caracteres."
-                    className="w-full rounded-md border border-border bg-background p-2 text-sm" aria-label="Motivo da recusa" />
-                  <p className="text-xs text-muted-foreground">A recusa deixa o reembolso pendente. O sistema não devolve o dinheiro sozinho.</p>
-                  <button type="button" disabled={busyId === it.id || reason.trim().length < 10}
-                    onClick={() => act(it.id, "recusar", { reason })}
-                    className="btn-3d px-4 h-10 text-xs font-black uppercase tracking-wider disabled:opacity-40">Confirmar recusa</button>
-                </div>
-              )}
-            </article>
-          );
-        })}
-      </section>
+      <FilaPedidos />
       <ExamesAvulsosFila />
       {isCeo && <SegundasVias />}
     </div>

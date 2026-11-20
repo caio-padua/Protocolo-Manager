@@ -172,6 +172,11 @@ export interface PedidoEnvio {
 export interface ResultadoEnvio { status: "aceito" | "recusado"; flyerEnviado: boolean; statusFlyer: string | null; mensagem: string; envioId: number; erro?: string }
 const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+/** Ambiente do envio: participante da lista de teste usa "teste" (teto de R$ 5); os demais, "producao". */
+export async function ambienteDoCliente(clienteId: number): Promise<"teste" | "producao"> {
+  return (await permitidosTeste()).includes(clienteId) ? "teste" : "producao";
+}
+
 export async function enviarComunicacao(p: PedidoEnvio): Promise<ResultadoEnvio> {
   await prepararTabelas();
   if (!ehCategoria(p.categoria)) throw new ErroComunicacao("categoria desconhecida");

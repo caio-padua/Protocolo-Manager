@@ -20,11 +20,14 @@ import { resolveReissueReview } from "../lib/clinical-document-reissue-review";
 
 const router: IRouter = Router();
 
-interface Row {
+export interface Row {
   id: number; client_id: number; empresa_id: number; location_id: number; kind: PedidoKind;
   details: string; status: string; amount: string | null; paid_at: string | null;
   assigned_professional_id: number | null; assigned_reason: string | null;
   decision_note: string | null; issued_reference: string | null; refund_pending: boolean; created_at: string;
+  decided_by_professional_id?: number | null;
+  isento_beneficio_id?: number | null; draft_items?: string | null; doc_pdf_id?: number | null;
+  doc_send_status?: string | null; doc_sent_at?: string | null; doc_send_error?: string | null;
 }
 
 function actorId(req: Request): number | null {
@@ -56,7 +59,7 @@ async function roleOn(actor: number, row: Row): Promise<Role> {
     ? "responsavel" : null;
 }
 
-async function loadAuthorized(req: Request, res: Response): Promise<{ row: Row; actor: number; role: Exclude<Role, null> } | null> {
+export async function loadAuthorized(req: Request, res: Response): Promise<{ row: Row; actor: number; role: Exclude<Role, null> } | null> {
   const actor = actorId(req);
   if (!actor) { res.status(401).json({ error: "Faça login de colaborador." }); return null; }
   const id = Number(req.params.id);
@@ -75,17 +78,21 @@ router.get("/pedidos-medicos/fila", requireCollaborator, async (req, res): Promi
   try {
     const scopes = await responsibleScopes(actor);
     const found = await db.execute(sql`
-      SELECT r.*, c.name AS client_name FROM client_medical_requests r
+      SELECT r.*, c.name AS client_name, d.token AS doc_token FROM client_medical_requests r
         JOIN clients c ON c.id = r.client_id
+        LEFT JOIN exam_request_pdfs d ON d.id = r.doc_pdf_id
        WHERE r.status IN ('pago','em_analise')
+          OR (r.status = 'emitido' AND r.updated_at > NOW() - INTERVAL '30 days')
        ORDER BY r.created_at ASC LIMIT 500`);
-    const rows = (found.rows as unknown as Array<Row & { client_name: string }>).filter((r) =>
+    const rows = (found.rows as unknown as Array<Row & { client_name: string; doc_token: string | null }>).filter((r) =>
       r.assigned_professional_id === actor ||
       scopes.some((s) => s.locationId === r.location_id && s.empresaId === r.empresa_id));
     res.json(rows.map((r) => ({
       id: r.id, kind: r.kind, kindLabel: PEDIDO_LABEL[r.kind], clientId: r.client_id,
       clientName: r.client_name, details: r.details, status: r.status,
       paidAt: r.paid_at, createdAt: r.created_at,
+      isento: r.isento_beneficio_id != null, draftItems: r.draft_items,
+      docToken: r.doc_token ?? null, docSendStatus: r.doc_send_status, docSentAt: r.doc_sent_at, docSendError: r.doc_send_error,
       assignedProfessionalId: r.assigned_professional_id, assignedReason: r.assigned_reason,
       asResponsible: r.assigned_professional_id !== actor,
     })));
@@ -118,6 +125,10 @@ router.post("/pedidos-medicos/:id/emitido", requireCollaborator, async (req, res
   if (!ctx) return;
   const body = EmitBody.safeParse(req.body ?? {});
   if (!body.success) { res.status(400).json({ error: "Corpo inválido." }); return; }
+  if (ctx.row.kind === "pedido_exames") {
+    res.status(422).json({ error: "Pedido de exames só é concluído ao assinar e enviar o documento real." });
+    return;
+  }
   // Quem encerra e quem assinou: so o medico que esta com o pedido.
   const upd = await db.execute(sql`
     UPDATE client_medical_requests

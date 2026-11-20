@@ -202,3 +202,4 @@
 - [Comunicação padronizada](comunicacao-padronizada.md) — compositor sem IA, modelos por clínica, regra de flyer, histórico.
 - [Identidades empresariais](identidades-empresariais.md) — canal da clínica, referência, papéis.
 - [Publicação do Manager](publicacao-manager-indisponivel.md) — 404 sem build; falta publicar.
+- [Pedido médico — linha de produção](pedido-medico-linha-producao.md) — prévia pelo motor, assinar-e-enviar num clique, benefício Member isenta só cobrança.
