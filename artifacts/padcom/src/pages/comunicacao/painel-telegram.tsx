@@ -49,6 +49,11 @@ interface ClinicaIA {
   usos_faq: number;
   consultas_ia_evitadas: number;
 }
+interface ClinicaFollowup {
+  empresaId: number;
+  nome: string;
+  intervalHours: number | null;
+}
 
 const n = (v: number | string | null | undefined) => (v == null ? "indisponível" : Number(v).toLocaleString("pt-BR"));
 
@@ -81,6 +86,10 @@ export function PainelOperacionalTelegram() {
   const [erro, setErro] = useState<string | null>(null);
   const [usoIA, setUsoIA] = useState<ClinicaIA[] | null>(null);
   const [erroIA, setErroIA] = useState<string | null>(null);
+  const [clinicasFollowup, setClinicasFollowup] = useState<ClinicaFollowup[] | null>(null);
+  const [intervalosEditados, setIntervalosEditados] = useState<Record<number, string>>({});
+  const [erroFollowup, setErroFollowup] = useState<string | null>(null);
+  const [salvandoFollowup, setSalvandoFollowup] = useState<number | null>(null);
   useEffect(() => {
     const t = getCollabToken();
     const headers = new Headers();
@@ -91,6 +100,16 @@ export function PainelOperacionalTelegram() {
     fetch(`${BASE}/api/telegram-inbox/painel-ia`, { headers })
       .then(async (r) => { if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? "Sem acesso aos custos e resultados por clínica." : "O servidor respondeu com erro."); const j = await r.json() as { clinicas: ClinicaIA[] }; setUsoIA(j.clinicas); })
       .catch((e: unknown) => setErroIA(e instanceof Error ? e.message : "Não foi possível consultar o painel de inteligência artificial."));
+    fetch(`${BASE}/api/telegram-inbox/exam-followups/config`, { headers })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? "Somente o CEO pode configurar este fluxo." : "O servidor respondeu com erro.");
+        const data = await r.json() as { clinicas: ClinicaFollowup[] };
+        setClinicasFollowup(data.clinicas);
+        setIntervalosEditados(Object.fromEntries(data.clinicas.map((clinic) => [
+          clinic.empresaId, clinic.intervalHours == null ? "" : String(clinic.intervalHours),
+        ])));
+      })
+      .catch((e: unknown) => setErroFollowup(e instanceof Error ? e.message : "Não foi possível carregar as clínicas."));
   }, []);
 
   const [salvando, setSalvando] = useState(false);
@@ -105,6 +124,32 @@ export function PainelOperacionalTelegram() {
       setAvisoModo(`Modo gravado: ${modo}.`);
     } catch (e) { setAvisoModo(e instanceof Error ? e.message : "Falha ao alterar."); }
     finally { setSalvando(false); }
+  };
+  const salvarIntervaloFollowup = async (clinic: ClinicaFollowup) => {
+    const raw = intervalosEditados[clinic.empresaId] ?? "";
+    const intervalHours = raw.trim() === "" ? null : Number(raw);
+    if (intervalHours !== null && (!Number.isSafeInteger(intervalHours) || intervalHours < 1 || intervalHours > 72)) {
+      setErroFollowup("Use um número inteiro entre 1 e 72, ou deixe vazio para desativar.");
+      return;
+    }
+    setSalvandoFollowup(clinic.empresaId);
+    setErroFollowup(null);
+    try {
+      const t = getCollabToken();
+      const response = await fetch(`${BASE}/api/telegram-inbox/exam-followups/config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+        body: JSON.stringify({ empresaId: clinic.empresaId, intervalHours }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "Não foi possível salvar a configuração.");
+      setClinicasFollowup((current) => current?.map((item) =>
+        item.empresaId === clinic.empresaId ? { ...item, intervalHours } : item) ?? null);
+    } catch (e) {
+      setErroFollowup(e instanceof Error ? e.message : "Falha ao salvar a configuração.");
+    } finally {
+      setSalvandoFollowup(null);
+    }
   };
 
   const msg = (d: string) => p?.mensagens?.find((m) => m.direcao === d)?.n ?? 0;
@@ -138,6 +183,58 @@ export function PainelOperacionalTelegram() {
             ))}
           </div>
           {avisoModo && <p role="status" className="text-[12px]">{avisoModo}</p>}
+        </div>
+
+        <div className="concave-3d space-y-3 p-3" data-testid="configuracao-acompanhamento-exames">
+          <BlockTitle icon={Bot}>Acompanhamento de pedidos de exames</BlockTitle>
+          <p className="text-[12px] text-muted-foreground">
+            Desligado por padrão. Defina de 1 a 72 horas para perguntar se o cliente recebeu o pedido.
+            A pergunta sobre agendamento ocorre quatro dias após o envio confirmado. Alterações não criam mensagens retroativas.
+          </p>
+          {erroFollowup && <p role="alert" className="bevel-3d p-2 text-[12px] text-destructive">{erroFollowup}</p>}
+          {clinicasFollowup === null && !erroFollowup && <p role="status" className="text-[12px]">Carregando clínicas…</p>}
+          {clinicasFollowup?.length === 0 && <p className="text-[12px]">Nenhuma clínica ativa disponível.</p>}
+          <div className="grid gap-2 lg:grid-cols-2">
+            {clinicasFollowup?.map((clinic) => {
+              const raw = intervalosEditados[clinic.empresaId] ?? "";
+              const number = raw.trim() === "" ? null : Number(raw);
+              const valid = number === null || (Number.isSafeInteger(number) && number >= 1 && number <= 72);
+              return <article key={clinic.empresaId} className="bevel-3d flex flex-wrap items-end justify-between gap-3 p-3">
+                <div className="min-w-[180px] flex-1">
+                  <p className="text-[12px] font-bold">{clinic.nome}</p>
+                  <label className="mt-2 block text-[11px] text-muted-foreground" htmlFor={`intervalo-followup-${clinic.empresaId}`}>
+                    Horas até perguntar se recebeu
+                  </label>
+                  <input
+                    id={`intervalo-followup-${clinic.empresaId}`}
+                    data-testid={`intervalo-followup-${clinic.empresaId}`}
+                    type="number"
+                    min={1}
+                    max={72}
+                    step={1}
+                    value={raw}
+                    onChange={(event) => setIntervalosEditados((current) => ({
+                      ...current, [clinic.empresaId]: event.target.value,
+                    }))}
+                    placeholder="Vazio = desligado"
+                    className="concave-3d mt-1 h-10 w-full rounded-md bg-transparent px-3 text-sm"
+                  />
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    {clinic.intervalHours == null ? "Acompanhamento desligado" : `Ativo: primeira pergunta após ${clinic.intervalHours} hora(s)`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  data-testid={`salvar-followup-${clinic.empresaId}`}
+                  disabled={!valid || salvandoFollowup !== null}
+                  onClick={() => void salvarIntervaloFollowup(clinic)}
+                  className="btn-3d-soft min-h-10 px-4 text-xs font-bold uppercase disabled:opacity-60"
+                >
+                  {salvandoFollowup === clinic.empresaId ? "Salvando…" : "Salvar"}
+                </button>
+              </article>;
+            })}
+          </div>
         </div>
 
         <Tabela titulo="1. Lido agora do sistema (esta clínica, ambiente em uso)">

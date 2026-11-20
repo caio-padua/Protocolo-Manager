@@ -113,6 +113,38 @@ paths:
         "404": { description: Cliente não encontrado na clínica autenticada. }
         "409": { description: Modo global ou vínculo impede a alteração. }
         "503": { description: Autorização não pôde ser salva. }
+  /telegram-inbox/exam-followups/config:
+    get:
+      operationId: listTelegramExamFollowupConfig
+      tags: [telegram]
+      security: [{ collaboratorBearer: [] }]
+      summary: Listar o intervalo de acompanhamento de exames por clínica
+      responses:
+        "200":
+          description: Clínicas ativas e configuração sem dados de clientes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TelegramExamFollowupConfigList" }
+        "403": { description: Acesso restrito ao CEO da plataforma. }
+    put:
+      operationId: updateTelegramExamFollowupConfig
+      tags: [telegram]
+      security: [{ collaboratorBearer: [] }]
+      summary: Configurar ou desativar o acompanhamento de exames
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TelegramExamFollowupConfigUpdate" }
+      responses:
+        "200":
+          description: Intervalo salvo; desativar cancela etapas futuras.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TelegramExamFollowupConfigSaved" }
+        "400": { description: Clínica ou intervalo inválido. }
+        "403": { description: Acesso restrito ao CEO da plataforma. }
+        "404": { description: Clínica ativa não encontrada. }
   /mensageria/credito:
     get:
       operationId: getMensageriaCredito
@@ -680,6 +712,26 @@ paths:
               schema: { $ref: "#/components/schemas/ExamRequestHistory" }
         "401": { description: Login obrigatorio }
         "403": { description: Vinculo clinico nao autorizado }
+  /exam-requests/{clientId}/followups/{followupId}/close:
+    post:
+      operationId: closeExamRequestTelegramFollowup
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      summary: Encerrar um acompanhamento de exames sem alterar o pedido original
+      parameters:
+        - { name: clientId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: followupId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExamRequestFollowupCloseInput" }
+      responses:
+        "200": { description: Acompanhamento encerrado no escopo clínico autorizado. }
+        "400": { description: Identificador ou motivo inválido. }
+        "401": { description: Login obrigatório. }
+        "403": { description: Vínculo clínico não autorizado. }
+        "404": { description: Acompanhamento ativo não encontrado para este cliente. }
   /exam-requests/send:
     post:
       operationId: sendExamRequestDocuments
@@ -4478,7 +4530,7 @@ components:
         createdAt: { type: string, format: date-time }
     ExamRequestHistory:
       type: object
-      required: [documents, nextOffset, dispatches, pendingOperations]
+      required: [documents, nextOffset, dispatches, pendingOperations, followups]
       properties:
         documents:
           type: array
@@ -4490,6 +4542,9 @@ components:
         pendingOperations:
           type: array
           items: { $ref: "#/components/schemas/ExamRequestPendingOperation" }
+        followups:
+          type: array
+          items: { $ref: "#/components/schemas/ExamRequestTelegramFollowup" }
     ExamRequestPendingOperation:
       type: object
       required: [operationKey, state, createdAt, documentIds, channels, results]
@@ -4513,6 +4568,84 @@ components:
         state: { type: string }
         documentIds: { type: array, items: { type: integer } }
         createdAt: { type: string, format: date-time }
+    ExamRequestTelegramFollowup:
+      type: object
+      required:
+        - id
+        - state
+        - intervalHours
+        - providerAcceptedAt
+        - receiptDueAt
+        - bookingDueAt
+        - receiptSentAt
+        - bookingSentAt
+        - receiptAnswer
+        - bookingAnswer
+        - receiptDeliveryState
+        - bookingDeliveryState
+        - receiptAckState
+        - bookingAckState
+        - teamAlertState
+        - closeReason
+        - requiresReview
+        - createdAt
+        - closedAt
+      properties:
+        id: { type: integer }
+        state:
+          type: string
+          enum: [awaiting_dispatch, receipt_pending, receipt_sending, receipt_waiting, booking_pending, booking_sending, booking_waiting, completed, closed, cancelled, needs_review]
+        intervalHours: { type: integer, minimum: 1, maximum: 72 }
+        providerAcceptedAt: { type: [string, "null"], format: date-time }
+        receiptDueAt: { type: [string, "null"], format: date-time }
+        bookingDueAt: { type: [string, "null"], format: date-time }
+        receiptSentAt: { type: [string, "null"], format: date-time }
+        bookingSentAt: { type: [string, "null"], format: date-time }
+        receiptAnswer: { type: [string, "null"], enum: [received, not_received, help, ambiguous, null] }
+        bookingAnswer: { type: [string, "null"], enum: [booked, not_booked, help, ambiguous, null] }
+        receiptDeliveryState: { type: string, enum: [not_sent, sending, accepted, simulated, failed, unknown] }
+        bookingDeliveryState: { type: string, enum: [not_sent, sending, accepted, simulated, failed, unknown] }
+        receiptAckState: { type: string, enum: [not_sent, sending, accepted, simulated, failed, unknown] }
+        bookingAckState: { type: string, enum: [not_sent, sending, accepted, simulated, failed, unknown] }
+        teamAlertState: { type: string, enum: [not_needed, sending, accepted, simulated, failed, unknown] }
+        closeReason: { type: [string, "null"] }
+        requiresReview: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        closedAt: { type: [string, "null"], format: date-time }
+    ExamRequestFollowupCloseInput:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, enum: [pedido_cancelado, cliente_resolveu, encerrado_pela_equipe] }
+    TelegramExamFollowupConfigList:
+      type: object
+      required: [clinicas]
+      properties:
+        clinicas:
+          type: array
+          items: { $ref: "#/components/schemas/TelegramExamFollowupClinicConfig" }
+    TelegramExamFollowupClinicConfig:
+      type: object
+      required: [empresaId, nome, intervalHours]
+      properties:
+        empresaId: { type: integer, minimum: 1 }
+        nome: { type: string }
+        intervalHours: { type: [integer, "null"], minimum: 1, maximum: 72 }
+    TelegramExamFollowupConfigUpdate:
+      type: object
+      additionalProperties: false
+      required: [empresaId, intervalHours]
+      properties:
+        empresaId: { type: integer, minimum: 1 }
+        intervalHours: { type: [integer, "null"], minimum: 1, maximum: 72 }
+    TelegramExamFollowupConfigSaved:
+      type: object
+      required: [ok, empresaId, intervalHours]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        empresaId: { type: integer, minimum: 1 }
+        intervalHours: { type: [integer, "null"], minimum: 1, maximum: 72 }
     ExamDocumentDispatchInput:
       type: object
       required: [operationKey, clientId, documentIds, channels, confirmed]

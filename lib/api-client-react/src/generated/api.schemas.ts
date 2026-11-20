@@ -636,12 +636,205 @@ export interface ExamRequestPendingOperation {
   results: ExamDocumentChannelResult[];
 }
 
+export type ExamRequestTelegramFollowupState =
+  (typeof ExamRequestTelegramFollowupState)[keyof typeof ExamRequestTelegramFollowupState];
+
+export const ExamRequestTelegramFollowupState = {
+  awaiting_dispatch: "awaiting_dispatch",
+  receipt_pending: "receipt_pending",
+  receipt_sending: "receipt_sending",
+  receipt_waiting: "receipt_waiting",
+  booking_pending: "booking_pending",
+  booking_sending: "booking_sending",
+  booking_waiting: "booking_waiting",
+  completed: "completed",
+  closed: "closed",
+  cancelled: "cancelled",
+  needs_review: "needs_review",
+} as const;
+
+/**
+ * @nullable
+ */
+export type ExamRequestTelegramFollowupReceiptAnswer =
+  | (typeof ExamRequestTelegramFollowupReceiptAnswer)[keyof typeof ExamRequestTelegramFollowupReceiptAnswer]
+  | null;
+
+export const ExamRequestTelegramFollowupReceiptAnswer = {
+  received: "received",
+  not_received: "not_received",
+  help: "help",
+  ambiguous: "ambiguous",
+} as const;
+
+/**
+ * @nullable
+ */
+export type ExamRequestTelegramFollowupBookingAnswer =
+  | (typeof ExamRequestTelegramFollowupBookingAnswer)[keyof typeof ExamRequestTelegramFollowupBookingAnswer]
+  | null;
+
+export const ExamRequestTelegramFollowupBookingAnswer = {
+  booked: "booked",
+  not_booked: "not_booked",
+  help: "help",
+  ambiguous: "ambiguous",
+} as const;
+
+export type ExamRequestTelegramFollowupReceiptDeliveryState =
+  (typeof ExamRequestTelegramFollowupReceiptDeliveryState)[keyof typeof ExamRequestTelegramFollowupReceiptDeliveryState];
+
+export const ExamRequestTelegramFollowupReceiptDeliveryState = {
+  not_sent: "not_sent",
+  sending: "sending",
+  accepted: "accepted",
+  simulated: "simulated",
+  failed: "failed",
+  unknown: "unknown",
+} as const;
+
+export type ExamRequestTelegramFollowupBookingDeliveryState =
+  (typeof ExamRequestTelegramFollowupBookingDeliveryState)[keyof typeof ExamRequestTelegramFollowupBookingDeliveryState];
+
+export const ExamRequestTelegramFollowupBookingDeliveryState = {
+  not_sent: "not_sent",
+  sending: "sending",
+  accepted: "accepted",
+  simulated: "simulated",
+  failed: "failed",
+  unknown: "unknown",
+} as const;
+
+export type ExamRequestTelegramFollowupReceiptAckState =
+  (typeof ExamRequestTelegramFollowupReceiptAckState)[keyof typeof ExamRequestTelegramFollowupReceiptAckState];
+
+export const ExamRequestTelegramFollowupReceiptAckState = {
+  not_sent: "not_sent",
+  sending: "sending",
+  accepted: "accepted",
+  simulated: "simulated",
+  failed: "failed",
+  unknown: "unknown",
+} as const;
+
+export type ExamRequestTelegramFollowupBookingAckState =
+  (typeof ExamRequestTelegramFollowupBookingAckState)[keyof typeof ExamRequestTelegramFollowupBookingAckState];
+
+export const ExamRequestTelegramFollowupBookingAckState = {
+  not_sent: "not_sent",
+  sending: "sending",
+  accepted: "accepted",
+  simulated: "simulated",
+  failed: "failed",
+  unknown: "unknown",
+} as const;
+
+export type ExamRequestTelegramFollowupTeamAlertState =
+  (typeof ExamRequestTelegramFollowupTeamAlertState)[keyof typeof ExamRequestTelegramFollowupTeamAlertState];
+
+export const ExamRequestTelegramFollowupTeamAlertState = {
+  not_needed: "not_needed",
+  sending: "sending",
+  accepted: "accepted",
+  simulated: "simulated",
+  failed: "failed",
+  unknown: "unknown",
+} as const;
+
+export interface ExamRequestTelegramFollowup {
+  id: number;
+  state: ExamRequestTelegramFollowupState;
+  /**
+   * @minimum 1
+   * @maximum 72
+   */
+  intervalHours: number;
+  /** @nullable */
+  providerAcceptedAt: string | null;
+  /** @nullable */
+  receiptDueAt: string | null;
+  /** @nullable */
+  bookingDueAt: string | null;
+  /** @nullable */
+  receiptSentAt: string | null;
+  /** @nullable */
+  bookingSentAt: string | null;
+  /** @nullable */
+  receiptAnswer: ExamRequestTelegramFollowupReceiptAnswer;
+  /** @nullable */
+  bookingAnswer: ExamRequestTelegramFollowupBookingAnswer;
+  receiptDeliveryState: ExamRequestTelegramFollowupReceiptDeliveryState;
+  bookingDeliveryState: ExamRequestTelegramFollowupBookingDeliveryState;
+  receiptAckState: ExamRequestTelegramFollowupReceiptAckState;
+  bookingAckState: ExamRequestTelegramFollowupBookingAckState;
+  teamAlertState: ExamRequestTelegramFollowupTeamAlertState;
+  /** @nullable */
+  closeReason: string | null;
+  requiresReview: boolean;
+  createdAt: string;
+  /** @nullable */
+  closedAt: string | null;
+}
+
 export interface ExamRequestHistory {
   documents: ExamRequestHistoryDocument[];
   /** @nullable */
   nextOffset: number | null;
   dispatches: ExamRequestDispatchRecord[];
   pendingOperations: ExamRequestPendingOperation[];
+  followups: ExamRequestTelegramFollowup[];
+}
+
+export type ExamRequestFollowupCloseInputReason =
+  (typeof ExamRequestFollowupCloseInputReason)[keyof typeof ExamRequestFollowupCloseInputReason];
+
+export const ExamRequestFollowupCloseInputReason = {
+  pedido_cancelado: "pedido_cancelado",
+  cliente_resolveu: "cliente_resolveu",
+  encerrado_pela_equipe: "encerrado_pela_equipe",
+} as const;
+
+export interface ExamRequestFollowupCloseInput {
+  reason: ExamRequestFollowupCloseInputReason;
+}
+
+export interface TelegramExamFollowupClinicConfig {
+  /** @minimum 1 */
+  empresaId: number;
+  nome: string;
+  /**
+   * @minimum 1
+   * @maximum 72
+   * @nullable
+   */
+  intervalHours: number | null;
+}
+
+export interface TelegramExamFollowupConfigList {
+  clinicas: TelegramExamFollowupClinicConfig[];
+}
+
+export interface TelegramExamFollowupConfigUpdate {
+  /** @minimum 1 */
+  empresaId: number;
+  /**
+   * @minimum 1
+   * @maximum 72
+   * @nullable
+   */
+  intervalHours: number | null;
+}
+
+export interface TelegramExamFollowupConfigSaved {
+  ok: boolean;
+  /** @minimum 1 */
+  empresaId: number;
+  /**
+   * @minimum 1
+   * @maximum 72
+   * @nullable
+   */
+  intervalHours: number | null;
 }
 
 export type ExamDocumentDispatchInputChannelsItem =

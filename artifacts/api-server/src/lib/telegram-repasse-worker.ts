@@ -8,6 +8,7 @@ import { logger } from "./logger";
 import { sendTelegram } from "./telegram";
 import { resolverChatAlerta } from "./telegram-config";
 import { repassarMensagemAoCeo, formatarCpfDisplay } from "./telegram-relay-ceo";
+import { processarAcompanhamentosExamesPendentes } from "./telegram-exam-followup-worker";
 import {
   registrarRepasse, tentarRepasse, processarRepassesVencidos, type DepsOutbox, type LinhaRepasse,
 } from "./telegram-repasse-outbox";
@@ -48,6 +49,9 @@ export async function tentarRepasseAgora(repasseId: number): Promise<void> {
 
 export async function processarRepassesPendentes(opcoes: { atendimento?: boolean } = {}) {
   const r = await processarRepassesVencidos(db, deps);
+  // Perguntas e respostas do acompanhamento de exames têm prioridade sobre a
+  // IA genérica e continuam funcionando mesmo quando essa IA está desligada.
+  await processarAcompanhamentosExamesPendentes();
   if (opcoes.atendimento === true) {
     const { processarAtendimentosPendentes } = await import("./atendimento-telegram-store");
     await processarAtendimentosPendentes();

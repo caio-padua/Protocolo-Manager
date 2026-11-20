@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../lib/atendimento-telegram-store",()=>({processarAtendimentosPendentes:mocks.atendimento}));
+vi.mock("../lib/telegram-exam-followup-worker",()=>({processarAcompanhamentosExamesPendentes:mocks.examFollowup}));
 import type { DepsOutbox, LinhaRepasse } from "../lib/telegram-repasse-outbox";
 
 const mocks = vi.hoisted(() => ({
   resolver: vi.fn(), enviar: vi.fn(), processar: vi.fn(), atendimento:vi.fn(async()=>{}),
+  examFollowup: vi.fn(async()=>{}),
 }));
 vi.mock("@workspace/db", () => ({ db: {} }));
 vi.mock("../lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn() } }));
@@ -37,6 +39,7 @@ describe("destino gravado x configuração atual do repasse", () => {
   it("destino atual igual ao gravado usa o transporte existente", async () => {
     expect(await tentativa()).toEqual({ kind: "entregue" });
     expect(mocks.enviar).toHaveBeenCalledTimes(1);
+    expect(mocks.examFollowup).toHaveBeenCalledTimes(1);
     expect(mocks.enviar.mock.calls[0][0]).toBe("22222");
     expect(mocks.atendimento).not.toHaveBeenCalled();
   });

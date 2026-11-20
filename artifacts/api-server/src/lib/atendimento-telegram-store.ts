@@ -41,6 +41,7 @@ import {
   marcarOfertaReenvioEntregue,
   marcarReenvioConcluido,
 } from "./atendimento-telegram-reenvio";
+import { cancelarAcompanhamentosDoCliente } from "./telegram-exam-followup-store";
 
 export interface ExecutorAtendimento {
   execute: (q: SQL) => Promise<{ rows: unknown[] }>;
@@ -134,6 +135,7 @@ export async function pausarParaHumano(exec: ExecutorAtendimento, clienteId: num
   await exec.execute(sql`
     INSERT INTO telegram_atendimento (cliente_id, modo, motivo, alterado_por) VALUES (${clienteId}, 'humano', ${motivo}, ${porProfissional})
     ON CONFLICT (cliente_id) DO UPDATE SET modo='humano', motivo=${motivo}, alterado_em=NOW(), alterado_por=${porProfissional}`);
+  await cancelarAcompanhamentosDoCliente(exec, clienteId, "human_takeover");
 }
 
 export async function devolverParaIA(exec: ExecutorAtendimento, clienteId: number, porProfissional: number | null): Promise<void> {
@@ -272,7 +274,7 @@ export async function atenderMensagemTelegram(e: EntradaAtendimento): Promise<vo
 
 /** Efeito condicionado ao vínculo único e à reivindicação ainda válida, na mesma instrução. */
 export async function pausarAtendimentoDuravel(e:EntradaAtendimento,motivo:string,dono:string):Promise<void>{
-      await db.execute(sql`INSERT INTO telegram_atendimento (cliente_id,modo,motivo)
+      const pausa = await db.execute(sql`INSERT INTO telegram_atendimento (cliente_id,modo,motivo)
         SELECT id,'humano',${motivo} FROM clients WHERE id=${e.clienteId} AND empresa_id=${e.empresaId}
           AND telegram_chat_id=${e.chatId}
           AND NOT EXISTS(SELECT 1 FROM clients outra WHERE outra.telegram_chat_id=${e.chatId} AND outra.id<>${e.clienteId})
@@ -280,7 +282,11 @@ export async function pausarAtendimentoDuravel(e:EntradaAtendimento,motivo:strin
             AND estado='processando' AND dono=${dono} AND atualizado_em>=NOW()-interval '5 minutes')
         ON CONFLICT (cliente_id) DO UPDATE
         SET modo='humano',motivo=${motivo},alterado_em=NOW(),alterado_por=NULL
-        WHERE telegram_atendimento.modo='ia'`);
+        WHERE telegram_atendimento.modo='ia'
+        RETURNING cliente_id`);
+      if (pausa.rows.length) {
+        await cancelarAcompanhamentosDoCliente(db, e.clienteId, "human_takeover");
+      }
 }
 
 /** Executado no mesmo tick do outbox, sem cron adicional. */

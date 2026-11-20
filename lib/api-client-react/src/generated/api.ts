@@ -128,6 +128,7 @@ import type {
   ExamDocumentDispatchInput,
   ExamDocumentDispatchResult,
   ExamRequestEmitBody,
+  ExamRequestFollowupCloseInput,
   ExamRequestHistory,
   FinancialGoal,
   FinancialGoalInput,
@@ -224,6 +225,9 @@ import type {
   TelegramClientAtendimentoStatus,
   TelegramClientAtendimentoUpdate,
   TelegramClientAtendimentoUpdated,
+  TelegramExamFollowupConfigList,
+  TelegramExamFollowupConfigSaved,
+  TelegramExamFollowupConfigUpdate,
   TelegramInboxResponse,
   UpdateAgendaResourceBody,
   UpdateAgendaSettingsBody,
@@ -533,6 +537,178 @@ export const useUpdateClientTelegramAtendimento = <
 > => {
   return useMutation(
     getUpdateClientTelegramAtendimentoMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Listar o intervalo de acompanhamento de exames por clínica
+ */
+export const getListTelegramExamFollowupConfigUrl = () => {
+  return `/api/telegram-inbox/exam-followups/config`;
+};
+
+export const listTelegramExamFollowupConfig = async (
+  options?: RequestInit,
+): Promise<TelegramExamFollowupConfigList> => {
+  return customFetch<TelegramExamFollowupConfigList>(
+    getListTelegramExamFollowupConfigUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListTelegramExamFollowupConfigQueryKey = () => {
+  return [`/api/telegram-inbox/exam-followups/config`] as const;
+};
+
+export const getListTelegramExamFollowupConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTelegramExamFollowupConfig>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listTelegramExamFollowupConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListTelegramExamFollowupConfigQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listTelegramExamFollowupConfig>>
+  > = ({ signal }) =>
+    listTelegramExamFollowupConfig({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listTelegramExamFollowupConfig>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListTelegramExamFollowupConfigQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTelegramExamFollowupConfig>>
+>;
+export type ListTelegramExamFollowupConfigQueryError = ErrorType<void>;
+
+/**
+ * @summary Listar o intervalo de acompanhamento de exames por clínica
+ */
+
+export function useListTelegramExamFollowupConfig<
+  TData = Awaited<ReturnType<typeof listTelegramExamFollowupConfig>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listTelegramExamFollowupConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListTelegramExamFollowupConfigQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Configurar ou desativar o acompanhamento de exames
+ */
+export const getUpdateTelegramExamFollowupConfigUrl = () => {
+  return `/api/telegram-inbox/exam-followups/config`;
+};
+
+export const updateTelegramExamFollowupConfig = async (
+  telegramExamFollowupConfigUpdate: TelegramExamFollowupConfigUpdate,
+  options?: RequestInit,
+): Promise<TelegramExamFollowupConfigSaved> => {
+  return customFetch<TelegramExamFollowupConfigSaved>(
+    getUpdateTelegramExamFollowupConfigUrl(),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(telegramExamFollowupConfigUpdate),
+    },
+  );
+};
+
+export const getUpdateTelegramExamFollowupConfigMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTelegramExamFollowupConfig>>,
+    TError,
+    { data: BodyType<TelegramExamFollowupConfigUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateTelegramExamFollowupConfig>>,
+  TError,
+  { data: BodyType<TelegramExamFollowupConfigUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateTelegramExamFollowupConfig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateTelegramExamFollowupConfig>>,
+    { data: BodyType<TelegramExamFollowupConfigUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateTelegramExamFollowupConfig(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateTelegramExamFollowupConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateTelegramExamFollowupConfig>>
+>;
+export type UpdateTelegramExamFollowupConfigMutationBody =
+  BodyType<TelegramExamFollowupConfigUpdate>;
+export type UpdateTelegramExamFollowupConfigMutationError = ErrorType<void>;
+
+/**
+ * @summary Configurar ou desativar o acompanhamento de exames
+ */
+export const useUpdateTelegramExamFollowupConfig = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTelegramExamFollowupConfig>>,
+    TError,
+    { data: BodyType<TelegramExamFollowupConfigUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateTelegramExamFollowupConfig>>,
+  TError,
+  { data: BodyType<TelegramExamFollowupConfigUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateTelegramExamFollowupConfigMutationOptions(options),
   );
 };
 
@@ -2857,6 +3033,128 @@ export function useGetExamRequestHistory<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Encerrar um acompanhamento de exames sem alterar o pedido original
+ */
+export const getCloseExamRequestTelegramFollowupUrl = (
+  clientId: number,
+  followupId: number,
+) => {
+  return `/api/exam-requests/${clientId}/followups/${followupId}/close`;
+};
+
+export const closeExamRequestTelegramFollowup = async (
+  clientId: number,
+  followupId: number,
+  examRequestFollowupCloseInput: ExamRequestFollowupCloseInput,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(
+    getCloseExamRequestTelegramFollowupUrl(clientId, followupId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(examRequestFollowupCloseInput),
+    },
+  );
+};
+
+export const getCloseExamRequestTelegramFollowupMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof closeExamRequestTelegramFollowup>>,
+    TError,
+    {
+      clientId: number;
+      followupId: number;
+      data: BodyType<ExamRequestFollowupCloseInput>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof closeExamRequestTelegramFollowup>>,
+  TError,
+  {
+    clientId: number;
+    followupId: number;
+    data: BodyType<ExamRequestFollowupCloseInput>;
+  },
+  TContext
+> => {
+  const mutationKey = ["closeExamRequestTelegramFollowup"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof closeExamRequestTelegramFollowup>>,
+    {
+      clientId: number;
+      followupId: number;
+      data: BodyType<ExamRequestFollowupCloseInput>;
+    }
+  > = (props) => {
+    const { clientId, followupId, data } = props ?? {};
+
+    return closeExamRequestTelegramFollowup(
+      clientId,
+      followupId,
+      data,
+      requestOptions,
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CloseExamRequestTelegramFollowupMutationResult = NonNullable<
+  Awaited<ReturnType<typeof closeExamRequestTelegramFollowup>>
+>;
+export type CloseExamRequestTelegramFollowupMutationBody =
+  BodyType<ExamRequestFollowupCloseInput>;
+export type CloseExamRequestTelegramFollowupMutationError = ErrorType<void>;
+
+/**
+ * @summary Encerrar um acompanhamento de exames sem alterar o pedido original
+ */
+export const useCloseExamRequestTelegramFollowup = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof closeExamRequestTelegramFollowup>>,
+    TError,
+    {
+      clientId: number;
+      followupId: number;
+      data: BodyType<ExamRequestFollowupCloseInput>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof closeExamRequestTelegramFollowup>>,
+  TError,
+  {
+    clientId: number;
+    followupId: number;
+    data: BodyType<ExamRequestFollowupCloseInput>;
+  },
+  TContext
+> => {
+  return useMutation(
+    getCloseExamRequestTelegramFollowupMutationOptions(options),
+  );
+};
 
 /**
  * @summary Confirmar envio dos documentos existentes sem gerar novamente

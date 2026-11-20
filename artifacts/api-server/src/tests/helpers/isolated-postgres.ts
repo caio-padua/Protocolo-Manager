@@ -22,9 +22,12 @@ export async function isolatedPostgres() {
   const { Pool } = require("pg");
   const pool = new Pool({ host: "127.0.0.1", port, user: "synthetic", database: "postgres" });
   const migration = readFileSync(new URL("../../../../../scripts/migrations/exam-request-dispatch-operations.sql", import.meta.url), "utf8");
+  const followupMigration = readFileSync(new URL("../../../../../scripts/migrations/telegram-exam-followups.sql", import.meta.url), "utf8");
   await pool.query(migration);
+  await pool.query(followupMigration);
   // Verify additive migration is repeatable.
   await pool.query(migration);
+  await pool.query(followupMigration);
   const dialect = new PgDialect();
   return {
     // Only this disposable local cluster is passed to subprocess tests.

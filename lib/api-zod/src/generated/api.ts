@@ -93,6 +93,53 @@ export const UpdateClientTelegramAtendimentoResponse = zod.object({
   autorizado: zod.boolean(),
 });
 
+/**
+ * @summary Listar o intervalo de acompanhamento de exames por clínica
+ */
+
+export const listTelegramExamFollowupConfigResponseClinicasItemIntervalHoursMax = 72;
+
+export const ListTelegramExamFollowupConfigResponse = zod.object({
+  clinicas: zod.array(
+    zod.object({
+      empresaId: zod.number().min(1),
+      nome: zod.string(),
+      intervalHours: zod
+        .number()
+        .min(1)
+        .max(listTelegramExamFollowupConfigResponseClinicasItemIntervalHoursMax)
+        .nullable(),
+    }),
+  ),
+});
+
+/**
+ * @summary Configurar ou desativar o acompanhamento de exames
+ */
+
+export const updateTelegramExamFollowupConfigBodyIntervalHoursMax = 72;
+
+export const UpdateTelegramExamFollowupConfigBody = zod.object({
+  empresaId: zod.number().min(1),
+  intervalHours: zod
+    .number()
+    .min(1)
+    .max(updateTelegramExamFollowupConfigBodyIntervalHoursMax)
+    .nullable(),
+});
+
+export const updateTelegramExamFollowupConfigResponseIntervalHoursMax = 72;
+
+export const UpdateTelegramExamFollowupConfigResponse = zod.object({
+  ok: zod.literal(true),
+  empresaId: zod.number().min(1),
+  intervalHours: zod
+    .number()
+    .min(1)
+    .max(updateTelegramExamFollowupConfigResponseIntervalHoursMax)
+    .nullable(),
+});
+
 export const getMensageriaCreditoResponseSaldoCentavosMin = 0;
 
 export const getMensageriaCreditoResponseMensagensAguardandoRetomadaMin = 0;
@@ -1072,6 +1119,8 @@ export const GetExamRequestHistoryQueryParams = zod.object({
     .default(getExamRequestHistoryQueryOffsetDefault),
 });
 
+export const getExamRequestHistoryResponseFollowupsItemIntervalHoursMax = 72;
+
 export const GetExamRequestHistoryResponse = zod.object({
   documents: zod.array(
     zod.object({
@@ -1110,6 +1159,112 @@ export const GetExamRequestHistoryResponse = zod.object({
       ),
     }),
   ),
+  followups: zod.array(
+    zod.object({
+      id: zod.number(),
+      state: zod.enum([
+        "awaiting_dispatch",
+        "receipt_pending",
+        "receipt_sending",
+        "receipt_waiting",
+        "booking_pending",
+        "booking_sending",
+        "booking_waiting",
+        "completed",
+        "closed",
+        "cancelled",
+        "needs_review",
+      ]),
+      intervalHours: zod
+        .number()
+        .min(1)
+        .max(getExamRequestHistoryResponseFollowupsItemIntervalHoursMax),
+      providerAcceptedAt: zod.coerce.date().nullable(),
+      receiptDueAt: zod.coerce.date().nullable(),
+      bookingDueAt: zod.coerce.date().nullable(),
+      receiptSentAt: zod.coerce.date().nullable(),
+      bookingSentAt: zod.coerce.date().nullable(),
+      receiptAnswer: zod
+        .union([
+          zod.literal("received"),
+          zod.literal("not_received"),
+          zod.literal("help"),
+          zod.literal("ambiguous"),
+          zod.literal(null),
+        ])
+        .nullable(),
+      bookingAnswer: zod
+        .union([
+          zod.literal("booked"),
+          zod.literal("not_booked"),
+          zod.literal("help"),
+          zod.literal("ambiguous"),
+          zod.literal(null),
+        ])
+        .nullable(),
+      receiptDeliveryState: zod.enum([
+        "not_sent",
+        "sending",
+        "accepted",
+        "simulated",
+        "failed",
+        "unknown",
+      ]),
+      bookingDeliveryState: zod.enum([
+        "not_sent",
+        "sending",
+        "accepted",
+        "simulated",
+        "failed",
+        "unknown",
+      ]),
+      receiptAckState: zod.enum([
+        "not_sent",
+        "sending",
+        "accepted",
+        "simulated",
+        "failed",
+        "unknown",
+      ]),
+      bookingAckState: zod.enum([
+        "not_sent",
+        "sending",
+        "accepted",
+        "simulated",
+        "failed",
+        "unknown",
+      ]),
+      teamAlertState: zod.enum([
+        "not_needed",
+        "sending",
+        "accepted",
+        "simulated",
+        "failed",
+        "unknown",
+      ]),
+      closeReason: zod.string().nullable(),
+      requiresReview: zod.boolean(),
+      createdAt: zod.coerce.date(),
+      closedAt: zod.coerce.date().nullable(),
+    }),
+  ),
+});
+
+/**
+ * @summary Encerrar um acompanhamento de exames sem alterar o pedido original
+ */
+
+export const CloseExamRequestTelegramFollowupParams = zod.object({
+  clientId: zod.coerce.number().min(1),
+  followupId: zod.coerce.number().min(1),
+});
+
+export const CloseExamRequestTelegramFollowupBody = zod.object({
+  reason: zod.enum([
+    "pedido_cancelado",
+    "cliente_resolveu",
+    "encerrado_pela_equipe",
+  ]),
 });
 
 /**

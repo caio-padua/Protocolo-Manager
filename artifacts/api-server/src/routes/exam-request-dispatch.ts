@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { z } from "zod";
 import { db, clientsTable, collaboratorAuditTable, examRequestPdfsTable } from "@workspace/db";
 import { GetExamRequestHistoryResponse, SendExamRequestDocumentsBody } from "@workspace/api-zod";
 import { requireCollaborator } from "./collaborator";
@@ -11,6 +12,16 @@ import {
   DispatchKeyConflict, findDispatchOperation, reserveDispatchOperation, saveDispatchOperation,
   dispatchOperationResponse, type DispatchScope, type ChannelResult,
 } from "../lib/exam-dispatch-operation";
+import {
+  ativarAcompanhamentoExame,
+  marcarAcompanhamentoIncerto,
+  encerrarReservaNaoAceita,
+  lerIntervaloAcompanhamentoExame,
+  listarAcompanhamentosExame,
+  reservarAcompanhamentoExame,
+  encerrarAcompanhamentoExame,
+} from "../lib/telegram-exam-followup-store";
+import { brtNow } from "../lib/brt";
 
 const router = Router();
 const labels: Record<string, string> = { SANGUE: "Sangue / Laboratorial", IMAGEM: "Imagem", OUTROS: "Outros / Procedimentos" };
@@ -54,6 +65,10 @@ router.get("/exam-requests/:clientId/history", requireCollaborator, async (req, 
       sql`${collaboratorAuditTable.detail}->>'clientId' = ${String(identity.client.id)}`,
       sql`${collaboratorAuditTable.detail}->>'empresaId' = ${String(identity.clinic.empresaId)}`,
     )).orderBy(desc(collaboratorAuditTable.createdAt), desc(collaboratorAuditTable.id)).limit(20);
+    const followups = await listarAcompanhamentosExame(db, {
+      empresaId: identity.clinic.empresaId,
+      clienteId: identity.client.id,
+    });
     // Reservation metadata survives a stop even before the first audit insert.
     // Legacy rows are visible only when an audit proves the same clinical scope.
     const pending = await db.execute(sql`
@@ -92,9 +107,45 @@ router.get("/exam-requests/:clientId/history", requireCollaborator, async (req, 
         return { id: row.id, createdAt: row.createdAt, channel: detail.channel ?? "—",
           state: detail.state ?? "unknown", documentIds: detail.documentIds ?? [] };
       }),
+      followups,
     }));
   } catch (error) {
     if (error instanceof ClinicalIdentityError) { res.status(error.status).json({ error: error.message }); return; }
+    throw error;
+  }
+});
+
+router.post("/exam-requests/:clientId/followups/:followupId/close", requireCollaborator, async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const clientId = Number(req.params.clientId);
+  const followupId = Number(req.params.followupId);
+  const parsed = z.object({
+    reason: z.enum(["pedido_cancelado", "cliente_resolveu", "encerrado_pela_equipe"]),
+  }).strict().safeParse(req.body);
+  if (!Number.isSafeInteger(clientId) || clientId <= 0 ||
+      !Number.isSafeInteger(followupId) || followupId <= 0 || !parsed.success) {
+    res.status(400).json({ error: "Informe o acompanhamento e o motivo do encerramento." });
+    return;
+  }
+  try {
+    const identity = await resolveClinicalEmitter(req, clientId);
+    const closed = await encerrarAcompanhamentoExame(db, {
+      id: followupId,
+      empresaId: identity.clinic.empresaId,
+      clienteId: identity.client.id,
+      professionalId: identity.professional.id,
+      reason: parsed.data.reason,
+    });
+    if (!closed) {
+      res.status(404).json({ error: "Acompanhamento ativo não encontrado para este cliente." });
+      return;
+    }
+    res.json({ ok: true, followupId, state: "closed", reason: parsed.data.reason });
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
     throw error;
   }
 });
@@ -129,6 +180,9 @@ router.post("/exam-requests/send", requireCollaborator, async (req, res) => {
       .from(clientsTable).where(eq(clientsTable.id, identity.client.id)).limit(1);
     const destination = { email: identity.client.email, telefone: identity.client.phone,
       telegramChatId: telegram?.telegramChatId, nome: identity.client.name };
+    const followupHours = channels.includes("TELEGRAM")
+      ? await lerIntervaloAcompanhamentoExame(identity.clinic.empresaId)
+      : null;
     const missing = channels.filter(channel =>
       channel === "EMAIL" ? !destination.email : channel === "WHATSAPP" ? !destination.telefone : !destination.telegramChatId);
     if (missing.length) {
@@ -154,13 +208,27 @@ router.post("/exam-requests/send", requireCollaborator, async (req, res) => {
       professionalId: identity.professional.id, action: "exam_request_dispatch", method: "POST",
       path: "/exam-requests/send",
       detail: { clientId: identity.client.id, empresaId: identity.clinic.empresaId, clinicId: identity.clinic.id,
-        documentIds, channel, state: "requested", traceId: req.id, operationKey: scope.operationKey },
+         documentIds, channel, state: "requested", traceId: req.id, operationKey: scope.operationKey,
+         ...(channel === "TELEGRAM" && followupHours !== null ? { followupIntervalHours: followupHours } : {}) },
     }))).returning({ id: collaboratorAuditTable.id, detail: collaboratorAuditTable.detail });
     const reservations = channels.map(channel => {
       const audit = audits.find(a => (a.detail as { channel?: string })?.channel === channel);
       if (!audit) throw new Error("Não foi possível registrar o envio.");
       return { channel, audit };
     });
+    if (followupHours !== null) {
+      const telegramReservation = reservations.find(({ channel }) => channel === "TELEGRAM");
+      if (telegramReservation) {
+        await reservarAcompanhamentoExame(db, {
+          auditId: telegramReservation.audit.id,
+          empresaId: identity.clinic.empresaId,
+          clienteId: identity.client.id,
+          chatId: destination.telegramChatId!,
+          operationKey: scope.operationKey,
+          intervalHours: followupHours,
+        });
+      }
+    }
     let needsReview = false;
     for (const { channel, audit } of reservations) {
       let success = false;
@@ -191,14 +259,30 @@ router.post("/exam-requests/send", requireCollaborator, async (req, res) => {
       }
       if (!success && acceptedMessages) error = `${acceptedMessages} de ${batches.length} mensagens aceitas; não reenvie o lote inteiro sem conferir.`;
       if (state === "unknown" || (!success && acceptedMessages > 0)) needsReview = true;
+      const acceptedAt = success ? brtNow() : null;
       try {
         await db.update(collaboratorAuditTable).set({
-          detail: { ...(audit.detail as object), state, acceptedMessages, plannedMessages: batches.length },
+          detail: {
+            ...(audit.detail as object), state, acceptedMessages, plannedMessages: batches.length,
+            ...(acceptedAt ? { providerAcceptedAt: acceptedAt.toISOString() } : {}),
+          },
         }).where(eq(collaboratorAuditTable.id, audit.id));
+        if (channel === "TELEGRAM" && followupHours !== null) {
+          if (success && acceptedAt) {
+            await ativarAcompanhamentoExame(db, audit.id, acceptedAt, followupHours);
+          } else if (state === "unknown") {
+            await marcarAcompanhamentoIncerto(db, audit.id, "dispatch_outcome_uncertain");
+          } else {
+            await encerrarReservaNaoAceita(db, audit.id);
+          }
+        }
       } catch {
         success = false;
         error = "Resultado sem confirmação de auditoria; não repita automaticamente.";
         needsReview = true;
+        if (channel === "TELEGRAM" && followupHours !== null) {
+          await marcarAcompanhamentoIncerto(db, audit.id, "dispatch_audit_not_confirmed").catch(() => undefined);
+        }
       }
       results.push({ channel, success, auditId: audit.id, ...(error ? { error } : {}) });
       // Preserve completed channels if a later provider call or process stops.

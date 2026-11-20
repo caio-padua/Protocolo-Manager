@@ -8,6 +8,7 @@
 import type { ExamRequestDispatchRecord } from "./examRequestDispatchRecord";
 import type { ExamRequestHistoryDocument } from "./examRequestHistoryDocument";
 import type { ExamRequestPendingOperation } from "./examRequestPendingOperation";
+import type { ExamRequestTelegramFollowup } from "./examRequestTelegramFollowup";
 
 export interface ExamRequestHistory {
   documents: ExamRequestHistoryDocument[];
@@ -15,4 +16,5 @@ export interface ExamRequestHistory {
   nextOffset: number | null;
   dispatches: ExamRequestDispatchRecord[];
   pendingOperations: ExamRequestPendingOperation[];
+  followups: ExamRequestTelegramFollowup[];
 }

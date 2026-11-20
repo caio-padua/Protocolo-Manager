@@ -25,13 +25,21 @@ import {
   clientsTable,
   telegramInboxTable,
   appSettingsTable,
+  empresasTable,
 } from "@workspace/db";
-import { eq, and, desc, isNull, sql } from "drizzle-orm";
+import { eq, and, desc, isNull, asc, sql } from "drizzle-orm";
 import { requireCollaborator } from "./collaborator";
 import { requireMessageClinic } from "../middleware/messageClinic";
 import { requireCeoInstance, requirePlatformOwner } from "../middleware/tenantContext";
 import { vinculoTelegramAtualUnico } from "../lib/telegram-vinculo-atual";
 import { podeAtenderAutomatico } from "../lib/mensageria-credito";
+import {
+  cancelarAcompanhamentosDaClinica,
+  chaveIntervaloAcompanhamentoExame,
+  lerIntervaloAcompanhamentoExame,
+} from "../lib/telegram-exam-followup-store";
+import { isValidExamFollowupHours } from "../lib/telegram-exam-followup-state";
+import { setSetting } from "../lib/secure-settings";
 import {
   obterBadge,
   listarInbox,
@@ -495,6 +503,59 @@ inboxRouter.put("/telegram-inbox/atendimento-modo", requireCollaborator, require
   });
   console.info(`[atendimento-ia] modo alterado para ${modo} por profissional ${req.collaborator?.professionalId}`);
   res.json({ ok: true, modo });
+});
+
+inboxRouter.get("/telegram-inbox/exam-followups/config", requireCollaborator, requireCeoInstance, async (_req, res): Promise<void> => {
+  const companies = await db.select({
+    empresaId: empresasTable.id,
+    nome: empresasTable.nome,
+  }).from(empresasTable).where(and(
+    eq(empresasTable.ativa, true),
+    eq(empresasTable.status, "ATIVO"),
+    eq(empresasTable.tipo, "clinic"),
+  )).orderBy(asc(empresasTable.nome));
+  const intervals = await Promise.all(companies.map(async (company) => ({
+    empresaId: company.empresaId,
+    intervalHours: await lerIntervaloAcompanhamentoExame(company.empresaId),
+  })));
+  const byCompany = new Map(intervals.map((item) => [item.empresaId, item.intervalHours]));
+  res.setHeader("Cache-Control", "no-store");
+  res.json({
+    clinicas: companies.map((company) => ({
+      empresaId: company.empresaId,
+      nome: company.nome,
+      intervalHours: byCompany.get(company.empresaId) ?? null,
+    })),
+  });
+});
+
+inboxRouter.put("/telegram-inbox/exam-followups/config", requireCollaborator, requireCeoInstance, async (req, res): Promise<void> => {
+  const empresaId = Number(req.body?.empresaId);
+  const intervalHours: unknown = req.body?.intervalHours;
+  if (!Number.isSafeInteger(empresaId) || empresaId <= 0 ||
+      !(intervalHours === null || isValidExamFollowupHours(intervalHours))) {
+    res.status(400).json({ error: "Informe uma clínica e um intervalo entre 1 e 72 horas, ou desative o acompanhamento." });
+    return;
+  }
+  const [company] = await db.select({ id: empresasTable.id }).from(empresasTable).where(and(
+    eq(empresasTable.id, empresaId),
+    eq(empresasTable.ativa, true),
+    eq(empresasTable.status, "ATIVO"),
+    eq(empresasTable.tipo, "clinic"),
+  )).limit(1);
+  if (!company) {
+    res.status(404).json({ error: "Clínica ativa não encontrada." });
+    return;
+  }
+  await setSetting(
+    chaveIntervaloAcompanhamentoExame(empresaId),
+    intervalHours === null ? "off" : String(intervalHours),
+  );
+  if (intervalHours === null) {
+    await cancelarAcompanhamentosDaClinica(db, empresaId, "clinic_disabled");
+  }
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ ok: true, empresaId, intervalHours });
 });
 
 // Frases do assistente de agendamento (cadastradas no banco; texto editavel pelo CEO).
