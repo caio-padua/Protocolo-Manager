@@ -211,6 +211,14 @@ export function SegundasVias() {
     try {
       const eligibilityOverride = reviewEligibility[item.id];
       const reason = reviewReasons[item.id]?.trim();
+      if (item.eligibility_status === "human_review") {
+        await jsonRequest(`/pedidos-medicos/segunda-via/${encodeURIComponent(item.id)}/resolver-revisao`, {
+          method: "POST",
+          body: JSON.stringify({ resolution: eligibilityOverride, reason }),
+        });
+        await load();
+        return;
+      }
       await jsonRequest(`/pedidos-medicos/segunda-via/${encodeURIComponent(item.id)}/aprovar`, {
         method: "POST",
         body: JSON.stringify({
@@ -453,7 +461,9 @@ export function SegundasVias() {
                           (!reviewEligibility[item.id] || (reviewReasons[item.id] ?? "").trim().length < 10))}
                         onClick={() => void approve(item)}
                         className="btn-3d h-9 px-4 text-xs font-black uppercase tracking-wider disabled:opacity-40">
-                        Validar e liberar pelo Telegram
+                        {item.eligibility_status === "human_review"
+                          ? "Registrar conferência e pedir confirmação ao cliente"
+                          : "Validar e liberar pelo Telegram"}
                       </button>
                       <button type="button" disabled={busy || (refusalReasons[item.id] ?? "").trim().length < 5}
                         onClick={() => void refuse(item.id)}

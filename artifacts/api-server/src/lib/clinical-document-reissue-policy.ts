@@ -194,7 +194,9 @@ export async function createReissueRequest(
 
   if (document) {
     const bytes = typeof document.pdfData === "string" ? Buffer.from(document.pdfData, "base64") : Buffer.alloc(0);
-    if (document.clientId !== input.clientId || document.empresaId !== input.empresaId ||
+    if (document.empresaId === null || document.locationId === null) {
+      originalFailure = "O documento não tem a clínica e a unidade de emissão registradas; exige conferência humana.";
+    } else if (document.clientId !== input.clientId || document.empresaId !== input.empresaId ||
         document.locationId !== input.locationId) {
       originalFailure = "O documento não pertence ao cliente e à clínica desta solicitação.";
     } else if (document.status !== "emitted" ||
@@ -333,7 +335,7 @@ export async function confirmClinicalDocumentReissueRequest(input: {
            client_confirmation_inbox_id = COALESCE(client_confirmation_inbox_id, ${input.confirmationMessageId}),
            request_status = CASE
              WHEN eligibility_status IN ('free_treatment','free_member') AND document_pdf_sha256 IS NOT NULL
-               THEN CASE WHEN require_human_review THEN 'awaiting_review' ELSE 'approved' END
+               THEN CASE WHEN require_human_review AND review_resolved_at IS NULL THEN 'awaiting_review' ELSE 'approved' END
              WHEN eligibility_status = 'fee_required' AND document_pdf_sha256 IS NOT NULL
                   AND ${policy.feeCollectionEnabled}
                THEN 'awaiting_payment'

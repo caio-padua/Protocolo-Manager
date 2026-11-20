@@ -680,13 +680,13 @@ router.post("/asaas/webhook", async (req, res): Promise<void> => {
     }
 
     const reissueHit = await db.execute(sql`SELECT r.id,r.client_id,r.empresa_id,r.fee_amount,
-        r.require_human_review,r.request_status,c.asaas_customer_id
+        r.require_human_review,r.review_resolved_at,r.request_status,c.asaas_customer_id
       FROM clinical_document_reissue_requests r
       JOIN clients c ON c.id=r.client_id
       WHERE r.asaas_charge_id=${String(payment.id)} LIMIT 1`);
     const reissue = reissueHit.rows[0] as {
       id: number | string; client_id: number | string; empresa_id: number | string;
-      fee_amount: number | string | null; require_human_review: boolean;
+      fee_amount: number | string | null; require_human_review: boolean; review_resolved_at: string | Date | null;
       request_status: string; asaas_customer_id: string | null;
     } | undefined;
     if (reissue) {
@@ -727,13 +727,13 @@ router.post("/asaas/webhook", async (req, res): Promise<void> => {
         const paidDate = payment.paymentDate || new Date().toISOString();
         await db.execute(sql`UPDATE clinical_document_reissue_requests
           SET payment_status='paid',paid_at=${paidDate},
-              request_status=CASE WHEN require_human_review THEN 'awaiting_review' ELSE 'approved' END,
+              request_status=CASE WHEN require_human_review AND review_resolved_at IS NULL THEN 'awaiting_review' ELSE 'approved' END,
               eligibility_reason='Pagamento confirmado pelo Asaas.',
               updated_at=NOW()
           WHERE id=${reissue.id} AND request_status IN ('awaiting_payment','unknown')`);
         await db.update(paymentsTable).set({ status: "paid", paidAt: paidDate })
           .where(eq(paymentsTable.asaasChargeId, String(payment.id)));
-        if (!reissue.require_human_review) {
+        if (!reissue.require_human_review || reissue.review_resolved_at) {
           await deliverApprovedClinicalDocumentReissue(String(reissue.id)).catch((err) =>
             req.log.error({ err: String(err), requestId: String(reissue.id) }, "Entrega automática da segunda via após pagamento falhou"),
           );

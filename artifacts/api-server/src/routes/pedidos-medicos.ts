@@ -10,6 +10,7 @@ import { requireCollaborator } from "./collaborator";
 import { readReissuePolicy, recordClinicalDocumentReissueEvent } from "../lib/clinical-document-reissue-policy";
 import { deliverApprovedClinicalDocumentReissue } from "../lib/atendimento-telegram-reenvio";
 import { asaasGetCharge } from "../lib/asaas";
+import { resolveReissueReview } from "../lib/clinical-document-reissue-review";
 
 // ===========================================================================
 // FILA DO MEDICO para pedidos pagos pelo cliente. Quem age e sempre um medico
@@ -501,6 +502,31 @@ router.post("/pedidos-medicos/segunda-via/:id/verificar-pagamento", requireColla
     req.log.error({ err: String(err), requestId: id }, "Falha na conferência de pagamento da segunda via");
     res.status(502).json({ error: "Não foi possível consultar o Asaas agora; nenhuma liberação foi feita." });
   }
+});
+
+router.post("/pedidos-medicos/segunda-via/:id/resolver-revisao", requireCollaborator, async (req, res): Promise<void> => {
+  const actor = await requirePolicyOwner(req, res);
+  if (!actor) return;
+  const id = Number(req.params.id);
+  const body = z.object({
+    resolution: z.enum(["free_treatment", "fee_required"]),
+    reason: z.string().trim().min(10).max(500),
+  }).strict().safeParse(req.body);
+  if (!Number.isSafeInteger(id) || id <= 0 || !body.success) {
+    res.status(400).json({ error: "Informe o resultado da conferência e o motivo (mínimo de 10 caracteres)." });
+    return;
+  }
+  const result = await resolveReissueReview({
+    requestId: id,
+    actorProfessionalId: actor,
+    resolution: body.data.resolution,
+    reason: body.data.reason,
+  });
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  res.json({ id, status: result.status, feeAmount: result.feeAmount });
 });
 
 router.post("/pedidos-medicos/segunda-via/:id/recusar", requireCollaborator, async (req, res): Promise<void> => {

@@ -128,6 +128,20 @@ export async function listIssuedDocumentsForClient(input: {
     .slice(0, 200);
 }
 
+
+type IssueScopeTable = "prescriptions" | "exam_request_pdfs" | "medical_certificates" | "referrals";
+
+/** Clínica/unidade gravadas na emissão. Nulo = documento antigo sem escopo verificável. */
+async function readIssueScope(table: IssueScopeTable, id: number) {
+  const result = await db.execute(sql.raw(
+    `SELECT issued_empresa_id, issued_location_id FROM ${table} WHERE id = ${Number(id)} LIMIT 1`,
+  ));
+  const row = result.rows[0] as { issued_empresa_id: number | null; issued_location_id: number | null } | undefined;
+  const empresaId = row?.issued_empresa_id ?? null;
+  const locationId = row?.issued_location_id ?? null;
+  return empresaId && locationId ? { empresaId, locationId } : { empresaId: null, locationId: null };
+}
+
 export async function getIssuedDocument(type: ClinicalDocumentType, documentId: number) {
   if (type === "protocolo" || type === "ras_fap" || type === "carta_tratamento") {
     const archived = await getArchivedClinicalDocument(type, documentId);
@@ -190,10 +204,7 @@ export async function getIssuedDocument(type: ClinicalDocumentType, documentId: 
     const [prescription] = await db.select().from(prescriptionsTable)
       .where(eq(prescriptionsTable.id, recipe.prescriptionId)).limit(1);
     if (!prescription) return null;
-    const [client] = prescription.clientId
-      ? await db.select({ locationId: clientsTable.locationId })
-        .from(clientsTable).where(eq(clientsTable.id, prescription.clientId)).limit(1)
-      : [];
+    const scope = await readIssueScope("prescriptions", prescription.id);
     return {
       id: recipe.id,
       clientId: prescription.clientId,
@@ -205,55 +216,48 @@ export async function getIssuedDocument(type: ClinicalDocumentType, documentId: 
       pdfData: recipe.pdfData,
       fileName: recipe.fileName,
       label: recipe.title || "Receita",
-      empresaId: prescription.empresaId,
-      locationId: client?.locationId ?? null,
+      empresaId: scope.empresaId,
+      locationId: scope.locationId,
     };
   }
   if (type === "pedido_exames") {
     const [row] = await db.select().from(examRequestPdfsTable)
       .where(eq(examRequestPdfsTable.id, documentId)).limit(1);
     if (!row) return null;
-    const [client] = await db.select({ empresaId: clientsTable.empresaId, locationId: clientsTable.locationId })
-      .from(clientsTable).where(eq(clientsTable.id, row.clientId)).limit(1);
+    const scope = await readIssueScope("exam_request_pdfs", row.id);
     return {
       id: row.id, clientId: row.clientId, professionalId: row.professionalId,
       status: "emitted", signatureStatus: "not_required", issuedAt: issuedDate(row.createdAt),
       pdfData: row.pdfData, fileName: row.fileName,
       label: `Pedido de exames — ${row.fileName}`,
-      empresaId: client?.empresaId ?? null,
-      locationId: client?.locationId ?? null,
+      empresaId: scope.empresaId,
+      locationId: scope.locationId,
     };
   }
   if (type === "atestado") {
     const [row] = await db.select().from(medicalCertificatesTable)
       .where(eq(medicalCertificatesTable.id, documentId)).limit(1);
     if (!row) return null;
-    const [client] = row.clientId
-      ? await db.select({ empresaId: clientsTable.empresaId, locationId: clientsTable.locationId })
-        .from(clientsTable).where(eq(clientsTable.id, row.clientId)).limit(1)
-      : [];
+    const scope = await readIssueScope("medical_certificates", row.id);
     return {
       id: row.id, clientId: row.clientId, professionalId: row.professionalId, status: row.status,
       signatureStatus: "not_required", issuedAt: issuedDate(row.emittedAt),
       pdfData: row.pdfData, fileName: row.fileName,
       label: `Atestado${row.tipo ? ` — ${row.tipo}` : ""}`,
-      empresaId: client?.empresaId ?? null,
-      locationId: client?.locationId ?? null,
+      empresaId: scope.empresaId,
+      locationId: scope.locationId,
     };
   }
   const [row] = await db.select().from(referralsTable)
     .where(eq(referralsTable.id, documentId)).limit(1);
   if (!row) return null;
-  const [client] = row.clientId
-    ? await db.select({ empresaId: clientsTable.empresaId, locationId: clientsTable.locationId })
-      .from(clientsTable).where(eq(clientsTable.id, row.clientId)).limit(1)
-    : [];
+  const scope = await readIssueScope("referrals", row.id);
   return {
     id: row.id, clientId: row.clientId, professionalId: row.professionalId, status: row.status,
     signatureStatus: "not_required", issuedAt: issuedDate(row.emittedAt),
     pdfData: row.pdfData, fileName: row.fileName,
     label: `Encaminhamento${row.especialidadeDestino ? ` — ${row.especialidadeDestino}` : ""}`,
-    empresaId: client?.empresaId ?? null,
-    locationId: client?.locationId ?? null,
+    empresaId: scope.empresaId,
+    locationId: scope.locationId,
   };
 }

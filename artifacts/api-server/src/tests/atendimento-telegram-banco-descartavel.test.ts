@@ -610,6 +610,173 @@ describe("política de segunda via", () => {
   });
 });
 
+describe("conferência humana, consentimento, reenvio manual e escopo de emissão", () => {
+  const baseRequest = {
+    clientId: 1, empresaId: 5, locationId: 10, documentType: "prescricao" as const,
+    documentId: 6001, requestedByChannel: "telegram" as const, clientConsent: false,
+  };
+  const entrada = (texto: string, inboxMessageId: number) => ({
+    empresaId: 5, clienteId: 1, clienteNome: "Cliente sintético", chatId: "C1", inboxMessageId, texto,
+  });
+  const limpar = async (feeEnabled: boolean, humanReview: boolean) => {
+    await pool.query("UPDATE telegram_documento_reenvios SET status='cancelado' WHERE status IN ('ofertando','oferecido','enviando')");
+    await pool.query("UPDATE protocols SET start_date='2020-01-01',end_date='2020-02-01' WHERE id=7001");
+    await pool.query(`UPDATE clinical_document_reissue_settings SET enabled=TRUE,fee_collection_enabled=$1,
+      require_human_review=$2 WHERE empresa_id=5 AND location_id=10`, [feeEnabled, humanReview]);
+    h.enviados = [];
+    h.asaasChargeCount = 0;
+    process.env.PUBLIC_BASE_URL = "https://paxmed.example";
+  };
+  const restaurar = async () => {
+    delete process.env.PUBLIC_BASE_URL;
+    await pool.query("UPDATE protocols SET start_date='2020-01-01',end_date='2099-12-31' WHERE id=7001");
+    await pool.query(`UPDATE clinical_document_reissue_settings SET enabled=TRUE,fee_collection_enabled=FALSE,
+      require_human_review=FALSE WHERE empresa_id=5 AND location_id=10`);
+    await pool.query("UPDATE telegram_documento_reenvios SET status='cancelado' WHERE status IN ('ofertando','oferecido','enviando')");
+  };
+  const confirmarPeloCliente = async (inbox: number) => {
+    const resposta = await responderSobreDocumentoTelegram(h.db, entrada("sim", inbox));
+    expect(resposta).toMatchObject({ tipo: "resposta", documento: { acao: "confirmar_reenvio" } });
+    if (resposta?.tipo !== "resposta") throw new Error("sem resposta");
+    const plano: PlanoAtendimento = {
+      pausa: null, alerta: null, resposta: resposta.texto, orientacaoId: null,
+      desfecho: resposta.desfecho, caminhoResolucao: "documento", documento: resposta.documento,
+    };
+    const e = entrada("sim", inbox);
+    expect(await autorizarConfirmacaoReenvio(h.db, e, plano)).toBe(true);
+    await pool.query(`INSERT INTO telegram_atendimento_respostas(inbox_message_id,estado,dono,etapas)
+      VALUES($1,'processando','owner-rev','{"resposta":{"estado":"enviando"}}')`, [inbox]);
+    return enviarLinkReceitaConfirmada("C1", e, plano, "owner-rev");
+  };
+
+  it("revisão humana com taxa: pede o consentimento ao cliente, cobra só depois do sim e entrega só depois do pagamento", async () => {
+    await limpar(true, true);
+    try {
+      const { createReissueRequest } = await import("../lib/clinical-document-reissue-policy");
+      const { resolveReissueReview } = await import("../lib/clinical-document-reissue-review");
+      const { deliverApprovedClinicalDocumentReissue } = await import("../lib/atendimento-telegram-reenvio");
+      const criado = await createReissueRequest({ ...baseRequest, operationKey: "00000000-0000-4000-8000-000000000201" });
+      expect(criado).toMatchObject({ status: "awaiting_review", eligibility: "human_review" });
+      expect(criado.documentHash).toBeTruthy();
+
+      const resolvido = await resolveReissueReview({
+        requestId: Number(criado.id), actorProfessionalId: 42, resolution: "fee_required",
+        reason: "Tratamento encerrado conferido no prontuário.",
+      });
+      expect(resolvido).toEqual({ ok: true, status: "awaiting_confirmation", feeAmount: 15 });
+      expect(h.enviados.at(-1)?.texto).toContain("R$ 15,00");
+      expect(h.asaasChargeCount).toBe(0);
+      expect((await deliverApprovedClinicalDocumentReissue(criado.id)).sent).toBe(false);
+      const segunda = await resolveReissueReview({
+        requestId: Number(criado.id), actorProfessionalId: 42, resolution: "free_treatment",
+        reason: "Tentativa repetida de resolver.",
+      });
+      expect(segunda).toMatchObject({ ok: false, httpStatus: 409 });
+
+      const envio = await confirmarPeloCliente(9101);
+      expect(envio.sent).toBe(true);
+      expect(h.asaasChargeCount).toBe(1);
+      expect(h.enviados.at(-1)?.texto).toContain("Pagar taxa");
+      expect(h.enviados.some((m) => m.texto.includes("Abrir documento"))).toBe(false);
+      const antes = await pool.query("SELECT request_status,payment_status FROM clinical_document_reissue_requests WHERE id=$1", [criado.id]);
+      expect(antes.rows[0]).toMatchObject({ request_status: "awaiting_payment", payment_status: "pending" });
+
+      // Mesmo efeito do webhook conferido no Asaas: a conferência humana já foi feita e não se repete.
+      await pool.query(`UPDATE clinical_document_reissue_requests SET payment_status='paid',paid_at=NOW(),
+        request_status=CASE WHEN require_human_review AND review_resolved_at IS NULL THEN 'awaiting_review' ELSE 'approved' END
+        WHERE id=$1`, [criado.id]);
+      await pool.query("UPDATE clinical_document_reissue_requests SET delivery_share_token_hash=NULL WHERE delivery_share_token_hash IS NOT NULL");
+      const depois = await pool.query("SELECT request_status FROM clinical_document_reissue_requests WHERE id=$1", [criado.id]);
+      expect(depois.rows[0].request_status).toBe("approved");
+      expect((await deliverApprovedClinicalDocumentReissue(criado.id)).sent).toBe(true);
+      expect(h.enviados.filter((m) => m.texto.includes("Abrir documento"))).toHaveLength(1);
+    } finally {
+      await restaurar();
+    }
+  });
+
+  it("revisão humana gratuita: depois do sim do cliente entrega direto, sem nova revisão", async () => {
+    await limpar(false, true);
+    try {
+      const { createReissueRequest } = await import("../lib/clinical-document-reissue-policy");
+      const { resolveReissueReview } = await import("../lib/clinical-document-reissue-review");
+      await pool.query("UPDATE clinical_document_reissue_requests SET delivery_share_token_hash=NULL WHERE delivery_share_token_hash IS NOT NULL");
+      const criado = await createReissueRequest({ ...baseRequest, operationKey: "00000000-0000-4000-8000-000000000202" });
+      const resolvido = await resolveReissueReview({
+        requestId: Number(criado.id), actorProfessionalId: 42, resolution: "free_treatment",
+        reason: "Vigência do tratamento confirmada com a equipe.",
+      });
+      expect(resolvido).toEqual({ ok: true, status: "awaiting_confirmation", feeAmount: null });
+      expect(h.enviados.at(-1)?.texto).toContain("sem cobrança");
+      const envio = await confirmarPeloCliente(9102);
+      expect(envio.sent).toBe(true);
+      expect(h.asaasChargeCount).toBe(0);
+      expect(h.enviados.filter((m) => m.texto.includes("Abrir documento"))).toHaveLength(1);
+      const final = await pool.query("SELECT request_status,payment_status FROM clinical_document_reissue_requests WHERE id=$1", [criado.id]);
+      expect(final.rows[0]).toMatchObject({ request_status: "provider_accepted", payment_status: "not_required" });
+    } finally {
+      await restaurar();
+    }
+  });
+
+  it("reenvio manual passa pela política: vigente sai sem cobrança, o resto vira conferência e não envia", async () => {
+    await limpar(false, true);
+    const { gateStaffResend, finishStaffResend } = await import("../lib/clinical-document-reissue-review");
+    const entradaGate = (operationKey: string) => ({
+      clientId: 1, empresaId: 5, locationId: 10, documentType: "prescricao" as const, documentId: 6001,
+      channels: ["EMAIL"], professionalId: 42, operationKey,
+    });
+    try {
+      const bloqueado = await gateStaffResend(entradaGate("00000000-0000-4000-8000-000000000203"));
+      expect(bloqueado.mode).toBe("blocked");
+      if (bloqueado.mode === "blocked") {
+        const r = await pool.query("SELECT request_status,eligibility_status,requested_by_channel FROM clinical_document_reissue_requests WHERE id=$1", [bloqueado.requestId]);
+        expect(r.rows[0]).toEqual({ request_status: "awaiting_review", eligibility_status: "human_review", requested_by_channel: "staff" });
+      }
+      await pool.query("UPDATE protocols SET start_date='2020-01-01',end_date='2099-12-31' WHERE id=7001");
+      const livre = await gateStaffResend(entradaGate("00000000-0000-4000-8000-000000000204"));
+      expect(livre).toMatchObject({ mode: "allowed", replay: false });
+      if (livre.mode === "allowed") {
+        await finishStaffResend(livre.requestId, ["provider_accepted"]);
+        const r = await pool.query("SELECT request_status,delivery_status FROM clinical_document_reissue_requests WHERE id=$1", [livre.requestId]);
+        expect(r.rows[0]).toEqual({ request_status: "provider_accepted", delivery_status: "provider_accepted" });
+      }
+      expect(await gateStaffResend(entradaGate("00000000-0000-4000-8000-000000000204"))).toMatchObject({ mode: "allowed", replay: true });
+      await pool.query("UPDATE clinical_document_reissue_settings SET enabled=FALSE WHERE empresa_id=5 AND location_id=10");
+      expect(await gateStaffResend(entradaGate("00000000-0000-4000-8000-000000000205"))).toEqual({ mode: "legacy" });
+    } finally {
+      await restaurar();
+    }
+  });
+
+  it("escopo de emissão é gravado na emissão, não muda com a transferência do cliente e documento antigo não herda a unidade atual", async () => {
+    await pool.query("CREATE TABLE IF NOT EXISTS referrals(id serial primary key,client_id integer,status text,emitted_at timestamptz)");
+    const { ensureClinicalDocumentReissuesTable } = await import("../lib/ensure-clinical-document-reissues");
+    await ensureClinicalDocumentReissuesTable();
+    try {
+      const emitido = await pool.query("INSERT INTO referrals(client_id,status,emitted_at) VALUES(1,'emitted',NOW()) RETURNING id");
+      const id = emitido.rows[0].id;
+      let escopo = await pool.query("SELECT issued_empresa_id,issued_location_id FROM referrals WHERE id=$1", [id]);
+      expect(escopo.rows[0]).toEqual({ issued_empresa_id: 5, issued_location_id: 10 });
+      await pool.query("UPDATE clients SET location_id=11 WHERE id=1");
+      await pool.query("UPDATE referrals SET emitted_at=NOW() WHERE id=$1", [id]);
+      await pool.query("UPDATE referrals SET issued_location_id=11 WHERE id=$1", [id]);
+      escopo = await pool.query("SELECT issued_location_id FROM referrals WHERE id=$1", [id]);
+      expect(escopo.rows[0].issued_location_id).toBe(10);
+
+      await pool.query("ALTER TABLE referrals DISABLE TRIGGER trg_stamp_issue_scope");
+      const antigo = await pool.query("INSERT INTO referrals(client_id,status,emitted_at) VALUES(1,'emitted',NOW()) RETURNING id");
+      await pool.query("ALTER TABLE referrals ENABLE TRIGGER trg_stamp_issue_scope");
+      await pool.query("UPDATE referrals SET emitted_at=NOW() WHERE id=$1", [antigo.rows[0].id]);
+      const legado = await pool.query("SELECT issued_empresa_id,issued_location_id FROM referrals WHERE id=$1", [antigo.rows[0].id]);
+      expect(legado.rows[0]).toEqual({ issued_empresa_id: null, issued_location_id: null });
+    } finally {
+      await pool.query("UPDATE clients SET location_id=10 WHERE id=1");
+      await pool.query("DROP TABLE IF EXISTS referrals");
+    }
+  });
+});
+
 describe("consumidor real do atendimento com banco descartável e somente transporte simulado",()=>{
   const entrada=async(id:number,texto:string,cid=1,empresaId=5)=>{
     h.settings={

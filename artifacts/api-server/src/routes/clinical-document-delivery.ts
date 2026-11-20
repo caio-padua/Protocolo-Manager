@@ -10,6 +10,7 @@ import { ClinicalIdentityError, resolveClinicalEmitter, resolveClinicalMember } 
 import { absoluteBaseUrl } from "../lib/messaging/base-url";
 import { enviarMensagemPaxter, type PaxterCanal, type PaxterDoc } from "../lib/messaging/index.js";
 import { authorizedPrescription } from "./prescription-delivery";
+import { finishStaffResend, gateStaffResend } from "../lib/clinical-document-reissue-review";
 import {
   criarTokenClinicalShare,
   getIssuedDocument,
@@ -286,6 +287,21 @@ router.post("/clinical-documents/resend", async (req, res) => {
     }
   }
 
+  const staffGate = await gateStaffResend({
+    clientId: identity.client.id,
+    empresaId: identity.clinic.empresaId,
+    locationId: identity.clinic.id,
+    documentType: input.documentType,
+    documentId: input.documentId,
+    channels: input.channels,
+    professionalId: identity.professional.id,
+    operationKey: input.operationKey,
+  });
+  if (staffGate.mode === "blocked") {
+    res.status(409).json({ error: staffGate.message, reissueRequestId: staffGate.requestId });
+    return;
+  }
+
   // Re-read destinations from the database. Browser-supplied phone, e-mail,
   // Telegram chat, or clinic values are never treated as authority.
   const [client] = await db.select().from(clientsTable)
@@ -300,7 +316,13 @@ router.post("/clinical-documents/resend", async (req, res) => {
     TELEGRAM: client.telegramChatId?.trim() || "",
   };
   const missing = input.channels.filter((channel) => !destinations[channel]);
+  const abandonGate = async () => {
+    if (staffGate.mode === "allowed" && !staffGate.replay) {
+      await finishStaffResend(staffGate.requestId, ["failed"]).catch(() => undefined);
+    }
+  };
   if (missing.length) {
+    await abandonGate();
     res.status(422).json({ error: `Não há destino cadastrado para: ${missing.join(", ")}. Nenhum envio foi iniciado.` });
     return;
   }
@@ -315,6 +337,7 @@ router.post("/clinical-documents/resend", async (req, res) => {
   const fileName = safeFilename(document.fileName || `${document.label}.pdf`);
   const pdfBuffer = Buffer.from(document.pdfData, "base64");
   if (pdfBuffer.length === 0) {
+    await abandonGate();
     res.status(422).json({ error: "O arquivo emitido está vazio; nenhum envio foi iniciado." });
     return;
   }
@@ -410,6 +433,7 @@ router.post("/clinical-documents/resend", async (req, res) => {
     });
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("CONFLICT:")) {
+      await abandonGate();
       res.status(409).json({ error: error.message.slice("CONFLICT:".length) });
       return;
     }
@@ -470,6 +494,9 @@ router.post("/clinical-documents/resend", async (req, res) => {
       error = "O envio pode ter ocorrido, mas o registro não foi confirmado. Não repita sem conferir.";
     }
     results.push({ channel, auditId: row.id, state, ...(error ? { error } : {}) });
+  }
+  if (staffGate.mode === "allowed" && !staffGate.replay) {
+    await finishStaffResend(staffGate.requestId, results.map((r) => r.state)).catch(() => undefined);
   }
   res.json({
     documentId: document.id,

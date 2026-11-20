@@ -156,5 +156,64 @@ export async function ensureClinicalDocumentReissuesTable(): Promise<void> {
       ON clinical_document_reissue_requests (delivery_share_token_hash)
       WHERE delivery_share_token_hash IS NOT NULL
   `);
+  await db.execute(sql`
+    ALTER TABLE clinical_document_reissue_requests
+      ADD COLUMN IF NOT EXISTS review_resolved_at TIMESTAMPTZ
+  `);
+  await ensureIssueScopeStamping();
   logger.info("clinical_document_reissue_requests: tabelas prontas");
+}
+
+/**
+ * Grava a clínica/unidade de EMISSÃO de forma imutável nos documentos que não
+ * guardavam esse dado. Documentos antigos ficam com escopo nulo (não verificável)
+ * e exigem conferência humana: nunca herdam a unidade atual do cliente.
+ */
+export const ISSUE_SCOPE_TABLES = [
+  { table: "exam_request_pdfs", mode: "always" },
+  { table: "medical_certificates", mode: "status" },
+  { table: "referrals", mode: "status" },
+  { table: "prescriptions", mode: "status" },
+] as const;
+
+async function ensureIssueScopeStamping(): Promise<void> {
+  await db.execute(sql`
+    CREATE OR REPLACE FUNCTION paxmed_stamp_issue_scope() RETURNS trigger AS $fn$
+    DECLARE c RECORD; is_emitted BOOLEAN;
+    BEGIN
+      IF TG_OP = 'UPDATE' THEN
+        IF OLD.issued_location_id IS NOT NULL THEN
+          NEW.issued_empresa_id := OLD.issued_empresa_id;
+          NEW.issued_location_id := OLD.issued_location_id;
+          RETURN NEW;
+        END IF;
+        IF TG_ARGV[0] = 'always' OR COALESCE(to_jsonb(OLD)->>'status','') LIKE 'emitted%' THEN
+          RETURN NEW;
+        END IF;
+      END IF;
+      IF TG_ARGV[0] = 'always' THEN is_emitted := TRUE;
+      ELSE is_emitted := COALESCE(to_jsonb(NEW)->>'status','') LIKE 'emitted%';
+      END IF;
+      IF NEW.issued_location_id IS NULL AND is_emitted AND NEW.client_id IS NOT NULL THEN
+        SELECT empresa_id, location_id INTO c FROM clients WHERE id = NEW.client_id;
+        IF FOUND THEN
+          NEW.issued_empresa_id := c.empresa_id;
+          NEW.issued_location_id := c.location_id;
+        END IF;
+      END IF;
+      RETURN NEW;
+    END
+    $fn$ LANGUAGE plpgsql
+  `);
+  for (const { table, mode } of ISSUE_SCOPE_TABLES) {
+    const present = await db.execute(sql`SELECT to_regclass(${`public.${table}`}) AS t`);
+    if (!(present.rows[0] as { t: string | null }).t) continue;
+    await db.execute(sql.raw(`ALTER TABLE ${table}
+      ADD COLUMN IF NOT EXISTS issued_empresa_id INTEGER,
+      ADD COLUMN IF NOT EXISTS issued_location_id INTEGER`));
+    await db.execute(sql.raw(`DROP TRIGGER IF EXISTS trg_stamp_issue_scope ON ${table}`));
+    await db.execute(sql.raw(`CREATE TRIGGER trg_stamp_issue_scope
+      BEFORE INSERT OR UPDATE ON ${table}
+      FOR EACH ROW EXECUTE FUNCTION paxmed_stamp_issue_scope('${mode}')`));
+  }
 }
