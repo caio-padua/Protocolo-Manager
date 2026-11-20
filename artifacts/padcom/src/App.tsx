@@ -85,6 +85,7 @@ import { registerCollabTokenGetter } from "@/lib/collab-auth";
 import LoginPage from "@/pages/login";
 import Portal from "@/pages/portal";
 import ConsultaReceituario from "@/pages/consulta-receituario";
+import PagarPage from "@/pages/pagar";
 import Foto from "@/pages/foto";
 import Cadastro from "@/pages/cadastro";
 import Agendar, { AgendarAntigo } from "@/pages/agendar";
@@ -171,6 +172,7 @@ function Router() {
       <Route path="/login/google-link-return" component={GoogleLinkReturnPage} />
       <Route path="/portal"><Redirect to="/area" replace /></Route>
       <Route path="/consulta-receituario" component={ConsultaReceituario} />
+      <Route path="/pagar/:token" component={PagarPage} />
       <Route path="/documento-clinico-receita/:token">
         <CollaboratorGate><ReceitaProtegida /></CollaboratorGate>
       </Route>

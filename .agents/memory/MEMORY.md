@@ -200,3 +200,4 @@
 - [Identidades empresariais](identidades-empresariais.md) — canal da clínica, profissional de referência, papéis do CEO e do administrador.
 - [Segunda via de documentos](segunda-via-documentos-politica.md) — Members só verificado; webhook confere no provedor; recusa bloqueada com cobrança; um só caminho de entrega.
 - [Conversa unificada WWP+TG](comunicacao-unificada-wwp-tg.md) — conversa única, backup e categorias versionadas; trilhas financeiras separadas.
+- [Tela publica de pagamento PaxMed](pagamento-link-tela-publica.md) — /pagar/:token; valor sempre do Asaas; previa estatica; token em hash.

@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { requireCollaborator } from "./collaborator.js";
 import { requirePlatformOwner } from "../middleware/tenantContext";
 import {
-  validarEntrada, criarCobrancaTeste, enviarLinkCobrancaTeste, listarTeste, resumoTeste, sincronizarTeste, TesteRecusado,
+  validarEntrada, criarCobrancaTeste, enviarLinkCobrancaTeste, enviarTelaPagamentoTeste, listarTeste, resumoTeste, sincronizarTeste, TesteRecusado,
 } from "../lib/asaas-teste-cobrancas.js";
 import { diagnosticarWebhookAsaas } from "../lib/asaas-webhook-diagnostico.js";
 
@@ -37,6 +37,19 @@ router.post("/asaas/teste-cobrancas/:id/enviar-link", ...guard, async (req, res)
     if (e instanceof TesteRecusado) { res.status(e.codigo).json({ error: e.message }); return; }
     req.log.error({ err: String(e) }, "Falha ao enviar link de cobranca de teste");
     res.status(500).json({ error: "Erro interno ao enviar o link." });
+  }
+});
+
+router.post("/asaas/teste-cobrancas/:id/enviar-tela", ...guard, async (req, res): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "id invalido" }); return; }
+    const out = await enviarTelaPagamentoTeste(id);
+    res.json({ telegram: out.telegram, url: out.url });
+  } catch (e) {
+    if (e instanceof TesteRecusado) { res.status(e.codigo).json({ error: e.message }); return; }
+    req.log.error({ err: String(e) }, "Falha ao enviar tela de pagamento");
+    res.status(500).json({ error: "Erro interno ao enviar a tela de pagamento." });
   }
 });
 

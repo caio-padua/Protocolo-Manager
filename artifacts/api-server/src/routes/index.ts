@@ -107,6 +107,7 @@ import importarDriveRouter from "./importar-drive";
 import atestadosRouter from "./atestados";
 import cid10Router from "./cid10";
 import encaminhamentosRouter from "./encaminhamentos";
+import { pagamentoLinkPublicRouter } from "./pagamento-link";
 import clinicalDocumentDeliveryRouter, { clinicalDocumentShareRouter } from "./clinical-document-delivery";
 import visitConfirmationRouter, { visitConfirmationPublicRouter } from "./visit-confirmation";
 import documentTemplatesRouter from "./document-templates";
@@ -193,6 +194,8 @@ router.use("/onboarding", onboardingPublicRouter);
 // QR impresso na receita: o paciente abre pelo celular, sem sessao. Token aleatorio
 // de 43 caracteres + validade curta (a propria rota valida). ANTES do portao.
 router.use(clinicalDocumentShareRouter);
+// Pagina de pagamento PaxMed (celular do cliente, sem sessao); ANTES do portao.
+router.use(pagamentoLinkPublicRouter);
 
 // K8: link de um clique da confirmação do cliente por visita. O token HMAC é a credencial;
 // abrir não confirma, só o POST. ANTES do portão.
