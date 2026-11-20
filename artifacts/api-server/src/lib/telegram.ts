@@ -396,3 +396,22 @@ export async function sendTelegramPhotoBuffer(chatId: string, png: Buffer, filen
     return { sent: false, mock: false, error: "telegram_falha_de_rede_ou_timeout" };
   }
 }
+
+/** Envia um arquivo (PDF ou imagem) guardado em memória como documento. Sem degradar em silêncio. */
+export async function sendTelegramDocumentBuffer(chatId: string, bytes: Buffer, filename: string, mime: string): Promise<TelegramResult> {
+  await ensureTelegramTokenLoaded();
+  const token = process.env["TELEGRAM_BOT_TOKEN"];
+  if (!token) return { sent: true, mock: true };
+  try {
+    const fd = new FormData();
+    fd.append("chat_id", chatId);
+    fd.append("document", new Blob([new Uint8Array(bytes)], { type: mime }), filename);
+    const resp = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, { method: "POST", body: fd, signal: AbortSignal.timeout(60_000) });
+    if (!resp.ok) return { sent: false, mock: false, error: `telegram_http_${resp.status}` };
+    const data: any = await resp.json();
+    if (data?.ok !== true || !Number.isSafeInteger(data?.result?.message_id)) return { sent: false, mock: false, error: "telegram_resultado_invalido" };
+    return { sent: true, mock: false };
+  } catch {
+    return { sent: false, mock: false, error: "telegram_falha_de_rede_ou_timeout" };
+  }
+}

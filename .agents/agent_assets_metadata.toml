@@ -1306,3 +1306,17 @@ mtime_ms = 1795141758476
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/4dd912d7-bf6e-4c6b-8dc9-f298350e6ebf/d2bd1a57-014d-4227-b206-4f9b77449993"
 storage_version_token = "1795141865438839"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "GhYssj0g5bQmP2MfMAS0F"
+uri = "file://generated-artifacts/Manual-Integrado-PAM.pdf"
+type = "pdf"
+title = "Manual de Funcionamento da Clínica integrado com o PAM"
+description = "Sete páginas: as seis páginas do manual e a página 7 com o fluxo do PAM no pedido de exame."
+logical_id = "fc337845-f725-4abd-8829-e0ce8a189e80"
+content_hash = "sha256:308fe6ab786e60d67ac2e7d8da2c8c63a8b3cf9bfe8dda48f654315223e5a0f8"
+size = 2463521
+mtime_ms = 1795207284659
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/fc337845-f725-4abd-8829-e0ce8a189e80/6a2aa387-b56c-46c0-b57b-0fc9e24cd470"
+storage_version_token = "1795207286967860"
+content_type = "application/pdf"

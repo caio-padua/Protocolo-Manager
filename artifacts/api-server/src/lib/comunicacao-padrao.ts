@@ -8,7 +8,7 @@
  */
 import { db, clientsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
-import { sendTelegram, sendTelegramPhotoBuffer } from "./telegram.js";
+import { sendTelegram, sendTelegramPhotoBuffer, sendTelegramDocumentBuffer } from "./telegram.js";
 import { vinculoTelegramAtualUnico } from "./telegram-vinculo-atual.js";
 import { renderFlyerPaxmed } from "./flyer-paxmed.js";
 
@@ -87,8 +87,14 @@ export function renderTexto(texto: string, vars: Record<string, string>): string
     return v.trim();
   });
 }
-export interface Regra { empresaId: number | null; categoria: string; enviarFlyer: boolean }
+export interface Regra { empresaId: number | null; categoria: string; enviarFlyer: boolean; enviarAnexo?: boolean }
 /** Regra da clinica vence a padrao; sem nenhuma regra = SEM flyer. */
+/** Anexo: regra da clinica vence a padrao; sem regra = SEM anexo. */
+export function decidirAnexo(regras: Regra[], empresaId: number, categoria: string): boolean {
+  const da = regras.find((r) => r.empresaId === empresaId && r.categoria === categoria);
+  if (da) return da.enviarAnexo === true;
+  return regras.find((r) => r.empresaId === null && r.categoria === categoria)?.enviarAnexo ?? false;
+}
 export function decidirFlyer(regras: Regra[], empresaId: number, categoria: string): boolean {
   const da = regras.find((r) => r.empresaId === empresaId && r.categoria === categoria);
   if (da) return da.enviarFlyer;
@@ -116,6 +122,13 @@ export async function prepararTabelas(): Promise<void> {
   await db.execute(sql`CREATE TABLE IF NOT EXISTS comunicacao_regra (
     id SERIAL PRIMARY KEY, empresa_id INTEGER, categoria TEXT NOT NULL, enviar_flyer BOOLEAN NOT NULL,
     atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), atualizado_por INTEGER)`);
+  await db.execute(sql`ALTER TABLE comunicacao_regra ADD COLUMN IF NOT EXISTS enviar_anexo BOOLEAN NOT NULL DEFAULT FALSE`);
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS comunicacao_anexo (
+    id SERIAL PRIMARY KEY, empresa_id INTEGER NOT NULL, categoria TEXT NOT NULL, posicao INTEGER NOT NULL CHECK (posicao IN (1,2)),
+    nome TEXT NOT NULL, mime TEXT NOT NULL, tamanho INTEGER NOT NULL, dados BYTEA NOT NULL,
+    atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), atualizado_por INTEGER, UNIQUE (empresa_id, categoria, posicao))`);
+  await db.execute(sql`ALTER TABLE comunicacao_envio ADD COLUMN IF NOT EXISTS anexos_enviados INTEGER NOT NULL DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE comunicacao_envio ADD COLUMN IF NOT EXISTS status_anexo TEXT`);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_com_regra ON comunicacao_regra (COALESCE(empresa_id,0), categoria)`);
   await db.execute(sql`CREATE TABLE IF NOT EXISTS comunicacao_modelo_flyer (
     id SERIAL PRIMARY KEY, categoria TEXT NOT NULL, versao INTEGER NOT NULL, titulo TEXT NOT NULL, linhas JSONB NOT NULL,
@@ -141,8 +154,8 @@ export async function modeloTexto(empresaId: number, cat: Categoria): Promise<{ 
 }
 export async function carregarRegras(empresaId: number): Promise<Regra[]> {
   await prepararTabelas();
-  const r = await db.execute(sql`SELECT empresa_id, categoria, enviar_flyer FROM comunicacao_regra WHERE empresa_id=${empresaId} OR empresa_id IS NULL`);
-  return (r.rows as any[]).map((x) => ({ empresaId: x.empresa_id, categoria: x.categoria, enviarFlyer: x.enviar_flyer }));
+  const r = await db.execute(sql`SELECT empresa_id, categoria, enviar_flyer, enviar_anexo FROM comunicacao_regra WHERE empresa_id=${empresaId} OR empresa_id IS NULL`);
+  return (r.rows as any[]).map((x) => ({ empresaId: x.empresa_id, categoria: x.categoria, enviarFlyer: x.enviar_flyer, enviarAnexo: x.enviar_anexo === true }));
 }
 export async function gravarModeloClinica(empresaId: number, cat: Categoria, texto: string, por: number | null): Promise<number> {
   await prepararTabelas();
@@ -158,6 +171,45 @@ export async function gravarRegraClinica(empresaId: number, cat: Categoria, envi
   await db.execute(sql`INSERT INTO comunicacao_regra (empresa_id, categoria, enviar_flyer, atualizado_por) VALUES (${empresaId}, ${cat}, ${enviarFlyer}, ${por})
     ON CONFLICT (COALESCE(empresa_id,0), categoria) DO UPDATE SET enviar_flyer=EXCLUDED.enviar_flyer, atualizado_em=NOW(), atualizado_por=EXCLUDED.atualizado_por`);
 }
+export const ANEXO_MAX_BYTES = 10 * 1024 * 1024;
+export type AnexoMeta = { posicao: 1 | 2; nome: string; mime: string; tamanho: number };
+/** Aceita só PDF, PNG ou JPEG, conferido pelos primeiros bytes (a extensão do nome não vale como prova). */
+export function detectarTipoAnexo(b: Buffer): { mime: string; ext: string } | null {
+  if (b.length >= 5 && b.subarray(0, 5).toString("latin1") === "%PDF-") return { mime: "application/pdf", ext: "pdf" };
+  if (b.length >= 8 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return { mime: "image/png", ext: "png" };
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return { mime: "image/jpeg", ext: "jpg" };
+  return null;
+}
+export async function listarAnexos(empresaId: number, cat: Categoria): Promise<AnexoMeta[]> {
+  await prepararTabelas();
+  const r = await db.execute(sql`SELECT posicao, nome, mime, tamanho FROM comunicacao_anexo WHERE empresa_id=${empresaId} AND categoria=${cat} ORDER BY posicao`);
+  return r.rows as unknown as AnexoMeta[];
+}
+export async function gravarAnexo(empresaId: number, cat: Categoria, posicao: 1 | 2, nome: string, bytes: Buffer, por: number | null): Promise<AnexoMeta> {
+  await prepararTabelas();
+  if (bytes.length === 0) throw new ErroComunicacao("arquivo vazio");
+  if (bytes.length > ANEXO_MAX_BYTES) throw new ErroComunicacao("arquivo maior que 10 MB");
+  const tipo = detectarTipoAnexo(bytes);
+  if (!tipo) throw new ErroComunicacao("use um arquivo PDF, PNG ou JPEG");
+  const limpo = nome.normalize("NFC").replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) || `anexo-${posicao}`;
+  const final = limpo.toLowerCase().endsWith(`.${tipo.ext}`) ? limpo : `${limpo.replace(/\.[A-Za-z0-9]{1,5}$/, "")}.${tipo.ext}`;
+  await db.execute(sql`INSERT INTO comunicacao_anexo (empresa_id, categoria, posicao, nome, mime, tamanho, dados, atualizado_por)
+    VALUES (${empresaId}, ${cat}, ${posicao}, ${final}, ${tipo.mime}, ${bytes.length}, ${bytes}, ${por})
+    ON CONFLICT (empresa_id, categoria, posicao) DO UPDATE SET nome=EXCLUDED.nome, mime=EXCLUDED.mime, tamanho=EXCLUDED.tamanho,
+      dados=EXCLUDED.dados, atualizado_em=NOW(), atualizado_por=EXCLUDED.atualizado_por`);
+  return { posicao, nome: final, mime: tipo.mime, tamanho: bytes.length };
+}
+export async function removerAnexo(empresaId: number, cat: Categoria, posicao: 1 | 2): Promise<void> {
+  await prepararTabelas();
+  await db.execute(sql`DELETE FROM comunicacao_anexo WHERE empresa_id=${empresaId} AND categoria=${cat} AND posicao=${posicao}`);
+}
+/** Liga/desliga o anexo da categoria para a clinica, sem mexer na regra do flyer. */
+export async function gravarRegraAnexoClinica(empresaId: number, cat: Categoria, enviarAnexo: boolean, por: number | null): Promise<void> {
+  await prepararTabelas();
+  const flyerAtual = decidirFlyer(await carregarRegras(empresaId), empresaId, cat);
+  await db.execute(sql`INSERT INTO comunicacao_regra (empresa_id, categoria, enviar_flyer, enviar_anexo, atualizado_por) VALUES (${empresaId}, ${cat}, ${flyerAtual}, ${enviarAnexo}, ${por})
+    ON CONFLICT (COALESCE(empresa_id,0), categoria) DO UPDATE SET enviar_anexo=EXCLUDED.enviar_anexo, atualizado_em=NOW(), atualizado_por=EXCLUDED.atualizado_por`);
+}
 async function permitidosTeste(): Promise<number[]> {
   const r = (await db.execute(sql`SELECT value FROM app_settings WHERE key='comunicacao.teste.permitidos'`)).rows[0] as any;
   if (!r?.value) return TESTE_PERMITIDOS_PADRAO;
@@ -169,7 +221,7 @@ export interface PedidoEnvio {
   ambiente: "teste" | "producao"; categoria: Categoria; clienteId: number;
   valorCentavos?: number; referencia?: string; link?: string; documento?: string; vencimento?: string | null; data?: string | null; horario?: string | null;
 }
-export interface ResultadoEnvio { status: "aceito" | "recusado"; flyerEnviado: boolean; statusFlyer: string | null; mensagem: string; envioId: number; erro?: string }
+export interface ResultadoEnvio { status: "aceito" | "recusado"; flyerEnviado: boolean; statusFlyer: string | null; anexosEnviados: number; statusAnexo: string | null; mensagem: string; envioId: number; erro?: string }
 const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** Ambiente do envio: participante da lista de teste usa "teste" (teto de R$ 5); os demais, "producao". */
@@ -216,11 +268,23 @@ export async function enviarComunicacao(p: PedidoEnvio): Promise<ResultadoEnvio>
     status = t.sent && !t.mock ? "aceito" : "recusado";
     if (status === "recusado") erro = `texto: ${t.error ?? "sem token"}`;
   }
-  const ins = (await db.execute(sql`INSERT INTO comunicacao_envio (ambiente, empresa_id, cliente_id, categoria, modelo_texto_versao, modelo_flyer_versao, flyer_enviado, campos, mensagem, status, status_flyer, erro)
-    VALUES (${p.ambiente}, ${c.empresaId}, ${c.id}, ${p.categoria}, ${modelo.versao}, ${comFlyer ? FLYER_VERSAO : null}, ${flyerEnviado}, ${JSON.stringify(campos)}::jsonb, ${mensagem}, ${status}, ${statusFlyer}, ${erro ?? null}) RETURNING id`)).rows[0] as any;
+  // Anexos (ate 2) da categoria: so seguem depois do texto aceito e com a chave ligada. Chave ligada sem arquivo = so o texto.
+  let anexosEnviados = 0; let statusAnexo: string | null = null;
+  if (status === "aceito" && decidirAnexo(await carregarRegras(c.empresaId), c.empresaId, p.categoria)) {
+    const arqs = (await db.execute(sql`SELECT nome, mime, dados FROM comunicacao_anexo WHERE empresa_id=${c.empresaId} AND categoria=${p.categoria} ORDER BY posicao`)).rows as any[];
+    if (arqs.length === 0) statusAnexo = "ligado_sem_arquivo";
+    for (const a of arqs) {
+      const f = await sendTelegramDocumentBuffer(c.telegramChatId, Buffer.from(a.dados), a.nome, a.mime);
+      if (f.sent && !f.mock) anexosEnviados += 1;
+      else { statusAnexo = `recusado:${f.error ?? "mock"}`; erro = `${erro ? erro + "; " : ""}anexo ${a.nome}: ${f.error ?? "sem token"}`; break; }
+    }
+    if (arqs.length > 0 && !statusAnexo) statusAnexo = "aceito";
+  }
+  const ins = (await db.execute(sql`INSERT INTO comunicacao_envio (ambiente, empresa_id, cliente_id, categoria, modelo_texto_versao, modelo_flyer_versao, flyer_enviado, campos, mensagem, status, status_flyer, erro, anexos_enviados, status_anexo)
+    VALUES (${p.ambiente}, ${c.empresaId}, ${c.id}, ${p.categoria}, ${modelo.versao}, ${comFlyer ? FLYER_VERSAO : null}, ${flyerEnviado}, ${JSON.stringify(campos)}::jsonb, ${mensagem}, ${status}, ${statusFlyer}, ${erro ?? null}, ${anexosEnviados}, ${statusAnexo}) RETURNING id`)).rows[0] as any;
   if (status === "aceito") {
     await db.execute(sql`INSERT INTO telegram_inbox_messages (empresa_id, cliente_id, chat_id, texto, recebida_em, direcao, lida_em)
       VALUES (${c.empresaId}, ${c.id}, ${c.telegramChatId}, ${mensagem}, NOW(), 'saida', NOW())`);
   }
-  return { status, flyerEnviado, statusFlyer, mensagem, envioId: ins.id, erro };
+  return { status, flyerEnviado, statusFlyer, anexosEnviados, statusAnexo, mensagem, envioId: ins.id, erro };
 }
