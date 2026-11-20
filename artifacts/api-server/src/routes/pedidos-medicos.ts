@@ -82,9 +82,8 @@ router.get("/pedidos-medicos/fila", requireCollaborator, async (req, res): Promi
       SELECT r.*, c.name AS client_name, d.token AS doc_token FROM client_medical_requests r
         JOIN clients c ON c.id = r.client_id
         LEFT JOIN exam_request_pdfs d ON d.id = r.doc_pdf_id
-       WHERE r.status IN ('pago','em_analise')
-          OR (r.status = 'emitido' AND r.updated_at > NOW() - INTERVAL '30 days')
-       ORDER BY r.created_at ASC LIMIT 500`);
+       WHERE r.status IN ('pago','em_analise','emitido')
+       ORDER BY r.created_at DESC LIMIT 500`);
     const rows = (found.rows as unknown as Array<Row & { client_name: string; doc_token: string | null }>).filter((r) =>
       r.assigned_professional_id === actor ||
       scopes.some((s) => s.locationId === r.location_id && s.empresaId === r.empresa_id));

@@ -1,3 +1,4 @@
+import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Download, Eye, FileSignature, Loader2, Pencil, RotateCcw, Send } from "lucide-react";
@@ -80,11 +81,23 @@ export function FilaPedidos() {
   const baixar = (token: string) => window.open(`${BASE}/api/exam-requests/file/${token}`, "_blank", "noopener");
 
   const dia = (i: Item) => new Date(i.createdAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
-  function grupos(list: Item[]) {
+  const hora = (i: Item) => new Date(i.createdAt).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
+  // Card = mesmo cliente no MESMO DIA (fuso de Brasilia): tudo que ele pediu naquele dia fica junto.
+  // Dia diferente = card novo. Cards com o pedido mais novo ficam em cima; os antigos descem e nunca somem.
+  function cards(list: Item[]) {
     const m = new Map<string, Item[]>();
     for (const i of list) { const k = `${i.clientId}|${dia(i)}`; m.set(k, [...(m.get(k) ?? []), i]); }
-    return [...m.entries()].map(([k, v]) => ({ k, itens: v.sort((x, y) => x.id - y.id) }));
+    return [...m.entries()].map(([k, v]) => {
+      const itens = v.sort((x, y) => new Date(y.createdAt).getTime() - new Date(x.createdAt).getTime() || y.id - x.id);
+      return { k, itens, ultimo: new Date(itens[0].createdAt).getTime() };
+    }).sort((x, y) => y.ultimo - x.ultimo);
   }
+  const Linha = (it: Item, conteudo: React.ReactNode) => (
+    <div key={it.id} className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3 items-start">
+      <span className="bevel-3d inline-flex h-10 items-center justify-center text-sm font-black text-primary tabular-nums" title={`Pedido feito às ${hora(it)}`}>{hora(it)}</span>
+      {conteudo}
+    </div>
+  );
 
   function Pedido({ it }: { it: Item }) {
     const mine = it.assignedProfessionalId !== null && !it.asResponsible;
@@ -96,8 +109,7 @@ export function FilaPedidos() {
         <div className="flex items-center gap-2">
           <span className="bevel-3d pm-pendente inline-flex h-6 items-center px-2 text-[10px] font-black uppercase tracking-[0.18em]">Pendente</span>
           <span className="text-sm font-semibold text-primary">{it.kindLabel} nº {it.id}</span>
-          
-        </div>
+                  </div>
         {it.assignedReason && <p className="text-xs text-muted-foreground">{REASON[it.assignedReason] ?? it.assignedReason}</p>}
         {exames ? (
           editing === it.id ? (
@@ -157,7 +169,7 @@ export function FilaPedidos() {
     return (
       <div className="concave-3d p-3 space-y-2">
         <div className="flex items-center gap-2 text-sm">
-                    <span className="font-semibold text-primary">{it.kindLabel} nº {it.id}</span>
+          <span className="font-semibold text-primary">{it.kindLabel} nº {it.id}</span>
           <span className="ml-auto text-[10px] font-black uppercase tracking-widest">{semDoc ? "Emitido, sem documento" : falha ? "Assinado, envio falhou" : it.liberadoAuto ? "Assinado automaticamente e enviado" : "Assinado e enviado"}</span>
         </div>
         {it.liberadoAuto && (
@@ -186,7 +198,6 @@ export function FilaPedidos() {
   function Esteira({ id, titulo, lista }: { id: "member" | "padrao"; titulo: string; lista: Item[] }) {
     const abertaAgora = aberta[id];
     const pend = lista.filter((i) => i.status !== "emitido");
-    const conc = lista.filter((i) => i.status === "emitido").sort((a, b) => Number(b.liberadoAuto) - Number(a.liberadoAuto));
     const alternar = () => { setAberta((a) => ({ ...a, [id]: !a[id] })); if (!aberta[id]) setPrimeira(id); };
     return (
       <div className={`pm-esteira panel-3d p-3 ${abertaAgora ? "flex-1 min-w-0" : "md:w-24 md:shrink-0"} ${primeira === id ? "order-first" : "order-last"}`} data-aberta={abertaAgora ? "sim" : "nao"}>
@@ -196,18 +207,14 @@ export function FilaPedidos() {
             <p className="text-xs text-muted-foreground px-1">{pend.length === 0 ? "Nada pendente nesta esteira." : `${pend.length} aguardando a sua avaliação.`}</p>
             <div className="space-y-3 max-h-[68vh] overflow-y-auto pr-1">
               {lista.length === 0 && <p className="text-sm text-muted-foreground">Nenhum pedido nesta esteira.</p>}
-              {grupos(pend).map((g) => (
-                <article key={g.k} className="panel-3d-sub p-3 space-y-2">
-                  <p className="font-semibold text-primary">{g.itens[0].clientName}</p>
-                  <p className="text-xs text-muted-foreground">{dia(g.itens[0])}. {g.itens.length === 1 ? "1 solicitação" : `${g.itens.length} solicitações`} neste dia.</p>
-                  {g.itens.map((it) => <div key={it.id}>{Pedido({ it })}</div>)}
-                </article>
-              ))}
-              {conc.length > 0 && <PlacaTitulo titulo="Concluídos em 30 dias" />}
-              {grupos(conc).map((g) => (
-                <article key={g.k} className="panel-3d-sub p-3 space-y-2">
-                  <p className="font-semibold text-primary text-sm">{g.itens[0].clientName} <span className="text-xs text-muted-foreground font-normal">{dia(g.itens[0])}</span></p>
-                  {g.itens.map((it) => <div key={it.id}>{Concluido({ it })}</div>)}
+              {cards(lista).map((g) => (
+                <article key={g.k} className="panel-3d-sub p-3 space-y-3" data-testid="card-pedido">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="bevel-3d inline-flex h-8 min-w-0 flex-1 items-center px-3 text-[11px] font-black uppercase tracking-[0.14em] text-primary"><span className="truncate" title={g.itens[0].clientName}>{g.itens[0].clientName}</span></span>
+                    <span className="concave-3d inline-flex h-8 items-center px-3 text-xs font-black tabular-nums text-primary" title="Dia em que o cliente fez os pedidos">{dia(g.itens[0])}</span>
+                  </div>
+                  <p className="px-1 text-xs text-muted-foreground">{g.itens.length === 1 ? "1 solicitação neste dia." : `${g.itens.length} solicitações neste dia.`} Cada pedido mostra a hora à esquerda.</p>
+                  {g.itens.map((it) => Linha(it, it.status === "emitido" ? Concluido({ it }) : Pedido({ it })))}
                 </article>
               ))}
             </div>
@@ -248,7 +255,7 @@ export function FilaPedidos() {
           <div className="concave-3d px-3 py-2"><p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">2. Assinado e enviado</p><p className="text-2xl font-black text-primary">{emitidos.filter((i) => i.docSendStatus === "enviado").length}</p></div>
           <div className="concave-3d px-3 py-2"><p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">3. Precisa de atenção</p><p className="text-2xl font-black text-primary">{atencao}</p></div>
         </div>
-        <p className="text-xs text-muted-foreground">Clique em uma esteira para abrir ou recolher. A última aberta fica em primeiro lugar.</p>
+        <p className="text-xs text-muted-foreground">Clique em uma esteira para abrir ou recolher. Cada card reúne tudo o que o mesmo cliente pediu no mesmo dia. Os cards mais novos ficam em cima e os antigos descem, sem sumir.</p>
         {items === null && !error && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
         {items && (
           <div className="flex flex-col md:flex-row gap-4 items-stretch">
