@@ -10,6 +10,7 @@
  *  - O que o sistema não consegue confirmar vai para a equipe. Queixa de saúde nunca é tratada aqui.
  */
 import { classificarQueixa, normalizar } from "./atendimento-telegram";
+import type { FraseDeps } from "./telegram-frases";
 
 export type Modalidade = "online" | "presencial";
 export type Periodo = "manha" | "tarde" | "noite" | "qualquer";
@@ -21,7 +22,7 @@ export interface Oferta {
   modalidade: Modalidade;
 }
 
-export type Etapa = "inicio" | "modalidade" | "preferencias" | "escolha" | "nome" | "telefone" | "concluido";
+export type Etapa = "inicio" | "vinculo" | "identidade" | "modalidade" | "preferencias" | "escolha" | "nome" | "telefone" | "concluido";
 
 export interface EstadoConversa {
   etapa: Etapa;
@@ -36,6 +37,10 @@ export interface EstadoConversa {
   mostradas?: string[];
   escolhida?: Oferta;
   nome?: string;
+  /** "nova" = primeira vez; "cliente" = identidade conferida contra o cadastro. */
+  situacao?: "nova" | "cliente";
+  /** Preenchido só quando a identidade foi conferida pelo servidor. */
+  clienteId?: number;
   tentativas: number;
   atualizadoEm: string;
 }
@@ -54,6 +59,10 @@ export interface DepsAgendamento {
   /** Pausa a assistente nesta conversa e avisa a equipe. */
   encaminharEquipe: (motivo: string) => Promise<void>;
   endereco: (modalidade: Modalidade) => Promise<string | null>;
+  /** Frases cadastradas (tabela telegram_frases). */
+  frase: FraseDeps;
+  /** Confere nome + 4 primeiros dígitos do CPF + ano de nascimento. Só devolve id quando há UM cadastro compatível. */
+  conferirIdentidade: (p: { nome: string; cpf4: string; ano: string }) => Promise<{ ok: true; clienteId: number } | { ok: false }>;
 }
 
 export interface ContextoAgendamento {
@@ -153,7 +162,7 @@ export function lerDias(texto: string, hojeISO: string): { dias?: number[] | nul
   return {};
 }
 
-function lerNome(texto: string): string | null {
+export function lerNome(texto: string): string | null {
   const limpo = texto.replace(/^(meu nome (e|é)|me chamo|aqui (e|é))\s+/i, "").trim();
   if (limpo.length < 3 || limpo.length > 80) return null;
   if (!/^[\p{L}][\p{L}'’.\- ]+$/u.test(limpo)) return null;
@@ -224,24 +233,42 @@ function listaOfertas(ofertas: Oferta[]): string {
 
 const rotulo = (m: Modalidade) => (m === "online" ? "online" : "presencial");
 const chaveOferta = (o: Oferta) => `${o.recursoId}|${o.data}|${o.hora}`;
+const descreve = (o: Oferta) => `${rotulo(o.modalidade)}, ${dataPorExtenso(o.data)}, às ${o.hora}`;
 
 /** A assistente se apresenta como virtual e com o nome da CLÍNICA (nunca o nome do sistema, nunca nome inventado). */
-export function apresentacao(nomeClinica?: string): string {
+export function apresentacao(frase: FraseDeps, nomeClinica?: string): string {
   const n = nomeClinica?.trim();
-  return n ? `Olá! Sou a assistente virtual de ${n}.` : "Olá! Sou a assistente virtual da clínica.";
-}
-const PERGUNTA_MODALIDADE = "A consulta seria online ou presencial?";
-const PERGUNTA_PREFERENCIAS = "Quais dias da semana e qual período (manhã, tarde ou noite) ficam melhores para você?";
-
-function perguntaFaltante(estado: EstadoConversa): string {
-  if (estado.dias === undefined && !estado.datas) return PERGUNTA_PREFERENCIAS;
-  return "Qual período prefere: manhã, tarde ou noite? Se tanto faz, é só dizer.";
+  return n ? frase("apresentacao", { clinica: n }) : frase("apresentacao_sem_clinica");
 }
 
-function comApresentacao(estado: EstadoConversa, nomeClinica: string | undefined, corpo: string): string {
+function comApresentacao(estado: EstadoConversa, nomeClinica: string | undefined, frase: FraseDeps, corpo: string): string {
   if (estado.apresentada) return corpo;
   estado.apresentada = true;
-  return `${apresentacao(nomeClinica)} ${corpo}`;
+  return `${apresentacao(frase, nomeClinica)} ${corpo}`;
+}
+
+// ─────────────────────────── identidade ───────────────────────────
+
+const JA_CLIENTE = /\b(ja sou|sou cliente|sou paciente|ja sou cliente|ja sou paciente|ja tenho cadastro|ja me consulto|ja me consultei|ja fui|ja consultei|ja atendida|ja atendido|cliente)\b/;
+const PRIMEIRA_VEZ = /\b(primeira vez|primeira consulta|nova|novo|nunca (fui|me consultei|consultei)|nao sou (cliente|paciente)|ainda nao sou|nao tenho cadastro)\b/;
+
+export function lerVinculo(texto: string): "nova" | "cliente" | null {
+  const n = normalizar(texto);
+  if (PRIMEIRA_VEZ.test(n)) return "nova";
+  if (JA_CLIENTE.test(n)) return "cliente";
+  return null;
+}
+
+/** Nome completo + 4 primeiros dígitos do CPF + ano de nascimento (nessa ordem, números de 4 dígitos). */
+export function lerIdentidade(texto: string): { nome: string; cpf4: string; ano: string } | null {
+  const quatro = [...texto.matchAll(/(?<!\d)(\d{4})(?!\d)/g)].map((m) => m[1]);
+  if (quatro.length !== 2) return null;
+  const [cpf4, ano] = quatro;
+  const a = Number(ano);
+  if (a < 1900 || a > new Date().getFullYear()) return null;
+  const nome = lerNome(texto.replace(/[\d.,;:()/\\-]+/g, " ").replace(/\s+/g, " ").trim());
+  if (!nome) return null;
+  return { nome, cpf4, ano };
 }
 
 // ─────────────────────────── orquestração ───────────────────────────
@@ -249,6 +276,7 @@ function comApresentacao(estado: EstadoConversa, nomeClinica: string | undefined
 export async function conduzirAgendamento(
   anterior: EstadoConversa | null, texto: string, ctx: ContextoAgendamento, deps: DepsAgendamento, agoraISO: string,
 ): Promise<ResultadoAgendamento> {
+  const F = deps.frase;
   const valido = anterior && Date.now() - Date.parse(anterior.atualizadoEm) < VALIDADE_MS && anterior.etapa !== "concluido";
   const estado: EstadoConversa = valido ? structuredClone(anterior) : ESTADO_INICIAL(agoraISO);
   if (anterior && !valido) estado.apresentada = anterior.apresentada;
@@ -257,45 +285,96 @@ export async function conduzirAgendamento(
   const n = normalizar(texto);
   const nome1 = ctx.primeiroNome ? `, ${ctx.primeiroNome}` : "";
   const fim = (resposta: string | null, desfecho: string, tratada = true): ResultadoAgendamento => ({ tratada, estado, resposta, desfecho });
+  const ap = (corpo: string) => comApresentacao(estado, ctx.nomeClinica, F, corpo);
 
   // Queixa de saúde nunca é tratada aqui: segue para a equipe.
   if (classificarQueixa(texto)) return fim(null, "queixa_nao_tratada", false);
 
   if (emAndamento && PALAVRAS_REINICIAR.test(n)) {
     const novo = ESTADO_INICIAL(agoraISO);
-    novo.apresentada = true; novo.etapa = "modalidade";
-    return { tratada: true, estado: novo, resposta: `Tudo bem, vamos recomeçar${nome1}. ${PERGUNTA_MODALIDADE}`, desfecho: "reiniciada" };
+    novo.apresentada = true;
+    if (!ctx.ehCliente && estado.situacao) { novo.situacao = estado.situacao; novo.clienteId = estado.clienteId; novo.nome = estado.nome; }
+    novo.etapa = "modalidade";
+    return { tratada: true, estado: novo, resposta: F("recomecar", { nome1, pergunta_modalidade: F("pergunta_modalidade") }), desfecho: "reiniciada" };
   }
   if (PALAVRAS_CANCELAR.test(n)) {
     await deps.encaminharEquipe("cancelar_ou_remarcar");
-    return fim(comApresentacao(estado, ctx.nomeClinica, `Para cancelar ou remarcar uma consulta já marcada, vou encaminhar seu pedido para a equipe${nome1}. Ela responde por aqui assim que possível.`), "encaminhada_cancelar_remarcar");
+    return fim(ap(F("cancelar_remarcar", { nome1 })), "encaminhada_cancelar_remarcar");
   }
   if (PALAVRAS_EQUIPE.test(n) && !emAndamento) {
     await deps.encaminharEquipe("pediu_pessoa");
-    return fim(comApresentacao(estado, ctx.nomeClinica, `Claro${nome1}. Já avisei a equipe da clínica e ela responde por aqui assim que possível.`), "encaminhada_pediu_pessoa");
+    return fim(ap(F("pediu_pessoa", { nome1 })), "encaminhada_pediu_pessoa");
   }
 
   // Sem conversa em andamento: cliente só entra se pediu agendamento; visitante recebe orientação e a equipe é avisada.
   if (!emAndamento && !ehPedidoDeAgendamento(texto)) {
     if (ctx.ehCliente) return fim(null, "fora_do_assunto", false);
     await deps.encaminharEquipe("duvida_de_visitante");
-    return fim(comApresentacao(estado, ctx.nomeClinica, "Posso ajudar a marcar uma consulta ou encaminhar sua dúvida para a equipe. Já avisei a equipe sobre a sua mensagem. Se quiser marcar agora, me diga: a consulta seria online ou presencial?"), "visitante_encaminhado");
+    return fim(ap(F("visitante_encaminhado")), "visitante_encaminhado");
+  }
+
+  // ── quem é a pessoa (só quem não está vinculado) ──
+  if (!ctx.ehCliente && !estado.situacao && estado.etapa !== "nome" && estado.etapa !== "telefone") {
+    if (estado.etapa !== "vinculo" && estado.etapa !== "identidade") {
+      estado.etapa = "vinculo";
+      return fim(ap(F("pergunta_ja_paciente")), "perguntou_vinculo");
+    }
+    if (estado.etapa === "vinculo") {
+      const v = lerVinculo(texto);
+      if (!v) {
+        estado.tentativas++;
+        if (estado.tentativas >= 3) {
+          await deps.encaminharEquipe("vinculo_sem_entendimento");
+          estado.etapa = "concluido";
+          return fim(F("encaminhada_sem_entendimento"), "encaminhada_vinculo");
+        }
+        return fim(F("vinculo_nao_entendido"), "vinculo_nao_entendido");
+      }
+      estado.tentativas = 0;
+      if (v === "cliente") { estado.etapa = "identidade"; return fim(F("pedir_identidade"), "pediu_identidade"); }
+      estado.situacao = "nova"; // segue para as perguntas de agendamento
+    } else {
+      const id = lerIdentidade(texto);
+      if (!id) {
+        estado.tentativas++;
+        if (estado.tentativas >= 2) {
+          await deps.encaminharEquipe("identidade_nao_lida");
+          estado.etapa = "concluido";
+          return fim(F("identidade_encaminhada"), "identidade_encaminhada");
+        }
+        return fim(F("identidade_formato"), "identidade_formato");
+      }
+      const r = await deps.conferirIdentidade(id);
+      if (!r.ok) {
+        estado.tentativas++;
+        if (estado.tentativas >= 2) {
+          await deps.encaminharEquipe("identidade_nao_confirmada");
+          estado.etapa = "concluido";
+          return fim(F("identidade_encaminhada"), "identidade_encaminhada");
+        }
+        return fim(F("identidade_nao_confirmada"), "identidade_nao_confirmada");
+      }
+      estado.situacao = "cliente"; estado.clienteId = r.clienteId; estado.nome = id.nome; estado.tentativas = 0;
+      estado.etapa = "modalidade";
+      const p1 = id.nome.split(/\s+/)[0];
+      return fim(F("identidade_confirmada", { nome1: `, ${p1.charAt(0).toUpperCase()}${p1.slice(1).toLowerCase()}`, pergunta_modalidade: F("pergunta_modalidade") }), "identidade_confirmada");
+    }
   }
 
   // ── dados de quem ainda não é cliente (não reinterpreta o texto como preferência) ──
   if (estado.etapa === "nome") {
     const nome = lerNome(texto);
-    if (!nome) { estado.tentativas++; return fim("Preciso do nome completo (nome e sobrenome) para a equipe registrar seu pedido. Pode escrever?", "pediu_nome_de_novo"); }
+    if (!nome) { estado.tentativas++; return fim(F("pediu_nome_de_novo"), "pediu_nome_de_novo"); }
     estado.nome = nome; estado.etapa = "telefone";
-    return fim("Obrigada. Qual é o seu telefone com DDD, para a equipe poder falar com você se precisar?", "pediu_telefone");
+    return fim(F("pediu_telefone"), "pediu_telefone");
   }
   if (estado.etapa === "telefone") {
     const tel = lerTelefone(texto);
-    if (!tel) { estado.tentativas++; return fim("Não consegui ler o telefone. Escreva com DDD, por exemplo 11 91234 5678.", "pediu_telefone_de_novo"); }
+    if (!tel) { estado.tentativas++; return fim(F("pediu_telefone_de_novo"), "pediu_telefone_de_novo"); }
     const id = await deps.registrarPedido({ nome: estado.nome ?? "", telefone: tel, estado, oferta: estado.escolhida ?? null });
     estado.etapa = "concluido";
     const o = estado.escolhida;
-    return fim(`Anotei seu pedido de agendamento (protocolo ${id})${o ? `: ${rotulo(o.modalidade)}, ${dataPorExtenso(o.data)}, às ${o.hora}` : ""}. Atenção: o horário ainda NÃO está reservado. A equipe vai conferir e confirmar com você por aqui. Pode mandar outras dúvidas.`, "pedido_registrado");
+    return fim(F(estado.situacao === "cliente" ? "pedido_registrado_cliente" : "pedido_registrado", { protocolo: String(id), detalhe: o ? `: ${descreve(o)}` : "" }), "pedido_registrado");
   }
 
   // Interpreta o que a pessoa já informou, em qualquer ordem.
@@ -313,30 +392,32 @@ export async function conduzirAgendamento(
     if (esc.indice != null) {
       estado.escolhida = estado.ofertas[esc.indice];
       if (ctx.ehCliente) return reservarEResponder(estado, deps, nome1);
+      const escolha = descreve(estado.escolhida);
+      if (estado.situacao === "cliente") { estado.etapa = "telefone"; return fim(F("escolha_pede_telefone", { escolha }), "pediu_telefone"); }
       estado.etapa = "nome";
-      return fim(`Combinado: ${rotulo(estado.escolhida.modalidade)}, ${dataPorExtenso(estado.escolhida.data)}, às ${estado.escolhida.hora}. Como você ainda não tem cadastro, preciso de alguns dados para a equipe confirmar. Qual é o seu nome completo?`, "pediu_nome");
+      return fim(F("escolha_pede_nome", { escolha }), "pediu_nome");
     }
-    if (esc.ambiguo) return fim("Mais de uma opção combina com o que você disse. Responda só com o número da opção, por favor.", "escolha_ambigua");
+    if (esc.ambiguo) return fim(F("escolha_ambigua"), "escolha_ambigua");
     if (esc.recusou) {
       estado.mostradas = [...(estado.mostradas ?? []), ...estado.ofertas.map(chaveOferta)];
-      return ofertar(estado, deps, "Sem problema, procurei outras opções.");
+      return ofertar(estado, deps, F("procurando_outras"));
     }
     if (!mod && dias.dias === undefined && !dias.datas && !per) {
       estado.tentativas++;
       if (estado.tentativas >= 3) {
         await deps.encaminharEquipe("agendamento_sem_entendimento");
         estado.etapa = "concluido";
-        return fim("Não consegui entender sua escolha. Encaminhei a conversa para a equipe, que responde por aqui.", "encaminhada_sem_entendimento");
+        return fim(F("encaminhada_sem_entendimento"), "encaminhada_sem_entendimento");
       }
-      return fim(`Não entendi qual opção você prefere. Responda com o número:\n${listaOfertas(estado.ofertas)}\nOu diga outros dias ou períodos que eu procuro de novo.`, "escolha_nao_entendida");
+      return fim(F("escolha_nao_entendida", { lista: listaOfertas(estado.ofertas) }), "escolha_nao_entendida");
     }
     estado.mostradas = []; // mudou preferências: procura de novo
-    return ofertar(estado, deps, "Certo, vou procurar com essa preferência.");
+    return ofertar(estado, deps, F("procurando_preferencia"));
   }
 
   // ── levantamento de preferências ──
   estado.etapa = estado.modalidade ? "preferencias" : "modalidade";
-  if (!estado.modalidade) return fim(comApresentacao(estado, ctx.nomeClinica, `Vamos marcar sua consulta${nome1}. ${PERGUNTA_MODALIDADE}`), "perguntou_modalidade");
+  if (!estado.modalidade) return fim(ap(F("vamos_marcar", { nome1, pergunta_modalidade: F("pergunta_modalidade") })), "perguntou_modalidade");
   const faltaDia = estado.dias === undefined && !estado.datas;
   const faltaPeriodo = !estado.periodo;
   if (faltaDia || faltaPeriodo) {
@@ -345,13 +426,16 @@ export async function conduzirAgendamento(
       if (faltaPeriodo) estado.periodo = "qualquer";
     } else {
       estado.tentativas++;
-      return fim(comApresentacao(estado, ctx.nomeClinica, `Certo, ${rotulo(estado.modalidade)}. ${perguntaFaltante(estado)}`), "perguntou_preferencias");
+      const pergunta = estado.dias === undefined && !estado.datas ? F("pergunta_preferencias") : F("pergunta_periodo");
+      return fim(ap(F("certo_modalidade", { modalidade: rotulo(estado.modalidade), pergunta })), "perguntou_preferencias");
     }
   }
-  return ofertar(estado, deps, comApresentacao(estado, ctx.nomeClinica, "Deixa eu ver a agenda."));
+  return ofertar(estado, deps, ap(F("olhando_agenda")));
 }
 
 async function ofertar(estado: EstadoConversa, deps: DepsAgendamento, prefixo: string): Promise<ResultadoAgendamento> {
+  const F = deps.frase;
+  const mod = rotulo(estado.modalidade!);
   const r = await deps.buscarHorarios({
     modalidade: estado.modalidade!, dias: estado.datas ? null : (estado.dias ?? null), datas: estado.datas ?? null,
     periodo: estado.periodo ?? "qualquer", excluir: estado.mostradas ?? [], max: 4,
@@ -365,42 +449,36 @@ async function ofertar(estado: EstadoConversa, deps: DepsAgendamento, prefixo: s
       estado.ofertas = alt.ofertas;
       estado.etapa = "escolha";
       estado.tentativas = 0;
-      return { tratada: true, estado, desfecho: "ofereceu_alternativas", resposta:
-        `${prefixo} Não há horário livre ${rotulo(estado.modalidade!)} nessa preferência, mas estes outros estão livres:\n${listaOfertas(alt.ofertas)}\nResponda com o número da opção que prefere, ou diga outros dias e períodos.` };
+      return { tratada: true, estado, desfecho: "ofereceu_alternativas", resposta: F("ofereceu_alternativas", { prefixo, modalidade: mod, lista: listaOfertas(alt.ofertas) }) };
     }
   }
   if (r.ofertas.length === 0) {
     await deps.encaminharEquipe("sem_horario_disponivel");
     estado.etapa = "concluido";
-    return { tratada: true, estado, desfecho: "sem_horario_encaminhada", resposta:
-      `${prefixo} Não encontrei horário livre ${rotulo(estado.modalidade!)} com essa preferência. Encaminhei seu pedido para a equipe, que procura uma alternativa e responde por aqui.` };
+    return { tratada: true, estado, desfecho: "sem_horario_encaminhada", resposta: F("sem_horario_encaminhada", { prefixo, modalidade: mod }) };
   }
   estado.ofertas = r.ofertas;
   estado.etapa = "escolha";
   estado.tentativas = 0;
-  return { tratada: true, estado, desfecho: "ofereceu_horarios", resposta:
-    `${prefixo} Estes horários estão livres (${rotulo(estado.modalidade!)}):\n${listaOfertas(r.ofertas)}\nResponda com o número da opção que prefere, ou diga outros dias e períodos.` };
+  return { tratada: true, estado, desfecho: "ofereceu_horarios", resposta: F("ofereceu_horarios", { prefixo, modalidade: mod, lista: listaOfertas(r.ofertas) }) };
 }
 
 async function reservarEResponder(estado: EstadoConversa, deps: DepsAgendamento, nome1: string): Promise<ResultadoAgendamento> {
+  const F = deps.frase;
   const o = estado.escolhida!;
   const r = await deps.reservar(o);
   if (r.ok) {
     estado.etapa = "concluido";
     const end = o.modalidade === "presencial" ? await deps.endereco("presencial") : null;
-    return { tratada: true, estado, desfecho: "reservado", resposta:
-      `Pronto${nome1}! Sua consulta ${rotulo(o.modalidade)} está reservada para ${dataPorExtenso(o.data)}, às ${o.hora}.${end ? ` Local: ${end}.` : ""} A equipe da clínica acompanha esta conversa e confirma qualquer detalhe por aqui.` };
+    return { tratada: true, estado, desfecho: "reservado", resposta: F("reservado", { nome1, modalidade: rotulo(o.modalidade), data: dataPorExtenso(o.data), hora: o.hora, local: end ? ` Local: ${end}.` : "" }) };
   }
   if (r.motivo === "limite" || r.motivo === "erro") {
     await deps.encaminharEquipe(r.motivo === "limite" ? "limite_de_reservas" : "falha_ao_reservar");
     estado.etapa = "concluido";
-    return { tratada: true, estado, desfecho: r.motivo === "limite" ? "limite_encaminhada" : "erro_encaminhada", resposta:
-      r.motivo === "limite"
-        ? "Para novas reservas hoje preciso da ajuda da equipe. Encaminhei seu pedido e ela responde por aqui."
-        : "Não consegui gravar essa reserva agora, então ela NÃO foi feita. Encaminhei para a equipe resolver, e ela responde por aqui." };
+    return { tratada: true, estado, desfecho: r.motivo === "limite" ? "limite_encaminhada" : "erro_encaminhada", resposta: F(r.motivo === "limite" ? "limite_reservas" : "erro_reserva") };
   }
   // Horário foi ocupado no meio tempo: procura de novo, sem prometer nada.
   estado.mostradas = [...(estado.mostradas ?? []), chaveOferta(o)];
   estado.escolhida = undefined;
-  return ofertar(estado, deps, "Esse horário acabou de ser ocupado por outra pessoa, e nada foi reservado para você.");
+  return ofertar(estado, deps, F("horario_ocupado"));
 }

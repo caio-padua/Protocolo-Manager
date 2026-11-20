@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
+import { criarFrase, mapaPadrao } from "../lib/telegram-frases";
 import { conduzirAgendamento, ESTADO_INICIAL, type DepsAgendamento, type Oferta } from "../lib/telegram-agendamento";
 
 const AGORA = new Date().toISOString();
 const of = (data: string, hora: string): Oferta => ({ data, hora, recursoId: 24, modalidade: "online" });
 function deps(over: Partial<DepsAgendamento> = {}): DepsAgendamento {
   return {
+    frase: criarFrase(mapaPadrao()), conferirIdentidade: async () => ({ ok: false as const }),
     hojeISO: () => "2026-11-16",
     buscarHorarios: vi.fn(async () => ({ ofertas: [of("2026-11-17", "09:00"), of("2026-11-18", "14:00")], semAgenda: false })),
     reservar: vi.fn(async () => ({ ok: true as const, sessionId: 1 })),
@@ -45,10 +47,10 @@ describe("assistente de agendamento no Telegram", () => {
   });
   it("visitante: nunca reserva, registra pedido e avisa que não está reservado", async () => {
     const d = deps();
-    const r = await conv(["quero agendar", "presencial", "quarta à tarde", "2", "Maria da Silva", "11 91234 5678"], false, d);
+    const r = await conv(["quero agendar", "primeira vez", "presencial", "quarta à tarde", "2", "Maria da Silva", "11 91234 5678"], false, d);
     expect(d.reservar).not.toHaveBeenCalled();
     expect(d.registrarPedido).toHaveBeenCalledTimes(1);
-    expect(r[5]).toContain("NÃO está reservado");
+    expect(r[6]).toContain("NÃO está reservado");
   });
   it("sem horário livre: encaminha à equipe sem inventar", async () => {
     const d = deps({ buscarHorarios: vi.fn(async () => ({ ofertas: [], semAgenda: false })) });

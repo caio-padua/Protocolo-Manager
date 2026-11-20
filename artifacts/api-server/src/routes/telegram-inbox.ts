@@ -318,3 +318,19 @@ inboxRouter.put("/telegram-inbox/atendimento-modo", requireCollaborator, require
   console.info(`[atendimento-ia] modo alterado para ${modo} por profissional ${req.collaborator?.professionalId}`);
   res.json({ ok: true, modo });
 });
+
+// Frases do assistente de agendamento (cadastradas no banco; texto editavel pelo CEO).
+inboxRouter.get("/telegram-inbox/frases", requireCollaborator, requireMessageClinic, async (_req, res): Promise<void> => {
+  const { listarFrases } = await import("../lib/telegram-frases.js");
+  res.json({ frases: await listarFrases() });
+});
+
+inboxRouter.put("/telegram-inbox/frases/:chave", requireCollaborator, requireMessageClinic, requireCeoInstance, async (req, res): Promise<void> => {
+  const { validarTextoFrase, gravarFrase } = await import("../lib/telegram-frases.js");
+  const chave = String(req.params.chave);
+  const texto = req.body?.texto;
+  const erro = validarTextoFrase(chave, texto);
+  if (erro) { res.status(400).json({ error: erro }); return; }
+  await gravarFrase(chave, texto as string, req.collaborator?.professionalId ?? null);
+  res.json({ ok: true });
+});

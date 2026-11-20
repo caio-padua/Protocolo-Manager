@@ -1,3 +1,4 @@
+import { FrasesAssistente } from "./frases-assistente";
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   ShieldCheck, MessageSquare, Mail, Send, CheckCheck,
@@ -635,6 +636,7 @@ export default function CentralAuditoriaComunicacao() {
       <BlocoWhatsApp filtroData={filtroData} />
       <BlocoEmail />
       <PainelOperacionalTelegram />
+      <FrasesAssistente />
       <BlocoTelegram />
       <BlocoTrello />
     </ConsoleShell>

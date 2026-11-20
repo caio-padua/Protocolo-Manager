@@ -11,6 +11,7 @@ import { getSetting } from "./secure-settings";
 import { sendTelegram } from "./telegram";
 import { chatAlertaOuNull } from "./telegram-config";
 import { brtISODate } from "./brt";
+import { carregarFrases, semearFrases, type FraseDeps } from "./telegram-frases";
 import { normalizar } from "./atendimento-telegram";
 import { bookSession, computeResourceSlots } from "./agenda-booking";
 import {
@@ -20,6 +21,7 @@ import {
 export const MARCA_RESERVA_TELEGRAM = "Reservado pelo assistente virtual (Telegram)";
 const LIMITE_RESERVAS_24H = 2;
 const DIAS_A_FRENTE = 21;
+const LIMITE_FALHAS_IDENTIDADE_24H = 5;
 
 export async function aplicarMigracaoAgendamentoTelegram(exec: { execute: (q: SQL) => Promise<unknown> }): Promise<void> {
   await exec.execute(sql`CREATE TABLE IF NOT EXISTS telegram_agendamento_estado (
@@ -34,6 +36,33 @@ export async function aplicarMigracaoAgendamentoTelegram(exec: { execute: (q: SQ
     id BIGSERIAL PRIMARY KEY, empresa_id INTEGER NOT NULL, chat_id TEXT NOT NULL, nome TEXT NOT NULL, telefone TEXT NOT NULL,
     modalidade TEXT, oferta JSONB, estado JSONB, status TEXT NOT NULL DEFAULT 'novo',
     criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), tratado_em TIMESTAMPTZ)`);
+  await exec.execute(sql`ALTER TABLE telegram_pedidos_agendamento ADD COLUMN IF NOT EXISTS cliente_id INTEGER`);
+  await semearFrases(exec);
+}
+
+const SEM_CONFERENCIA: DepsAgendamento["conferirIdentidade"] = async () => ({ ok: false });
+
+/** Confere nome + 4 primeiros dígitos do CPF + ano de nascimento. Só aceita UM cadastro compatível da clínica; nunca revela qual dado errou. */
+async function conferirIdentidadeReal(chatId: string, empresaId: number, p: { nome: string; cpf4: string; ano: string }): Promise<{ ok: true; clienteId: number } | { ok: false }> {
+  const chaveFalhas = `idfalhas:${chatId}`;
+  const f = await db.execute(sql`SELECT estado FROM telegram_agendamento_estado WHERE chave=${chaveFalhas} AND atualizado_em > NOW() - interval '24 hours'`);
+  const feitas = Number((f.rows[0] as { estado?: { n?: number } } | undefined)?.estado?.n ?? 0);
+  if (feitas >= LIMITE_FALHAS_IDENTIDADE_24H) return { ok: false };
+  const r = await db.execute(sql`SELECT id, name FROM clients
+    WHERE empresa_id=${empresaId} AND deleted_at IS NULL AND status='active'
+      AND LEFT(regexp_replace(COALESCE(cpf,''), '[^0-9]', '', 'g'), 4)=${p.cpf4}
+      AND LEFT(COALESCE(birth_date,''), 4)=${p.ano}`);
+  const tokens = (s: string) => normalizar(s).split(/\s+/).filter(Boolean);
+  const dado = tokens(p.nome);
+  const achados = (r.rows as Array<{ id: number; name: string }>).filter((c) => {
+    const t = tokens(c.name);
+    return t.length > 0 && dado[0] === t[0] && dado[dado.length - 1] === t[t.length - 1];
+  });
+  if (achados.length === 1) return { ok: true, clienteId: Number(achados[0].id) };
+  const novo = feitas + 1;
+  await db.execute(sql`INSERT INTO telegram_agendamento_estado (chave, estado, atualizado_em) VALUES (${chaveFalhas}, ${JSON.stringify({ n: novo })}::jsonb, ${feitas === 0 ? sql`NOW()` : sql`(SELECT atualizado_em FROM telegram_agendamento_estado WHERE chave=${chaveFalhas})`})
+    ON CONFLICT (chave) DO UPDATE SET estado=EXCLUDED.estado, atualizado_em=CASE WHEN telegram_agendamento_estado.atualizado_em > NOW() - interval '24 hours' THEN telegram_agendamento_estado.atualizado_em ELSE NOW() END`);
+  return { ok: false };
 }
 
 // ─────────────────────────── configuração ───────────────────────────
@@ -171,7 +200,13 @@ export async function planejarAgendamentoCliente(e: { empresaId: number; cliente
   const primeiro = nome.trim().split(/\s+/)[0];
   const primeiroNome = primeiro ? primeiro.charAt(0).toUpperCase() + primeiro.slice(1).toLowerCase() : undefined;
   let motivoEquipe: string | null = null;
+  let frase: FraseDeps;
+  try { frase = await carregarFrases(); } catch (err) {
+    logger.error({ errorType: err instanceof Error ? err.constructor.name : typeof err }, "[telegram-agendamento] frases indisponíveis; sem resposta automática");
+    return { tratada: false, pausa: null, alerta: null, resposta: null, desfecho: "frases_indisponiveis" };
+  }
   const deps: DepsAgendamento = {
+    frase, conferirIdentidade: SEM_CONFERENCIA,
     hojeISO: () => brtISODate(),
     buscarHorarios: buscarHorariosReais,
     reservar: (o) => reservarReal(e.clienteId, e.empresaId, o),
@@ -233,14 +268,20 @@ export async function atenderVisitante(chatId: string, texto: string, updateId: 
   if (pausado.rows.length) { await alertar("Visitante no Telegram escreveu de novo. Abra a Central Telegram."); return; }
   let motivo: string | null = null;
   let empresaId = empresaPadrao;
+  let frase: FraseDeps;
+  try { frase = await carregarFrases(); } catch (err) {
+    logger.error({ errorType: err instanceof Error ? err.constructor.name : typeof err }, "[telegram-agendamento] frases indisponíveis; visitante preservado, sem resposta automática");
+    return;
+  }
   const deps: DepsAgendamento = {
+    frase, conferirIdentidade: (p) => conferirIdentidadeReal(chatId, empresaPadrao, p),
     hojeISO: () => brtISODate(),
     buscarHorarios: async (p) => { const rec = await recursoDaModalidade(p.modalidade); if (rec) empresaId = rec.empresaId; return buscarHorariosReais(p); },
     reservar: async () => ({ ok: false, motivo: "erro" }), // nunca reserva para visitante
     registrarPedido: async (p) => {
-      const r = await db.execute(sql`INSERT INTO telegram_pedidos_agendamento (empresa_id, chat_id, nome, telefone, modalidade, oferta, estado)
+      const r = await db.execute(sql`INSERT INTO telegram_pedidos_agendamento (empresa_id, chat_id, nome, telefone, modalidade, oferta, estado, cliente_id)
         VALUES (${empresaId}, ${chatId}, ${p.nome}, ${p.telefone}, ${p.estado.modalidade ?? null},
-          ${p.oferta ? JSON.stringify(p.oferta) : null}::jsonb, ${JSON.stringify(p.estado)}::jsonb) RETURNING id`);
+          ${p.oferta ? JSON.stringify(p.oferta) : null}::jsonb, ${JSON.stringify(p.estado)}::jsonb, ${p.estado.clienteId ?? null}) RETURNING id`);
       return Number((r.rows[0] as { id: number | string }).id);
     },
     encaminharEquipe: async (m) => { motivo = m; },
@@ -251,7 +292,7 @@ export async function atenderVisitante(chatId: string, texto: string, updateId: 
   if (!r.tratada) {
     // Queixa de saúde: sem texto automático (revisão do Dr. Caio pendente). Só avisa a equipe e acolhe sem opinar.
     motivo = "queixa_de_visitante";
-    resposta = `${apresentacao(await nomeDaClinica(empresaId))} Recebi sua mensagem e já avisei a equipe, que responde por aqui. Se for algo urgente, procure o pronto-socorro ou ligue 192 (SAMU).`;
+    resposta = frase("queixa_visitante", { apresentacao: apresentacao(frase, await nomeDaClinica(empresaId)) });
   }
   await gravarEstado(chave, r.estado);
   if (r.desfecho === "pedido_registrado") await alertar("Novo pedido de agendamento pelo Telegram (visitante sem cadastro). Abra a Central Telegram.");
