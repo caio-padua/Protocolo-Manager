@@ -13,7 +13,7 @@ import { enviarAnexosDaMensagem } from "./anexos-mensagem.js";
 import { vinculoTelegramAtualUnico } from "./telegram-vinculo-atual.js";
 import { renderFlyerPaxmed } from "./flyer-paxmed.js";
 
-export type Categoria = "link_pagamento" | "boleto" | "documento" | "pedido_exame" | "orcamento" | "lembrete_formal" | "oferta_pam" | "duvida_cliente";
+export type Categoria = "link_pagamento" | "boleto" | "documento" | "pedido_exame" | "orcamento" | "lembrete_formal" | "oferta_pam" | "duvida_cliente" | "pedido_recebido";
 export interface DefCategoria {
   nome: string; variaveis: string[]; texto: string; flyerPadrao: boolean;
   /** Flyer: titulo e linhas (rotulo + campo vinculado). A clinica entra sempre por ultimo. */
@@ -56,6 +56,11 @@ export const CATEGORIAS: Record<Categoria, DefCategoria> = {
     nome: "Cliente quer tirar uma dúvida", variaveis: [], flyerPadrao: false,
     texto: `${ABERTURA}\n\nEu sou a {assistente}, assistente virtual de {clinica}, e recebi a sua dúvida.\n\nDúvidas objetivas, como agendamento, orientações práticas e organização do atendimento, a equipe responde por aqui. Dúvida sobre tratamento, exames ou conduta médica é assunto de consulta ou retorno com o médico.\n\nEnviei em anexo o guia com o que a equipe resolve e como funciona cada etapa do atendimento.\n\n${ASSINATURA}`,
     flyer: { titulo: "Tirar dúvidas", linhas: [{ rotulo: "Finalidade", campo: "finalidade" }, { rotulo: "Data", campo: "data" }] },
+  },
+  pedido_recebido: {
+    nome: "Aviso de pedido recebido", variaveis: ["referencia"], flyerPadrao: false,
+    texto: `${ABERTURA}\n\nEu sou a {assistente}, assistente virtual de {clinica}, e recebi o seu pedido: {referencia}.\n\nEle foi registrado e será avaliado pelo médico. Nada é emitido antes dessa avaliação, e o médico pode pedir mais informações.\n\nAgradecemos pela confiança.\n\n${ASSINATURA}`,
+    flyer: { titulo: "Pedido recebido", linhas: [{ rotulo: "Finalidade", campo: "finalidade" }, { rotulo: "Data", campo: "data" }] },
   },
   lembrete_formal: {
     nome: "Lembrete formal", variaveis: ["referencia", "data", "horario"], flyerPadrao: true,

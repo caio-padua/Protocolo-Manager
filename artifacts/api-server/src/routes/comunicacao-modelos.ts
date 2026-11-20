@@ -8,6 +8,9 @@ import {
   CATEGORIAS, VARIAVEIS_GLOBAIS, FLYER_VERSAO, ehCategoria, validarModelo, modeloTexto, carregarRegras, decidirFlyer,
   gravarModeloClinica, gravarRegraClinica, prepararTabelas, enviarComunicacao, ErroComunicacao, type Categoria,
 } from "../lib/comunicacao-padrao.js";
+import { avisarPedidoRecebido, listarAvisos } from "../lib/solicitacao-aviso.js";
+import { isPedidoKind } from "../lib/pedido-medico.js";
+import { beneficioAtivo } from "../lib/member-beneficios.js";
 import { ANEXO_MAX_BYTES, MENSAGENS_EXTRAS, ErroAnexo, arquivosDaMensagem, adicionarArquivo, removerArquivo, definirInterruptor } from "../lib/anexos-mensagem.js";
 
 const mensagemValida = (m: unknown): m is string => typeof m === "string" && (ehCategoria(m) || m in MENSAGENS_EXTRAS);
@@ -87,6 +90,21 @@ router.delete("/comunicacao/anexos/:arquivoId", requireCollaborator, requireMess
   if (!Number.isInteger(id) || id <= 0) { res.status(404).json({ error: "arquivo desconhecido" }); return; }
   const ok = await removerArquivo(req.messageEmpresaId!, id);
   res.status(ok ? 200 : 404).json(ok ? { ok: true } : { error: "arquivo não encontrado" });
+});
+
+// Registro dos avisos de pedido recebido / oferta do PAM (so da clinica da sessao).
+router.get("/comunicacao/solicitacao-avisos", requireCollaborator, requireMessageClinic, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ avisos: await listarAvisos(req.messageEmpresaId!) });
+});
+// Retoma SO o que falhou ou nao saiu; aceito nunca repete (o registro tem uma linha por pedido e tipo).
+router.post("/comunicacao/solicitacao-avisos/:pedidoId/reenviar", requireCollaborator, requireMessageClinic, requireCeoInstance, async (req, res): Promise<void> => {
+  const id = Number(req.params.pedidoId);
+  if (!Number.isSafeInteger(id) || id <= 0) { res.status(400).json({ error: "pedido inválido" }); return; }
+  const ped = (await db.execute(sql`SELECT id, client_id, empresa_id, kind FROM client_medical_requests WHERE id=${id} AND empresa_id=${req.messageEmpresaId!}`)).rows[0] as any;
+  if (!ped || !isPedidoKind(ped.kind)) { res.status(404).json({ error: "pedido não encontrado nesta clínica" }); return; }
+  const ben = await beneficioAtivo(ped.client_id, ped.empresa_id, ped.kind);
+  res.json({ resultados: await avisarPedidoRecebido({ pedidoId: ped.id, clienteId: ped.client_id, empresaId: ped.empresa_id, kind: ped.kind, beneficioAtivo: !!ben }) });
 });
 
 // Envio de TESTE: so proprietario da plataforma, so participantes autorizados, valor ate o teto de teste.

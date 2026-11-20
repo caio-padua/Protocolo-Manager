@@ -9,6 +9,7 @@ import { asaasCreateCharge, asaasCreateCustomer, asaasGetCharge, asaasGetPixQrCo
 import { brtISODate } from "../lib/brt";
 import { PEDIDO_LABEL, isPedidoKind, resolveAssignee, resolvePedidoAmount, type PedidoKind } from "../lib/pedido-medico";
 import { beneficioAtivo } from "../lib/member-beneficios";
+import { avisarPedidoRecebido } from "../lib/solicitacao-aviso";
 
 // ===========================================================================
 // PEDIDO MEDICO DO CLIENTE (Area do Cliente). O clientId vem SEMPRE do token do
@@ -112,6 +113,8 @@ router.post("/area-paciente/pedidos-medicos", async (req: Request, res: Response
       res.status(429).json({ error: "Você já tem pedidos aguardando pagamento. Pague ou cancele um deles." });
       return;
     }
+    // Aviso de pedido recebido (+ oferta do PAM se nao houver beneficio): nunca atrasa nem derruba o registro.
+    void avisarPedidoRecebido({ pedidoId: created.id, clienteId: clientId, empresaId: client.empresaId, kind, beneficioAtivo: !!beneficio });
     res.status(201).json(publicView(created));
   } catch (err) {
     req.log.error({ err: String(err) }, "Erro ao criar pedido médico do cliente");

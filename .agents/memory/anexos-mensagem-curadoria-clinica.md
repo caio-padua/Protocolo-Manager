@@ -7,3 +7,8 @@ Biblioteca de arquivos por clínica; cada arquivo tem interruptor por mensagem (
 **Why:** o CEO quer anexar o mesmo manual (MFC, PAM, Tirar dúvidas) em várias mensagens e escolher quais seguem.
 
 **How to apply:** nova mensagem com anexo = chamar enviarAnexosDaMensagem(chat, empresa, chave) depois do texto e registrar a chave em MENSAGENS_EXTRAS. Tela de Pedidos dos Clientes agora se chama Curadoria Clínica (rota /pedidos-medicos preservada). Ainda sem anexo: mensagens de WhatsApp, confirmação de visita, receituário, exames, atendimento.
+
+## Aviso de pedido recebido + oferta do PAM
+- Decisão do CEO: envio nasce em modo "teste" (só lista de teste); "ligado" é ordem do CEO, nunca ligar sozinho.
+- Não existe "PAM ativo" em tabela: a isenção vem do benefício Member ativo; sem ele, oferta do PAM.
+- Falha depois de tentar enviar = estado "incerto", nunca "recusado": reenvio automático só quando nada saiu.
