@@ -73,7 +73,7 @@ function Total({ rotulo, centavos, pct, id, forte, parcial }: { rotulo: string; 
 }
 
 export function PainelTributario() {
-  const [f, setF] = useState({ fat: "", rbt: "", folha: "", pl: "", desp: "", div: "", iss: "", rat: "", terc: "", hosp: false });
+  const [f, setF] = useState({ fat: "", rbt: "", folha: "", pl: "", desp: "", div: "", iss: "3", rat: "", terc: "", hosp: false });
   const [reg, setReg] = useState<string | null>(null);
   const body = useMemo(() => ({
     faturamentoMensalCents: reaisParaCentavos(f.fat), rbt12Cents: reaisParaCentavos(f.rbt), folhaMensalCents: reaisParaCentavos(f.folha), proLaboreMensalCents: reaisParaCentavos(f.pl),
@@ -93,7 +93,7 @@ export function PainelTributario() {
 
       <div className="panel-3d-sub p-3">
         <Campo rotulo="Faturamento do mês (R$)" ajuda="Digite quanto a empresa fatura em um mês. Tudo abaixo é recalculado enquanto você digita. Nenhum valor vem pronto.">
-          <input className={`${campoCls} text-[18px] font-bold`} inputMode="decimal" value={f.fat} onChange={set("fat")} placeholder="Digite o faturamento mensal" data-testid="painel-faturamento" autoComplete="off" />
+          <InputReais className={`${campoCls} text-[18px] font-bold`} value={f.fat} onChange={set("fat")} placeholder="Digite só números: 4500000 vira 45.000,00" data-testid="painel-faturamento" autoComplete="off" />
         </Campo>
         <details className="mt-3" open>
           <summary className="min-h-[44px] cursor-pointer text-[12px] font-bold uppercase leading-[44px] md:min-h-0 md:leading-normal">Dados que mudam o cálculo (todos opcionais)</summary>
