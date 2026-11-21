@@ -34,10 +34,11 @@ describe("laboratório de 24 meses (simulação)", () => {
     const a = calcularLab({ ...P, rpaContaFatorR: false }), b = calcularLab({ ...P, rpaContaFatorR: true });
     expect(b.meses[10].sem.fatorRPct).toBeGreaterThan(a.meses[10].sem.fatorRPct);
   });
-  it("edição por mês muda o faturamento e preserva os demais meses", () => {
+  it("valor digitado vira nova curva: meses seguintes crescem a partir dele, anteriores intactos", () => {
     const e = calcularLab(P, { "2026-03": { faturamentoCents: 9_900_000 } });
     expect(e.meses[3].sem.faturamentoCents).toBe(9_900_000);
-    expect(e.meses[4].sem.faturamentoCents).toBe(r.meses[4].sem.faturamentoCents);
+    expect(e.meses[2].sem.faturamentoCents).toBe(r.meses[2].sem.faturamentoCents);
+    expect(e.meses[4].sem.faturamentoCents).toBe(Math.round(9_900_000 * (1 + P.crescimentoMensalPct / 100)));
   });
   it("caixa começa no mês 0 com o saldo inicial", () => {
     const e = calcularLab({ ...P, caixaInicialCents: 1_000_000 });

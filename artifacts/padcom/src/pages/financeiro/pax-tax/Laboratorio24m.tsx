@@ -196,7 +196,7 @@ export function Laboratorio24m() {
       </section>
 
       <section className="panel-3d-sub p-3">
-        <BlockTitle icon={FlaskConical}>Mês a mês: digite o faturamento de cada mês; toque na linha para abrir o Raio-X</BlockTitle>
+        <BlockTitle icon={FlaskConical}>Mês a mês: digite o faturamento de um mês e os seguintes acompanham; toque na linha para abrir o Raio-X</BlockTitle>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] text-[12px]">
             <thead><tr className="text-left text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -209,7 +209,7 @@ export function Laboratorio24m() {
                   <td className="p-1 text-[10px]">{m.fase.fase === "anterior_abertura" ? "Clínica-modelo (sem CNPJ)" : m.fase.fase === "mes_abertura" ? "Mês da abertura" : "Simulação pós-abertura"}</td>
                   <td className="p-1 text-right"><div className="flex items-center justify-end gap-1"><CelulaFat mes={m.mes} valor={m.sem.faturamentoCents} manual={ov[m.mes]?.faturamentoCents !== undefined}
                     onSalva={(c) => { const n = { ...ov, [m.mes]: { ...(ov[m.mes] ?? {}), faturamentoCents: c ?? undefined } }; setOv(n); salvar.mutate({ premissas: p, overrides: n }); }} />
-                    {ov[m.mes]?.faturamentoCents !== undefined && <button type="button" className="min-h-[44px] px-1 text-[10px] underline md:min-h-0" onClick={(e) => { e.stopPropagation(); const o = { ...(ov[m.mes] ?? {}) }; delete o.faturamentoCents; const n = { ...ov, [m.mes]: o }; setOv(n); salvar.mutate({ premissas: p, overrides: n }); }}>voltar à curva</button>}</div></td>
+                    </div></td>
                   <td className="p-1 text-right tabular-nums">{fmt(m.ativo.proLaboreCents)}</td><td className="p-1 text-center">{pct(m.ativo.fatorRPct)} · {m.ativo.anexo}</td><td className="p-1 text-center">{m.sem.anexo} / {m.com.anexo}</td>
                   <td className="p-1 text-right tabular-nums">{fmt(m.sem.tributosCents + m.sem.retencoesCents)}</td>
                   <td className="p-1 text-right tabular-nums">{fmt(m.com.tributosCents + m.com.retencoesCents)}</td>

@@ -64,12 +64,14 @@ const NOTA_LUCRO = "Lucro contábil e lucro distribuível só existem com contab
 function rodar(p: Premissas, ov: Overrides, cen: Cenario) {
   const out = new Map<string, MesCenario>();
   const hist: { fat: number; folha: number }[] = [];
-  let caixa = p.caixaInicialCents; let tribAnterior = 0; let fatAnterior: number | null = null;
+  let anc: { i: number; fat: number } | null = null; let caixa = p.caixaInicialCents; let tribAnterior = 0; let fatAnterior: number | null = null;
   for (let i = -12; i < 24; i++) {
     const m = somaMes(p.inicio, i); const o = ov[m] ?? {};
-    const cresc = Math.pow(1 + p.crescimentoMensalPct / 100, i);
-    let fat = o.faturamentoCents ?? Math.round(p.faturamentoBaseCents * cresc);
+    // Valor digitado vira nova âncora: os meses seguintes seguem a curva a partir dele, sem o usuário precisar "voltar à curva".
+    const g = 1 + p.crescimentoMensalPct / 100;
+    let fat = o.faturamentoCents ?? (anc ? Math.round(anc.fat * Math.pow(g, i - anc.i)) : Math.round(p.faturamentoBaseCents * Math.pow(g, i)));
     if (o.faturamentoCents === undefined && p.tetoFaturamentoCents !== null) fat = Math.min(fat, p.tetoFaturamentoCents);
+    if (o.faturamentoCents !== undefined) anc = { i, fat };
     const folhaClt = o.folhaCltCents ?? p.folhaCltCents; const fgts = Math.round((folhaClt * VALORES.folha.fgts) / 100);
     const prest = Math.round((fat * p.prestadoresPct) / 100); const desp = o.despesasCents ?? (p.despesasFixasCents + Math.round((fat * p.despesasVariaveisPct) / 100));
     const n = Math.min(12, hist.length);
