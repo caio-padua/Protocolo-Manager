@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { ShieldAlert, ShieldCheck } from "lucide-react";
 import { COLLAB_EVENT, getCollabToken } from "@/lib/collab-auth";
 
@@ -54,6 +54,30 @@ function formatDate(value: string | null): string | null {
     dateStyle: "short",
     timeZone: "America/Sao_Paulo",
   }).format(new Date(value));
+}
+
+/** Escudo em relevo saliente (up bevel): aro dourado, face em degradê, brilho no topo e sombra embaixo. */
+function EscudoBevel({ tom, erro }: { tom: string[]; erro: boolean }) {
+  const id = useId().replace(/:/g, "");
+  const forma = "M24 3 L40 8.5 V23 C40 33.5 33 41 24 45 C15 41 8 33.5 8 23 V8.5 Z";
+  const miolo = "M24 7.2 L36.6 11.6 V23 C36.6 31.6 31 37.8 24 41.4 C17 37.8 11.4 31.6 11.4 23 V11.6 Z";
+  return (
+    <svg viewBox="0 0 48 50" width="40" height="42" aria-hidden="true" style={{ filter: "drop-shadow(0 4px 3px rgba(7,22,43,.38))" }}>
+      <defs>
+        <linearGradient id={`${id}a`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#f6e3a6" /><stop offset=".5" stopColor="#c9a24e" /><stop offset="1" stopColor="#8a6a2c" /></linearGradient>
+        <linearGradient id={`${id}b`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={tom[0]} /><stop offset=".55" stopColor={tom[1]} /><stop offset="1" stopColor={tom[2]} /></linearGradient>
+        <linearGradient id={`${id}c`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" stopOpacity=".7" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></linearGradient>
+        <clipPath id={`${id}d`}><path d={miolo} /></clipPath>
+      </defs>
+      <path d={forma} fill={`url(#${id}a)`} stroke="#6f5320" strokeWidth=".8" />
+      <path d={miolo} fill={`url(#${id}b)`} />
+      <g clipPath={`url(#${id}d)`}><rect x="8" y="7" width="32" height="15" fill={`url(#${id}c)`} /></g>
+      <path d={miolo} fill="none" stroke="#000" strokeOpacity=".28" strokeWidth=".9" />
+      {erro
+        ? <path d="M24 15 V26 M24 31 V32.5" stroke="#fff" strokeWidth="3" strokeLinecap="round" fill="none" />
+        : <path d="M17 24.5 L22.2 29.8 L31.5 18.5" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" fill="none" style={{ filter: "drop-shadow(0 1px 1px rgba(0,0,0,.45))" }} />}
+    </svg>
+  );
 }
 
 export function ClinicalCertificateStatus({
@@ -177,19 +201,13 @@ export function ClinicalCertificateStatus({
     const verificando = checking || resolvedEpoch !== sessionEpoch;
     if (!verificando && !state) return null;
     const ok = state === "valid";
-    const Icone = ok || verificando ? ShieldCheck : ShieldAlert;
-    const cor = verificando ? "#94a3b8" : ok ? "#17703e" : "#b42318";
-    const rotulo = verificando ? "Verificando" : ok ? "Ativo" : state === "expired" ? "Vencido" : "Atenção";
     const data = expiry ? (state === "expired" ? `venceu ${expiry}` : `até ${expiry}`) : null;
     const dica = `${copy?.title ?? "Certificado digital"}${expiry ? ` · ${ok ? "válido até" : "data"} ${expiry}` : ""}`;
+    const tom = verificando ? ["#cbd5e1", "#94a3b8", "#64748b"] : ok ? ["#5fd08f", "#1f9d57", "#0f5f33"] : ["#f19a8f", "#d4443a", "#8f1f17"];
     return (
-      <div role="status" aria-label={dica} title={dica} data-testid="selo-certificado"
-        className="flex flex-col items-center gap-[3px] border-t border-[#b89b5a]/50 pt-1.5 text-center leading-none">
-        <span className="flex items-center gap-1 whitespace-nowrap text-[8px] font-bold uppercase tracking-[0.16em] text-[#7a5f22]">
-          <Icone aria-hidden="true" strokeWidth={1.6} className="h-3 w-3 shrink-0" style={{ color: cor }} />Certificado
-        </span>
-        <span className="whitespace-nowrap text-[10px] font-extrabold uppercase tracking-[0.22em]" style={{ color: cor }}>{rotulo}</span>
-        {data && <span className="whitespace-nowrap text-[10px] tabular-nums text-[#6b5a36]" style={{ fontFamily: "'EB Garamond', serif" }}>{data}</span>}
+      <div role="status" aria-label={dica} title={dica} data-testid="selo-certificado" className="flex flex-col items-center gap-1">
+        <EscudoBevel tom={tom} erro={!ok && !verificando} />
+        {data && <span className="whitespace-nowrap text-[10px] leading-none tabular-nums text-[#6b5a36]" style={{ fontFamily: "'EB Garamond', serif" }}>{data}</span>}
       </div>
     );
   }
