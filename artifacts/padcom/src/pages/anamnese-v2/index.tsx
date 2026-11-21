@@ -54,6 +54,8 @@ const AREA_URL = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/area`;
 // senha de colaborador) com faixa visivel "MODO TESTE". Default DESLIGADO.
 const OPEN_ACCESS = import.meta.env.VITE_OPEN_ACCESS === "1";
 
+import RetornoPanel, { IDENTIDADE_IDS, type Retorno } from "./RetornoPanel";
+
 export default function AnamneseV2() {
   const { toast } = useToast();
   const { theme, toggle } = useScreenTheme();
@@ -161,6 +163,14 @@ export default function AnamneseV2() {
   // agrupa por bloco preservando a ordem; aplica visibilidade condicional por
   // sexo biologico (A04) e por dependencia de outra resposta (dependeDe).
   // Recalcula quando as respostas mudam (revela/esconde perguntas dependentes).
+  const retorno = ((sessionState as unknown) as { retorno?: Retorno | null } | undefined)?.retorno ?? null;
+  const ocultas = useMemo(() => {
+    const set = new Set<number>();
+    if (!retorno) return set;
+    for (const id of IDENTIDADE_IDS) set.add(id); // identidade vem do cadastro
+    for (const k of Object.keys(retorno.bloqueados ?? {})) set.add(Number(k)); // fatos ja registrados: somente leitura
+    return set;
+  }, [retorno]);
   const groups = useMemo(() => {
     const byPid = new Map<string, AnamneseQuestion>();
     for (const q of questions ?? []) if (q.perguntaId) byPid.set(q.perguntaId, q);
@@ -187,6 +197,7 @@ export default function AnamneseV2() {
     const idx = new Map<string, number>();
     for (const q of questions ?? []) {
       if (!isVisible(q)) continue;
+      if (ocultas.has(q.id)) continue;
       const b = q.bloco || "Outros";
       if (!idx.has(b)) {
         idx.set(b, list.length);
@@ -195,7 +206,7 @@ export default function AnamneseV2() {
       list[idx.get(b)!].questions.push(q);
     }
     return list;
-  }, [questions, answers]);
+  }, [questions, answers, ocultas]);
 
   const isRefused = useCallback((bloco: string) => refused.has(`bloco:${bloco}`), [refused]);
 
@@ -557,6 +568,15 @@ export default function AnamneseV2() {
         )}
 
         <div className="mx-auto max-w-xl">
+        {retorno && (
+          <RetornoPanel
+            retorno={retorno}
+            token={token}
+            questions={questions}
+            answers={answers}
+            onAnswer={handleAnswer}
+          />
+        )}
         {/* CONTEUDO */}
         {focusMode ? (
           <FocusView

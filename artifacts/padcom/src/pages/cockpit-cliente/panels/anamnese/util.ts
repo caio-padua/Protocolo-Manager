@@ -22,10 +22,11 @@ export type SessaoResumo = {
 export type Resposta = {
   id: number; questionRowId: number; volatilidade: Volatilidade; perguntaId: string | null;
   pergunta: string | null; bloco: string | null; sistema: string | null; tipoResposta: string | null;
-  valor: unknown; respondidoEm: string;
+  valor: unknown; respondidoEm: string; origemCadastro?: boolean;
 };
+export type IdentidadeCadastro = { nome: string | null; cpfMascarado: string | null; dataNascimento: string | null; idade: number | null };
 export type SessaoDetalhe = {
-  id: number; status: string; mode: string; startedAt: string; completedAt: string | null;
+  id: number; clientId?: number | null; identidade?: IdentidadeCadastro | null; status: string; mode: string; startedAt: string; completedAt: string | null;
   findings: { id: number; tipo: string; rotulo: string; severidade: string | null }[];
   refusals: { id: number; escopo: string; alvo: string; motivo: string | null }[];
   notes: { id: number; grupo: string; observacao: string }[];
@@ -111,7 +112,16 @@ const blocoDe = (r: Resposta) => r.bloco || r.sistema || "Geral";
 const vazio = (v: unknown) => formatarValor(v) === "—";
 
 /** Compara duas anamneses pela identidade da pergunta (id numerico do questionario; perguntaId REPETE). */
-export function compararSessoes(base: Resposta[], atual: Resposta[]): LinhaComparada[] {
+/** Identidade (nome, CPF, idade) vem do cadastro: nunca e evolucao clinica. */
+export const IDENTIDADE_IDS = [1, 2, 41];
+const ehIdent = (r: Resposta) => r.origemCadastro === true || IDENTIDADE_IDS.includes(r.questionRowId);
+/** So se compara anamnese do MESMO cliente (a lista ja vem isolada por clinica no servidor). */
+export function podeComparar(a?: { clientId?: number | null }, b?: { clientId?: number | null }): boolean {
+  return !!a && !!b && a.clientId != null && a.clientId === b.clientId;
+}
+
+export function compararSessoes(base0: Resposta[], atual0: Resposta[]): LinhaComparada[] {
+  const base = base0.filter((r) => !ehIdent(r)), atual = atual0.filter((r) => !ehIdent(r));
   const mb = new Map(base.map((r) => [r.questionRowId, r]));
   const ma = new Map(atual.map((r) => [r.questionRowId, r]));
   const ids = new Set([...mb.keys(), ...ma.keys()]);

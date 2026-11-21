@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ArrowRight, Minus, Plus, TrendingDown, TrendingUp } from "lucide-react";
-import { agruparPorBloco, compararAchados, compararSessoes, dataBR, horaBR, NAVY, OURO, MUDO, quando, VOL_COR, VOL_ROTULO, type SessaoDetalhe, type SessaoResumo } from "./util";
+import { agruparPorBloco, compararAchados, compararSessoes, podeComparar, dataBR, horaBR, NAVY, OURO, MUDO, quando, VOL_COR, VOL_ROTULO, type SessaoDetalhe, type SessaoResumo } from "./util";
 
 const rotuloSessao = (s: SessaoResumo) => `${dataBR(quando(s))} ${horaBR(quando(s))}${s.mode === "consulta" ? " · consulta" : ""}`;
 
@@ -21,7 +21,7 @@ export default function Evolucao({ sessoes, baseId, atualId, onBase, onAtual, de
   const [mostrarIguais, setMostrarIguais] = useState(false);
   const base = baseId != null ? detalhes.get(baseId) : undefined;
   const atual = atualId != null ? detalhes.get(atualId) : undefined;
-  const linhas = useMemo(() => (base && atual ? compararSessoes(base.respostas ?? [], atual.respostas ?? []) : []), [base, atual]);
+  const linhas = useMemo(() => (base && atual && podeComparar(base, atual) ? compararSessoes(base.respostas ?? [], atual.respostas ?? []) : []), [base, atual]);
   const achados = useMemo(() => (base && atual ? compararAchados(base.findings, atual.findings) : null), [base, atual]);
   const cont = { mudou: 0, novo: 0, igual: 0, removido: 0 };
   for (const l of linhas) cont[l.situacao] += 1;
@@ -50,7 +50,7 @@ export default function Evolucao({ sessoes, baseId, atualId, onBase, onAtual, de
         </div>
       </div>
 
-      {!base || !atual ? <div className="py-4 text-sm" style={{ color: MUDO }}>Carregando a comparação…</div> : (
+      {base && atual && !podeComparar(base, atual) ? <div className="panel-3d-sub p-5 text-[13px]" style={{ color: "#b91c1c" }} data-testid="comparacao-bloqueada">Comparação bloqueada: as duas anamneses não pertencem ao mesmo cliente.</div> : !base || !atual ? <div className="py-4 text-sm" style={{ color: MUDO }}>Carregando a comparação…</div> : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Kpi n={cont.mudou} rotulo="Mudaram" cor={OURO} />

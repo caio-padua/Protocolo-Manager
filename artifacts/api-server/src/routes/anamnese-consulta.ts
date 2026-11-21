@@ -6,6 +6,7 @@ import { requireCollaborator } from "./collaborator.js";
 import { requireMessageClinic } from "../middleware/messageClinic.js";
 import { absoluteBaseUrl } from "../lib/messaging/base-url.js";
 import { volatilidadeDa, herdaResposta, type Volatilidade } from "../lib/anamnese-volatilidade.js";
+import { ehIdentidade, garantirTabelaCorrecoes } from "../lib/anamnese-retorno.js";
 import { enviarComunicacao, ambienteDoCliente } from "../lib/comunicacao-padrao.js";
 
 /**
@@ -60,6 +61,8 @@ router.post("/collaborator/anamnese/clientes/:clientId/nova", requireCollaborato
       if (ant) {
         const resp = (await tx.execute(sql`SELECT question_row_id, pergunta_id, valor FROM anamnese_session_answers WHERE session_id=${ant.id}`)).rows as Array<{ question_row_id: number; pergunta_id: string | null; valor: unknown }>;
         for (const r of resp) {
+          // Identidade (nome, CPF, idade) vem do cadastro: nunca herdada como resposta.
+          if (ehIdentidade(Number(r.question_row_id))) continue;
           if (!herdaResposta(volatilidadeDa(Number(r.question_row_id)))) continue;
           await tx.execute(sql`INSERT INTO anamnese_session_answers (session_id, question_row_id, pergunta_id, valor, tempo_seg) VALUES (${ins.id}, ${r.question_row_id}, ${r.pergunta_id}, ${JSON.stringify(r.valor)}::jsonb, 0) ON CONFLICT DO NOTHING`);
           herdadas += 1;
@@ -86,6 +89,34 @@ router.post("/collaborator/anamnese/clientes/:clientId/enviar-link", requireColl
   } catch (err) {
     res.status(422).json({ status: "recusado", erro: String((err as Error).message ?? err) });
   }
+});
+
+/** Pedidos de correcao de fatos registrados: o profissional resolve com trilha; o historico nunca e alterado. */
+router.get("/collaborator/anamnese/clientes/:clientId/correcoes", requireCollaborator, requireMessageClinic, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  const clientId = Number(req.params.clientId);
+  if (!(await clienteDaClinica(clientId, req.messageEmpresaId!))) { res.status(404).json({ error: "Cliente não encontrado nesta clínica." }); return; }
+  await garantirTabelaCorrecoes();
+  const rows = (await db.execute(sql`SELECT c.id, c.question_row_id AS "questionRowId", q.pergunta, c.texto, c.status,
+      to_char(c.criado_em AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "criadoEm", c.nota_profissional AS "notaProfissional"
+    FROM anamnese_correcoes c LEFT JOIN anamnese_questionario q ON q.id=c.question_row_id
+    WHERE c.client_id=${clientId} ORDER BY c.id DESC LIMIT 100`)).rows;
+  res.json(rows);
+});
+
+router.post("/collaborator/anamnese/correcoes/:id/resolver", requireCollaborator, requireMessageClinic, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const decisao = req.body?.decisao;
+  const nota = typeof req.body?.nota === "string" ? req.body.nota.trim() : "";
+  if (!Number.isSafeInteger(id) || id <= 0 || (decisao !== "aceita" && decisao !== "recusada") || nota.length < 3) {
+    res.status(400).json({ error: "Informe a decisão (aceita ou recusada) e uma nota de pelo menos 3 caracteres." }); return;
+  }
+  await garantirTabelaCorrecoes();
+  const prof = (req as unknown as { collaborator?: { professionalId?: number } }).collaborator?.professionalId ?? null;
+  const r = (await db.execute(sql`UPDATE anamnese_correcoes SET status=${decisao}, resolvido_em=now(), resolvido_por=${prof}, nota_profissional=${nota}
+    WHERE id=${id} AND status='pendente' AND empresa_id=${req.messageEmpresaId!} RETURNING id, status`)).rows[0];
+  if (!r) { res.status(404).json({ error: "Pedido não encontrado, já resolvido ou de outra clínica." }); return; }
+  res.json(r);
 });
 
 export type { Volatilidade };

@@ -206,3 +206,4 @@
 - [Identidades empresariais](identidades-empresariais.md) — canal da clínica, referência, papéis.
 - [Publicação do Manager](publicacao-manager-indisponivel.md) — 404 sem build; falta publicar.
 - [Pedido médico — linha de produção](pedido-medico-linha-producao.md) — prévia pelo motor, assinar-e-enviar num clique, benefício Member isenta só cobrança.
+- [Anamnese de retorno — identidade e cirurgias](anamnese-retorno-identidade-cirurgias.md) — ids 1/2/41 = cadastro; cirurgias 8/9/88/315 só crescem; caso BETE BOQUETE era herança, não mistura.

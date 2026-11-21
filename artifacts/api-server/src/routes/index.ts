@@ -96,6 +96,7 @@ import asaasRouter from "./asaas";
 import asaasTesteRouter from "./asaas-teste";
 import comunicacaoModelosRouter from "./comunicacao-modelos";
 import anamneseConsultaRouter from "./anamnese-consulta";
+import anamneseRevisaoRouter from "./anamnese-revisao";
 import asaasConciliacaoRouter from "./asaas-conciliacao";
 import settingsRouter from "./settings";
 import integrationsRouter from "./integrations";
@@ -167,6 +168,7 @@ router.use(asaasRouter);
 router.use(asaasTesteRouter);
 router.use(comunicacaoModelosRouter);
 router.use(anamneseConsultaRouter);
+router.use(anamneseRevisaoRouter);
 router.use(asaasConciliacaoRouter);
 
 // Webhook de Assinatura Remota (ZapSign): provedor externo sem sessao, tambem

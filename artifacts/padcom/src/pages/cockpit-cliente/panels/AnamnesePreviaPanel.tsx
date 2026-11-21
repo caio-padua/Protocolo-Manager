@@ -3,8 +3,9 @@ import { AlertTriangle, ClipboardCheck, GitCompareArrows, ListChecks, Loader2, L
 import { getCollabToken } from "@/lib/collab-auth";
 import NovaConsulta from "./anamnese/NovaConsulta";
 import Evolucao from "./anamnese/Evolucao";
+import ResumoRetorno from "./anamnese/ResumoRetorno";
 import {
-  agruparPorBloco, api, blocoDe, compararSessoes, concluida, dataBR, formatarValor, haQuanto, horaBR, MUDO, NAVY, OURO, quando,
+  agruparPorBloco, api, blocoDe, compararSessoes, podeComparar, IDENTIDADE_IDS, concluida, dataBR, formatarValor, haQuanto, horaBR, MUDO, NAVY, OURO, quando,
   VOL_AJUDA, VOL_COR, VOL_ROTULO, type SessaoDetalhe, type SessaoResumo, type Volatilidade,
 } from "./anamnese/util";
 
@@ -70,7 +71,7 @@ export default function AnamnesePreviaPanel({ clientId }: { clientId: number }) 
   const ultima = ordenadas.find(concluida);
 
   const mudancas = useMemo(() => {
-    if (!detail || !base) return new Map<number, string>();
+    if (!detail || !base || !podeComparar(detail, base)) return new Map<number, string>();
     return new Map(compararSessoes(base.respostas ?? [], detail.respostas ?? []).filter((l) => l.situacao === "mudou" || l.situacao === "novo").map((l) => [l.rowId, l.antes]));
   }, [detail, base]);
   const porBloco = useMemo(() => agruparPorBloco((detail?.respostas ?? []).map((r) => ({ ...r, bloco: blocoDe(r) }))), [detail]);
@@ -160,6 +161,8 @@ export default function AnamnesePreviaPanel({ clientId }: { clientId: number }) 
             ))}
           </div>
 
+          {aba === "respostas" && detail && <ResumoRetorno clientId={clientId} detail={detail} base={base && podeComparar(detail, base) ? base : undefined} />}
+
           {aba === "evolucao" && (
             <Evolucao sessoes={ordenadas.filter(concluida).length >= 2 ? ordenadas.filter(concluida) : ordenadas} baseId={baseId} atualId={sessaoId} onBase={setBaseId} onAtual={setSessaoId} detalhes={detalhes} />
           )}
@@ -190,12 +193,14 @@ export default function AnamnesePreviaPanel({ clientId }: { clientId: number }) 
                   <div className="mt-2 divide-y" style={{ borderColor: "#f3eee1" }}>
                     {itens.map((r) => {
                       const antes = mudancas.get(r.questionRowId);
+                      const doCadastro = r.origemCadastro === true || IDENTIDADE_IDS.includes(r.questionRowId);
                       return (
                         <div key={r.id} className="grid items-start gap-2 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_64px]">
                           <div className="text-[12px]" style={{ color: "#4a5d75" }}>{r.pergunta ?? r.perguntaId ?? "Pergunta removida do questionário"}</div>
                           <div>
                             <div className="concave-3d px-2.5 py-1.5 text-[13px] font-semibold" style={{ color: NAVY }}>{formatarValor(r.valor)}</div>
-                            {antes !== undefined && (
+                            {doCadastro && <div className="mt-1 text-[11px]" style={{ color: MUDO }} data-testid="resposta-identidade">Dado de identificação digitado no formulário. A identidade oficial é a do cadastro e não entra na comparação.</div>}
+                            {!doCadastro && antes !== undefined && (
                               <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]" style={{ color: MUDO }}>
                                 <span className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white" style={{ background: OURO }}>Mudou</span>
                                 antes: <span className="line-through">{antes}</span>
