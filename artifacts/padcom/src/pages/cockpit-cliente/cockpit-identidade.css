@@ -298,9 +298,6 @@
 .cc-pulso-tabela tbody tr[data-dia="true"] td, .cc-pulso-tabela tbody tr[data-dia="true"] th { border-top-color: var(--p-borda); }
 .cc-pulso-per { text-align: left; font: 700 8.5px/1 Inter,sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--p-mudo); }
 .cc-pulso-cel { font-size: 13px; line-height: 1; color: var(--p-tinta); }
-.cc-pulso-cel[data-tom="ok"] { color: var(--p-ok); }
-.cc-pulso-cel[data-tom="atencao"] { color: var(--p-atencao); }
-.cc-pulso-cel[data-tom="alto"] { color: var(--p-alto); }
 .cc-pulso-vazio { color: var(--p-mudo); opacity: .7; }
 .cc-pulso-nota { margin: 5px 0 0; font: 500 7.5px/1.2 Inter,sans-serif; color: var(--p-mudo); text-align: center; }
 .cc-pulso-msg { margin: 8px 0; text-align: center; font: 600 10px/1.3 Inter,sans-serif; color: var(--p-mudo); }
@@ -409,3 +406,20 @@
 .cc-pulso-cal-faixa { padding: 6px 0 6px 0.24em; font-size: 11px; }
 .cc-pulso-cal b { flex: 1; display: flex; align-items: center; justify-content: center; padding: 6px 0 8px; font-size: 34px; }
 .cc-pulso-tabela tbody tr.cc-pulso-linha td { padding: 9px 3px; }
+
+/* Valor fora do esperado: o numero NAO muda de cor; ganha uma moldura discreta (legenda na faixa de cima) */
+.cc-pulso { --p-baixo: #3b6fb0; }
+.dark .cc-pulso { --p-baixo: #8fb4ec; }
+.cc-pulso-cel { display: inline-block; min-width: 3.2ch; padding: 2px 6px; border: 1px solid transparent; border-radius: 3px; }
+.cc-pulso-cel[data-tom="baixo"], .cc-pulso-legenda li[data-tom="baixo"] { --m: var(--p-baixo); }
+.cc-pulso-cel[data-tom="atencao"], .cc-pulso-legenda li[data-tom="atencao"] { --m: var(--p-atencao); }
+.cc-pulso-cel[data-tom="alto"], .cc-pulso-legenda li[data-tom="alto"] { --m: var(--p-alto); }
+.cc-pulso-cel[data-tom="baixo"], .cc-pulso-cel[data-tom="atencao"], .cc-pulso-cel[data-tom="alto"] {
+  border-color: var(--m); background: color-mix(in srgb, var(--m) 9%, transparent); }
+.cc-pulso-legenda { display: flex; flex: 1; justify-content: flex-end; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.cc-pulso-legenda li { padding: 3px 9px; border: 1px solid var(--m); border-radius: 3px; background: color-mix(in srgb, var(--m) 9%, transparent);
+  font: 700 9.5px/1 Inter,sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--p-tinta); }
+/* Manha, tarde e noite mais juntas */
+.cc-pulso-tabela tbody tr.cc-pulso-linha td { padding: 3px 3px; }
+.cc-pulso-tabela tbody th.cc-pulso-dia { padding: 7px 6px; }
+.cc-pulso-cal { min-height: 88px; }
