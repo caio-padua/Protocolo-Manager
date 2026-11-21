@@ -38,6 +38,7 @@ export const pulsoDiarioTable = pgTable(
     sono: integer("sono"), // 0..10 (qualidade do sono, tipicamente de manhã)
     pressaoSistolica: integer("pressao_sistolica"), // mmHg
     pressaoDiastolica: integer("pressao_diastolica"), // mmHg
+    frequenciaCardiaca: integer("frequencia_cardiaca"), // bpm
     glicemia: integer("glicemia"), // mg/dL
     humor: text("humor"), // palavra/emoji curto opcional
     observacao: text("observacao"),

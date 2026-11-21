@@ -60,6 +60,7 @@ import examesLabRouter from "./exames-lab";
 import examesUnidadesPedidosRouter from "./exames-unidades-pedidos";
 import anamnesePortalRouter from "./anamnese-portal";
 import pulsoDiarioRouter from "./pulso-diario";
+import pulsoTelegramPublicRouter from "./pulso-telegram-public";
 import anamneseV2Router from "./anamnese-v2";
 import areaPacienteRouter from "./area-paciente";
 import areaPacientePedidosRouter from "./area-paciente-pedidos";
@@ -212,6 +213,9 @@ router.use(pagamentoLinkPublicRouter);
 // K8: link de um clique da confirmação do cliente por visita. O token HMAC é a credencial;
 // abrir não confirma, só o POST. ANTES do portão.
 router.use(visitConfirmationPublicRouter);
+
+// Pulso Diário pelo Telegram (mini aplicativo): credencial = assinatura do Telegram. ANTES do portão.
+router.use(pulsoTelegramPublicRouter);
 
 // Portao do Colaborador (Onda 8.2): protege as ESCRITAS da Central de Cadastro
 // (site-content + cadastros) e registra auditoria. Precisa vir ANTES das rotas

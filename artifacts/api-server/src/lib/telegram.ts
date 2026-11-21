@@ -415,3 +415,41 @@ export async function sendTelegramDocumentBuffer(chatId: string, bytes: Buffer, 
     return { sent: false, mock: false, error: "telegram_falha_de_rede_ou_timeout" };
   }
 }
+
+/**
+ * Envia texto com UM botão que abre um mini aplicativo (web_app) dentro do Telegram.
+ * Só envio: não depende do webhook. MOCK quando sem token.
+ */
+export async function sendTelegramBotaoWebApp(
+  chatId: string,
+  text: string,
+  botao: { texto: string; url: string },
+): Promise<TelegramResult> {
+  await ensureTelegramTokenLoaded();
+  const token = process.env["TELEGRAM_BOT_TOKEN"];
+  if (!token) {
+    logger.info({ len: text.length }, "[telegram] MOCK envio com botão web_app (sem token no cofre)");
+    return { sent: true, mock: true };
+  }
+  try {
+    const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      signal: AbortSignal.timeout(15_000),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: "HTML",
+        reply_markup: { inline_keyboard: [[{ text: botao.texto, web_app: { url: botao.url } }]] },
+      }),
+    });
+    if (!resp.ok) return { sent: false, mock: false, error: `telegram_http_${resp.status}` };
+    const data = await resp.json() as { ok?: boolean; result?: { message_id?: number } };
+    if (data.ok !== true || !Number.isSafeInteger(data.result?.message_id)) {
+      return { sent: false, mock: false, error: "telegram_resultado_invalido" };
+    }
+    return { sent: true, mock: false };
+  } catch {
+    return { sent: false, mock: false, error: "telegram_falha_de_rede_ou_timeout" };
+  }
+}

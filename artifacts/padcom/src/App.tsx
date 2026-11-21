@@ -99,6 +99,7 @@ import Area from "@/pages/area";
 import Entrada from "@/pages/entrada";
 import Licenciado from "@/pages/licenciado";
 import VitrinePublica from "@/pages/vitrine";
+import PulsoTelegram from "@/pages/pulso-telegram";
 import Abertura from "@/pages/abertura";
 import MarcaMolde from "@/pages/marca-molde";
 import PawardsDemo from "@/pages/pawards-demo";
@@ -190,6 +191,7 @@ function Router() {
       <Route path="/entrada" component={Entrada} />
       <Route path="/licenciado" component={Licenciado} />
       <Route path="/vitrine" component={VitrinePublica} />
+      <Route path="/pulso-telegram" component={PulsoTelegram} />
       <Route path="/abertura" component={Abertura} />
       <Route path="/marca-molde" component={MarcaMolde} />
       <Route path="/pawards" component={PawardsDemo} />

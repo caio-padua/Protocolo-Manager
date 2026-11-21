@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { and, desc, eq, gte } from "drizzle-orm";
 import { z } from "zod/v4";
 import { db, pulsoDiarioTable, clientsTable } from "@workspace/db";
+import { sendTelegramBotaoWebApp } from "../lib/telegram";
 
 // ============================================================================
 // PULSO DIÁRIO — acompanhamento diário reportado pelo cliente.
@@ -25,6 +26,7 @@ const upsertSchema = z.object({
   sono: z.number().int().min(0).max(10).nullable().optional(),
   pressaoSistolica: z.number().int().min(0).max(300).nullable().optional(),
   pressaoDiastolica: z.number().int().min(0).max(200).nullable().optional(),
+  frequenciaCardiaca: z.number().int().min(0).max(300).nullable().optional(),
   glicemia: z.number().int().min(0).max(1000).nullable().optional(),
   humor: z.string().max(60).nullable().optional(),
   observacao: z.string().max(500).nullable().optional(),
@@ -93,6 +95,7 @@ router.post("/pulso-diario/:clientId", async (req, res): Promise<void> => {
     sono: v.sono ?? null,
     pressaoSistolica: v.pressaoSistolica ?? null,
     pressaoDiastolica: v.pressaoDiastolica ?? null,
+    frequenciaCardiaca: v.frequenciaCardiaca ?? null,
     glicemia: v.glicemia ?? null,
     humor: v.humor ?? null,
     observacao: v.observacao ?? null,
@@ -110,6 +113,7 @@ router.post("/pulso-diario/:clientId", async (req, res): Promise<void> => {
         sono: valores.sono,
         pressaoSistolica: valores.pressaoSistolica,
         pressaoDiastolica: valores.pressaoDiastolica,
+        frequenciaCardiaca: valores.frequenciaCardiaca,
         glicemia: valores.glicemia,
         humor: valores.humor,
         observacao: valores.observacao,
@@ -124,6 +128,27 @@ router.post("/pulso-diario/:clientId", async (req, res): Promise<void> => {
     createdAt: linha.createdAt.toISOString(),
     updatedAt: linha.updatedAt.toISOString(),
   });
+});
+
+// Envia ao cliente, pelo Telegram, o botão que abre o mini aplicativo do pulso. Só envio; nada é gravado.
+router.post("/pulso-diario/:clientId/enviar-telegram", async (req, res): Promise<void> => {
+  const clientId = Number(req.params.clientId);
+  if (!Number.isInteger(clientId)) { res.status(400).json({ error: "clientId inválido" }); return; }
+  const [c] = await db.select({ nome: clientsTable.name, chat: clientsTable.telegramChatId })
+    .from(clientsTable).where(eq(clientsTable.id, clientId));
+  if (!c) { res.status(404).json({ error: "cliente não encontrado" }); return; }
+  if (!c.chat) { res.status(409).json({ error: "cliente sem Telegram vinculado" }); return; }
+  const dominio = process.env["PULSO_MINIAPP_DOMINIO"] || (process.env["REPLIT_DOMAINS"] ?? "").split(",")[0];
+  if (!dominio) { res.status(503).json({ error: "domínio público indisponível" }); return; }
+  const primeiro = c.nome.trim().split(/\s+/)[0] ?? "";
+  const nome = primeiro ? primeiro.charAt(0).toUpperCase() + primeiro.slice(1).toLowerCase() : "";
+  const r = await sendTelegramBotaoWebApp(
+    c.chat,
+    `Olá${nome ? `, ${nome}` : ""}. Toque no botão abaixo para registrar como você está agora: energia, disposição, pressão e frequência. Leva menos de um minuto.`,
+    { texto: "Registrar meu pulso", url: `https://${dominio}/pulso-telegram` },
+  );
+  if (!r.sent) { res.status(502).json({ error: r.error ?? "falha no envio" }); return; }
+  res.json({ enviado: true, simulado: r.mock });
 });
 
 export default router;
