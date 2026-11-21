@@ -60,7 +60,7 @@ function formatDate(value: string | null): string | null {
 function EscudoContorno({ cor }: { cor: string }) {
   const forma = "M24 5 L38.5 10 V23 C38.5 32 32 38.5 24 42.5 C16 38.5 9.5 32 9.5 23 V10 Z";
   return (
-    <svg viewBox="0 0 48 48" width="17" height="17" aria-hidden="true" style={{ display: "block", flexShrink: 0, overflow: "visible" }}>
+    <svg viewBox="0 0 48 48" width="14" height="14" aria-hidden="true" style={{ display: "block", flexShrink: 0, overflow: "visible" }}>
       <path d={forma} fill="none" stroke="#000" strokeOpacity=".35" strokeWidth="4.2" strokeLinejoin="round" transform="translate(.8 1)" />
       <path d={forma} fill="none" stroke={cor} strokeWidth="4.2" strokeLinejoin="round" />
       <path d={forma} fill="none" stroke="#fff" strokeOpacity=".55" strokeWidth="1" strokeLinejoin="round" transform="translate(-.6 -.7)" />
@@ -197,10 +197,10 @@ export function ClinicalCertificateStatus({
     const fonteData = { color: "#000", fontFamily: "Inter, Arial, sans-serif", fontWeight: 500, fontVariantNumeric: "lining-nums tabular-nums", fontFeatureSettings: '"lnum" 1, "tnum" 1' } as const;
     return (
       <div role="status" aria-label={dica} title={dica} data-testid="selo-certificado"
-        className="flex w-full flex-col items-center justify-center gap-1.5 px-1 py-2 text-center">
-        <div className="flex items-center justify-center gap-1.5">
-          <EscudoContorno cor={cor} />
-          <span className="flex flex-col text-[7.5px] font-extrabold uppercase leading-[1.2] tracking-[.08em]" style={{ color: cor }}>
+        className="flex h-full w-full flex-col items-center justify-center gap-1.5 px-1 py-2 text-center">
+        <div className="relative">
+          <span className="absolute right-full top-1/2 mr-[3px] -translate-y-1/2"><EscudoContorno cor={cor} /></span>
+          <span className="flex flex-col items-center text-center text-[7.5px] font-extrabold uppercase leading-[1.2] tracking-[.08em]" style={{ color: cor, paddingLeft: ".08em" }}>
             {linhasTitulo.map((l) => <span key={l}>{l}</span>)}
           </span>
         </div>

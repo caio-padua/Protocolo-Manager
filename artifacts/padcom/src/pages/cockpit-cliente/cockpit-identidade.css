@@ -17,7 +17,7 @@
   box-shadow: inset 0 1px rgba(255,255,255,.22), 0 6px 0 #0c1a30, 0 14px 24px rgba(3,10,21,.28);
 }
 .cc-identity { display: grid; grid-template-columns: 106px minmax(220px,.95fr) minmax(380px,1.4fr); gap: 16px; padding: 16px; align-items: start; }
-.cc-profile { display: grid; gap: 6px; }
+.cc-profile { display: grid; gap: 6px; grid-template-rows: auto auto 1fr; }
 .cc-portrait { width: 100%; aspect-ratio: 1; padding: 4px; border: 2px solid #c5a862; border-radius: 6px; background: linear-gradient(145deg,#f7ebcb,#94732c); box-shadow: 0 6px 12px #07142580; }
 .cc-portrait img, .cc-portrait span { width: 100%; height: 100%; display: grid; place-items: center; object-fit: cover; background: #e2dcd0; color: #31425f; font: 700 27px "EB Garamond",serif; }
 .cc-grade-plan { display: grid; grid-template-columns: 1fr 3fr; color: #dfca96; border: 1px solid #b89b5a; border-radius: 3px; text-align: center; font-size: 10px; }
