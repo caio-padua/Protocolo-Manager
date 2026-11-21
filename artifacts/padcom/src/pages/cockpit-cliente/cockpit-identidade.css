@@ -432,3 +432,16 @@
 /* Cabecalho das colunas: todas as palavras na mesma linha horizontal */
 .cc-pulso-tabela thead th { vertical-align: top; }
 .cc-pulso-tabela thead th small { min-height: 9px; }
+
+/* Cinco niveis (muito baixo, baixo, normal, alto, muito alto): cores nitidas, contorno forte, preenchimento quase nulo */
+.cc-pulso { --t-mb: #1e40af; --t-b: #0891b2; --t-a: #d97706; --t-ma: #dc2626; }
+.dark .cc-pulso { --t-mb: #60a5fa; --t-b: #22d3ee; --t-a: #fbbf24; --t-ma: #f87171; }
+.cc-pulso-cel[data-tom="muitobaixo"], .cc-pulso-legenda li[data-tom="muitobaixo"] { --m: var(--t-mb); }
+.cc-pulso-cel[data-tom="baixo"], .cc-pulso-legenda li[data-tom="baixo"] { --m: var(--t-b); }
+.cc-pulso-cel[data-tom="alto"], .cc-pulso-legenda li[data-tom="alto"] { --m: var(--t-a); }
+.cc-pulso-cel[data-tom="muitoalto"], .cc-pulso-legenda li[data-tom="muitoalto"] { --m: var(--t-ma); }
+.cc-pulso-cel { border-width: 1.5px; }
+.cc-pulso-cel[data-tom="muitobaixo"], .cc-pulso-cel[data-tom="baixo"], .cc-pulso-cel[data-tom="alto"], .cc-pulso-cel[data-tom="muitoalto"] {
+  border-color: var(--m); background: color-mix(in srgb, var(--m) 4%, transparent); }
+.cc-pulso-legenda { gap: 8px; }
+.cc-pulso-legenda li { box-sizing: border-box; width: 92px; padding: 4px 0; text-align: center; border-width: 1.5px; background: color-mix(in srgb, var(--m) 4%, transparent); }

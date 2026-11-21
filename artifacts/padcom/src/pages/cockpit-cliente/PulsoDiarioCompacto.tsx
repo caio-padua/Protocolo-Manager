@@ -26,10 +26,18 @@ const ORDEM_PERIODO: Record<string, number> = { manha: 0, tarde: 1, noite: 2 };
 const ICONE_PERIODO = { manha: Sunrise, tarde: Sun, noite: Moon } as const;
 const NOME_PERIODO: Record<string, string> = { manha: "Manhã", tarde: "Tarde", noite: "Noite" };
 
-type Tom = "ok" | "baixo" | "atencao" | "alto" | "neutro";
-const tomPressao = (s: number | null, d: number | null): Tom =>
-  s == null && d == null ? "neutro" : (s != null && s < 90) || (d != null && d < 60) ? "baixo" : (s ?? 0) >= 160 || (d ?? 0) >= 100 ? "alto" : (s ?? 0) >= 140 || (d ?? 0) >= 90 ? "atencao" : "ok";
-const tomGlicemia = (g: number | null): Tom => (g == null ? "neutro" : g < 70 ? "baixo" : g >= 126 ? "alto" : g >= 100 ? "atencao" : "ok");
+type Tom = "ok" | "muitobaixo" | "baixo" | "alto" | "muitoalto" | "neutro";
+const tomPressao = (s: number | null, d: number | null): Tom => {
+  if (s == null && d == null) return "neutro";
+  const S = s ?? NaN, D = d ?? NaN;
+  if (S < 80 || D < 50) return "muitobaixo";
+  if (S < 90 || D < 60) return "baixo";
+  if (S >= 160 || D >= 100) return "muitoalto";
+  if (S >= 130 || D >= 80) return "alto";
+  return "ok";
+};
+const tomGlicemia = (g: number | null): Tom =>
+  g == null ? "neutro" : g < 54 ? "muitobaixo" : g < 70 ? "baixo" : g >= 126 ? "muitoalto" : g >= 100 ? "alto" : "ok";
 
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
@@ -87,7 +95,7 @@ function PeriodoChip({ periodo }: { periodo: string }) {
   return <span className="cc-pulso-periodo" data-periodo={periodo}><Icone size={13} aria-hidden="true" />{NOME_PERIODO[periodo] ?? periodo}</span>;
 }
 
-const DICA_TOM: Record<Tom, string | undefined> = { ok: undefined, baixo: "Abaixo do esperado", atencao: "Atenção", alto: "Alto", neutro: undefined };
+const DICA_TOM: Record<Tom, string | undefined> = { ok: undefined, muitobaixo: "Muito baixo", baixo: "Baixo", alto: "Alto", muitoalto: "Muito alto", neutro: undefined };
 
 function Valor({ v, tom = "neutro" }: { v: string | null; tom?: Tom }) {
   if (v == null) return <span className="cc-pulso-cel cc-pulso-vazio" aria-label="sem registro">—</span>;
@@ -203,7 +211,7 @@ export function PulsoDiarioHistorico({ clientId, janela, naModal = false }: { cl
           <Activity size={13} aria-hidden="true" /> Registros dia a dia
         </h4>
         <ul className="cc-pulso-legenda" aria-label="Legenda das molduras de pressão e glicemia">
-          <li data-tom="baixo">Abaixo</li><li data-tom="atencao">Atenção</li><li data-tom="alto">Alto</li>
+          <li data-tom="muitobaixo">Muito baixo</li><li data-tom="baixo">Baixo</li><li data-tom="alto">Alto</li><li data-tom="muitoalto">Muito alto</li>
         </ul>
         <span className="cc-pulso-estado">{demo && <em title="Parte dos dados é fictícia">DEMONSTRAÇÃO</em>}{linhas.length} registros</span>
       </header>

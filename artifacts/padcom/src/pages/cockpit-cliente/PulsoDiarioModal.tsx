@@ -30,10 +30,10 @@ type Grafico = {
 const GRAFICOS: Grafico[] = [
   { id: "pressao", titulo: "Pressão arterial", unidade: "mmHg", dominio: [50, "auto"],
     linhas: [{ key: "sis", nome: "Sistólica", cor: "#16294a", corEscura: "#9db8e6" }, { key: "dia", nome: "Diastólica", cor: "#b8924d", corEscura: "#e0c47a" }],
-    refs: [{ y: 135, rotulo: "135" }, { y: 85, rotulo: "85" }], nota: "Linhas tracejadas: limite de 135/85 da medida em casa" },
+    refs: [{ y: 130, rotulo: "130" }, { y: 80, rotulo: "80" }], nota: "Tracejadas: meta de 130/80 da medida em casa" },
   { id: "glicemia", titulo: "Glicemia de jejum", unidade: "mg/dL", dominio: ["auto", "auto"],
     linhas: [{ key: "glicemia", nome: "Glicemia", cor: "#a5702f", corEscura: "#e6b072" }],
-    refs: [{ y: 100, rotulo: "100" }, { y: 126, rotulo: "126" }], nota: "Tracejadas: 100 (atenção) e 126 (diabetes)" },
+    refs: [{ y: 100, rotulo: "100" }, { y: 126, rotulo: "126" }], nota: "Tracejadas: 100 (nível alto) e 126 (nível muito alto)" },
   { id: "bem", titulo: "Energia, disposição e sono", unidade: "0 a 10", dominio: [0, 10],
     linhas: [{ key: "energia", nome: "Energia", cor: "#b8924d", corEscura: "#e0c47a" }, { key: "disposicao", nome: "Disposição", cor: "#2f7a45", corEscura: "#6fcf8f" }, { key: "sono", nome: "Sono", cor: "#16294a", corEscura: "#9db8e6" }],
     refs: [] },
