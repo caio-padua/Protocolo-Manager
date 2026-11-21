@@ -40,17 +40,17 @@ function Cartao({ item, ehCeo }: { item: Lista["slots"][number]; ehCeo: boolean 
   const grupos = d ? [...new Set(d.campos.map((c) => c.grupo))] : [];
   return (
     <section className="panel-3d-sub p-3 text-[12px]" data-testid={`doc-${item.slot}`}>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <b className="uppercase">{item.rotulo}</b>
-        <span className="text-muted-foreground" data-testid={`doc-estado-${item.slot}`}>{d ? (d.status === "aplicado" ? "APLICADO" : "EXTRAÍDO, AGUARDA CONFERÊNCIA") : "NÃO ENVIADO"}</span>
-      </div>
+      <div className="flex h-[3rem] items-center" data-testid={`doc-titulo-${item.slot}`}><b className="line-clamp-2 uppercase leading-tight">{item.rotulo}</b></div>
+      <div className="mb-2 h-[1.25rem] truncate text-muted-foreground" data-testid={`doc-estado-${item.slot}`}>{d ? (d.status === "aplicado" ? "APLICADO" : "EXTRAÍDO, AGUARDA CONFERÊNCIA") : "NÃO ENVIADO"}</div>
       <input ref={ref} type="file" accept="application/pdf,.pdf" className="hidden" data-testid={`doc-arquivo-${item.slot}`}
         onChange={(e) => { const f = e.target.files?.[0]; if (f) envia.mutate(f); e.target.value = ""; }} />
-      <button type="button" className={`${btnSoftCls} min-h-[44px] w-full`} disabled={envia.isPending} onClick={() => ref.current?.click()} data-testid={`doc-enviar-${item.slot}`}>
-        <FileUp className="mr-1 inline h-4 w-4" />{envia.isPending ? "Lendo o documento…" : d ? "Enviar outro arquivo (substitui)" : "Escolher arquivo PDF"}
+      <button type="button" className={`${btnSoftCls} h-[44px] w-full truncate whitespace-nowrap`} disabled={envia.isPending} onClick={() => ref.current?.click()} data-testid={`doc-enviar-${item.slot}`}>
+        <FileUp className="mr-1 inline h-4 w-4" />{envia.isPending ? "Lendo o documento…" : d ? "Enviar outro (substitui)" : "Escolher arquivo PDF"}
       </button>
+      <div className="concave-3d mt-3 min-h-[8rem] rounded-md p-3" data-testid={`doc-resultado-${item.slot}`}>
+      {!d && item.historico.length === 0 && <p className="text-muted-foreground">Nenhum documento enviado.</p>}
       {item.historico.length > 0 && (
-        <div className="mt-3" data-testid={`doc-historico-${item.slot}`}>
+        <div data-testid={`doc-historico-${item.slot}`}>
           <div className="font-bold uppercase text-muted-foreground">Último enviado</div>
           <LinhaHist h={item.historico[0]} destaque />
           {item.historico.length > 1 && <><div className="mt-2 font-bold uppercase text-muted-foreground">Histórico ({item.historico.length - 1})</div>
@@ -66,8 +66,8 @@ function Cartao({ item, ehCeo }: { item: Lista["slots"][number]; ehCeo: boolean 
             : `NÃO REALIZADA (${d.conferenciaIa.motivo ?? "indisponível"}). Confira os campos manualmente.`}</p>
           {grupos.map((g) => (
             <div key={g}><div className="mt-2 font-bold uppercase text-muted-foreground">{g}</div>
-              <dl className="grid grid-cols-1 gap-x-3 gap-y-1 md:grid-cols-[minmax(0,200px)_1fr]">
-                {d.campos.filter((c) => c.grupo === g).map((c) => (<div key={c.chave} className="contents"><dt className="text-muted-foreground">{c.rotulo}</dt><dd className="whitespace-pre-line break-words" data-testid={`campo-${item.slot}-${c.chave}`}>{fmt(c.valor, c.chave)}</dd></div>))}
+              <dl className="space-y-1.5">
+                {d.campos.filter((c) => c.grupo === g).map((c) => (<div key={c.chave} className="min-w-0"><dt className="text-[10px] uppercase text-muted-foreground">{c.rotulo}</dt><dd className="whitespace-pre-line break-words [overflow-wrap:anywhere]" data-testid={`campo-${item.slot}-${c.chave}`}>{fmt(c.valor, c.chave)}</dd></div>))}
               </dl></div>))}
           {d.sensiveis.length > 0 && (
             <div className="rounded border border-amber-400/60 p-2"><div className="mb-1 flex items-center gap-1 font-bold uppercase"><ShieldAlert className="h-4 w-4" />Dados pessoais protegidos (cifrados)</div>
@@ -78,6 +78,7 @@ function Cartao({ item, ehCeo }: { item: Lista["slots"][number]; ehCeo: boolean 
               </dl>{!ehCeo && <p className="mt-1 text-muted-foreground">A revelação é exclusiva do CEO e fica registrada.</p>}</div>)}
           {d.status === "extraido" && <button type="button" className={`${btnSoftCls} min-h-[44px]`} onClick={() => rejeita.mutate(d.id)} disabled={rejeita.isPending}>Rejeitar esta leitura</button>}
         </div>)}
+      </div>
     </section>
   );
 }
@@ -129,7 +130,7 @@ export function DocumentosImport() {
       {reg.data?.existe && (
         <section className="panel-3d-sub p-3 text-[12px]" data-testid="docs-registro"><b className="uppercase">Cadastro societário completo da empresa (origem de cada dado)</b>
           <dl className="mt-1 grid grid-cols-1 gap-x-3 gap-y-1 md:grid-cols-[minmax(0,220px)_1fr_auto]">
-            {reg.data.campos.map((c) => (<div key={c.chave} className="contents"><dt className="text-muted-foreground">{c.rotulo}</dt><dd className="whitespace-pre-line break-words">{fmt(c.valor, c.chave)}</dd><dd className="text-muted-foreground">{c.origem ?? ""}</dd></div>))}
+            {reg.data.campos.map((c) => (<div key={c.chave} className="min-w-0"><dt className="text-[10px] uppercase text-muted-foreground">{c.rotulo}</dt><dd className="whitespace-pre-line break-words [overflow-wrap:anywhere]">{fmt(c.valor, c.chave)}</dd><dd className="text-muted-foreground">{c.origem ?? ""}</dd></div>))}
             {reg.data.sensiveis.map((s) => (<div key={s.chave} className="contents"><dt className="text-muted-foreground">{s.rotulo}</dt><dd>{s.mascara}</dd><dd className="text-muted-foreground">protegido</dd></div>))}
           </dl></section>)}
     </div>
