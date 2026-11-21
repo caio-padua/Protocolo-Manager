@@ -16,7 +16,7 @@ import { buildFindings, type AdapterQuestion } from "../lib/anamnese-findings-ad
 import { verifyPortalToken } from "../lib/portal-token";
 import { sql } from "drizzle-orm";
 import {
-  ehCirurgia, ehIdentidade, fatosBloqueados, garantirTabelaCorrecoes, idadeDe, identidadeDoCadastro, retiraFato,
+  ehCirurgia, ehIdentidade, fatosBloqueados, garantirIndiceRascunhoUnico, garantirTabelaCorrecoes, idadeDe, identidadeDoCadastro, retiraFato,
   type ValorResposta,
 } from "../lib/anamnese-retorno";
 
@@ -160,6 +160,8 @@ router.post("/anamnese-v2/sessions", async (req, res) => {
         and(
           eq(anamneseSessionsTable.clientId, clientId),
           eq(anamneseSessionsTable.status, "rascunho"),
+          // Nunca devolver ao paciente a sessao de CONSULTA (token do profissional).
+          eq(anamneseSessionsTable.mode, "paciente"),
         ),
       )
       .orderBy(asc(anamneseSessionsTable.id))
@@ -170,17 +172,30 @@ router.post("/anamnese-v2/sessions", async (req, res) => {
     }
   }
 
+  // Rota publica: o modo e sempre "paciente" (o corpo nao escolhe). Sessao de consulta so nasce na rota do colaborador.
+  await garantirIndiceRascunhoUnico();
+  let empresaId: number | null = null;
+  if (clientId !== null) {
+    empresaId = ((await db.execute(sql`SELECT empresa_id FROM clients WHERE id=${clientId}`)).rows[0] as { empresa_id: number | null } | undefined)?.empresa_id ?? null;
+  }
   const token = randomBytes(24).toString("hex");
   const [s] = await db
     .insert(anamneseSessionsTable)
-    .values({
-      token,
-      clientId,
-      mode: parsed.data.mode ?? "paciente",
-    })
+    .values({ token, clientId, mode: "paciente" })
+    .onConflictDoNothing()
     .returning();
+  // empresa_id existe so no banco (fora do schema Drizzle): gravado por SQL.
+  if (s && empresaId !== null) await db.execute(sql`UPDATE anamnese_sessions SET empresa_id=${empresaId} WHERE id=${s.id}`);
+  if (!s && clientId !== null) {
+    // Corrida: outra requisicao criou o rascunho primeiro; devolve-o.
+    const [ja] = await db.select().from(anamneseSessionsTable)
+      .where(and(eq(anamneseSessionsTable.clientId, clientId), eq(anamneseSessionsTable.status, "rascunho"), eq(anamneseSessionsTable.mode, "paciente")))
+      .limit(1);
+    if (ja) return res.status(200).json(ja);
+  }
+  if (!s) return res.status(500).json({ error: "Nao foi possivel abrir a sessao" });
   req.log.info({ sessionId: s.id, mode: s.mode, bound: clientId !== null }, "anamnese-v2 session created");
-  return res.status(201).json(s);
+  return res.status(201).json(empresaId !== null ? { ...s, empresaId } : s);
 });
 
 // GET /anamnese-v2/sessions/:token — estado completo
@@ -194,7 +209,7 @@ router.get("/anamnese-v2/sessions/:token", async (req, res) => {
 router.patch("/anamnese-v2/sessions/:token/answers", async (req, res) => {
   const session = await findSession(req.params.token);
   if (!session) return res.status(404).json({ error: "Sessao nao encontrada" });
-  if (session.status === "concluida") return res.status(409).json({ error: "Sessao ja concluida" });
+  if (session.status !== "rascunho") return res.status(409).json({ error: "Sessao ja encerrada" });
   const parsed = answerInput.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
   if (parsed.data.valor === undefined) return res.status(400).json({ error: "valor obrigatorio" });
@@ -245,6 +260,7 @@ router.patch("/anamnese-v2/sessions/:token/answers", async (req, res) => {
 router.post("/anamnese-v2/sessions/:token/refusals", async (req, res) => {
   const session = await findSession(req.params.token);
   if (!session) return res.status(404).json({ error: "Sessao nao encontrada" });
+  if (session.status !== "rascunho") return res.status(409).json({ error: "Sessao ja encerrada" });
   const parsed = refusalInput.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
   // LINHA VERMELHA: bloco que contem pergunta de alarme NUNCA pode ser recusado.
@@ -296,6 +312,7 @@ router.post("/anamnese-v2/sessions/:token/refusals", async (req, res) => {
 router.post("/anamnese-v2/sessions/:token/refusals/remove", async (req, res) => {
   const session = await findSession(req.params.token);
   if (!session) return res.status(404).json({ error: "Sessao nao encontrada" });
+  if (session.status !== "rascunho") return res.status(409).json({ error: "Sessao ja encerrada" });
   const parsed = refusalTarget.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
   await db
@@ -314,6 +331,7 @@ router.post("/anamnese-v2/sessions/:token/refusals/remove", async (req, res) => 
 router.post("/anamnese-v2/sessions/:token/notes", async (req, res) => {
   const session = await findSession(req.params.token);
   if (!session) return res.status(404).json({ error: "Sessao nao encontrada" });
+  if (session.status !== "rascunho") return res.status(409).json({ error: "Sessao ja encerrada" });
   const parsed = groupNoteInput.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
   const [row] = await db
@@ -322,7 +340,8 @@ router.post("/anamnese-v2/sessions/:token/notes", async (req, res) => {
       sessionId: session.id,
       grupo: parsed.data.grupo,
       observacao: parsed.data.observacao,
-      autorProfId: parsed.data.autorProfId ?? null,
+      // rota publica: autoria nunca vem do corpo (anti-falsificacao)
+      autorProfId: null,
     })
     .returning();
   return res.json(row);

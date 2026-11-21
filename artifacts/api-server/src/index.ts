@@ -38,6 +38,7 @@ import { ensureVisitConfirmations } from "./lib/ensure-visit-confirmations";
 import { ensureClientRubricas } from "./lib/client-rubrica";
 import { ensureProfessionalClerkIdentitySchema } from "./lib/ensure-professional-clerk-identity-schema";
 import { ensureProfessionalEmpresasSchema } from "./lib/ensure-professional-empresas-schema";
+import { ensurePaxFinanceSchema } from "./pax-finance/schema";
 import { ensureRecipeQrSchema } from "./lib/ensure-recipe-qr-schema";
 import { refreshCertCache } from "./lib/cert-source";
 import { recoverStuckDocuments } from "./routes/exames-lab";
@@ -84,6 +85,14 @@ if (Number.isNaN(port) || port <= 0) {
     logger.info("vínculos empresariais do profissional: schema pronto antes do listen");
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao garantir vínculos empresariais do profissional — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensurePaxFinanceSchema();
+    logger.info("PAX FINANCE: esquema fin_* pronto antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao garantir esquema do PAX FINANCE — abortando boot");
     process.exit(1);
   }
 

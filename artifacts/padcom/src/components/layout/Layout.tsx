@@ -223,6 +223,13 @@ const navigation: NavEntry[] = [
     ],
   },
   {
+    name: "PAX FINANCE",
+    icon: Scale,
+    children: [
+      { name: "Pax Tax (Gestão Tributária)", href: "/financeiro/pax-tax", icon: Landmark },
+    ],
+  },
+  {
     name: "Comunicação",
     icon: MessagesSquare,
     children: [
@@ -304,6 +311,7 @@ const GRUPO_MODULO: Record<string, string | null> = {
   "Arsenal Clínico":               "protocolos",
   "Cadastros Clínicos":            null,
   "Financeiro":                    "financeiro",
+  "PAX FINANCE":                   "financeiro",
   "Comunicação":                   "comunicacao",
   "Configurações & Administração": null,
   "Estrutura & Governança":        null,
@@ -365,6 +373,7 @@ const HREF_FERRAMENTA: Record<string, string> = {
   "/payments": "financeiro",
   "/financeiro/conciliacao": "financeiro",
   "/financeiro/metas": "financeiro",
+  "/financeiro/pax-tax": "financeiro",
 };
 
 export function Layout({ children }: LayoutProps) {

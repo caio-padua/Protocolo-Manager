@@ -100,3 +100,26 @@ export function garantirTabelaCorrecoes(): Promise<void> {
   })().catch((e) => { tabelaPronta = null; throw e; });
   return tabelaPronta;
 }
+
+let indiceRascunhoPronto: Promise<void> | null = null;
+/** Um unico rascunho de paciente por cliente: impede duas sessoes abertas por corrida de requisicoes. Aditivo. */
+export function garantirIndiceRascunhoUnico(): Promise<void> {
+  indiceRascunhoPronto ??= (async () => {
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS anamnese_sessions_rascunho_paciente_unico
+      ON anamnese_sessions (client_id) WHERE status = 'rascunho' AND mode = 'paciente' AND client_id IS NOT NULL`);
+  })().catch((e) => { indiceRascunhoPronto = null; throw e; });
+  return indiceRascunhoPronto;
+}
+
+/**
+ * Sessao orfa = rascunho publico sem cliente identificado, sem nenhuma resposta e parado ha mais de N dias.
+ * NAO apaga: muda o estado para 'abandonada' (reversivel). Sessao orfa COM respostas nunca e tocada.
+ */
+export async function marcarSessoesOrfas(dias = 7): Promise<number> {
+  const r = await db.execute(sql`UPDATE anamnese_sessions s SET status='abandonada', updated_at=now()
+    WHERE s.client_id IS NULL AND s.mode='paciente' AND s.status='rascunho'
+      AND coalesce(s.last_seen_at, s.started_at) < now() - (${dias} * interval '1 day')
+      AND NOT EXISTS (SELECT 1 FROM anamnese_session_answers a WHERE a.session_id = s.id)
+    RETURNING s.id`);
+  return r.rows.length;
+}

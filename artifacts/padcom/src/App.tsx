@@ -79,6 +79,7 @@ import FinanceiroMetas from "@/pages/financeiro/metas";
 import FinanceiroCobranca from "@/pages/financeiro/cobranca";
 import FinanceiroNfse from "@/pages/financeiro/nfse";
 import FinanceiroBancos from "@/pages/financeiro/bancos";
+import PaxTax from "@/pages/financeiro/pax-tax";
 import FinanceiroTransferencias from "@/pages/financeiro/transferencias";
 import { CollaboratorGate } from "@/components/CollaboratorGate";
 import ReceitaProtegida from "@/pages/documento-clinico-protegido/ReceitaProtegida";
@@ -345,6 +346,7 @@ function Router() {
                   <Route path="/financeiro/transferencias" component={FinanceiroTransferencias} />
                   <Route path="/financeiro/conciliacao" component={FinanceiroConciliacao} />
                   <Route path="/financeiro/metas" component={FinanceiroMetas} />
+                  <Route path="/financeiro/pax-tax" component={PaxTax} />
                   <Route component={NotFound} />
                 </Switch>
               </CollaboratorGate>
