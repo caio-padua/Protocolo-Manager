@@ -1,0 +1,56 @@
+/* Reguas de cinco niveis (pressao e glicemia): usadas na janela do cockpit e na Area do Cliente.
+   Regra visual: o NIVEL e o marcador (seta) sao saliencias (up bevel); a INFORMACAO (faixas) e rebaixada (insert bevel). */
+.pn-escopo { --n-mb: #1e40af; --n-b: #0891b2; --n-n: #15803d; --n-a: #d97706; --n-ma: #dc2626; }
+.dark .pn-escopo, .pn-escopo.dark { --n-mb: #3b6fd8; --n-b: #0aa5c8; --n-n: #1f9d4d; --n-a: #e08a12; --n-ma: #e24a4a; }
+.pn-regua { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.pn-col { display: flex; flex-direction: column; min-width: 0; }
+.pn-col[data-nivel="muitobaixo"] { --c: var(--n-mb); }
+.pn-col[data-nivel="baixo"] { --c: var(--n-b); }
+.pn-col[data-nivel="normal"] { --c: var(--n-n); }
+.pn-col[data-nivel="alto"] { --c: var(--n-a); }
+.pn-col[data-nivel="muitoalto"] { --c: var(--n-ma); }
+
+/* Marcador "media atual": placa em relevo + seta em relevo */
+.pn-pino { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-height: 74px; text-align: center; color: var(--c); }
+.pn-pino-placa { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px 10px 6px; border-radius: 5px; max-width: 100%;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 10%, hsl(var(--card))) 0%, hsl(var(--card)) 100%);
+  border: 1px solid color-mix(in srgb, var(--c) 60%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -2px 0 rgba(0,0,0,.14), 0 3px 6px -2px rgba(0,0,0,.35); }
+.pn-pino-placa span { font: 800 8.5px/1 Inter,sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+.pn-pino-placa b { font: 800 15px/1.05 "EB Garamond",serif; color: hsl(var(--foreground)); white-space: nowrap; }
+.pn-seta { width: 20px; height: 11px; margin: 3px 0 4px; background: var(--c);
+  clip-path: polygon(0 0, 100% 0, 50% 100%); filter: drop-shadow(0 2px 1px rgba(0,0,0,.4)) drop-shadow(0 -1px 0 rgba(255,255,255,.4)); }
+
+/* Nome do nivel: bloco em relevo */
+.pn-seg { padding: 12px 6px; text-align: center; border-radius: 5px; color: #fff; background: linear-gradient(180deg, color-mix(in srgb, var(--c) 82%, #fff) 0%, var(--c) 45%, color-mix(in srgb, var(--c) 82%, #000) 100%);
+  font: 900 12px/1.1 Inter,sans-serif; letter-spacing: .1em; text-transform: uppercase; text-shadow: 0 1px 1px rgba(0,0,0,.35);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.34), inset 0 -3px 0 rgba(0,0,0,.26), 0 3px 5px -1px rgba(0,0,0,.35); }
+.pn-col[data-atual="true"] .pn-seg { outline: 3px solid color-mix(in srgb, var(--c) 45%, transparent); outline-offset: 2px; }
+
+/* Faixas numericas: informacao rebaixada */
+.pn-vals { display: grid; gap: 6px; margin-top: 9px; text-align: center; }
+.pn-vals p { margin: 0; padding: 6px 4px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--c) 35%, transparent);
+  background: color-mix(in srgb, hsl(var(--foreground)) 4%, hsl(var(--card)));
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.22), inset 0 -1px 0 rgba(255,255,255,.5); }
+.pn-vals small { display: block; margin-bottom: 2px; font: 700 8.5px/1.1 Inter,sans-serif; letter-spacing: .06em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.pn-vals span { font-size: 15px; line-height: 1.1; color: hsl(var(--foreground)); }
+.pn-dica { margin: 8px 2px 0; font-size: 11px; color: hsl(var(--muted-foreground)); }
+@media (max-width: 640px) {
+  .pn-regua { gap: 4px; }
+  .pn-seg { font-size: 8.5px; letter-spacing: .02em; padding: 10px 1px; }
+  .pn-vals span { font-size: 11.5px; }
+  .pn-vals small { font-size: 7px; letter-spacing: 0; }
+  .pn-pino-placa { padding: 4px 6px; } .pn-pino-placa b { font-size: 13px; }
+}
+
+/* Selo do nivel (em relevo) usado nos cartoes e no historico */
+.pn-chip { display: inline-block; padding: 2px 8px; border-radius: 4px; color: #fff; font: 900 8.5px/1.2 Inter,sans-serif; letter-spacing: .08em; text-transform: uppercase; text-shadow: 0 1px 1px rgba(0,0,0,.35);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 82%, #fff) 0%, var(--c) 50%, color-mix(in srgb, var(--c) 82%, #000) 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.34), inset 0 -2px 0 rgba(0,0,0,.24), 0 2px 3px -1px rgba(0,0,0,.35); }
+.pn-chip[data-nivel="muitobaixo"] { --c: var(--n-mb); } .pn-chip[data-nivel="baixo"] { --c: var(--n-b); } .pn-chip[data-nivel="normal"] { --c: var(--n-n); }
+.pn-chip[data-nivel="alto"] { --c: var(--n-a); } .pn-chip[data-nivel="muitoalto"] { --c: var(--n-ma); }
+/* Valor medido: informacao rebaixada, com filete na cor do nivel */
+.pn-medida { display: inline-block; min-width: 3.4ch; padding: 3px 7px; border-radius: 4px; text-align: center; background: color-mix(in srgb, hsl(var(--foreground)) 4%, hsl(var(--card)));
+  box-shadow: inset 0 2px 3px rgba(0,0,0,.2), inset 0 -1px 0 rgba(255,255,255,.45); border: 1px solid transparent; }
+.pn-medida[data-nivel="muitobaixo"] { border-color: var(--n-mb); } .pn-medida[data-nivel="baixo"] { border-color: var(--n-b); }
+.pn-medida[data-nivel="alto"] { border-color: var(--n-a); } .pn-medida[data-nivel="muitoalto"] { border-color: var(--n-ma); }

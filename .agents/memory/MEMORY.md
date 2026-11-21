@@ -209,3 +209,4 @@
 - [Anamnese — seletor sem opções vira texto](anamnese-seletor-sem-opcoes.md) — LISTA sem `opcoes` degrada para texto; sexo do cadastro não editável; gênero separado.
 - [Anamnese — seletor pesquisável e tema](anamnese-combobox-tema-portal.md) — portal na raiz tematica; filtro sem acento; correcao de sexo com historico.
 - [PAX FINANCE documentos oficiais](pax-finance-documentos-oficiais.md) — slots CNPJ/JUCESP/contrato; sensíveis cifrados; aplicar com confirmação; visão de IA p/ digitalizado.
+- [Pulso Diário — níveis e Área do Cliente](pulso-diario-niveis-area-cliente.md) — limites em arquivo único; edição (opção A) pendente; POST do portal só do próprio cliente.
