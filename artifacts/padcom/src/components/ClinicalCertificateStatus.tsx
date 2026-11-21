@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { ShieldAlert, ShieldCheck } from "lucide-react";
 import { COLLAB_EVENT, getCollabToken } from "@/lib/collab-auth";
 
@@ -56,26 +56,14 @@ function formatDate(value: string | null): string | null {
   }).format(new Date(value));
 }
 
-/** Escudo em relevo saliente (up bevel): aro dourado, face em degradê, brilho no topo e sombra embaixo. */
-function EscudoBevel({ tom, erro }: { tom: string[]; erro: boolean }) {
-  const id = useId().replace(/:/g, "");
-  const forma = "M24 3 L40 8.5 V23 C40 33.5 33 41 24 45 C15 41 8 33.5 8 23 V8.5 Z";
-  const miolo = "M24 7.2 L36.6 11.6 V23 C36.6 31.6 31 37.8 24 41.4 C17 37.8 11.4 31.6 11.4 23 V11.6 Z";
+/** Escudo vazado, so o contorno em relevo saliente (up bevel), uma unica cor. */
+function EscudoContorno({ cor, claro, escuro }: { cor: string; claro: string; escuro: string }) {
+  const forma = "M24 4 L39 9.5 V23 C39 32.5 32.5 39.5 24 43.5 C15.5 39.5 9 32.5 9 23 V9.5 Z";
   return (
-    <svg viewBox="0 0 48 50" width="40" height="42" aria-hidden="true" style={{ filter: "drop-shadow(0 4px 3px rgba(7,22,43,.38))" }}>
-      <defs>
-        <linearGradient id={`${id}a`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#f6e3a6" /><stop offset=".5" stopColor="#c9a24e" /><stop offset="1" stopColor="#8a6a2c" /></linearGradient>
-        <linearGradient id={`${id}b`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={tom[0]} /><stop offset=".55" stopColor={tom[1]} /><stop offset="1" stopColor={tom[2]} /></linearGradient>
-        <linearGradient id={`${id}c`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" stopOpacity=".7" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></linearGradient>
-        <clipPath id={`${id}d`}><path d={miolo} /></clipPath>
-      </defs>
-      <path d={forma} fill={`url(#${id}a)`} stroke="#6f5320" strokeWidth=".8" />
-      <path d={miolo} fill={`url(#${id}b)`} />
-      <g clipPath={`url(#${id}d)`}><rect x="8" y="7" width="32" height="15" fill={`url(#${id}c)`} /></g>
-      <path d={miolo} fill="none" stroke="#000" strokeOpacity=".28" strokeWidth=".9" />
-      {erro
-        ? <path d="M24 15 V26 M24 31 V32.5" stroke="#fff" strokeWidth="3" strokeLinecap="round" fill="none" />
-        : <path d="M17 24.5 L22.2 29.8 L31.5 18.5" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" fill="none" style={{ filter: "drop-shadow(0 1px 1px rgba(0,0,0,.45))" }} />}
+    <svg viewBox="0 0 48 48" width="26" height="26" aria-hidden="true" style={{ display: "block", overflow: "visible" }}>
+      <path d={forma} fill="none" stroke={escuro} strokeWidth="2.6" strokeLinejoin="round" transform="translate(.7 .9)" opacity=".75" />
+      <path d={forma} fill="none" stroke={cor} strokeWidth="2.6" strokeLinejoin="round" />
+      <path d={forma} fill="none" stroke={claro} strokeWidth=".8" strokeLinejoin="round" transform="translate(-.5 -.6)" opacity=".85" />
     </svg>
   );
 }
@@ -201,13 +189,16 @@ export function ClinicalCertificateStatus({
     const verificando = checking || resolvedEpoch !== sessionEpoch;
     if (!verificando && !state) return null;
     const ok = state === "valid";
-    const data = expiry ? (state === "expired" ? `venceu ${expiry}` : `até ${expiry}`) : null;
-    const dica = `${copy?.title ?? "Certificado digital"}${expiry ? ` · ${ok ? "válido até" : "data"} ${expiry}` : ""}`;
-    const tom = verificando ? ["#cbd5e1", "#94a3b8", "#64748b"] : ok ? ["#5fd08f", "#1f9d57", "#0f5f33"] : ["#f19a8f", "#d4443a", "#8f1f17"];
+    const titulo = verificando ? "Verificando certificado" : ok ? "Certificado digital ativo" : state === "expired" ? "Certificado digital vencido" : copy?.title ?? "Certificado digital";
+    const data = expiry ? `${state === "expired" ? "venceu em" : "válido até"} ${expiry}` : null;
+    const dica = `${titulo}${data ? ` · ${data}` : ""}`;
+    const [cor, claro, escuro] = verificando ? ["#8a97a8", "#c3ccd8", "#4b5563"] : ok ? ["#1f9d57", "#7fdba8", "#0b4a28"] : ["#c0392b", "#f0a39a", "#6b1a12"];
     return (
-      <div role="status" aria-label={dica} title={dica} data-testid="selo-certificado" className="flex flex-col items-center gap-1">
-        <EscudoBevel tom={tom} erro={!ok && !verificando} />
-        {data && <span className="whitespace-nowrap text-[10px] leading-none tabular-nums text-[#6b5a36]" style={{ fontFamily: "'EB Garamond', serif" }}>{data}</span>}
+      <div role="status" aria-label={dica} title={dica} data-testid="selo-certificado"
+        className="flex w-full flex-col items-center justify-center gap-1.5 px-1 py-3 text-center">
+        <EscudoContorno cor={cor} claro={claro} escuro={escuro} />
+        <span className="text-[7.5px] font-bold uppercase leading-[1.25] tracking-[.12em]" style={{ color: cor, textWrap: "balance" }}>{titulo}</span>
+        {data && <span className="text-[10px] leading-tight" style={{ color: cor, textWrap: "balance", fontFamily: "'EB Garamond', serif", fontVariantNumeric: "lining-nums tabular-nums", fontFeatureSettings: '"lnum" 1, "tnum" 1' }}>{data}</span>}
       </div>
     );
   }
