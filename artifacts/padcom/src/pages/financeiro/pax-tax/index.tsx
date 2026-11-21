@@ -22,8 +22,9 @@ const PAPEL: Record<string, string> = { socio: "Sócio", administrador: "Adminis
 const SIMPLES: Record<string, string> = { nao_verificada: "Não verificada", confirmada: "Confirmada", nao_optante: "Não optante" };
 type Auditoria = { id: number; actorId: number | null; action: string; entity: string; criadoEm: string; detail: Record<string, unknown> };
 
-function Origem({ docs }: { docs?: string[] }) {
-  if (!docs?.length) return null;
+function Origem({ docs: bruto }: { docs?: string[] | string | null }) {
+  const docs = Array.isArray(bruto) ? bruto : bruto ? [String(bruto)] : [];
+  if (!docs.length) return null;
   return <Ajuda texto={`Origem do dado: ${docs.join("; ")}. Conferir a página exata antes de validar.`} rotulo="Origem" />;
 }
 
