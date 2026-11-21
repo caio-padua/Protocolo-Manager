@@ -2138,3 +2138,23 @@ html, body { max-width: 100%; overflow-x: clip; }
 .leva-card-calm textarea { min-height: 3.5rem; }
 .leva-card-calm button.text-base, .leva-card-calm .leva-chip.text-base { font-size: 0.9rem; }
 .leva-card-calm .text-\[13px\] { font-size: 12px; }
+
+/* Painel calmo v2 — mais recuado, mais baixo, tecido de risca de giz mais visivel. */
+.leva-card.leva-card-calm { opacity: 0.93; }
+.dark .leva-card.leva-card-calm {
+  background: linear-gradient(180deg, rgba(17, 41, 74, 0.86) 0%, rgba(13, 33, 64, 0.88) 55%, rgba(10, 26, 49, 0.9) 100%);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.35),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+    0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.anamnese-light .leva-card.leva-card-calm {
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.82) 0%, rgba(250, 244, 230, 0.86) 100%);
+  box-shadow: inset 0 2px 4px rgba(138, 109, 47, 0.12), 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.leva-card-calm .leva-q { font-size: 13.5px; }
+.leva-card-calm .leva-chip { font-size: 0.8rem; min-height: 2rem; padding-top: 0.3rem; padding-bottom: 0.3rem; }
+.leva-card-calm .concave-3d.h-12, .leva-card-calm .field-engraved.h-12 { height: 2.25rem; font-size: 0.95rem; }
+.leva-card-calm .leva-action { padding: 0.2rem 0.55rem; font-size: 0.7rem; }
+.leva-card-calm textarea { min-height: 2.75rem; }
+.leva-card-calm .text-\[13px\] { font-size: 11.5px; }

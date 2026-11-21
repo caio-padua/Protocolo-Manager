@@ -41,6 +41,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ControlRenderer } from "./controls";
 import { controlKind, isAnswered, isDiscrete, valorIncludesAny, type Valor } from "./types";
 import { PaxterLogo } from "@/components/branding/PaxterLogo";
+import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PaxterLockup } from "@/components/layout/paxter-fx/PaxterLockup";
 import { PadconWordmark } from "@/components/layout/paxter-fx/PadconWordmark";
 import { PaduaWordmark } from "@/components/layout/paxter-fx/PaduaWordmark";
@@ -477,71 +478,68 @@ export default function AnamneseV2() {
         <div className="relative z-[1] mx-auto max-w-2xl">
           {/* controles verticais no canto superior direito (retangulos finos,
               texto girado 90 graus) — nao competem com a marca centralizada */}
-          <div className="absolute right-0 top-0 z-10 flex items-start gap-1.5">
-            <button
-              type="button"
-              onClick={() => setFocusMode((f) => !f)}
-              aria-label={focusMode ? "Sair do modo foco" : "Entrar no modo foco"}
-              title={focusMode ? "Sair do foco" : "Modo foco"}
-              className="btn-3d-soft flex w-7 flex-col items-center justify-center gap-1.5 rounded-md py-2"
-              style={focusMode ? { boxShadow: `0 0 0 2px ${GOLD}`, color: GOLD } : undefined}
-            >
-              {focusMode ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              <span
-                className="text-[10px] font-bold uppercase tracking-wider"
-                style={{ writingMode: "vertical-rl" }}
+          {(() => {
+            const cls = minimizado
+              ? "btn-3d-soft flex h-6 w-8 items-center justify-center rounded-[4px]"
+              : "btn-3d-soft flex h-7 w-[76px] items-center justify-start gap-1.5 rounded-[5px] px-2";
+            const lbl = "text-[9px] font-bold uppercase tracking-wider";
+            const ic = "h-3 w-3 shrink-0";
+            return (
+              <div
+                className={`absolute right-0 top-0 z-10 flex gap-1 ${minimizado ? "flex-row items-center" : "flex-col items-stretch"}`}
               >
-                Foco
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setMinimizado((m) => !m)}
-              aria-label={minimizado ? "Expandir cabeçalho" : "Minimizar cabeçalho"}
-              title={minimizado ? "Expandir cabeçalho" : "Minimizar cabeçalho"}
-              aria-expanded={!minimizado}
-              className="btn-3d-soft flex w-7 flex-col items-center justify-center gap-1.5 rounded-md py-2"
-              style={{ color: GOLD }}
-            >
-              {minimizado ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
-              <span
-                className="text-[10px] font-bold uppercase tracking-wider"
-                style={{ writingMode: "vertical-rl" }}
-              >
-                {minimizado ? "Abrir" : "Minimizar"}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={toggle}
-              aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
-              title={theme === "dark" ? "Tema claro" : "Tema escuro"}
-              className="btn-3d-soft flex w-7 flex-col items-center justify-center gap-1.5 rounded-md py-2"
-              style={{ color: GOLD }}
-            >
-              {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-              <span
-                className="text-[10px] font-bold uppercase tracking-wider"
-                style={{ writingMode: "vertical-rl" }}
-              >
-                Tema
-              </span>
-            </button>
-          </div>
+                <button
+                  type="button"
+                  onClick={() => setFocusMode((f) => !f)}
+                  aria-label={focusMode ? "Sair do modo foco" : "Entrar no modo foco"}
+                  title={focusMode ? "Sair do foco" : "Modo foco"}
+                  className={cls}
+                  style={focusMode ? { boxShadow: `0 0 0 2px ${GOLD}`, color: GOLD } : undefined}
+                >
+                  {focusMode ? <EyeOff className={ic} /> : <Eye className={ic} />}
+                  {!minimizado && <span className={lbl}>Foco</span>}
+                </button>
+                <button
+                  type="button"
+                  onClick={toggle}
+                  aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
+                  title={theme === "dark" ? "Tema claro" : "Tema escuro"}
+                  className={cls}
+                  style={{ color: GOLD }}
+                >
+                  {theme === "dark" ? <Sun className={ic} /> : <Moon className={ic} />}
+                  {!minimizado && <span className={lbl}>Tema</span>}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMinimizado((m) => !m)}
+                  aria-label={minimizado ? "Expandir cabeçalho" : "Minimizar cabeçalho"}
+                  title={minimizado ? "Expandir cabeçalho" : "Minimizar cabeçalho"}
+                  aria-expanded={!minimizado}
+                  className={cls}
+                  style={{ color: GOLD }}
+                >
+                  {minimizado ? <ChevronDown className={ic} /> : <ChevronUp className={ic} />}
+                  {!minimizado && <span className={lbl}>Minimizar</span>}
+                </button>
+              </div>
+            );
+          })()}
 
           {minimizado ? (
-            <div className="flex min-h-[3.25rem] flex-col justify-center gap-1.5 pr-[6.5rem]">
-              <div className="flex items-baseline gap-2">
-                <span className="text-[11px] font-extrabold uppercase tracking-[0.2em]" style={{ color: GOLD }}>
-                  Paxter
-                </span>
-                <span className="text-[11px] font-semibold text-muted-foreground">
-                  {pct}% · {respondidas}/{totalAtivas} · ~{restanteMin}min
-                </span>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2 pr-[6.75rem]">
+                <div className="shrink-0"><PaxterSymbolGlass size={30} tone={theme === "dark" ? "dark" : "light"} /></div>
+                <div className="grid min-w-0 flex-1 grid-cols-4 gap-1">
+                  <MiniMeter icon={<ListChecks className="h-2.5 w-2.5" />} value={`${pct}%`} />
+                  <MiniMeter icon={<Check className="h-2.5 w-2.5" />} value={`${respondidas}/${totalAtivas}`} />
+                  <MiniMeter icon={<Activity className="h-2.5 w-2.5" />} value={`${gruposCompletos}/${gruposTotais}`} />
+                  <MiniMeter icon={<Clock className="h-2.5 w-2.5" />} value={`${restanteMin}m`} />
+                </div>
               </div>
               <div className="flex gap-1">
                 {Array.from({ length: gruposTotais }).map((_, i) => (
-                  <div key={i} className="paxter-bar-track h-2 flex-1">
+                  <div key={i} className="paxter-bar-track h-1.5 flex-1">
                     {i < gruposCompletos && <div className="paxter-bar-fill" style={{ width: "100%" }} />}
                   </div>
                 ))}
@@ -553,7 +551,7 @@ export default function AnamneseV2() {
           <BrandMark tone={theme === "dark" ? "dark" : "light"} />
 
           {/* 2) blocos medidores */}
-          <div className="mt-4 grid grid-cols-4 gap-2">
+          <div className="mt-3 grid grid-cols-4 gap-2">
             <Meter icon={<ListChecks className="h-3.5 w-3.5" />} label="Concluído" value={`${pct}%`} />
             <Meter icon={<Check className="h-3.5 w-3.5" />} label="Perguntas" value={`${respondidas}/${totalAtivas}`} />
             <Meter icon={<Activity className="h-3.5 w-3.5" />} label="Grupos" value={`${gruposCompletos}/${gruposTotais}`} />
@@ -869,6 +867,15 @@ function BrandMark({ tone }: { tone: "dark" | "light" }) {
   );
 }
 
+function MiniMeter({ icon, value }: { icon: React.ReactNode; value: string }) {
+  return (
+    <div className="leva-kpi flex items-center justify-center gap-1 rounded-[4px] px-1 py-0.5">
+      <span className="leva-kpi-label">{icon}</span>
+      <span className="leva-kpi-value text-[10px] font-extrabold leading-none">{value}</span>
+    </div>
+  );
+}
+
 function Meter({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="leva-kpi flex flex-col items-center gap-0.5 rounded-md px-1 py-2">
@@ -929,7 +936,7 @@ function QuestionCard({
 
   return (
     <div
-      className="leva-card leva-card-calm rounded-md p-2.5"
+      className="leva-card leva-card-calm rounded-md p-2"
       style={q.eSinalAlarme ? { boxShadow: "0 0 0 2px #ef4444, 0 6px 16px rgba(0,0,0,.18)" } : undefined}
     >
       <div className="relative z-[1] mb-2 flex items-start justify-between gap-2">
@@ -937,7 +944,7 @@ function QuestionCard({
           const { main, notas } = splitNotas(formatPergunta(q.pergunta));
           return (
             <div className="min-w-0">
-              <p className="leva-q text-[14.5px] leading-snug text-foreground">{main}</p>
+              <p className="leva-q text-[13.5px] leading-snug text-foreground">{main}</p>
               {notas.map((n, i) => (
                 <p
                   key={i}
