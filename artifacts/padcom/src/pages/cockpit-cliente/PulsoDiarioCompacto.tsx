@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ChevronDown } from "lucide-react";
+import { Activity, ChevronDown, Moon, Sun, Sunrise } from "lucide-react";
 import { Numeral } from "@/components/numeral/Numeral";
 import { BASE } from "@/pages/comunicacao/_shared";
 
@@ -23,6 +23,7 @@ export type Pulso = {
 };
 
 const ORDEM_PERIODO: Record<string, number> = { manha: 0, tarde: 1, noite: 2 };
+const ICONE_PERIODO = { manha: Sunrise, tarde: Sun, noite: Moon } as const;
 const NOME_PERIODO: Record<string, string> = { manha: "Manhã", tarde: "Tarde", noite: "Noite" };
 
 type Tom = "ok" | "atencao" | "alto" | "neutro";
@@ -79,6 +80,11 @@ export function usePulso30(clientId: number) {
     },
     retry: false,
   });
+}
+
+function PeriodoChip({ periodo }: { periodo: string }) {
+  const Icone = ICONE_PERIODO[periodo as keyof typeof ICONE_PERIODO] ?? Sun;
+  return <span className="cc-pulso-periodo" data-periodo={periodo}><Icone size={13} aria-hidden="true" />{NOME_PERIODO[periodo] ?? periodo}</span>;
 }
 
 function Valor({ v, tom = "neutro" }: { v: string | null; tom?: Tom }) {
@@ -190,8 +196,14 @@ export function PulsoDiarioHistorico({ clientId, janela, naModal = false }: { cl
   const demo = linhas.some((l) => l.origem === "demo");
   return (
     <section id="cc-pulso-historico" className={`cc-pulso${naModal ? " cc-pulso-modal" : ""}`} aria-label="Histórico do pulso diário">
-      <header className="cc-pulso-topo">
-        <span className="cc-pulso-titulo"><Activity size={12} aria-hidden="true" /> HISTÓRICO · {rotuloJanela(janela).toUpperCase()} ({dias} DIAS)</span>
+      <header className="cc-pulso-topo cc-pulso-explica">
+        <div>
+          <h4 className="cc-pulso-explica-titulo"><Activity size={13} aria-hidden="true" /> Registros dia a dia</h4>
+          <p className="cc-pulso-explica-texto">
+            Cada dia mostra manhã, tarde e noite. Pressão e glicemia usam cor: <i data-tom="ok">verde</i> dentro do esperado,
+            <i data-tom="atencao"> âmbar</i> atenção, <i data-tom="alto"> vermelho</i> alto. Traço (—) quer dizer que não foi registrado.
+          </p>
+        </div>
         <span className="cc-pulso-estado">{demo && <em title="Parte dos dados é fictícia">DEMONSTRAÇÃO</em>}{linhas.length} registros</span>
       </header>
       {isError ? (
@@ -220,10 +232,13 @@ export function PulsoDiarioHistorico({ clientId, janela, naModal = false }: { cl
                       <tr key={l.id} className="cc-pulso-linha" data-zebra={di % 2} data-inicio={i === 0}>
                         {i === 0 && (
                           <th scope="rowgroup" rowSpan={dia.itens.length} className="cc-pulso-dia" title={dataBr(dia.data)}>
-                            <b><Numeral peso={800}>{dia.data.slice(8)}</Numeral></b><small>{SEMANA[diaSemana(dia.data)]}</small>
+                            <div className="cc-pulso-cal" data-hoje={dia.data === hojeBrt()}>
+                              <span className="cc-pulso-cal-faixa">{SEMANA[diaSemana(dia.data)]}</span>
+                              <b><Numeral peso={800}>{dia.data.slice(8)}</Numeral></b>
+                            </div>
                           </th>
                         )}
-                        <td className="cc-pulso-per">{NOME_PERIODO[l.periodo] ?? l.periodo}</td>
+                        <td className="cc-pulso-per"><PeriodoChip periodo={l.periodo} /></td>
                         <td><Valor v={l.energia == null ? null : String(l.energia)} /></td>
                         <td><Valor v={l.disposicao == null ? null : String(l.disposicao)} /></td>
                         <td><Valor v={l.sono == null ? null : String(l.sono)} /></td>
