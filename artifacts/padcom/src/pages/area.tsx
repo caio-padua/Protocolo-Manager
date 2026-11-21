@@ -262,7 +262,7 @@ export default function Area() {
         {tab === "agenda"     && <AgendaTab     client={client} />}
         {tab === "documentos" && <DocumentosTab client={client} />}
         {tab === "enviar"     && <EnviarTab     client={client} />}
-        {tab === "pulso" && <MeuPulsoCliente token={client.token} />}
+        {tab === "pulso" && <MeuPulsoCliente token={client.token} escuro={theme === "dark"} />}
         {tab === "fotos" && <FotosCorpoCliente token={client.token} />}
         {tab === "minhacategoria" && <MinhaCategoriaCliente token={client.token} />}
         {tab === "clubvip" && (

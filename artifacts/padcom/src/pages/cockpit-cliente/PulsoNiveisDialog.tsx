@@ -21,7 +21,7 @@ export function PulsoNiveisDialog({ aberto, escuro, onClose, mediaPA, mediaGlice
           </div>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          <ReguasNiveis mediaPA={mediaPA} mediaGlicemia={mediaGlicemia} nivelPA={nivelPA} nivelGlicemia={nivelGlicemia} janelaTexto={janelaTexto} />
+          <ReguasNiveis mediaPA={mediaPA} mediaGlicemia={mediaGlicemia} nivelPA={nivelPA} nivelGlicemia={nivelGlicemia} janelaTexto={janelaTexto} escuro={escuro} />
         </div>
       </DialogContent>
     </Dialog>
