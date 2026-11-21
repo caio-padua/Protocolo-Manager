@@ -4,7 +4,7 @@ import { AlertTriangle, FlaskConical } from "lucide-react";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from "recharts";
 import { BlockTitle } from "@/components/settings/SettingsUI";
 import { finApi } from "@/lib/pax-finance-api";
-import { Campo, Indicador, btnCls, btnSoftCls, campoCls, reaisParaCentavos, rotuloMes, mascaraReais } from "../pax-finance-ui";
+import { Ajuda, Campo, Indicador, btnCls, btnSoftCls, campoCls, reaisParaCentavos, rotuloMes, mascaraReais } from "../pax-finance-ui";
 
 type Linha = { chave: string; rotulo: string; valorCents: number };
 type Cen = {
@@ -104,12 +104,39 @@ function RaioX({ m, ov, onEdit }: { m: Mes; ov: Ov[string] | undefined; onEdit: 
   );
 }
 
+/** Faixa de meses com duas alças: arraste e solte (ou aperte Enter) para aplicar o corte. Não apaga nenhum dado. */
+function FaixaMeses({ titulo, ajuda, rotulos, valor, onAplicar, id }: { titulo: string; ajuda: string; rotulos: string[]; valor: [number, number]; onAplicar: (v: [number, number]) => void; id: string }) {
+  const [r, setR] = useState<[number, number]>(valor);
+  useEffect(() => setR(valor), [valor[0], valor[1]]);
+  const max = rotulos.length - 1;
+  const mudou = r[0] !== valor[0] || r[1] !== valor[1];
+  const cls = "pointer-events-none absolute inset-x-0 top-0 h-8 w-full appearance-none bg-transparent accent-[#c9a24e] [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6";
+  const tecla = (e: React.KeyboardEvent) => { if (e.key === "Enter") onAplicar(r); };
+  return (
+    <div className="panel-3d-sub space-y-2 p-3" data-testid={id}>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[12px]">
+        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{titulo}<Ajuda texto={ajuda} rotulo={titulo} /></span>
+        <b data-testid={`${id}-texto`}>{rotulos[r[0]]} até {rotulos[r[1]]} ({r[1] - r[0] + 1} meses)</b>
+      </div>
+      <div className="relative mx-3 h-8">
+        <div className="absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 rounded bg-muted" />
+        <div className="absolute top-1/2 h-2 -translate-y-1/2 rounded bg-[#c9a24e]" style={{ left: `${(r[0] / max) * 100}%`, right: `${100 - (r[1] / max) * 100}%` }} />
+        <input type="range" className={cls} min={0} max={max} value={r[0]} aria-label={`${titulo}: mês inicial`} onKeyDown={tecla} onPointerUp={() => onAplicar(r)} onChange={(e) => setR([Math.min(Number(e.target.value), r[1]), r[1]])} />
+        <input type="range" className={cls} min={0} max={max} value={r[1]} aria-label={`${titulo}: mês final`} onKeyDown={tecla} onPointerUp={() => onAplicar(r)} onChange={(e) => setR([r[0], Math.max(Number(e.target.value), r[0])])} />
+      </div>
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground"><span>{rotulos[0]}</span><span>{mudou ? "Solte ou aperte Enter para aplicar" : "Arraste as alças para mudar o corte"}</span><span>{rotulos[max]}</span></div>
+    </div>
+  );
+}
+
 export function Laboratorio24m() {
   const qc = useQueryClient();
   const [erro, setErro] = useState("");
   const [p, setP] = useState<Prem | null>(null);
   const [ov, setOv] = useState<Ov>({});
   const [sel, setSel] = useState<string | null>(null);
+  const [gr, setGr] = useState<[number, number]>([0, 23]);
+  const [tr, setTr] = useState<[number, number]>([0, 23]);
   const q = useQuery({ queryKey: ["fin", "lab"], queryFn: () => finApi<Lab>("/lab") });
   useEffect(() => { if (q.data) { setP(q.data.premissas); setOv(q.data.overrides); } }, [q.data]);
   const salvar = useMutation({
@@ -126,8 +153,12 @@ export function Laboratorio24m() {
   if (q.isLoading || !d || !p) return <p role="status" className="text-[12px]">Carregando o laboratório…</p>;
   const set = <K extends keyof Prem>(k: K, v: Prem[K]) => setP({ ...p, [k]: v });
   const mes = d.meses.find((m) => m.mes === sel) ?? null;
-  const dados = d.meses.map((m) => ({ mes: rotuloMes(m.mes), Faturamento: m.sem.faturamentoCents, "Carga sem planejamento": m.sem.tributosCents + m.sem.retencoesCents, "Carga com planejamento": m.com.tributosCents + m.com.retencoesCents, "Caixa com planejamento": m.com.saldoCaixaCents }));
-  const T = d.totais;
+  const noGrafico = d.meses.slice(gr[0], gr[1] + 1);
+  const dados = noGrafico.map((m) => ({ mes: rotuloMes(m.mes), Faturamento: m.sem.faturamentoCents, "Carga sem planejamento": m.sem.tributosCents + m.sem.retencoesCents, "Carga com planejamento": m.com.tributosCents + m.com.retencoesCents, "Caixa com planejamento": m.com.saldoCaixaCents }));
+  const somar = (k: "sem" | "com", f: (x: Cen) => number) => noGrafico.reduce((a, m) => a + f(m[k]), 0);
+  const cargaSem = somar("sem", (x) => x.tributosCents + x.retencoesCents), cargaCom = somar("com", (x) => x.tributosCents + x.retencoesCents);
+  const T = { fat: somar("sem", (x) => x.faturamentoCents), cargaSem, cargaCom, dif: cargaSem - cargaCom };
+  const rot = d.meses.map((m) => rotuloMes(m.mes));
   return (
     <div className="space-y-4" data-testid="laboratorio-24m">
       <div role="note" className="bevel-3d paxter-alert flex items-start gap-2 rounded p-3 text-[12px] font-bold" data-testid="selo-simulacao">
@@ -171,11 +202,16 @@ export function Laboratorio24m() {
         <p className="text-[11px] text-muted-foreground">{d.salvo ? "Simulação salva para esta empresa." : "Ainda não salva: estes são valores padrão de demonstração."} Limpar apaga só esta simulação; notas, cobranças e lançamentos reais não são tocados.</p>
       </section>
 
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+        <FaixaMeses id="faixa-grafico" titulo="Período do gráfico e dos totais" ajuda="Escolha de que mês até que mês o gráfico e os quatro totais abaixo calculam. Os dados de todos os 24 meses continuam guardados." rotulos={rot} valor={gr} onAplicar={setGr} />
+        <FaixaMeses id="faixa-digitacao" titulo="Período para digitar na tabela" ajuda="A tabela mês a mês mostra só os meses deste período, para você digitar o faturamento sem rolar. Os outros meses continuam guardados e calculados." rotulos={rot} valor={tr} onAplicar={setTr} />
+      </div>
+
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <Indicador rotulo="Faturamento em 24 meses" ajuda="Soma simulada da receita por competência na janela." centavos={T.sem_planejamento.faturamentoCents} />
-        <Indicador rotulo="Carga sem planejamento" ajuda="Tributos da empresa mais retenções do sócio, mantendo o pró-labore mínimo." centavos={T.sem_planejamento.tributosCents + T.sem_planejamento.retencoesCents} />
-        <Indicador rotulo="Carga com planejamento" ajuda="Mesma soma, elevando o pró-labore para buscar Fator R de 28% e o Anexo III." centavos={T.com_planejamento.tributosCents + T.com_planejamento.retencoesCents} />
-        <Indicador rotulo="Diferença" ajuda="Carga sem planejamento menos carga com planejamento. Negativo significa que planejar custou mais nesta premissa." centavos={T.economiaCargaCents} destaque />
+        <Indicador rotulo="Faturamento no período" ajuda="Soma simulada da receita por competência no período escolhido no gráfico." centavos={T.fat} />
+        <Indicador rotulo="Carga sem planejamento" ajuda="Tributos da empresa mais retenções do sócio, mantendo o pró-labore mínimo." centavos={T.cargaSem} />
+        <Indicador rotulo="Carga com planejamento" ajuda="Mesma soma, elevando o pró-labore para buscar Fator R de 28% e o Anexo III." centavos={T.cargaCom} />
+        <Indicador rotulo="Diferença" ajuda="Carga sem planejamento menos carga com planejamento. Negativo significa que planejar custou mais nesta premissa." centavos={T.dif} destaque />
       </div>
 
       <section className="panel-3d-sub p-3" aria-label="Gráfico de 24 meses">
@@ -203,7 +239,7 @@ export function Laboratorio24m() {
               <th className="p-1">Mês</th><th className="p-1">Origem</th><th className="p-1 text-right">Faturamento (digite o valor de cada mês)</th><th className="p-1 text-right">Pró-labore</th><th className="p-1 text-center">Fator R / Anexo</th><th className="p-1 text-center">Anexo sem/com</th><th className="p-1 text-right">Carga sem</th><th className="p-1 text-right">Carga com</th><th className="p-1 text-right">Caixa (com)</th>
             </tr></thead>
             <tbody>
-              {[...d.meses].reverse().map((m) => (
+              {d.meses.slice(tr[0], tr[1] + 1).reverse().map((m) => (
                 <tr key={m.mes} className={`cursor-pointer border-t hover:bg-muted ${sel === m.mes ? "bg-muted" : ""}`} onClick={() => setSel(m.mes)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && setSel(m.mes)} data-testid={`lab-mes-${m.mes}`}>
                   <td className="p-1 font-bold">{rotuloMes(m.mes)}</td>
                   <td className="p-1 text-[10px]">{m.fase.fase === "anterior_abertura" ? "Clínica-modelo (sem CNPJ)" : m.fase.fase === "mes_abertura" ? "Mês da abertura" : "Simulação pós-abertura"}</td>
