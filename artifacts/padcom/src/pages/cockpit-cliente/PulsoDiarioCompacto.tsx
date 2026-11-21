@@ -34,21 +34,21 @@ const dataBr = (iso: string) => iso.split("-").reverse().join("/");
 const dataCurta = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
 const ptBr = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-function media(valores: Array<number | null>, casas: 0 | 1): string | null {
+export function media(valores: Array<number | null>, casas: 0 | 1): string | null {
   const v = valores.filter((x): x is number => x != null);
   if (!v.length) return null;
   const m = v.reduce((a, b) => a + b, 0) / v.length;
   return casas === 0 ? String(Math.round(m)) : ptBr.format(m);
 }
 
-const hojeBrt = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-function inicioJanela(dias: number): string {
+export const hojeBrt = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+export function inicioJanela(dias: number): string {
   const [a, m, d] = hojeBrt().split("-").map(Number);
   const x = new Date(Date.UTC(a, m - 1, d - (dias - 1)));
   return x.toISOString().slice(0, 10);
 }
-const noPeriodo = (l: Pulso[], dias: number) => { const ini = inicioJanela(dias); return l.filter((x) => x.data >= ini); };
-function resumo(l: Pulso[]) {
+export const noPeriodo = (l: Pulso[], dias: number) => { const ini = inicioJanela(dias); return l.filter((x) => x.data >= ini); };
+export function resumo(l: Pulso[]) {
   const sis = media(l.map((x) => x.pressaoSistolica), 0), dia = media(l.map((x) => x.pressaoDiastolica), 0);
   return {
     energia: media(l.map((x) => x.energia), 1), disposicao: media(l.map((x) => x.disposicao), 1), sono: media(l.map((x) => x.sono), 1),
@@ -57,9 +57,9 @@ function resumo(l: Pulso[]) {
 }
 export type Janela = "diretriz" | 7 | 15 | 30;
 export const DIAS_DIRETRIZ = 7;
-const diasDa = (j: Janela) => (j === "diretriz" ? DIAS_DIRETRIZ : j);
-const rotuloJanela = (j: Janela) => (j === "diretriz" ? "Diretriz" : `${j} dias`);
-const OPCOES: Array<{ valor: Janela; nome: string; desc?: string }> = [
+export const diasDa = (j: Janela) => (j === "diretriz" ? DIAS_DIRETRIZ : j);
+export const rotuloJanela = (j: Janela) => (j === "diretriz" ? "Diretriz" : `${j} dias`);
+export const OPCOES: Array<{ valor: Janela; nome: string; desc?: string }> = [
   { valor: "diretriz", nome: "Diretriz · 7 dias", desc: "Padrão das diretrizes médicas para pressão medida em casa: média de 7 dias. Aplicada a todos os indicadores do painel." },
   { valor: 7, nome: "7 dias" },
   { valor: 15, nome: "15 dias" },
@@ -161,7 +161,7 @@ export function PulsoDiarioBotao({ clientId, aberto, onToggle, janela, onJanela 
 }
 
 /** Tabela do histórico: um dia por bloco, uma linha por período registrado. */
-export function PulsoDiarioHistorico({ clientId, janela }: { clientId: number; janela: Janela }) {
+export function PulsoDiarioHistorico({ clientId, janela, naModal = false }: { clientId: number; janela: Janela; naModal?: boolean }) {
   const { data, isLoading, isError, refetch } = usePulso30(clientId);
   const dias = diasDa(janela);
   const linhas = useMemo(
@@ -171,7 +171,7 @@ export function PulsoDiarioHistorico({ clientId, janela }: { clientId: number; j
   const r = useMemo(() => resumo(linhas), [linhas]);
   const demo = linhas.some((l) => l.origem === "demo");
   return (
-    <section id="cc-pulso-historico" className="cc-pulso" aria-label="Histórico do pulso diário">
+    <section id="cc-pulso-historico" className={`cc-pulso${naModal ? " cc-pulso-modal" : ""}`} aria-label="Histórico do pulso diário">
       <header className="cc-pulso-topo">
         <span className="cc-pulso-titulo"><Activity size={12} aria-hidden="true" /> HISTÓRICO · {rotuloJanela(janela).toUpperCase()} ({dias} DIAS)</span>
         <span className="cc-pulso-estado">{demo && <em title="Parte dos dados é fictícia">DEMONSTRAÇÃO</em>}{linhas.length} registros</span>

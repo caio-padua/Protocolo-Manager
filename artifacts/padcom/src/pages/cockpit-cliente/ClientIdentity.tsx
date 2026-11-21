@@ -16,7 +16,8 @@ import { BASE } from "@/pages/comunicacao/_shared";
 import { tituloProprio } from "@/lib/utils";
 import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 import { ehNivelCliente, nivelLegado, rotuloNivel } from "@/lib/nivel-cliente";
-import { PulsoDiarioBotao, PulsoDiarioHistorico, type Janela } from "./PulsoDiarioCompacto";
+import { PulsoDiarioBotao, type Janela } from "./PulsoDiarioCompacto";
+import { PulsoDiarioModal } from "./PulsoDiarioModal";
 import { NomeClienteResponsivo } from "./NomeClienteResponsivo";
 import { formatarNascimento, idadeCompleta } from "./idadeCliente";
 
@@ -111,6 +112,11 @@ export default function ClientIdentity({ client, onMensagens }: ClientIdentityPr
     setEscuro(Boolean(document.querySelector(".cc-shell.dark")));
     setAvaliacaoAberta(tipo);
   };
+  const [pulsoAberto, setPulsoAberto] = useState(false);
+  const abrirPulso = () => {
+    setEscuro(Boolean(document.querySelector(".cc-shell.dark")));
+    setPulsoAberto(true);
+  };
   const fotos = useFotosCorpo(client.id);
   const [fotosAberto, setFotosAberto] = useState(false);
   const abrirFotos = () => {
@@ -191,11 +197,10 @@ export default function ClientIdentity({ client, onMensagens }: ClientIdentityPr
               </button>
             );
           })}
-          <PulsoDiarioBotao clientId={client.id} aberto={aberto === "pulso"}
-            onToggle={() => setAberto((atual) => atual === "pulso" ? null : "pulso")}
+          <PulsoDiarioBotao clientId={client.id} aberto={pulsoAberto}
+            onToggle={abrirPulso}
             janela={janelaPulso} onJanela={setJanelaPulso} />
         </div>
-        {aberto === "pulso" && <PulsoDiarioHistorico clientId={client.id} janela={janelaPulso} />}
         {aberto === "resumo" && (
           <div id="cc-resumo-cliente" className="cc-context-content">
             <ResumoRegistrado clientId={client.id} />
@@ -218,6 +223,8 @@ export default function ClientIdentity({ client, onMensagens }: ClientIdentityPr
           </div>
         )}
       </div>
+      <PulsoDiarioModal clientId={client.id} clienteNome={tituloProprio(client.name)} aberto={pulsoAberto} janela={janelaPulso}
+        onJanela={setJanelaPulso} escuro={escuro} onClose={() => setPulsoAberto(false)} />
       <FotosModal clientId={client.id} clienteNome={tituloProprio(client.name)} aberto={fotosAberto} escuro={escuro}
         onClose={() => setFotosAberto(false)} />
       <AvaliacaoModal clientId={client.id} clienteNome={tituloProprio(client.name)} tipo={avaliacaoAberta}
