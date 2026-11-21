@@ -182,6 +182,15 @@ export default function AnamneseV2() {
   // sexo biologico (A04) e por dependencia de outra resposta (dependeDe).
   // Recalcula quando as respostas mudam (revela/esconde perguntas dependentes).
   const retorno = ((sessionState as unknown) as { retorno?: Retorno | null } | undefined)?.retorno ?? null;
+  // Dados cadastrais/cirurgias: aparecem uma vez (primeiro grupo); ao avancar, nao voltam mais nesta sessao.
+  const chaveRetorno = `anamnese-retorno-visto:${token ?? "s"}`;
+  const [retornoDispensado, setRetornoDispensado] = useState(() => { try { return sessionStorage.getItem(chaveRetorno) === "1"; } catch { return false; } });
+  useEffect(() => {
+    if ((groupIdx > 0 || focusIdx > 0) && !retornoDispensado) {
+      setRetornoDispensado(true);
+      try { sessionStorage.setItem(chaveRetorno, "1"); } catch { /* ignora */ }
+    }
+  }, [groupIdx, focusIdx, retornoDispensado, chaveRetorno]);
   const ocultas = useMemo(() => {
     const set = new Set<number>();
     if (!retorno) return set;
@@ -508,13 +517,13 @@ export default function AnamneseV2() {
           {(() => {
             // Os 3 botoes: MESMO tamanho, MESMO alinhamento, relevo saliente (bevel-3d).
             const cls = minimizado
-              ? "bevel-3d relative flex h-8 w-9 items-center justify-center rounded-[5px]"
-              : "bevel-3d relative flex h-8 w-[108px] items-center justify-center gap-1.5 whitespace-nowrap rounded-[5px] px-2";
+              ? "bevel-3d relative flex h-7 w-9 items-center justify-center rounded-[4px]"
+              : "bevel-3d relative flex h-6 w-[96px] items-center justify-center gap-1.5 whitespace-nowrap rounded-[4px] px-2";
             const lbl = "text-[9.5px] font-bold uppercase tracking-wide";
             const ic = "h-3.5 w-3.5 shrink-0";
             return (
               <div
-                className={`absolute right-0 top-0 z-30 flex gap-1.5 ${minimizado ? "flex-row items-center" : "flex-col items-stretch"}`}
+                className={`absolute right-0 z-30 flex ${minimizado ? "top-0 flex-row items-center gap-1.5" : "-top-2.5 flex-col items-stretch gap-3"}`}
               >
                 <TipButton
                   onClick={() => setFocusMode((f) => !f)}
@@ -555,9 +564,11 @@ export default function AnamneseV2() {
             <div className="flex flex-col gap-2">
               <div className="flex min-h-[34px] items-center gap-2 pr-[7.5rem]">
                 <div className="shrink-0"><PaxterSymbolGlass size={30} tone={theme === "dark" ? "dark" : "light"} /></div>
-                <div className="flex min-w-0 flex-1 flex-col items-center justify-center text-center leading-tight" aria-live="polite">
-                  <span className="text-[17px] font-extrabold tabular-nums" style={{ color: GOLD }}>{pct}% <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">concluído</span></span>
-                  <span className="flex items-center gap-1 text-[11px] font-semibold text-foreground"><Clock className="h-3 w-3" aria-hidden />faltam ~{restanteMin} min</span>
+                <div className="flex min-w-0 flex-1 justify-center" aria-live="polite">
+                  <div className="bevel-3d flex flex-col items-center rounded-[4px] px-4 py-1 leading-tight">
+                    <span className="text-[20px] font-black tabular-nums tracking-tight" style={{ color: GOLD }}>{pct}% <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-foreground">concluído</span></span>
+                    <span className="text-[10.5px] font-bold uppercase tracking-wide text-foreground">Falta aprox. {restanteMin} min</span>
+                  </div>
                 </div>
               </div>
               <Trilho ativoKey={groupIdx}>
@@ -638,7 +649,7 @@ export default function AnamneseV2() {
         )}
 
         <div className="mx-auto max-w-xl px-1.5">
-        {retorno && (
+        {retorno && !retornoDispensado && (
           <RetornoPanel
             retorno={retorno}
             token={token}
@@ -1260,9 +1271,9 @@ function GroupView({
     const i = group.questions.findIndex((x) => x.id === q.id);
     const proxima = group.questions.slice(i + 1).find((x) => !isAnswered(answers[x.id])) ?? group.questions[i + 1];
     if (!proxima) return;
-    setTimeout(() => {
-      document.querySelector(`[data-qid="${proxima.id}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 140);
+    requestAnimationFrame(() => {
+      document.querySelector(`[data-qid="${proxima.id}"]`)?.scrollIntoView({ behavior: "auto", block: "start" });
+    });
   };
   return (
     <section className="flex flex-col gap-5">
