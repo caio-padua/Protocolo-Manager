@@ -16,6 +16,8 @@ import { FlagsInput, estadoAgentes, lerConfig, salvarFlags } from "./produto";
 import { ParteInput } from "./conformidade-calc";
 import { criarParte, editarParte, encerrarParte, lerConformidade, validarParte } from "./conformidade";
 import { LabSalvarInput, lerLab, limparLab, salvarLab } from "./laboratorio";
+import multer from "multer";
+import { aplicarDocumentos, enviarDocumento, lerRegistro, listarDocumentos, rejeitarDocumento, revelarSensivel, slotValido, MAX_BYTES } from "./documentos";
 import { PerfilInput, SocioInput, criarSocio, editarSocio, encerrarSocio, listarAuditoria, listarSocios, obterEmpresa, salvarPerfil, validarPerfil, validarSocio } from "./cadastro";
 
 /** PAX FINANCE — rotas. Toda rota: colaborador + clínica da sessão + módulo financeiro. */
@@ -45,6 +47,26 @@ router.get("/pax-finance/status", ...finGuards, wrap(async (_req, res) => {
       { fase: 7, nome: "Pax Ledger", estado: "implementada_parcial" },
     ],
   });
+}));
+
+const uploadDoc = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_BYTES, files: 1 } });
+const ehCeo = (req: Request) => req.tenantContext?.authenticated === true && req.tenantContext.isPlatformOwner === true;
+router.get("/pax-finance/documents", ...finGuards, wrap(async (req, res) => { res.set("Cache-Control", "no-store"); res.json(await listarDocumentos(finContext(req), ehCeo(req))); }));
+router.get("/pax-finance/documents/registry", ...finGuards, wrap(async (req, res) => { res.set("Cache-Control", "no-store"); res.json(await lerRegistro(finContext(req))); }));
+router.post("/pax-finance/documents/apply", ...finGuards, wrap(async (req, res) => { res.json(await aplicarDocumentos(finContext(req))); }));
+router.post("/pax-finance/documents/:id/reject", ...finGuards, wrap(async (req, res) => { res.json(await rejeitarDocumento(finContext(req), idParam(req))); }));
+router.post("/pax-finance/documents/:id/reveal", ...finGuards, wrap(async (req, res) => {
+  if (!ehCeo(req)) { res.status(403).json({ error: "Somente o CEO pode revelar dados pessoais." }); return; }
+  const { chave } = z.object({ chave: z.string().regex(/^[a-z0-9_]{3,40}$/) }).parse(req.body);
+  res.set("Cache-Control", "no-store"); res.json(await revelarSensivel(finContext(req), idParam(req), chave));
+}));
+router.post("/pax-finance/documents/:slot", ...finGuards, (req, res, next) => uploadDoc.single("arquivo")(req, res, (err: unknown) => {
+  if (err) { res.status(err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({ error: err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE" ? "Arquivo maior que 15 MB" : "Envio invalido" }); return; }
+  next();
+}), wrap(async (req, res) => {
+  const slot = slotValido(String(req.params.slot));
+  if (!req.file) throw new FinError(400, "Nenhum arquivo enviado (campo 'arquivo').");
+  res.status(201).json(await enviarDocumento(finContext(req), slot, { nome: req.file.originalname, bytes: req.file.buffer }));
 }));
 
 router.get("/pax-finance/company", ...finGuards, wrap(async (req, res) => { res.json(await obterEmpresa(finContext(req))); }));

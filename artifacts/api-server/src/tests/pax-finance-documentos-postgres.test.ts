@@ -1,0 +1,142 @@
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import express from "express";
+import request from "supertest";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import { startIsolatedPostgres } from "./helpers/postgres-isolado";
+
+const state = vi.hoisted(() => ({ database: null as any }));
+vi.mock("@workspace/db", async () => {
+  const schema = await import("@workspace/db/schema");
+  const db = new Proxy({}, { get(_t, k) { const v = state.database?.[k]; return typeof v === "function" ? v.bind(state.database) : v; } });
+  return { ...schema, db };
+});
+vi.mock("../routes/collaborator", () => ({
+  requireCollaborator: (req: any, res: any, next: any) => {
+    if (!req.headers["x-collab"]) { res.status(401).json({ error: "Não autenticado" }); return; }
+    req.collaborator = { professionalId: Number(req.headers["x-collab"]) };
+    req.tenantContext = { authenticated: true, isPlatformOwner: req.headers["x-ceo"] === "1" }; next();
+  },
+}));
+vi.mock("../middleware/messageClinic", () => ({ requireMessageClinic: (req: any, _r: any, next: any) => { req.messageEmpresaId = Number(req.headers["x-empresa"]); next(); } }));
+vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_q: any, _r: any, next: any) => next() }));
+// A IA nunca e chamada em teste: o motor deve registrar "indisponivel" com honestidade.
+vi.mock("../lib/ai-central", () => ({ requireAiTenant: () => { throw new Error("sem IA no teste"); }, logAiUsage: async () => {} }));
+
+import router from "../pax-finance/routes";
+import { PAX_FINANCE_DDL } from "../pax-finance/schema";
+
+let iso: Awaited<ReturnType<typeof startIsolatedPostgres>>;
+const q = (t: string, p?: any[]) => iso.pool.query(t, p);
+const app = express();
+app.use(express.json(), (req: any, _r: any, n: any) => { req.log = { error() {}, info() {}, warn() {} }; n(); }, router);
+const H = (empresa: number, extra: Record<string, string> = {}) => ({ "x-collab": "1", "x-empresa": String(empresa), ...extra });
+
+async function pdf(linhas: string[]): Promise<Buffer> {
+  const d = await PDFDocument.create(); const f = await d.embedFont(StandardFonts.Helvetica);
+  let p = d.addPage([600, 800]); let y = 780;
+  const quebra = (l: string) => l.length <= 100 ? [l] : l.match(/.{1,100}(\s|$)/g)!.map((x) => x.trim());
+  for (const l of linhas.flatMap(quebra)) { if (y < 30) { p = d.addPage([600, 800]); y = 780; } p.drawText(l, { x: 20, y, size: 8, font: f }); y -= 11; }
+  return Buffer.from(await d.save());
+}
+const RFB = (cnpj: string, razao: string) => ["COMPROVANTE DE INSCRIÇÃO E DE SITUAÇÃO CADASTRAL", "NÚMERO DE INSCRIÇÃO", cnpj, "MATRIZ", "DATA DE INSCRIÇÃO NO CNPJ", "30/09/2026", "NOME EMPRESARIAL", razao,
+  "DATA DE CONSTITUIÇÃO", "13/08/2026", "PORTE", "EPP", "CÓDIGO E DESCRIÇÃO DA ATIVIDADE ECONÔMICA PRINCIPAL", "86.30-5-03 - Atividade medica ambulatorial restrita a consultas",
+  "CÓDIGO E DESCRIÇÃO DA NATUREZA JURÍDICA", "206-2 - Sociedade Empresária Limitada", "LOGRADOURO", "R TESTE", "NÚMERO", "10", "COMPLEMENTO", "SALA 1", "CEP", "01.000-000",
+  "BAIRRO/DISTRITO", "CENTRO", "MUNICÍPIO", "SAO PAULO", "UF", "SP", "SITUAÇÃO CADASTRAL", "ATIVA", "DATA DA SITUAÇÃO CADASTRAL", "13/08/2026",
+  ...Array.from({ length: 12 }, (_, i) => `linha de preenchimento numero ${i} para passar do minimo de texto do documento`)];
+const CONTRATO = (razao: string) => ["ATO CONSTITUTIVO DE SOCIEDADE EMPRESARIAL LIMITADA", "MARIA SINTETICA DA SILVA, brasileira, solteira, administradora, nascida em 01/02/1990, portadora da Cédula de Identidade RG n° 12.345.678-9",
+  "SSP/SP, inscrita no CPF n° 111.444.777-35, residente e domiciliada na Rua Ficticia n° 99 - Casa 2, Bairro Falso, São Paulo -SP, CEP 01234-567, por este instrumento",
+  "particular resolve constituir uma sociedade.", `CLÁUSULA PRIMEIRA: A sociedade irá girar sob a denominação de ${razao}, podendo abrir filiais`,
+  "CLÁUSULA SEGUNDA: A sede fica estabelecida na Rua Teste n° 10 - Sala 1, Centro, São Paulo - SP, CEP 01.000-000.", "CLÁUSULA TERCEIRA: O prazo de duração é indeterminado.",
+  "CLÁUSULA QUARTA: O objetivo da empresa é explorar as atividades de consultas medicas.", "CLÁUSULA QUINTA: O Capital Social é de R$ 100.000,00 (Cem Mil Reais), dividido",
+  "em 100.000 (Cem Mil) quotas, no valor nominal de R$ 1,00 (Hum Real) cada uma,", "totalmente integralizado em moeda corrente nacional neste ato e assim distribuído:",
+  "Sócia Quotas R$ %", "Maria Sintetica da Silva 100.000 100.000,00 100,00%", "TOTAL 100.000 100.000,00 100,00%",
+  "A administração será exercida pela titular, Maria Sintetica da Silva, já qualificada, com pró-labore.", "Fica eleito o foro de São Paulo para o exercício.",
+  "São Paulo, 09 de Junho de 2026.", ...Array.from({ length: 6 }, (_, i) => `texto de preenchimento ${i} para passar do minimo de texto do documento sintetico`)];
+
+beforeAll(async () => {
+  iso = await startIsolatedPostgres(); state.database = drizzle(iso.pool);
+  await q("CREATE TABLE empresas (id integer PRIMARY KEY, nome text, cnpj text, razao_social text, ativa boolean DEFAULT true, status text DEFAULT 'ATIVO', cnae text, cnae_descricao text, cnaes_secundarios jsonb, natureza_juridica text, data_abertura date, capital_social numeric, dono_nome text, responsavel_legal_nome text, endereco text, numero text, complemento text, bairro text, cep text, cidade text, estado text, telefone text, email_geral text, nome_fantasia text)");
+  await q("INSERT INTO empresas (id,nome,cnpj,razao_social) VALUES (7,'Teste','11.222.333/0001-81','EMPRESA TESTE LTDA'),(8,'Outra','69.410.873/0001-79','OUTRA LTDA')");
+  await q("CREATE TABLE professional_empresas (id serial PRIMARY KEY, professional_id int, empresa_id int, ordem int)");
+  await q("INSERT INTO professional_empresas (professional_id, empresa_id, ordem) VALUES (1,7,1),(1,8,2)");
+  await q("CREATE TABLE professionals (id int PRIMARY KEY, empresa_id int)"); await q("INSERT INTO professionals VALUES (1,7)");
+  await q("CREATE TABLE financial_goals (id serial PRIMARY KEY)");
+  await q("CREATE TABLE payments (id serial PRIMARY KEY, empresa_id int, amount numeric, status text, paid_at text, due_date text, created_at text, provider text, asaas_invoice_url text)");
+  for (const x of PAX_FINANCE_DDL) await q(x);
+}, 120000);
+afterAll(async () => { if (iso) await iso.stop(); }, 60000);
+
+const up = async (slot: string, buf: Buffer, h = H(7), nome = "a.pdf") => request(app).post(`/pax-finance/documents/${slot}`).set(h).attach("arquivo", buf, { filename: nome, contentType: "application/pdf" });
+
+describe("PAX FINANCE documentos oficiais", () => {
+  it("exige login e recusa tipo desconhecido e arquivo que não é PDF", async () => {
+    expect((await request(app).get("/pax-finance/documents")).status).toBe(401);
+    expect((await up("qualquer", await pdf(["x"]))).status).toBe(400);
+    expect((await up("cnpj_rfb", Buffer.from("nao sou pdf"))).status).toBe(415);
+  });
+  it("documento no campo errado é recusado com orientação", async () => {
+    const r = await up("contrato_social", await pdf(RFB("11.222.333/0001-81", "EMPRESA TESTE LTDA")));
+    expect(r.status).toBe(422); expect(r.body.error).toMatch(/Comprovante/);
+  });
+  it("envia comprovante e contrato; sensíveis ficam mascarados e cifrados no banco", async () => {
+    expect((await up("cnpj_rfb", await pdf(RFB("11.222.333/0001-81", "EMPRESA TESTE LTDA")))).status).toBe(201);
+    expect((await up("contrato_social", await pdf(CONTRATO("EMPRESA TESTE LTDA")))).status).toBe(201);
+    const l = (await request(app).get("/pax-finance/documents").set(H(7))).body;
+    const rfb = l.slots.find((s: any) => s.slot === "cnpj_rfb").documento; const ct = l.slots.find((s: any) => s.slot === "contrato_social").documento;
+    expect(rfb.campos.find((c: any) => c.chave === "cnpj").valor).toBe("11.222.333/0001-81");
+    expect(ct.sensiveis.map((s: any) => s.chave).sort()).toEqual(["socio1_cpf", "socio1_endereco", "socio1_nascimento", "socio1_rg"]);
+    expect(JSON.stringify(l)).not.toMatch(/111\.?444\.?777|12\.?345\.?678|Ficticia|01\/02\/1990|1990-02-01/);
+    expect(ct.conferenciaIa.status).toBe("indisponivel");
+    const bruto = JSON.stringify((await q("SELECT sensiveis FROM fin_doc_import WHERE slot='contrato_social'")).rows);
+    expect(bruto).not.toMatch(/11144477735|Ficticia/);
+    expect(l.podeAplicar).toBe(true);
+  });
+  it("revelar: só CEO, e fica auditado; não-CEO leva 403", async () => {
+    const id = (await q("SELECT id FROM fin_doc_import WHERE slot='contrato_social'")).rows[0].id;
+    expect((await request(app).post(`/pax-finance/documents/${id}/reveal`).set(H(7)).send({ chave: "socio1_cpf" })).status).toBe(403);
+    const r = await request(app).post(`/pax-finance/documents/${id}/reveal`).set(H(7, { "x-ceo": "1" })).send({ chave: "socio1_cpf" });
+    expect(r.status).toBe(200); expect(r.body.valor).toBe("11144477735");
+    expect(Number((await q("SELECT count(*) c FROM fin_audit_log WHERE action='documento.revelar_sensivel'")).rows[0].c)).toBe(1);
+  });
+  it("outra empresa não vê os documentos nem os revela", async () => {
+    const o = H(7, { "x-fin-company": "8", "x-ceo": "1" });
+    const l = (await request(app).get("/pax-finance/documents").set(o)).body;
+    expect(l.slots.every((s: any) => s.documento === null)).toBe(true);
+    const id = (await q("SELECT id FROM fin_doc_import WHERE slot='contrato_social'")).rows[0].id;
+    expect((await request(app).post(`/pax-finance/documents/${id}/reveal`).set(o).send({ chave: "socio1_cpf" })).status).toBe(404);
+  });
+  it("CNPJ de outra empresa bloqueia a aplicação e nada é gravado", async () => {
+    const o = H(7, { "x-fin-company": "8" });
+    expect((await up("cnpj_rfb", await pdf(RFB("11.222.333/0001-81", "OUTRA LTDA")), o)).status).toBe(201);
+    const r = await request(app).post("/pax-finance/documents/apply").set(o);
+    expect(r.status).toBe(409); expect(r.body.error).toMatch(/CNPJ/);
+    expect((await q("SELECT cnae FROM empresas WHERE id=8")).rows[0].cnae).toBeNull();
+    expect(Number((await q("SELECT count(*) c FROM fin_company_registry WHERE company_id=8")).rows[0].c)).toBe(0);
+  });
+  it("aplicar grava empresa, cadastro completo e pessoas; reaplicar não duplica; audita valores anteriores", async () => {
+    const r = await request(app).post("/pax-finance/documents/apply").set(H(7));
+    expect(r.status).toBe(200);
+    const e = (await q("SELECT * FROM empresas WHERE id=7")).rows[0];
+    expect(e.dono_nome).toBe("Maria Sintetica da Silva"); expect(e.cnae).toBe("86.30-5-03"); expect(Number(e.capital_social)).toBe(100000); expect(e.cep).toBeTruthy();
+    const reg = (await request(app).get("/pax-finance/documents/registry").set(H(7))).body;
+    expect(reg.existe).toBe(true); expect(reg.campos.find((c: any) => c.chave === "foro").valor).toBe("São Paulo"); expect(reg.sensiveis).toHaveLength(4);
+    expect(JSON.stringify(reg)).not.toMatch(/11144477735|Ficticia/);
+    const n1 = Number((await q("SELECT count(*) c FROM fin_partner WHERE company_id=7")).rows[0].c);
+    expect(n1).toBe(1);
+    expect((await request(app).post("/pax-finance/documents/apply").set(H(7))).status).toBe(200);
+    expect(Number((await q("SELECT count(*) c FROM fin_partner WHERE company_id=7")).rows[0].c)).toBe(1);
+    expect(Number((await q("SELECT count(*) c FROM fin_audit_log WHERE action='documento.aplicar'")).rows[0].c)).toBe(2);
+  });
+  it("novo envio substitui sem apagar; mesmo arquivo repetido é recusado; razão social divergente bloqueia", async () => {
+    const b = await pdf(RFB("11.222.333/0001-81", "EMPRESA TESTE LTDA").concat(["observacao nova"]));
+    expect((await up("cnpj_rfb", b)).status).toBe(201);
+    expect((await up("cnpj_rfb", b)).status).toBe(409);
+    expect(Number((await q("SELECT count(*) c FROM fin_doc_import WHERE company_id=7 AND slot='cnpj_rfb'")).rows[0].c)).toBe(2);
+    expect((await q("SELECT status FROM fin_doc_import WHERE company_id=7 AND slot='cnpj_rfb' ORDER BY id")).rows.map((x: any) => x.status)).toEqual(["substituido", "extraido"]);
+    expect((await up("contrato_social", await pdf(CONTRATO("OUTRA EMPRESA LTDA")))).status).toBe(201);
+    const l = (await request(app).get("/pax-finance/documents").set(H(7))).body;
+    expect(l.podeAplicar).toBe(false); expect(l.bloqueios.join(" ")).toMatch(/divergem/);
+    expect((await request(app).post("/pax-finance/documents/apply").set(H(7))).status).toBe(409);
+  });
+});

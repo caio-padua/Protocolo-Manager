@@ -208,3 +208,4 @@
 - [Anamnese de retorno — identidade e cirurgias](anamnese-retorno-identidade-cirurgias.md) — ids 1/2/41 = cadastro; cirurgias 8/9/88/315 só crescem; caso BETE BOQUETE era herança, não mistura.
 - [Anamnese — seletor sem opções vira texto](anamnese-seletor-sem-opcoes.md) — LISTA sem `opcoes` degrada para texto; sexo do cadastro não editável; gênero separado.
 - [Anamnese — seletor pesquisável e tema](anamnese-combobox-tema-portal.md) — portal na raiz tematica; filtro sem acento; correcao de sexo com historico.
+- [PAX FINANCE documentos oficiais](pax-finance-documentos-oficiais.md) — slots CNPJ/JUCESP/contrato; sensíveis cifrados; aplicar com confirmação; visão de IA p/ digitalizado.

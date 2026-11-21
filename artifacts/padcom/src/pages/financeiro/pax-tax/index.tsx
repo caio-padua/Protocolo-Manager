@@ -15,6 +15,7 @@ import { PainelTributario } from "./PainelTributario";
 import { LedgerAba } from "./Ledger";
 import { Laboratorio24m } from "./Laboratorio24m";
 import { Conformidade } from "./Conformidade";
+import { DocumentosImport } from "./DocumentosImport";
 
 const PAPEL: Record<string, string> = { socio: "Sócio", administrador: "Administrador", socio_administrador: "Sócio administrador", responsavel_tecnico: "Responsável técnico (não é sócio)", procurador: "Procurador" };
 const SIMPLES: Record<string, string> = { nao_verificada: "Não verificada", confirmada: "Confirmada", nao_optante: "Não optante" };
@@ -179,7 +180,8 @@ function PaxTaxCorpo() {
         <TabsContent value="documentos" className="mt-3">
           <section className="panel-3d p-4" data-testid="tax-documentos">
             <BlockTitle icon={FileText}>Documentos e inteligências</BlockTitle>
-            <p className="mb-3 text-[12px]"><b>Ainda não implementado:</b> envio de arquivos (PDF, imagem, XML, CSV, XLSX, OFX), guarda privada com hash, extração e revisão lado a lado. Os dados da PADUMANN foram carregados dos documentos já enviados, como rascunho. Nenhum documento financeiro real é enviado a provedores de inteligência artificial.</p>
+            <DocumentosImport />
+            <p className="my-3 text-[12px]"><b>Ainda não implementado:</b> envio de imagem, XML, CSV, XLSX e OFX financeiros, e extração financeira. Nenhum documento financeiro real é enviado a provedores de inteligência artificial.</p>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               {(agentes.data ?? []).map((a) => (
                 <div key={a.id} className="panel-3d-sub flex items-center justify-between gap-3 p-3 text-[12px]" data-testid="tax-ia">

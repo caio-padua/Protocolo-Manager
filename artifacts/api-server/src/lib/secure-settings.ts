@@ -239,3 +239,7 @@ export async function setSetting(key: string, value: string): Promise<void> {
 export async function setJsonSetting(key: string, value: unknown): Promise<void> {
   await setSetting(key, JSON.stringify(value));
 }
+
+/** Cifra/decifra texto avulso com a mesma chave do cofre (AES-256-GCM). Usado por dados pessoais de cadastros documentais. */
+export const cifrarTexto = encrypt;
+export const decifrarTexto = decrypt;

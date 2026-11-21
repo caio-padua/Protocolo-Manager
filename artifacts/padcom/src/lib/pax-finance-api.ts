@@ -73,3 +73,13 @@ export type FinCreditoRes = {
   requisitos: { nome: string; exigido: string; situacao: string; detalhe: string }[]; memoria: string[];
 };
 export type FinComparacao = { aviso: string; recomendacaoFirme: boolean; justificativa: string; ordemSugerida: string[]; linhas: FinCreditoRes[] };
+
+/** Envio de arquivo (multipart). Nao define Content-Type: o navegador monta o limite do formulario. */
+export async function finUpload<T>(path: string, campo: string, arquivo: File): Promise<T> {
+  const emp = getFinCompany();
+  const fd = new FormData(); fd.append(campo, arquivo);
+  const r = await fetch(`${apiBase}/pax-finance${path}`, { method: "POST", headers: collabAuthHeaders(emp ? { "x-fin-company": String(emp) } : {}), body: fd });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((j as { error?: string }).error ?? `HTTP ${r.status}`);
+  return j as T;
+}
