@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, ChevronDown } from "lucide-react";
 import { Numeral } from "@/components/numeral/Numeral";
@@ -91,9 +92,26 @@ export function PulsoDiarioBotao({ clientId, aberto, onToggle, janela, onJanela 
   const m = useMemo(() => resumo(noPeriodo(data ?? [], dias)), [data, dias]);
   const [menu, setMenu] = useState(false);
   const caixa = useRef<HTMLDivElement>(null);
+  const chip = useRef<HTMLButtonElement>(null);
+  const popup = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  // O menu sai do fluxo (portal + posição fixa) para nunca ficar por baixo dos painéis seguintes.
+  const alvo = caixa.current?.closest<HTMLElement>(".cc-shell") ?? document.body;
   useEffect(() => {
     if (!menu) return;
-    const fora = (e: MouseEvent) => { if (!caixa.current?.contains(e.target as Node)) setMenu(false); };
+    const r = chip.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    const fecha = () => setMenu(false);
+    window.addEventListener("scroll", fecha, true);
+    window.addEventListener("resize", fecha);
+    return () => { window.removeEventListener("scroll", fecha, true); window.removeEventListener("resize", fecha); };
+  }, [menu]);
+  useEffect(() => {
+    if (!menu) return;
+    const fora = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!caixa.current?.contains(t) && !popup.current?.contains(t)) setMenu(false);
+    };
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(false); };
     document.addEventListener("mousedown", fora);
     document.addEventListener("keydown", esc);
@@ -118,13 +136,13 @@ export function PulsoDiarioBotao({ clientId, aberto, onToggle, janela, onJanela 
         )}
         <ChevronDown size={13} aria-hidden="true" />
       </button>
-      <button type="button" className="cc-context-button cc-pulso-chip" aria-haspopup="menu" aria-expanded={menu}
+      <button ref={chip} type="button" className="cc-context-button cc-pulso-chip" aria-haspopup="menu" aria-expanded={menu}
         aria-label={`Janela da média: ${rotuloJanela(janela)}`} onClick={() => setMenu((x) => !x)}>
         <span><strong>{rotuloJanela(janela).toUpperCase()}</strong><small>Janela</small></span>
         <ChevronDown size={13} aria-hidden="true" />
       </button>
-      {menu && (
-        <div className="cc-pulso cc-pulso-menu" role="menu" aria-label="Janela da média">
+      {menu && pos && createPortal(
+        <div ref={popup} className="cc-pulso cc-pulso-menu" role="menu" aria-label="Janela da média" style={{ top: pos.top, right: pos.right }}>
           <p className="cc-pulso-menu-titulo">JANELA DA MÉDIA</p>
           {OPCOES.map((o) => (
             <button key={String(o.valor)} type="button" role="menuitemradio" aria-checked={janela === o.valor}
@@ -135,6 +153,8 @@ export function PulsoDiarioBotao({ clientId, aberto, onToggle, janela, onJanela 
             </button>
           ))}
         </div>
+      ,
+        alvo,
       )}
     </div>
   );

@@ -270,12 +270,13 @@
 .cc-pulso-medias { display: grid; flex: 1 1 auto; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 4px; min-width: 0; margin-left: 6px; padding-left: 8px; border-left: 1px solid #d3bd8855; }
 .cc-pulso-media { display: grid !important; gap: 1px !important; text-align: center; }
 .cc-pulso-media small { font-size: 7.5px !important; letter-spacing: .06em; text-transform: uppercase; }
-.cc-pulso-media b { font-size: 13px; line-height: 1; color: #fff3d4; }
-.cc-shell.dark .cc-context-button[data-active="true"] .cc-pulso-media b { color: #16294a; }
+.cc-pulso-media b { display: block; min-width: 0; padding: 3px 2px; font-size: 13px; line-height: 1; color: #fff3d4; border-radius: 3px;
+  background: linear-gradient(#0c1a2f,#13263f); box-shadow: inset 0 2px 3px rgba(0,0,0,.55), inset 0 -1px 0 rgba(255,255,255,.12); }
+.cc-shell.dark .cc-context-button[data-active="true"] .cc-pulso-media b { color: #f3ead5; }
 .cc-shell.dark .cc-context-button[data-active="true"] .cc-pulso-medias { border-left-color: #16294a44; }
 .cc-shell:not(.dark) .cc-pulso-medias { border-left-color: rgba(184,146,77,.5); }
-.cc-shell:not(.dark) .cc-pulso-media b { color: #16294a; }
-.cc-shell:not(.dark) .cc-context-button[data-active="true"] .cc-pulso-media b { color: #f6e7bd; }
+.cc-shell:not(.dark) .cc-pulso-media b { color: #16294a; background: linear-gradient(#e6dbc0,#f6efdd); box-shadow: inset 0 2px 3px rgba(90,65,20,.35), inset 0 -1px 0 #fff; }
+.cc-shell:not(.dark) .cc-context-button[data-active="true"] .cc-pulso-media b { color: #f6e7bd; background: linear-gradient(#08142a,#12233f); box-shadow: inset 0 2px 3px rgba(0,0,0,.6), inset 0 -1px 0 rgba(255,255,255,.15); }
 .cc-shell:not(.dark) .cc-context-button[data-active="true"] .cc-pulso-medias { border-left-color: #f6e7bd55; }
 .cc-pulso { --p-fundo: #f7f0df; --p-borda: rgba(184,146,77,.5); --p-tinta: #16294a; --p-rotulo: #8a6d2f; --p-mudo: #6b7a90; --p-fio: rgba(184,146,77,.28); --p-cab: #efe4c8; --p-dia: rgba(184,146,77,.12);
   --p-ok: #2f7a45; --p-atencao: #a5702f; --p-alto: #b4413c;
@@ -310,7 +311,7 @@
 .cc-pulso-janelas button[aria-pressed="true"] { background: var(--p-rotulo); color: var(--p-fundo); border-color: var(--p-rotulo); }
 .cc-pulso-tabela tbody tr.cc-pulso-mediaLinha { background: var(--p-cab); }
 .cc-pulso-tabela tbody tr.cc-pulso-mediaLinha th { font: 800 8.5px/1 Inter,sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--p-rotulo); }
-.cc-pulso-menu { position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; width: min(300px,92vw); margin: 0; padding: 8px; display: grid; gap: 4px; box-shadow: 0 10px 22px -6px rgba(0,0,0,.45); }
+.cc-pulso-menu { position: fixed; z-index: 1000; width: min(300px,92vw); margin: 0; padding: 8px; display: grid; gap: 4px; box-shadow: 0 10px 22px -6px rgba(0,0,0,.45); }
 .cc-pulso-menu-titulo { margin: 0 0 2px; font: 800 8px/1 Inter,sans-serif; letter-spacing: .16em; color: var(--p-rotulo); }
 .cc-pulso-opcao { display: grid; gap: 3px; padding: 7px 9px; text-align: left; border: 1px solid var(--p-fio); border-radius: 3px; background: transparent; color: var(--p-tinta); font: 700 11px/1.2 Inter,sans-serif; }
 .cc-pulso-opcao:hover, .cc-pulso-opcao:focus-visible { border-color: var(--p-borda); background: var(--p-dia); }
