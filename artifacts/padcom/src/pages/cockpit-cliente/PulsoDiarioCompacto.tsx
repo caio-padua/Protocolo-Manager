@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ChevronDown, Moon, Sun, Sunrise } from "lucide-react";
+import { Activity, ChevronDown, Info, Moon, Sun, Sunrise } from "lucide-react";
 import { Numeral } from "@/components/numeral/Numeral";
 import { BASE } from "@/pages/comunicacao/_shared";
 
@@ -59,22 +59,22 @@ export function resumo(l: Pulso[]) {
     pa: sis && dia ? `${sis}/${dia}` : null, fc: media(l.map((x) => x.frequenciaCardiaca), 0), glicemia: media(l.map((x) => x.glicemia), 0), n: l.length,
   };
 }
-export type Janela = "diretriz" | 7 | 15 | 30;
+export type Janela = "diretriz" | 15 | 30 | 60;
 export const DIAS_DIRETRIZ = 7;
 export const diasDa = (j: Janela) => (j === "diretriz" ? DIAS_DIRETRIZ : j);
 export const rotuloJanela = (j: Janela) => (j === "diretriz" ? "Diretriz" : `${j} dias`);
 export const OPCOES: Array<{ valor: Janela; nome: string; desc?: string }> = [
   { valor: "diretriz", nome: "Diretriz · 7 dias", desc: "Padrão das diretrizes médicas para pressão medida em casa: média de 7 dias. Aplicada a todos os indicadores do painel." },
-  { valor: 7, nome: "7 dias" },
   { valor: 15, nome: "15 dias" },
   { valor: 30, nome: "30 dias" },
+  { valor: 60, nome: "60 dias" },
 ];
 
 export function usePulso30(clientId: number) {
   return useQuery<Pulso[]>({
-    queryKey: ["pulso-diario", clientId, 30],
+    queryKey: ["pulso-diario", clientId, 60],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${BASE}/api/pulso-diario/${clientId}?dias=30`, { signal });
+      const r = await fetch(`${BASE}/api/pulso-diario/${clientId}?dias=60`, { signal });
       if (!r.ok) throw new Error("Falha ao carregar o pulso diário.");
       return r.json();
     },
@@ -87,9 +87,11 @@ function PeriodoChip({ periodo }: { periodo: string }) {
   return <span className="cc-pulso-periodo" data-periodo={periodo}><Icone size={13} aria-hidden="true" />{NOME_PERIODO[periodo] ?? periodo}</span>;
 }
 
+const DICA_TOM: Record<Tom, string | undefined> = { ok: "Verde: dentro do esperado", atencao: "Âmbar: atenção", alto: "Vermelho: alto", neutro: undefined };
+
 function Valor({ v, tom = "neutro" }: { v: string | null; tom?: Tom }) {
   if (v == null) return <span className="cc-pulso-cel cc-pulso-vazio" aria-label="sem registro">—</span>;
-  return <span className="cc-pulso-cel" data-tom={tom}><Numeral peso={700}>{v}</Numeral></span>;
+  return <span className="cc-pulso-cel" data-tom={tom} title={DICA_TOM[tom]}><Numeral peso={700}>{v}</Numeral></span>;
 }
 
 /** Botão do Pulso Diário (médias) + mini menu da janela, lado a lado e da mesma altura dos demais. */
@@ -197,13 +199,16 @@ export function PulsoDiarioHistorico({ clientId, janela, naModal = false }: { cl
   return (
     <section id="cc-pulso-historico" className={`cc-pulso${naModal ? " cc-pulso-modal" : ""}`} aria-label="Histórico do pulso diário">
       <header className="cc-pulso-topo cc-pulso-explica">
-        <div>
-          <h4 className="cc-pulso-explica-titulo"><Activity size={13} aria-hidden="true" /> Registros dia a dia</h4>
-          <p className="cc-pulso-explica-texto">
-            Cada dia mostra manhã, tarde e noite. Pressão e glicemia usam cor: <i data-tom="ok">verde</i> dentro do esperado,
-            <i data-tom="atencao"> âmbar</i> atenção, <i data-tom="alto"> vermelho</i> alto. Traço (—) quer dizer que não foi registrado.
-          </p>
-        </div>
+        <h4 className="cc-pulso-explica-titulo">
+          <Activity size={13} aria-hidden="true" /> Registros dia a dia
+          <span className="cc-pulso-info" tabIndex={0} role="note" aria-label="Como ler a tabela">
+            <Info size={13} aria-hidden="true" />
+            <span className="cc-pulso-info-balao">
+              Cada dia mostra manhã, tarde e noite. Pressão e glicemia usam cor: <i data-tom="ok">verde</i> dentro do esperado,
+              <i data-tom="atencao"> âmbar</i> atenção, <i data-tom="alto">vermelho</i> alto. Traço (—) = não registrado.
+            </span>
+          </span>
+        </h4>
         <span className="cc-pulso-estado">{demo && <em title="Parte dos dados é fictícia">DEMONSTRAÇÃO</em>}{linhas.length} registros</span>
       </header>
       {isError ? (

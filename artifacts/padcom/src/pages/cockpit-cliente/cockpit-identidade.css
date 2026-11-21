@@ -390,3 +390,22 @@
 .cc-pulso-modal .cc-pulso-cal { background: #fff; }
 .dark .cc-pulso-modal .cc-pulso-cal { background: linear-gradient(180deg,hsl(215 20% 21%) 0%,hsl(215 22% 15%) 100%); }
 .cc-pulso-modal .cc-pulso-tabela tbody th.cc-pulso-dia { background: transparent; }
+
+/* Faixa enxuta: so titulo + (i); a explicacao aparece ao passar o mouse */
+.cc-pulso-explica { align-items: center; margin-bottom: 8px; padding: 7px 12px; }
+.cc-pulso-explica-titulo { margin: 0; }
+.cc-pulso-info { position: relative; display: inline-flex; align-items: center; margin-left: 2px; color: var(--p-mudo); cursor: help; }
+.cc-pulso-info:hover, .cc-pulso-info:focus-visible { color: var(--p-rotulo); outline: none; }
+.cc-pulso-info-balao { display: none; position: absolute; z-index: 20; top: calc(100% + 8px); left: -8px; width: 300px; padding: 9px 11px; border: 1px solid var(--p-borda); border-radius: 3px;
+  background: hsl(var(--background)); color: var(--p-tinta); font: 500 11.5px/1.5 Inter,sans-serif; letter-spacing: 0; text-transform: none; box-shadow: 0 8px 18px -6px rgba(0,0,0,.35); }
+.cc-pulso-info:hover .cc-pulso-info-balao, .cc-pulso-info:focus-visible .cc-pulso-info-balao { display: block; }
+.cc-pulso-info-balao i { font-style: normal; font-weight: 800; }
+.cc-pulso-info-balao i[data-tom="ok"] { color: var(--p-ok); }
+.cc-pulso-info-balao i[data-tom="atencao"] { color: var(--p-atencao); }
+.cc-pulso-info-balao i[data-tom="alto"] { color: var(--p-alto); }
+/* Calendario do dia maior: cobre as tres linhas (manha, tarde, noite) */
+.cc-pulso-tabela tbody th.cc-pulso-dia { width: 17%; padding: 10px 6px; }
+.cc-pulso-cal { width: 84px; min-height: 92px; }
+.cc-pulso-cal-faixa { padding: 6px 0 6px 0.24em; font-size: 11px; }
+.cc-pulso-cal b { flex: 1; display: flex; align-items: center; justify-content: center; padding: 6px 0 8px; font-size: 34px; }
+.cc-pulso-tabela tbody tr.cc-pulso-linha td { padding: 9px 3px; }
