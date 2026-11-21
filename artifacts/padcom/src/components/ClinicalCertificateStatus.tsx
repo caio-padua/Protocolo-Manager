@@ -56,18 +56,6 @@ function formatDate(value: string | null): string | null {
   }).format(new Date(value));
 }
 
-/** Escudo vazado, so o contorno em relevo saliente (up bevel), uma unica cor. */
-function EscudoContorno({ cor, claro, escuro }: { cor: string; claro: string; escuro: string }) {
-  const forma = "M24 4 L39 9.5 V23 C39 32.5 32.5 39.5 24 43.5 C15.5 39.5 9 32.5 9 23 V9.5 Z";
-  return (
-    <svg viewBox="0 0 48 48" width="26" height="26" aria-hidden="true" style={{ display: "block", overflow: "visible" }}>
-      <path d={forma} fill="none" stroke={escuro} strokeWidth="2.6" strokeLinejoin="round" transform="translate(.7 .9)" opacity=".75" />
-      <path d={forma} fill="none" stroke={cor} strokeWidth="2.6" strokeLinejoin="round" />
-      <path d={forma} fill="none" stroke={claro} strokeWidth=".8" strokeLinejoin="round" transform="translate(-.5 -.6)" opacity=".85" />
-    </svg>
-  );
-}
-
 export function ClinicalCertificateStatus({
   scope = "professional",
   compact = false,
@@ -193,13 +181,12 @@ export function ClinicalCertificateStatus({
     const dataCurta = expiry ? expiry.replace(/^(\d{2})\/(\d{2})\/\d{2}(\d{2})$/, "$1.$2.$3").replace(/\//g, ".") : null;
     const data = dataCurta ? `${state === "expired" ? "Venceu em" : "Válido até"}: ${dataCurta}` : null;
     const dica = `${titulo}${data ? ` · ${data}` : ""}`;
-    const [cor, claro, escuro] = verificando ? ["#8a97a8", "#c3ccd8", "#4b5563"] : ok ? ["#1f9d57", "#7fdba8", "#0b4a28"] : ["#c0392b", "#f0a39a", "#6b1a12"];
+    const cor = verificando ? "#8a97a8" : ok ? "#1f9d57" : "#c0392b";
     return (
       <div role="status" aria-label={dica} title={dica} data-testid="selo-certificado"
-        className="flex w-full flex-col items-center justify-center gap-1.5 px-1 py-3 text-center">
-        <EscudoContorno cor={cor} claro={claro} escuro={escuro} />
+        className="flex w-full flex-col items-center justify-center gap-1 px-1 py-2 text-center">
         <span className="text-[7.5px] font-bold uppercase leading-[1.25] tracking-[.12em]" style={{ color: cor, textWrap: "balance" }}>{titulo}</span>
-        {data && <span className="text-[9.5px] leading-tight" style={{ color: "#000", textWrap: "balance", fontFamily: "Inter, Arial, sans-serif", fontWeight: 500, letterSpacing: ".01em", fontVariantNumeric: "lining-nums tabular-nums", fontFeatureSettings: '"lnum" 1, "tnum" 1' }}>{data}</span>}
+        {data && <span className="text-[8.5px] leading-tight" style={{ color: "#000", opacity: .75, textWrap: "balance", fontFamily: "Inter, Arial, sans-serif", fontWeight: 400, letterSpacing: ".01em", fontVariantNumeric: "lining-nums tabular-nums", fontFeatureSettings: '"lnum" 1, "tnum" 1' }}>{data}</span>}
       </div>
     );
   }
