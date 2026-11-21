@@ -445,3 +445,31 @@
   border-color: var(--m); background: color-mix(in srgb, var(--m) 4%, transparent); }
 .cc-pulso-legenda { gap: 8px; }
 .cc-pulso-legenda li { box-sizing: border-box; width: 92px; padding: 4px 0; text-align: center; border-width: 1.5px; background: color-mix(in srgb, var(--m) 4%, transparent); }
+
+/* Botao (icone) que abre a explicacao dos niveis */
+.cc-pulso-niveis-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 24px; border: 1px solid var(--p-borda); border-radius: 3px; background: transparent; color: var(--p-rotulo); cursor: pointer; }
+.cc-pulso-niveis-btn:hover, .cc-pulso-niveis-btn:focus-visible { background: var(--p-dia); outline: none; }
+
+/* Janela "Niveis de referencia": reguas de cinco niveis */
+.pn-dialog { --n-mb: #1e40af; --n-b: #0891b2; --n-n: #15803d; --n-a: #d97706; --n-ma: #dc2626; }
+.pn-dialog.dark { --n-mb: #3b6fd8; --n-b: #0aa5c8; --n-n: #1f9d4d; --n-a: #e08a12; --n-ma: #e24a4a; }
+.pn-regua { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.pn-col { display: flex; flex-direction: column; min-width: 0; }
+.pn-col[data-nivel="muitobaixo"] { --c: var(--n-mb); }
+.pn-col[data-nivel="baixo"] { --c: var(--n-b); }
+.pn-col[data-nivel="normal"] { --c: var(--n-n); }
+.pn-col[data-nivel="alto"] { --c: var(--n-a); }
+.pn-col[data-nivel="muitoalto"] { --c: var(--n-ma); }
+.pn-pino { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-height: 58px; text-align: center; color: var(--c); }
+.pn-pino span { font: 800 9px/1 Inter,sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+.pn-pino b { margin-top: 2px; font: 800 14px/1.1 "EB Garamond",serif; color: hsl(var(--foreground)); }
+.pn-pino i { font-style: normal; font-size: 13px; line-height: 1; margin-top: 2px; }
+.pn-seg { padding: 12px 6px; text-align: center; border-radius: 4px; color: #fff; background: var(--c);
+  font: 900 12px/1.1 Inter,sans-serif; letter-spacing: .1em; text-transform: uppercase;
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.28), inset 0 -3px 0 rgba(0,0,0,.22), 0 2px 4px -1px rgba(0,0,0,.3); }
+.pn-col[data-atual="true"] .pn-seg { outline: 3px solid color-mix(in srgb, var(--c) 40%, transparent); outline-offset: 2px; }
+.pn-vals { display: grid; gap: 6px; margin-top: 8px; text-align: center; }
+.pn-vals p { margin: 0; padding: 5px 4px; border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); border-radius: 3px; }
+.pn-vals small { display: block; margin-bottom: 2px; font: 700 8.5px/1.1 Inter,sans-serif; letter-spacing: .06em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.pn-vals span { font-size: 15px; line-height: 1.1; color: hsl(var(--foreground)); }
+@media (max-width: 640px) { .pn-seg { font-size: 9.5px; letter-spacing: .04em; padding: 10px 2px; } .pn-vals span { font-size: 12px; } }

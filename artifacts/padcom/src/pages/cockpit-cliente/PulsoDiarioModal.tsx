@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Activity, LineChart as IconeGrafico, Maximize2, Minimize2, Table2 } from "lucide-react";
+import { Activity, Gauge, LineChart as IconeGrafico, Maximize2, Minimize2, Table2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { PulsoNiveisDialog } from "./PulsoNiveisDialog";
+import { nivelGlicemia, nivelPressao } from "./pulso-faixas";
 import { Numeral } from "@/components/numeral/Numeral";
 import {
   OPCOES, PulsoDiarioHistorico, diasDa, inicioJanela, noPeriodo, resumo, rotuloJanela, usePulso30,
@@ -93,6 +95,7 @@ export function PulsoDiarioModal({ clientId, clienteNome, aberto, janela, onJane
 }) {
   const [aba, setAba] = useState<"graficos" | "tabela">("graficos");
   const [maximizado, setMaximizado] = useState(false);
+  const [niveis, setNiveis] = useState(false);
   const { data } = usePulso30(clientId);
   const dias = diasDa(janela);
 
@@ -111,6 +114,10 @@ export function PulsoDiarioModal({ clientId, clienteNome, aberto, janela, onJane
     });
   }, [data, dias]);
   const r = useMemo(() => resumo(noPeriodo(data ?? [], dias)), [data, dias]);
+  const nums = useMemo(() => {
+    const l = noPeriodo(data ?? [], dias);
+    return { s: mediaDe(l.map((x) => x.pressaoSistolica)), d: mediaDe(l.map((x) => x.pressaoDiastolica)), g: mediaDe(l.map((x) => x.glicemia)) };
+  }, [data, dias]);
   const medias: Array<[string, string, string | null]> = [
     ["Energia", "0 a 10", r.energia], ["Disposição", "0 a 10", r.disposicao], ["Sono", "0 a 10", r.sono],
     ["Pressão", "mmHg", r.pa], ["Freq. cardíaca", "bpm", r.fc], ["Glicemia", "mg/dL", r.glicemia],
@@ -147,6 +154,10 @@ export function PulsoDiarioModal({ clientId, clienteNome, aberto, janela, onJane
           <div role="tablist" className="flex gap-2">
             {botao("graficos", "Gráficos", IconeGrafico)}
             {botao("tabela", "Tabela", Table2)}
+            <button type="button" onClick={() => setNiveis(true)} title="Mostrar os níveis de pressão e glicemia ao cliente"
+              className="btn-3d-soft inline-flex h-9 items-center gap-1.5 px-4 text-[10px] font-black uppercase tracking-widest">
+              <Gauge className="h-3.5 w-3.5" /> Níveis
+            </button>
           </div>
           <div role="radiogroup" aria-label="Janela da média" className="flex flex-wrap gap-2">
             {OPCOES.map((o) => (
@@ -182,10 +193,13 @@ export function PulsoDiarioModal({ clientId, clienteNome, aberto, janela, onJane
               {GRAFICOS.map((g) => <Grafico key={g.id} g={g} dados={dados} escuro={escuro} />)}
             </div>
           ) : (
-            <PulsoDiarioHistorico clientId={clientId} janela={janela} naModal />
+            <PulsoDiarioHistorico clientId={clientId} janela={janela} naModal onNiveis={() => setNiveis(true)} />
           )}
         </div>
       </DialogContent>
+      <PulsoNiveisDialog aberto={niveis} escuro={escuro} onClose={() => setNiveis(false)}
+        mediaPA={r.pa} mediaGlicemia={r.glicemia} janelaTexto={`${dias} dias`}
+        nivelPA={nivelPressao(nums.s, nums.d)} nivelGlicemia={nivelGlicemia(nums.g)} />
     </Dialog>
   );
 }

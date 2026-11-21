@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ChevronDown, Moon, Sun, Sunrise } from "lucide-react";
+import { Activity, ChevronDown, Gauge, Moon, Sun, Sunrise } from "lucide-react";
 import { Numeral } from "@/components/numeral/Numeral";
+import { nivelGlicemia, nivelPressao, type Nivel } from "./pulso-faixas";
 import { BASE } from "@/pages/comunicacao/_shared";
 
 // Pulso Diário no cockpit: um botão da mesma altura dos demais (médias do último mês)
@@ -27,17 +28,9 @@ const ICONE_PERIODO = { manha: Sunrise, tarde: Sun, noite: Moon } as const;
 const NOME_PERIODO: Record<string, string> = { manha: "Manhã", tarde: "Tarde", noite: "Noite" };
 
 type Tom = "ok" | "muitobaixo" | "baixo" | "alto" | "muitoalto" | "neutro";
-const tomPressao = (s: number | null, d: number | null): Tom => {
-  if (s == null && d == null) return "neutro";
-  const S = s ?? NaN, D = d ?? NaN;
-  if (S < 80 || D < 50) return "muitobaixo";
-  if (S < 90 || D < 60) return "baixo";
-  if (S >= 160 || D >= 100) return "muitoalto";
-  if (S >= 130 || D >= 80) return "alto";
-  return "ok";
-};
-const tomGlicemia = (g: number | null): Tom =>
-  g == null ? "neutro" : g < 54 ? "muitobaixo" : g < 70 ? "baixo" : g >= 126 ? "muitoalto" : g >= 100 ? "alto" : "ok";
+const NIVEL_PARA_TOM: Record<Nivel, Tom> = { muitobaixo: "muitobaixo", baixo: "baixo", normal: "ok", alto: "alto", muitoalto: "muitoalto" };
+const tomPressao = (s: number | null, d: number | null): Tom => { const n = nivelPressao(s, d); return n ? NIVEL_PARA_TOM[n] : "neutro"; };
+const tomGlicemia = (g: number | null): Tom => { const n = nivelGlicemia(g); return n ? NIVEL_PARA_TOM[n] : "neutro"; };
 
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
@@ -180,7 +173,7 @@ export function PulsoDiarioBotao({ clientId, aberto, onToggle, janela, onJanela 
 }
 
 /** Tabela do histórico: um dia por bloco, uma linha por período registrado. */
-export function PulsoDiarioHistorico({ clientId, janela, naModal = false }: { clientId: number; janela: Janela; naModal?: boolean }) {
+export function PulsoDiarioHistorico({ clientId, janela, naModal = false, onNiveis }: { clientId: number; janela: Janela; naModal?: boolean; onNiveis?: () => void }) {
   const { data, isLoading, isError, refetch } = usePulso30(clientId);
   const dias = diasDa(janela);
   const linhas = useMemo(
@@ -213,6 +206,11 @@ export function PulsoDiarioHistorico({ clientId, janela, naModal = false }: { cl
         <ul className="cc-pulso-legenda" aria-label="Legenda das molduras de pressão e glicemia">
           <li data-tom="muitobaixo">Muito baixo</li><li data-tom="baixo">Baixo</li><li data-tom="alto">Alto</li><li data-tom="muitoalto">Muito alto</li>
         </ul>
+        {onNiveis && (
+          <button type="button" className="cc-pulso-niveis-btn" onClick={onNiveis} aria-label="Explicar os níveis ao cliente" title="Explicar os níveis ao cliente">
+            <Gauge size={14} aria-hidden="true" />
+          </button>
+        )}
         <span className="cc-pulso-estado">{demo && <em title="Parte dos dados é fictícia">DEMONSTRAÇÃO</em>}{linhas.length} registros</span>
       </header>
       {isError ? (
