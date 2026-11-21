@@ -263,14 +263,14 @@
 
 /* ── Pulso Diario: botao da mesma altura dos demais (medias) + tabela de historico ─────────────────
    Numeros pelo Numeral (Lei do Numeral). Tabela em claro e escuro. */
-.cc-pulso-wrap { grid-column: 1/-1; position: relative; display: grid; grid-template-columns: minmax(0,1fr) 88px; gap: 7px; }
+.cc-pulso-wrap { grid-column: 1/-1; position: relative; display: grid; grid-template-columns: minmax(0,1fr) 80px; gap: 7px; }
 .cc-pulso-chip { justify-content: space-between; }
 .cc-pulso-chip strong { font-size: 9px; }
 .cc-pulso-botao-rotulo { flex: 0 0 auto; }
-.cc-pulso-medias { display: grid; flex: 1 1 auto; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 4px; min-width: 0; margin-left: 6px; padding-left: 8px; border-left: 1px solid #d3bd8855; }
+.cc-pulso-medias { display: grid; flex: 1 1 auto; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 8px; min-width: 0; margin-left: 4px; padding-left: 8px; border-left: 1px solid #d3bd8855; }
 .cc-pulso-media { display: grid !important; gap: 1px !important; text-align: center; }
-.cc-pulso-media small { font-size: 7.5px !important; letter-spacing: .06em; text-transform: uppercase; }
-.cc-pulso-media b { display: block; min-width: 0; padding: 3px 2px; font-size: 13px; line-height: 1; color: #fff3d4; border-radius: 3px;
+.cc-pulso-media small { font-size: 7px !important; letter-spacing: .03em; white-space: nowrap; text-transform: uppercase; }
+.cc-pulso-media b { display: block; width: 100%; min-width: 0; box-sizing: border-box; padding: 4px 0; font-size: 12px; white-space: nowrap; text-align: center; overflow: hidden; line-height: 1; color: #fff3d4; border-radius: 3px;
   background: linear-gradient(#0c1a2f,#13263f); box-shadow: inset 0 2px 3px rgba(0,0,0,.55), inset 0 -1px 0 rgba(255,255,255,.12); }
 .cc-shell.dark .cc-context-button[data-active="true"] .cc-pulso-media b { color: #f3ead5; }
 .cc-shell.dark .cc-context-button[data-active="true"] .cc-pulso-medias { border-left-color: #16294a44; }
