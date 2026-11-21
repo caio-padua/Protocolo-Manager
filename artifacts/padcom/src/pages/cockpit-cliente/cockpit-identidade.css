@@ -321,3 +321,17 @@
 @media(max-width:700px) { .cc-pulso-wrap { grid-template-columns: minmax(0,1fr) 78px; } }
 .cc-pulso.cc-pulso-modal { margin-top: 0; }
 .cc-pulso-modal .cc-pulso-rolagem { max-height: none; }
+
+/* Tabela do Pulso: mes > dia (bloco unico) > periodos */
+.cc-pulso-tabela tbody tr.cc-pulso-mediaLinha { background: var(--p-cab); box-shadow: inset 0 -2px 0 var(--p-borda); }
+.cc-pulso-tabela tbody th.cc-pulso-mediaRot { text-align: center; padding-left: 3px; font: 800 9px/1 Inter,sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--p-rotulo); }
+.cc-pulso-tabela tbody tr.cc-pulso-mes th { position: sticky; top: 22px; z-index: 1; padding: 7px 10px; text-align: left; background: var(--p-cab); border-top: 2px solid var(--p-borda); border-bottom: 1px solid var(--p-borda); }
+.cc-pulso-mes span { font: 800 11px/1 Inter,sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--p-rotulo); }
+.cc-pulso-mes em { margin-left: 10px; font: 600 9.5px/1 Inter,sans-serif; font-style: normal; letter-spacing: .04em; color: var(--p-mudo); }
+.cc-pulso-tabela tbody tr.cc-pulso-linha td, .cc-pulso-tabela tbody tr.cc-pulso-linha th { border-top: 1px dashed var(--p-fio); }
+.cc-pulso-tabela tbody tr.cc-pulso-linha[data-inicio="true"] td, .cc-pulso-tabela tbody tr.cc-pulso-linha[data-inicio="true"] th { border-top: 1px solid var(--p-borda); }
+.cc-pulso-tabela tbody tr.cc-pulso-linha[data-zebra="1"] td { background: var(--p-dia); }
+.cc-pulso-tabela tbody tr.cc-pulso-linha td { padding: 6px 3px; }
+.cc-pulso-tabela tbody th.cc-pulso-dia { width: 12%; padding: 6px 4px; text-align: center; vertical-align: middle; border-right: 1px solid var(--p-borda); background: var(--p-cab); }
+.cc-pulso-dia b { display: block; font-size: 22px; line-height: 1; color: var(--p-tinta); }
+.cc-pulso-dia small { display: block; margin-top: 4px; font: 700 9px/1 Inter,sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--p-rotulo); }

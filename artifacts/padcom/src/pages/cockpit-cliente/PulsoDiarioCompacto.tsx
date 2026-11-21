@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, ChevronDown } from "lucide-react";
@@ -30,6 +30,9 @@ const tomPressao = (s: number | null, d: number | null): Tom =>
   s == null && d == null ? "neutro" : (s ?? 0) >= 160 || (d ?? 0) >= 100 ? "alto" : (s ?? 0) >= 140 || (d ?? 0) >= 90 ? "atencao" : "ok";
 const tomGlicemia = (g: number | null): Tom => (g == null ? "neutro" : g >= 126 ? "alto" : g >= 100 ? "atencao" : "ok");
 
+const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+const diaSemana = (iso: string) => { const [a, m, d] = iso.split("-").map(Number); return new Date(Date.UTC(a, m - 1, d)).getUTCDay(); };
 const dataBr = (iso: string) => iso.split("-").reverse().join("/");
 const dataCurta = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
 const ptBr = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -169,6 +172,21 @@ export function PulsoDiarioHistorico({ clientId, janela, naModal = false }: { cl
     [data, dias],
   );
   const r = useMemo(() => resumo(linhas), [linhas]);
+  // Mês > dia > períodos (mais recente primeiro): cada dia é um bloco só.
+  const meses = useMemo(() => {
+    const out: Array<{ chave: string; nome: string; dias: Array<{ data: string; itens: Pulso[] }> }> = [];
+    for (const l of linhas) {
+      const chave = l.data.slice(0, 7);
+      let mes = out[out.length - 1];
+      if (!mes || mes.chave !== chave) {
+        mes = { chave, nome: `${MESES[Number(chave.slice(5)) - 1]} de ${chave.slice(0, 4)}`, dias: [] };
+        out.push(mes);
+      }
+      const dia = mes.dias[mes.dias.length - 1];
+      if (dia && dia.data === l.data) dia.itens.push(l); else mes.dias.push({ data: l.data, itens: [l] });
+    }
+    return out;
+  }, [linhas]);
   const demo = linhas.some((l) => l.origem === "demo");
   return (
     <section id="cc-pulso-historico" className={`cc-pulso${naModal ? " cc-pulso-modal" : ""}`} aria-label="Histórico do pulso diário">
@@ -186,31 +204,41 @@ export function PulsoDiarioHistorico({ clientId, janela, naModal = false }: { cl
         <div className="cc-pulso-rolagem">
           <table className="cc-pulso-tabela">
             <thead><tr>
-              <th scope="col">Data</th><th scope="col">Período</th><th scope="col">Energia</th><th scope="col">Disposição</th>
+              <th scope="col">Dia</th><th scope="col">Período</th><th scope="col">Energia</th><th scope="col">Disposição</th>
               <th scope="col">Sono</th><th scope="col">Pressão</th><th scope="col">Freq.</th><th scope="col">Glicemia</th>
             </tr></thead>
             <tbody>
               <tr className="cc-pulso-mediaLinha">
-                <th scope="row">Média</th><td className="cc-pulso-per">{dias} dias</td>
+                <th scope="row" className="cc-pulso-mediaRot">Média</th><td className="cc-pulso-per">{dias} dias</td>
                 <td><Valor v={r.energia} /></td><td><Valor v={r.disposicao} /></td><td><Valor v={r.sono} /></td>
                 <td><Valor v={r.pa} /></td><td><Valor v={r.fc} /></td><td><Valor v={r.glicemia} /></td>
               </tr>
-              {linhas.map((l, i) => {
-                const primeira = i === 0 || linhas[i - 1].data !== l.data;
-                const pa = l.pressaoSistolica != null || l.pressaoDiastolica != null ? `${l.pressaoSistolica ?? "—"}/${l.pressaoDiastolica ?? "—"}` : null;
-                return (
-                  <tr key={l.id} data-dia={primeira}>
-                    <th scope="row" title={dataBr(l.data)}>{primeira ? <Numeral peso={700}>{dataCurta(l.data)}</Numeral> : ""}</th>
-                    <td className="cc-pulso-per">{NOME_PERIODO[l.periodo] ?? l.periodo}</td>
-                    <td><Valor v={l.energia == null ? null : String(l.energia)} /></td>
-                    <td><Valor v={l.disposicao == null ? null : String(l.disposicao)} /></td>
-                    <td><Valor v={l.sono == null ? null : String(l.sono)} /></td>
-                    <td><Valor v={pa} tom={tomPressao(l.pressaoSistolica, l.pressaoDiastolica)} /></td>
-                    <td><Valor v={l.frequenciaCardiaca == null ? null : String(l.frequenciaCardiaca)} /></td>
-                    <td><Valor v={l.glicemia == null ? null : String(l.glicemia)} tom={tomGlicemia(l.glicemia)} /></td>
-                  </tr>
-                );
-              })}
+              {meses.map((mes) => (
+                <Fragment key={mes.chave}>
+                  <tr className="cc-pulso-mes"><th colSpan={8} scope="colgroup">
+                    <span>{mes.nome}</span><em>{mes.dias.length} {mes.dias.length === 1 ? "dia" : "dias"} · {mes.dias.reduce((n, d) => n + d.itens.length, 0)} registros</em>
+                  </th></tr>
+                  {mes.dias.map((dia, di) => dia.itens.map((l, i) => {
+                    const pa = l.pressaoSistolica != null || l.pressaoDiastolica != null ? `${l.pressaoSistolica ?? "—"}/${l.pressaoDiastolica ?? "—"}` : null;
+                    return (
+                      <tr key={l.id} className="cc-pulso-linha" data-zebra={di % 2} data-inicio={i === 0}>
+                        {i === 0 && (
+                          <th scope="rowgroup" rowSpan={dia.itens.length} className="cc-pulso-dia" title={dataBr(dia.data)}>
+                            <b><Numeral peso={800}>{dia.data.slice(8)}</Numeral></b><small>{SEMANA[diaSemana(dia.data)]}</small>
+                          </th>
+                        )}
+                        <td className="cc-pulso-per">{NOME_PERIODO[l.periodo] ?? l.periodo}</td>
+                        <td><Valor v={l.energia == null ? null : String(l.energia)} /></td>
+                        <td><Valor v={l.disposicao == null ? null : String(l.disposicao)} /></td>
+                        <td><Valor v={l.sono == null ? null : String(l.sono)} /></td>
+                        <td><Valor v={pa} tom={tomPressao(l.pressaoSistolica, l.pressaoDiastolica)} /></td>
+                        <td><Valor v={l.frequenciaCardiaca == null ? null : String(l.frequenciaCardiaca)} /></td>
+                        <td><Valor v={l.glicemia == null ? null : String(l.glicemia)} tom={tomGlicemia(l.glicemia)} /></td>
+                      </tr>
+                    );
+                  }))}
+                </Fragment>
+              ))}
             </tbody>
           </table>
         </div>
