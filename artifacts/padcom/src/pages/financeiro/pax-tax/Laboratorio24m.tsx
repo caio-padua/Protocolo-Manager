@@ -165,7 +165,7 @@ function FaixaMeses({ titulo, ajuda, rotulos, meses, valor, onAplicar, id }: { t
     <div className="panel-3d-sub space-y-2 p-3" data-testid={id}>
       <div className="flex flex-wrap items-center justify-between gap-2 text-[12px]">
         <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{titulo}<Ajuda texto={ajuda} rotulo={titulo} /></span>
-        <b data-testid={`${id}-texto`}>{dataIni(meses[r[0]])} até {dataFim(meses[r[1]])} ({r[1] - r[0] + 1} meses)</b>
+        <b data-testid={`${id}-texto`}>{r[1] - r[0] + 1} {r[1] === r[0] ? "mês" : "meses"}</b>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <CampoData id={`${id}-de`} rotulo="Data inicial" valor={dataIni(meses[r[0]])} onValida={(ym) => { const i = Math.min(Math.max(meses.indexOf(ym) < 0 ? (ym < meses[0] ? 0 : max) : meses.indexOf(ym), 0), r[1]); const n: [number, number] = [i, r[1]]; setR(n); onAplicar(n); }} />
