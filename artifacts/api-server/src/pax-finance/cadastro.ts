@@ -78,7 +78,7 @@ const socioApi = (s: Row) => ({
 });
 
 export async function listarSocios(ctx: FinContext) {
-  const r = await db.execute(sql`SELECT * FROM fin_partner WHERE company_id=${ctx.companyId} ORDER BY id`);
+  const r = await db.execute(sql`SELECT * FROM fin_partner WHERE company_id=${ctx.companyId} AND papel <> 'responsavel_tecnico' ORDER BY id`);
   return (r.rows as Row[]).map(socioApi);
 }
 export async function criarSocio(ctx: FinContext, i: z.infer<typeof SocioInput>) {

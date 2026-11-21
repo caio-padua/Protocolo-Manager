@@ -55,7 +55,7 @@ const pesApi = (p: Row) => ({
 
 export async function listarEntidades(ctx: FinContext) {
   const e = (await db.execute(sql`SELECT * FROM fin_entity WHERE company_id=${ctx.companyId} ORDER BY id`)).rows as Row[];
-  const p = (await db.execute(sql`SELECT * FROM fin_partner WHERE company_id=${ctx.companyId} AND entity_id IS NOT NULL ORDER BY id`)).rows as Row[];
+  const p = (await db.execute(sql`SELECT * FROM fin_partner WHERE company_id=${ctx.companyId} AND entity_id IS NOT NULL AND papel <> 'responsavel_tecnico' ORDER BY id`)).rows as Row[];
   return e.map((x) => ({ ...entApi(x), pessoas: p.filter((y) => Number(y.entity_id) === Number(x.id)).map(pesApi) }));
 }
 

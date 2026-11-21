@@ -51,7 +51,7 @@ const CONTRATO = (razao: string) => ["ATO CONSTITUTIVO DE SOCIEDADE EMPRESARIAL 
   "CLÁUSULA QUARTA: O objetivo da empresa é explorar as atividades de consultas medicas.", "CLÁUSULA QUINTA: O Capital Social é de R$ 100.000,00 (Cem Mil Reais), dividido",
   "em 100.000 (Cem Mil) quotas, no valor nominal de R$ 1,00 (Hum Real) cada uma,", "totalmente integralizado em moeda corrente nacional neste ato e assim distribuído:",
   "Sócia Quotas R$ %", "Maria Sintetica da Silva 100.000 100.000,00 100,00%", "TOTAL 100.000 100.000,00 100,00%",
-  "A administração será exercida pela titular, Maria Sintetica da Silva, já qualificada, com pró-labore.", "Fica eleito o foro de São Paulo para o exercício.",
+  "A administração será exercida pela titular, Maria Sintetica da Silva, já qualificada, com pró-labore.", "A responsabilidade e administração técnica da empresa caberá ao médico Dr. Joao Clinico habilitado e registrado no CRM/SP 123456.", "Fica eleito o foro de São Paulo para o exercício.",
   "São Paulo, 09 de Junho de 2026.", ...Array.from({ length: 6 }, (_, i) => `texto de preenchimento ${i} para passar do minimo de texto do documento sintetico`)];
 
 beforeAll(async () => {
@@ -124,9 +124,23 @@ describe("PAX FINANCE documentos oficiais", () => {
     expect(JSON.stringify(reg)).not.toMatch(/11144477735|Ficticia/);
     const n1 = Number((await q("SELECT count(*) c FROM fin_partner WHERE company_id=7")).rows[0].c);
     expect(n1).toBe(1);
+    // medico responsavel tecnico: so informativo, nunca socio nem responsavel da empresa
+    expect(Number((await q("SELECT count(*) c FROM fin_partner WHERE company_id=7 AND (papel='responsavel_tecnico' OR nome ILIKE '%Clinico%')")).rows[0].c)).toBe(0);
+    expect(reg.campos.find((c: any) => c.chave === "rtNome").valor).toMatch(/Joao Clinico/);
+    expect(reg.campos.find((c: any) => c.chave === "rtNome").grupo).toMatch(/não societário/);
+    expect(e.dono_nome).not.toMatch(/Clinico/); expect(e.responsavel_legal_nome).not.toMatch(/Clinico/);
     expect((await request(app).post("/pax-finance/documents/apply").set(H(7))).status).toBe(200);
     expect(Number((await q("SELECT count(*) c FROM fin_partner WHERE company_id=7")).rows[0].c)).toBe(1);
     expect(Number((await q("SELECT count(*) c FROM fin_audit_log WHERE action='documento.aplicar'")).rows[0].c)).toBe(2);
+  });
+  it("campo do responsável técnico: salva no cadastro informativo, audita e nunca vira sócio", async () => {
+    const r = await request(app).put("/pax-finance/documents/registry/responsavel-tecnico").set(H(7)).send({ nome: "Dr. Medico Clinico", registro: "CRM/SP 999" });
+    expect(r.status).toBe(200);
+    const reg = (await request(app).get("/pax-finance/documents/registry").set(H(7))).body;
+    expect(reg.campos.find((c: any) => c.chave === "rtNome").valor).toBe("Dr. Medico Clinico");
+    expect(reg.campos.find((c: any) => c.chave === "foro")).toBeTruthy(); // não apagou o restante
+    expect(Number((await q("SELECT count(*) c FROM fin_partner WHERE company_id=7 AND nome ILIKE '%Medico Clinico%'")).rows[0].c)).toBe(0);
+    expect((await request(app).put("/pax-finance/documents/registry/responsavel-tecnico").set(H(7)).send({ nome: "x", registro: "" })).status).toBe(400);
   });
   it("novo envio substitui sem apagar; mesmo arquivo repetido é recusado; razão social divergente bloqueia", async () => {
     const b = await pdf(RFB("11.222.333/0001-81", "EMPRESA TESTE LTDA").concat(["observacao nova"]));

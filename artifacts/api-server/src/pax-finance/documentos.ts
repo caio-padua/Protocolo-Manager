@@ -270,10 +270,26 @@ export async function aplicarDocumentos(ctx: FinContext) {
       const docContrato = por.contrato_social ?? por.certidao_jucesp; const docId = docContrato ? Number(docContrato.id) : null;
       for (const s of socios) await garantir(s.nome, adm && chaveNome(adm) === chaveNome(s.nome) ? "socio_administrador" : "socio", s.bp, null, docId);
       if (adm && !socios.some((s) => chaveNome(s.nome) === chaveNome(adm))) await garantir(adm, "administrador", null, null, docId);
-      if (typeof merged.rtNome === "string") await garantir(merged.rtNome, "responsavel_tecnico", null, typeof merged.rtCrm === "string" ? merged.rtCrm : null, docId);
+      // Responsavel tecnico (medico responsavel clinico) NAO e socio nem responsavel da empresa: fica so no cadastro informativo (registry).
     }
     await tx.execute(sql`UPDATE fin_doc_import SET status='aplicado', applied_by=${ctx.actorId}, applied_at=now() WHERE company_id=${ctx.companyId} AND status='extraido'`);
     await registrarAuditoria(tx, ctx, "documento.aplicar", "empresas", ctx.companyId, { anterior, gravado, camposRegistro: Object.keys(merged).length, pessoasNovas: pessoas, entidadeId: ent ? Number(ent.id) : null });
     return { camposRegistro: Object.keys(merged).length, camposEmpresaAlterados: Object.keys(gravado), pessoasNovas: pessoas, entidadeId: ent ? Number(ent.id) : null, sensiveisGuardados: Object.keys(sens).length };
+  });
+}
+
+/** Cadastro informativo do medico responsavel tecnico (clinico). NAO e socio, administrador nem responsavel juridico/financeiro. */
+export async function salvarResponsavelTecnico(ctx: FinContext, nome: string, registro: string) {
+  const n = nome.trim().slice(0, 200), r = registro.trim().slice(0, 60);
+  if (n.length < 3) throw new FinError(400, "Informe o nome do medico responsavel tecnico.");
+  return db.transaction(async (tx) => {
+    const ant = (await tx.execute(sql`SELECT dados FROM fin_company_registry WHERE company_id=${ctx.companyId}`)).rows[0] as Row | undefined;
+    const d = (ant?.dados ?? {}) as Record<string, Valor>;
+    await tx.execute(sql`INSERT INTO fin_company_registry (company_id, dados, sensiveis, origem, updated_by)
+      VALUES (${ctx.companyId}, ${JSON.stringify({ rtNome: n, rtCrm: r })}::jsonb, '{}'::jsonb, ${JSON.stringify({ rtNome: "manual", rtCrm: "manual" })}::jsonb, ${ctx.actorId})
+      ON CONFLICT (company_id) DO UPDATE SET dados = fin_company_registry.dados || ${JSON.stringify({ rtNome: n, rtCrm: r })}::jsonb,
+        origem = fin_company_registry.origem || ${JSON.stringify({ rtNome: "manual", rtCrm: "manual" })}::jsonb, updated_by=EXCLUDED.updated_by, updated_at=now()`);
+    await registrarAuditoria(tx, ctx, "documento.responsavel_tecnico", "fin_company_registry", ctx.companyId, { anterior: { rtNome: d.rtNome ?? null, rtCrm: d.rtCrm ?? null }, novo: { rtNome: n, rtCrm: r } });
+    return { ok: true };
   });
 }

@@ -36,6 +36,5 @@ export const PADUMANN = {
   } as Record<string, string[]>,
   pessoas: [
     { nome: "Dayana Ludman Alves Caldas da Silva", papel: "socio_administrador" as const, participacaoBp: 10000, registro: null as string | null, origem: [CONTRATO, JUCESP] },
-    { nome: "Caio Henrique Fernandes Pádua", papel: "responsavel_tecnico" as const, participacaoBp: null as number | null, registro: "CRM/SP 125475/SP", origem: [CONTRATO] },
   ],
 };

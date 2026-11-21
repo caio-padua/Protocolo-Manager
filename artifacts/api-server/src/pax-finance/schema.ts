@@ -10,7 +10,8 @@ import { db } from "@workspace/db";
  */
 export const STATUS_REGRA = ["rascunho", "pendente", "aprovada", "ativa", "substituida"] as const;
 export const ESFERAS = ["federal", "estadual", "municipal"] as const;
-export const PAPEIS_SOCIETARIOS = ["socio", "administrador", "socio_administrador", "responsavel_tecnico", "procurador"] as const;
+/** Papeis aceitos para NOVAS pessoas. "responsavel_tecnico" continua permitido no CHECK do banco so por linhas legadas: medico responsavel clinico nao e socio nem responsavel juridico/financeiro. */
+export const PAPEIS_SOCIETARIOS = ["socio", "administrador", "socio_administrador", "procurador"] as const;
 
 export const PAX_FINANCE_DDL: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS fin_audit_log (

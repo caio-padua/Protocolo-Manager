@@ -109,8 +109,7 @@ describe("PAX FINANCE onda 2 - API e isolamento", () => {
     expect(e[0].cnpj).toBe("69.410.873/0001-79"); expect(e[0].cnpjValido).toBe(true); expect(e[0].statusValidacao).toBe("rascunho");
     expect(e[0].cnaesSecundarios).toHaveLength(27); expect(e[0].capitalSocialCents).toBe(50000000);
     expect(e[0].regimeEfetivo).toBeNull(); expect(e[0].opcaoSimples).toBe("nao_verificada"); expect(e[0].inscricaoMunicipal).toBeNull();
-    const caio = e[0].pessoas.find((p: any) => p.nome.includes("Caio"));
-    expect(caio.papel).toBe("responsavel_tecnico"); expect(caio.participacaoBp).toBeNull();
+    expect(e[0].pessoas.find((p: any) => p.nome.includes("Caio"))).toBeUndefined(); // medico responsavel clinico nao e socio nem responsavel da empresa
     expect(e[0].pessoas.find((p: any) => p.nome.includes("Dayana")).participacaoBp).toBe(10000);
     expect(JSON.stringify(e)).not.toMatch(/cpf|rg\b/i);
     expect((await request(app).get("/pax-finance/entities").set(H(B))).body).toEqual([]);

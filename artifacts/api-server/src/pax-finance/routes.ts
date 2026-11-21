@@ -17,7 +17,7 @@ import { ParteInput } from "./conformidade-calc";
 import { criarParte, editarParte, encerrarParte, lerConformidade, validarParte } from "./conformidade";
 import { LabSalvarInput, lerLab, limparLab, salvarLab } from "./laboratorio";
 import multer from "multer";
-import { aplicarDocumentos, enviarDocumento, lerRegistro, listarDocumentos, rejeitarDocumento, revelarSensivel, slotValido, MAX_BYTES } from "./documentos";
+import { aplicarDocumentos, enviarDocumento, lerRegistro, listarDocumentos, rejeitarDocumento, revelarSensivel, salvarResponsavelTecnico, slotValido, MAX_BYTES } from "./documentos";
 import { PerfilInput, SocioInput, criarSocio, editarSocio, encerrarSocio, listarAuditoria, listarSocios, obterEmpresa, salvarPerfil, validarPerfil, validarSocio } from "./cadastro";
 
 /** PAX FINANCE — rotas. Toda rota: colaborador + clínica da sessão + módulo financeiro. */
@@ -53,6 +53,7 @@ const uploadDoc = multer({ storage: multer.memoryStorage(), limits: { fileSize: 
 const ehCeo = (req: Request) => req.tenantContext?.authenticated === true && req.tenantContext.isPlatformOwner === true;
 router.get("/pax-finance/documents", ...finGuards, wrap(async (req, res) => { res.set("Cache-Control", "no-store"); res.json(await listarDocumentos(finContext(req), ehCeo(req))); }));
 router.get("/pax-finance/documents/registry", ...finGuards, wrap(async (req, res) => { res.set("Cache-Control", "no-store"); res.json(await lerRegistro(finContext(req))); }));
+router.put("/pax-finance/documents/registry/responsavel-tecnico", ...finGuards, wrap(async (req, res) => { res.json(await salvarResponsavelTecnico(finContext(req), String(req.body?.nome ?? ""), String(req.body?.registro ?? ""))); }));
 router.post("/pax-finance/documents/apply", ...finGuards, wrap(async (req, res) => { res.json(await aplicarDocumentos(finContext(req))); }));
 router.post("/pax-finance/documents/:id/reject", ...finGuards, wrap(async (req, res) => { res.json(await rejeitarDocumento(finContext(req), idParam(req))); }));
 router.post("/pax-finance/documents/:id/reveal", ...finGuards, wrap(async (req, res) => {

@@ -63,6 +63,27 @@ function Cartao({ item, ehCeo }: { item: Lista["slots"][number]; ehCeo: boolean 
   );
 }
 
+function ResponsavelTecnico({ reg }: { reg?: Registro }) {
+  const qc = useQueryClient();
+  const nome0 = String(reg?.campos.find((c) => c.chave === "rtNome")?.valor ?? ""), crm0 = String(reg?.campos.find((c) => c.chave === "rtCrm")?.valor ?? "");
+  const [nome, setNome] = useState<string | null>(null); const [crm, setCrm] = useState<string | null>(null);
+  const salva = useMutation({ mutationFn: () => finApi("/documents/registry/responsavel-tecnico", { method: "PUT", body: { nome: nome ?? nome0, registro: crm ?? crm0 } }),
+    onSuccess: () => { setNome(null); setCrm(null); qc.invalidateQueries({ queryKey: ["fin", "docs-registry"] }); } });
+  const cls = "w-full min-h-[44px] rounded border border-border bg-background px-2 text-[13px]";
+  return (
+    <section className="panel-3d-sub p-3 text-[12px]" data-testid="docs-rt">
+      <b className="uppercase">Médico responsável técnico (clínico)</b>
+      <p className="my-1 text-muted-foreground">Cadastro informativo. Não é sócio, não administra a empresa e não tem responsabilidade jurídica ou financeira.</p>
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_220px_auto] md:items-end">
+        <label>Nome do médico<input className={cls} value={nome ?? nome0} onChange={(e) => setNome(e.target.value)} data-testid="rt-nome" /></label>
+        <label>Registro (ex.: CRM/SP 125475)<input className={cls} value={crm ?? crm0} onChange={(e) => setCrm(e.target.value)} data-testid="rt-crm" /></label>
+        <button type="button" className={`${btnSoftCls} min-h-[44px]`} disabled={salva.isPending || (nome ?? nome0).trim().length < 3} onClick={() => salva.mutate()} data-testid="rt-salvar">Salvar</button>
+      </div>
+      {salva.isError && <p className="mt-1 text-destructive" role="alert">{(salva.error as Error).message}</p>}
+    </section>
+  );
+}
+
 export function DocumentosImport() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["fin", "docs"], queryFn: () => finApi<Lista>("/documents") });
@@ -85,6 +106,7 @@ export function DocumentosImport() {
         {aplica.isError && <span className="text-[12px] text-destructive" role="alert" data-testid="docs-aplicar-erro">{(aplica.error as Error).message}</span>}
         {aplica.isSuccess && <span className="text-[12px]" data-testid="docs-aplicar-ok">Aplicado: {aplica.data.camposRegistro} campos no cadastro; {aplica.data.camposEmpresaAlterados.length} campo(s) da empresa atualizados; {aplica.data.pessoasNovas} pessoa(s) nova(s). O cadastro do Pax Finance voltou a rascunho para sua validação.</span>}
       </div>
+      <ResponsavelTecnico reg={reg.data} />
       {reg.data?.existe && (
         <section className="panel-3d-sub p-3 text-[12px]" data-testid="docs-registro"><b className="uppercase">Cadastro societário completo da empresa (origem de cada dado)</b>
           <dl className="mt-1 grid grid-cols-1 gap-x-3 gap-y-1 md:grid-cols-[minmax(0,220px)_1fr_auto]">

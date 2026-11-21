@@ -40,7 +40,7 @@ export const ROTULOS: Record<string, { rotulo: string; grupo: string }> = {
   valorQuotaCents: { rotulo: "Valor de cada quota", grupo: "Capital" }, capitalIntegralizado: { rotulo: "Capital totalmente integralizado", grupo: "Capital" },
   socios: { rotulo: "Sócios e participação", grupo: "Sócios e responsáveis" }, administradorNome: { rotulo: "Administrador(a)", grupo: "Sócios e responsáveis" },
   proLabore: { rotulo: "Pró-labore previsto no contrato", grupo: "Sócios e responsáveis" },
-  rtNome: { rotulo: "Responsável técnico", grupo: "Sócios e responsáveis" }, rtCrm: { rotulo: "Registro do responsável técnico", grupo: "Sócios e responsáveis" },
+  rtNome: { rotulo: "Médico responsável técnico (clínico)", grupo: "Responsabilidade técnica clínica (não societário)" }, rtCrm: { rotulo: "Registro profissional do responsável técnico", grupo: "Responsabilidade técnica clínica (não societário)" },
   prazoDuracao: { rotulo: "Prazo de duração", grupo: "Contrato" }, exercicioSocial: { rotulo: "Exercício social", grupo: "Contrato" }, foro: { rotulo: "Foro", grupo: "Contrato" },
   dataAssinaturaContrato: { rotulo: "Data de assinatura do contrato", grupo: "Contrato" },
   dataExpedicao: { rotulo: "Certidão expedida em", grupo: "Certidão da Junta" }, horaExpedicao: { rotulo: "Hora da expedição", grupo: "Certidão da Junta" },

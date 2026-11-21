@@ -17,7 +17,7 @@ import { Laboratorio24m } from "./Laboratorio24m";
 import { Conformidade } from "./Conformidade";
 import { DocumentosImport } from "./DocumentosImport";
 
-const PAPEL: Record<string, string> = { socio: "Sócio", administrador: "Administrador", socio_administrador: "Sócio administrador", responsavel_tecnico: "Responsável técnico (não é sócio)", procurador: "Procurador" };
+const PAPEL: Record<string, string> = { socio: "Sócio", administrador: "Administrador", socio_administrador: "Sócio administrador", procurador: "Procurador" };
 const SIMPLES: Record<string, string> = { nao_verificada: "Não verificada", confirmada: "Confirmada", nao_optante: "Não optante" };
 type Auditoria = { id: number; actorId: number | null; action: string; entity: string; criadoEm: string; detail: Record<string, unknown> };
 

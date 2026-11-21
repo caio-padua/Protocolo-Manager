@@ -8,3 +8,4 @@ description: Upload por slot (CNPJ, certidão JUCESP, contrato) com extração d
 **How to apply:** dado novo = campo em ROTULOS (documentos-calc.ts); aplicar exige confirmação humana e recusa CNPJ/razão divergente; nunca apagar (substituir).
 - Teste de PDF sintético: linhas largas são cortadas fora da página; quebrar em ~100 caracteres.
 - Teste preexistente da fundação reclama de coluna cnpj em fin_related_party (não é desta entrega).
+- Médico responsável técnico (clínico) NÃO é sócio, administrador nem responsável jurídico/financeiro: fica só no cadastro informativo (rtNome/rtCrm), com campo editável na tela. Nunca em fin_partner; papel responsavel_tecnico fora do enum de novas pessoas. **Why:** correção explícita do CEO. **How to apply:** não inferir papel societário de cargo clínico.
