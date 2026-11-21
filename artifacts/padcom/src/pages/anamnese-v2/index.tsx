@@ -504,7 +504,7 @@ export default function AnamneseV2() {
         </div>
       )}
       {/* HEADER / TIMELINE — fiel ao canvas: marca centralizada -> blocos -> barra de barinhas */}
-      <header className={`anamnese-solo relative z-20 shrink-0 border-b border-border px-4 ${minimizado ? "py-2" : "py-4"}`}>
+      <header className={`anamnese-solo relative z-20 shrink-0 border-b border-border px-4 ${minimizado ? "pb-2 pt-4" : "py-4"}`}>
         {/* tecido terno CRISP sobre o painel do cabecalho (acima do bg, abaixo do conteudo).
             CEO confirmou em 24/06/2026: MANTER o tecido aqui (claro e escuro) e UNIFICAR com o das
             questoes — por isso a base do header e a MESMA .anamnese-solo da pagina (mesmo degrade/cor),
@@ -518,12 +518,12 @@ export default function AnamneseV2() {
             // Os 3 botoes: MESMO tamanho, MESMO alinhamento, relevo saliente (bevel-3d).
             const cls = minimizado
               ? "bevel-3d relative flex h-[46px] w-6 items-center justify-center rounded-[3px]"
-              : "bevel-3d relative flex h-6 w-[96px] items-center justify-center gap-1.5 whitespace-nowrap rounded-[4px] px-2";
-            const lbl = "text-[9.5px] font-bold uppercase tracking-wide";
-            const ic = "h-3.5 w-3.5 shrink-0";
+              : "bevel-3d relative flex h-5 w-[84px] items-center justify-center gap-1 whitespace-nowrap rounded-[3px] px-1.5";
+            const lbl = "text-[8.5px] font-bold uppercase tracking-wide";
+            const ic = "h-3 w-3 shrink-0";
             return (
               <div
-                className={`absolute right-0 z-30 flex ${minimizado ? "top-0 flex-row items-stretch gap-1" : "-top-2.5 flex-col items-stretch gap-3"}`}
+                className={`absolute right-0 z-30 flex ${minimizado ? "top-0 flex-row items-stretch gap-1" : "-top-2 flex-col items-stretch gap-1.5"}`}
               >
                 <TipButton
                   onClick={() => setFocusMode((f) => !f)}
@@ -563,11 +563,13 @@ export default function AnamneseV2() {
           {minimizado ? (
             <div className="flex flex-col gap-2">
               <div className="flex h-[46px] items-stretch gap-2 pr-[5.6rem]">
-                <div className="flex shrink-0 items-start"><PaxterSymbolGlass size={46} tone={theme === "dark" ? "dark" : "light"} /></div>
-                <div className="flex min-w-0 flex-1" aria-live="polite">
-                  <div className="bevel-3d flex h-full w-full flex-col items-center justify-center rounded-[3px] px-2 leading-tight">
-                    <span className="text-[18px] font-black tabular-nums tracking-tight" style={{ color: GOLD }}>{pct}% <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-foreground">concluído</span></span>
-                    <span className="text-[10.5px] font-bold uppercase tracking-wide text-foreground">Falta aprox. {restanteMin} min</span>
+                <div className="flex shrink-0 items-start"><PaxterSymbolGlass size={40} tone={theme === "dark" ? "dark" : "light"} /></div>
+                <div className="flex min-w-0 flex-1 justify-center" aria-live="polite">
+                  <div className="bevel-3d flex h-full w-[11.5rem] max-w-full flex-col items-center justify-center gap-0.5 rounded-[3px] px-3 leading-none">
+                    <span className="flex items-baseline gap-1.5 text-[16px] font-extrabold tabular-nums" style={{ color: GOLD }}>
+                      <span>{pct}%</span><span>concluído</span>
+                    </span>
+                    <span className="text-[10.5px] font-medium text-muted-foreground">Tempo médio: {restanteMin} min</span>
                   </div>
                 </div>
               </div>
@@ -610,14 +612,15 @@ export default function AnamneseV2() {
                 {pct}%
               </span>
             </div>
-            <div className="flex gap-1.5">
-              {Array.from({ length: gruposTotais }).map((_, i) => (
-                <div key={i} className="paxter-bar-track h-3 flex-1">
-                  {i < gruposCompletos && (
-                    <div className="paxter-bar-fill" style={{ width: "100%" }} />
-                  )}
-                </div>
-              ))}
+            <div className="flex gap-1.5" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Progresso da anamnese">
+              {Array.from({ length: 5 }).map((_, i) => {
+                const parte = Math.max(0, Math.min(100, (pct - i * 20) * 5));
+                return (
+                  <div key={i} className="paxter-bar-track !rounded-[2px] h-4 flex-1">
+                    {parte > 0 && <div className="paxter-bar-fill !rounded-[1px]" style={{ width: `${parte}%` }} />}
+                  </div>
+                );
+              })}
             </div>
           </div>
           </>
@@ -885,7 +888,7 @@ function GrupoChip({
       aria-current={active ? "true" : undefined}
       data-grupo-ativo={active ? "true" : undefined}
       className={`bevel-3d flex min-w-0 flex-col justify-center gap-1 rounded-[3px] px-1.5 text-foreground ${compact ? "h-[32px] w-[84px] shrink-0 !gap-0.5" : "h-[54px]"} ${refused ? "opacity-60" : ""}`}
-      style={active ? { outline: `2.5px solid ${GOLD}`, outlineOffset: "2px" } : undefined}
+      style={active ? { transform: "translateY(2px)", boxShadow: `inset 0 3px 6px rgba(0,0,0,.35), inset 0 0 0 1.5px ${GOLD}` } : undefined}
     >
       <span className={`flex items-center justify-center gap-1 font-bold tracking-tight ${compact ? "text-[9.5px] leading-none" : "text-[11px]"}`}>
         {done ? <Check className="h-3 w-3 shrink-0" aria-hidden /> : null}
@@ -901,31 +904,17 @@ function GrupoChip({
   );
 }
 
-// Trilho rolavel: deixa claro que da para arrastar para os lados (bordas com sombra + setas).
+// Trilho rolavel: sem moldura nem relevo; os retangulos deslizam direto sobre o tecido. Deslizar com o dedo.
 function Trilho({ children, ativoKey }: { children: ReactNode; ativoKey: number }) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const [esq, setEsq] = useState(false);
-  const [dir, setDir] = useState(false);
-  const medir = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    setEsq(el.scrollLeft > 4);
-    setDir(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
-  }, []);
   useEffect(() => {
-    medir();
-    const el = ref.current;
-    el?.querySelector<HTMLElement>('[data-grupo-ativo="true"]')?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
-  }, [ativoKey, medir]);
-  const rolar = (d: number) => ref.current?.scrollBy({ left: d * 180, behavior: "smooth" });
-  const seta = "absolute top-1/2 z-10 flex h-6 w-3 -translate-y-1/2 items-center justify-center rounded-[2px] bevel-3d text-foreground";
+    ref.current?.querySelector<HTMLElement>('[data-grupo-ativo="true"]')?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [ativoKey]);
   return (
-    <div className="relative rounded-[3px] px-4 py-0.5" style={{ background: "rgba(0,0,0,0.10)", boxShadow: "inset 0 2px 5px rgba(0,0,0,.35), inset 0 -1px 0 rgba(255,255,255,.25)" }} role="group" aria-label="Grupos de perguntas (deslize para os lados)">
-      {esq && <button type="button" onClick={() => rolar(-1)} aria-label="Ver grupos anteriores" className={`${seta} left-0.5`}><ChevronLeft className="h-3 w-3" /></button>}
-      <div ref={ref} onScroll={medir} className="flex gap-2 overflow-x-auto px-1 py-0.5 [scrollbar-width:none]" style={{ scrollSnapType: "x proximity" }}>
+    <div role="group" aria-label="Grupos de perguntas (deslize para os lados)" className="mt-2.5">
+      <div ref={ref} className="flex gap-2 overflow-x-auto px-0.5 pb-1.5 pt-0.5 [scrollbar-width:none]" style={{ scrollSnapType: "x proximity" }}>
         {children}
       </div>
-      {dir && <button type="button" onClick={() => rolar(1)} aria-label="Ver próximos grupos" className={`${seta} right-0.5`}><ChevronRight className="h-3 w-3" /></button>}
     </div>
   );
 }
