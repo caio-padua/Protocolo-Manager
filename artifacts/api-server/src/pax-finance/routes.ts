@@ -7,6 +7,10 @@ import { PERIOD_TYPES, type PeriodType } from "./goals-calc";
 import { EntidadeInput, PessoaInput, adicionarPessoa, carregarRascunhoPadumann, criarEntidade, editarEntidade, listarEntidades, validarEntidade } from "./entidades";
 import { SimInput, simular } from "./simulador";
 import { LancInput, cancelarLancamento, criarLancamento, livroCaixa } from "./ledger";
+import { listarEmpresasSeletor } from "./empresas";
+import { CenarioMesInput, apagarDemo, lerCenario, salvarMesDemo, semearDemo } from "./cenario";
+import { SimCreditoInput, CATALOGO, compararCredito, simularCredito } from "./credito";
+import { FlagsInput, estadoAgentes, lerConfig, salvarFlags } from "./produto";
 import { PerfilInput, SocioInput, criarSocio, editarSocio, encerrarSocio, listarAuditoria, listarSocios, obterEmpresa, salvarPerfil, validarPerfil, validarSocio } from "./cadastro";
 
 /** PAX FINANCE — rotas. Toda rota: colaborador + clínica da sessão + módulo financeiro. */
@@ -86,6 +90,28 @@ router.post("/pax-finance/simulate", ...finGuards, wrap(async (req, res) => { re
 router.get("/pax-finance/ledger", ...finGuards, wrap(async (req, res) => { res.json(await livroCaixa(finContext(req))); }));
 router.post("/pax-finance/ledger", ...finGuards, wrap(async (req, res) => { res.status(201).json(await criarLancamento(finContext(req), LancInput.parse(req.body))); }));
 router.post("/pax-finance/ledger/:id/cancel", ...finGuards, wrap(async (req, res) => { res.json(await cancelarLancamento(finContext(req), idParam(req))); }));
+
+router.get("/pax-finance/companies", ...finGuards, wrap(async (req, res) => { res.json(await listarEmpresasSeletor(req, finContext(req).companyId)); }));
+
+const anoQ = (req: Request) => { const a = Number(req.query.ano ?? 2026); if (!Number.isInteger(a) || a < 2000 || a > 2100) throw new FinError(400, "ano invalido"); return a; };
+router.get("/pax-finance/scenario", ...finGuards, wrap(async (req, res) => { res.json(await lerCenario(finContext(req), anoQ(req))); }));
+router.post("/pax-finance/scenario/demo/seed", ...finGuards, wrap(async (req, res) => { res.json(await semearDemo(finContext(req), anoQ(req))); }));
+router.put("/pax-finance/scenario/:mes", ...finGuards, wrap(async (req, res) => { res.json(await salvarMesDemo(finContext(req), Number(req.params.mes), CenarioMesInput.parse(req.body))); }));
+router.delete("/pax-finance/scenario/:mes", ...finGuards, wrap(async (req, res) => { res.json(await apagarDemo(finContext(req), anoQ(req), Number(req.params.mes))); }));
+router.delete("/pax-finance/scenario", ...finGuards, wrap(async (req, res) => { res.json(await apagarDemo(finContext(req), anoQ(req))); }));
+
+router.get("/pax-finance/credit/catalog", ...finGuards, wrap(async (_req, res) => { res.json(CATALOGO); }));
+router.post("/pax-finance/credit/simulate", ...finGuards, wrap(async (req, res) => { res.json(await simularCredito(finContext(req), SimCreditoInput.parse(req.body))); }));
+router.post("/pax-finance/credit/compare", ...finGuards, wrap(async (req, res) => { res.json(await compararCredito(finContext(req), SimCreditoInput.parse(req.body))); }));
+
+router.get("/pax-finance/config", ...finGuards, wrap(async (req, res) => { res.json(await lerConfig(finContext(req))); }));
+router.put("/pax-finance/config/flags", ...finGuards, wrap(async (req, res) => { res.json(await salvarFlags(finContext(req), FlagsInput.parse(req.body).flags)); }));
+router.get("/pax-finance/agents", ...finGuards, wrap(async (_req, res) => { res.json(estadoAgentes()); }));
+router.post("/pax-finance/agents/:id/toggle", ...finGuards, wrap(async (req, res) => {
+  const a = estadoAgentes().find((x) => x.id === req.params.id);
+  if (!a) throw new FinError(404, "Agente desconhecido");
+  res.status(409).json({ error: `${a.nome}: ${a.motivo} Nenhuma execução foi iniciada.` });
+}));
 
 router.get("/pax-finance/audit", ...finGuards, wrap(async (req, res) => { res.json(await listarAuditoria(finContext(req))); }));
 

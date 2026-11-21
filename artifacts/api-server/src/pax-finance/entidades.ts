@@ -41,7 +41,7 @@ export const PessoaInput = z.object({
 });
 
 const entApi = (e: Row) => ({
-  id: Number(e.id), cnpj: e.cnpj, cnpjValido: cnpjValido(String(e.cnpj)), razaoSocial: e.razao_social, nomeFantasia: e.nome_fantasia ?? null,
+  id: Number(e.id), cnpj: e.cnpj, cnpjValido: cnpjValido(String(e.cnpj)), razaoSocial: e.razao_social, nomeFantasia: e.nome_fantasia ?? null, nomeFantasiaPreferencial: e.nome_fantasia_preferencial ?? null, aliases: (e.aliases as string[]) ?? [],
   dataConstituicao: e.data_constituicao ? String(e.data_constituicao).slice(0, 10) : null, naturezaJuridica: e.natureza_juridica ?? null, porte: e.porte ?? null,
   capitalSocialCents: e.capital_social_cents == null ? null : Number(e.capital_social_cents), capitalIntegralizado: e.capital_integralizado ?? null,
   sede: e.sede ?? {}, cnaePrincipal: e.cnae_principal ?? null, cnaePrincipalDescricao: e.cnae_principal_descricao ?? null, cnaesSecundarios: (e.cnaes_secundarios as string[]) ?? [],
@@ -119,13 +119,15 @@ export async function adicionarPessoa(ctx: FinContext, entidadeId: number, i: z.
 export async function carregarRascunhoPadumann(ctx: FinContext) {
   return db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(${ctx.companyId}, hashtext('padumann-rascunho'))`);
+    const emp = (await tx.execute(sql`SELECT cnpj FROM empresas WHERE id=${ctx.companyId}`)).rows[0] as Row | undefined;
+    if (so(String(emp?.cnpj ?? "")) !== so(PADUMANN.cnpj)) throw new FinError(409, "O cadastro da PADUMANN so pode ser carregado na propria empresa PADUMANN (selecione-a no seletor).");
     const ja = (await tx.execute(sql`SELECT id FROM fin_entity WHERE company_id=${ctx.companyId} AND cnpj=${PADUMANN.cnpj}`)).rows[0] as Row | undefined;
     if (ja) return { criado: false, id: Number(ja.id) };
     const r = await tx.execute(sql`INSERT INTO fin_entity (company_id, cnpj, razao_social, data_constituicao, natureza_juridica, porte, capital_social_cents, capital_integralizado,
-      sede, cnae_principal, cnae_principal_descricao, cnaes_secundarios, origem_campos)
+      sede, cnae_principal, cnae_principal_descricao, cnaes_secundarios, origem_campos, nome_fantasia, nome_fantasia_preferencial, aliases)
       VALUES (${ctx.companyId}, ${PADUMANN.cnpj}, ${PADUMANN.razaoSocial}, ${PADUMANN.dataConstituicao}, ${PADUMANN.naturezaJuridica}, ${PADUMANN.porte},
       ${PADUMANN.capitalSocialCents}, ${PADUMANN.capitalIntegralizado}, ${JSON.stringify(PADUMANN.sede)}::jsonb, ${PADUMANN.cnaePrincipal}, ${PADUMANN.cnaePrincipalDescricao},
-      ${JSON.stringify(CNAES_SECUNDARIOS)}::jsonb, ${JSON.stringify(PADUMANN.origemCampos)}::jsonb) RETURNING id`);
+      ${JSON.stringify(CNAES_SECUNDARIOS)}::jsonb, ${JSON.stringify(PADUMANN.origemCampos)}::jsonb, ${PADUMANN.nomeFantasia}, ${PADUMANN.nomeFantasia}, ${JSON.stringify(PADUMANN.aliases)}::jsonb) RETURNING id`);
     const id = Number((r.rows as Row[])[0].id);
     for (const p of PADUMANN.pessoas) {
       await tx.execute(sql`INSERT INTO fin_partner (company_id, entity_id, nome, papel, participacao_bp, registro_profissional, origem, origem_doc)

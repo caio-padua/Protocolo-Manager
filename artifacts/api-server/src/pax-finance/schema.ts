@@ -226,6 +226,31 @@ export const PAX_FINANCE_DDL: readonly string[] = [
        INSERT INTO fin_legacy_goal (legacy_id) SELECT id FROM financial_goals ON CONFLICT DO NOTHING;
      END IF;
    END $$`,
+
+  // Onda 3 (aditivo): nomes de exibicao, camada de cenario DEMO separada do real e configuracao do produto por empresa.
+  `ALTER TABLE fin_entity ADD COLUMN IF NOT EXISTS aliases JSONB NOT NULL DEFAULT '[]'::jsonb`,
+  `ALTER TABLE fin_entity ADD COLUMN IF NOT EXISTS nome_fantasia_preferencial TEXT`,
+  `CREATE TABLE IF NOT EXISTS fin_scenario_month (
+    id BIGSERIAL PRIMARY KEY,
+    company_id INTEGER NOT NULL REFERENCES empresas(id),
+    scenario_type TEXT NOT NULL CHECK (scenario_type = 'DEMO'),
+    ano INTEGER NOT NULL CHECK (ano BETWEEN 2000 AND 2100),
+    mes INTEGER NOT NULL CHECK (mes BETWEEN 1 AND 12),
+    natureza TEXT NOT NULL CHECK (natureza IN ('simulacao','projecao')),
+    valor_cents BIGINT NOT NULL CHECK (valor_cents >= 0),
+    label TEXT NOT NULL DEFAULT 'DADOS FICTÍCIOS — SIMULAÇÃO — NÃO SÃO FATURAMENTO REAL',
+    updated_by INTEGER,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (company_id, scenario_type, ano, mes)
+  )`,
+  `CREATE TABLE IF NOT EXISTS fin_tenant_config (
+    company_id INTEGER PRIMARY KEY REFERENCES empresas(id),
+    produto TEXT NOT NULL DEFAULT 'pax_finance',
+    flags JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_by INTEGER,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
 ];
 
 let ready: Promise<void> | null = null;

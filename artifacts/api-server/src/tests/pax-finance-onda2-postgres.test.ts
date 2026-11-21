@@ -37,8 +37,8 @@ const A = 5, B = 6;
 beforeAll(async () => {
   iso = await startIsolatedPostgres();
   state.database = drizzle(iso.pool);
-  await q("CREATE TABLE empresas (id integer PRIMARY KEY, nome text)");
-  await q("INSERT INTO empresas VALUES (5,'A'),(6,'B')");
+  await q("CREATE TABLE empresas (id integer PRIMARY KEY, nome text, cnpj text)");
+  await q("INSERT INTO empresas VALUES (5,'A','69.410.873/0001-79'),(6,'B',NULL)");
   await q("CREATE TABLE financial_goals (id serial PRIMARY KEY, period_type text, period_key text, target_amount numeric)");
   await q("INSERT INTO financial_goals (period_type, period_key, target_amount) VALUES ('month','2026-11',1000)");
   await q("CREATE TABLE payments (id serial PRIMARY KEY, empresa_id int, amount numeric, status text, paid_at text, due_date text, created_at text, provider text, asaas_invoice_url text)");
@@ -92,7 +92,7 @@ describe("PAX FINANCE onda 2 - API e isolamento", () => {
     await request(app).post("/pax-finance/credit-lines/seed").set(H(A));
     await request(app).post("/pax-finance/credit-lines/seed").set(H(A));
     const l = (await request(app).get("/pax-finance/credit-lines").set(H(A))).body;
-    expect(l).toHaveLength(6); expect(l.every((x: any) => x.status === "aguardando_verificacao" && Object.keys(x.conditions).length === 0)).toBe(true);
+    expect(l).toHaveLength(8); expect(l.every((x: any) => x.status === "aguardando_verificacao" && Object.keys(x.conditions).length === 0)).toBe(true);
     const v = await request(app).put("/pax-finance/credit-lines/pronampe").set(H(A)).send({ nome: "Pronampe", etapa: "simulacao", conditions: { prazo: "teste" } });
     expect(v.body.version).toBe(2); expect(v.body.status).toBe("aguardando_verificacao");
     const ok = await request(app).put("/pax-finance/credit-lines/pronampe").set(H(A)).send({ nome: "Pronampe", etapa: "simulacao", conditions: {}, fonteOficial: "Fonte teste", fonteUrl: "https://example.org/x", verificadaEm: "2026-11-01" });

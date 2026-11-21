@@ -9,6 +9,9 @@ import { Percentual, Valor } from "@/components/numeral/Numeral";
 import { finApi, type FinCredito, type FinEmpresa, type FinMarco, type FinMeta, type FinResumoGoals, type PeriodoTipo } from "@/lib/pax-finance-api";
 import { Ajuda, Campo, Indicador, btnCls, btnSoftCls, campoCls, reaisParaCentavos, rotuloMes } from "../pax-finance-ui";
 import { Touro } from "./Touro";
+import { PaginaComEmpresa } from "../SeletorEmpresa";
+import { Cenario } from "./Cenario";
+import { SimuladorCredito } from "./SimuladorCredito";
 
 const PERIODOS: { v: PeriodoTipo; r: string; ph: string }[] = [
   { v: "month", r: "Mês", ph: "AAAA-MM" }, { v: "quarter", r: "Trimestre", ph: "AAAA-Q1" }, { v: "semester", r: "Semestre", ph: "AAAA-S1" },
@@ -35,7 +38,7 @@ function TooltipGrafico({ active, payload, label }: { active?: boolean; payload?
   );
 }
 
-export default function PaxGoals() {
+function PaxGoalsCorpo() {
   const qc = useQueryClient();
   const [aba, setAba] = useState("metas");
   const [tipo, setTipo] = useState<PeriodoTipo>("month");
@@ -70,7 +73,7 @@ export default function PaxGoals() {
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-3 md:p-4" data-testid="pax-goals">
       <header className="panel-3d p-4">
-        <h1 className="text-[20px] font-bold uppercase tracking-wide">PAX GOALS — Metas, Faturamento e Crédito</h1>
+        <h1 className="text-[20px] font-bold uppercase tracking-wide">Metas & Crédito</h1>
         <p className="mt-1 text-[12px] text-muted-foreground">Acompanha quanto a empresa recebeu em relação à meta. Recebido, em aberto, nota emitida e reconhecido são números diferentes e nunca são somados.</p>
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
           <Campo rotulo="Empresa" ajuda="Vem da sessão do colaborador. Cada empresa só enxerga os próprios dados; não é possível ver outra empresa por aqui.">
@@ -96,8 +99,9 @@ export default function PaxGoals() {
       </header>
 
       <Tabs value={aba} onValueChange={setAba}>
-        <TrilhoAbas rotulo="Seções do PAX GOALS" testidPrefixo="goals-aba" itens={[
-          { value: "metas", label: "Metas e faturamento", grupo: "a" }, { value: "credito", label: "Crédito", grupo: "b" },
+        <TrilhoAbas rotulo="Seções de Metas & Crédito" testidPrefixo="goals-aba" itens={[
+          { value: "metas", label: "Metas e faturamento", grupo: "a" }, { value: "cenario", label: "Cenário 2026 (simulação)", grupo: "a" },
+          { value: "simulador", label: "Simulador de crédito", grupo: "b" }, { value: "credito", label: "Catálogo e fontes", grupo: "b" },
         ]} />
 
         <TabsContent value="metas" className="mt-3 space-y-4">
@@ -179,13 +183,16 @@ export default function PaxGoals() {
           </section>
         </TabsContent>
 
+        <TabsContent value="cenario" className="mt-3"><Cenario /></TabsContent>
+        <TabsContent value="simulador" className="mt-3"><SimuladorCredito /></TabsContent>
+
         <TabsContent value="credito" className="mt-3 space-y-4">
           <section className="panel-3d p-4" data-testid="goals-credito-aviso">
             <BlockTitle icon={CreditCard}>Crédito: o que está comprovado e o que não está</BlockTitle>
             <p className="text-[12px]">Faturamento alto <b>não garante</b> crédito. Cada banco analisa o caso. Os cartões abaixo separam cinco etapas: meta interna, requisito preliminar, simulação, pré-análise bancária e aprovação formal. Nenhuma condição vem pronta: só vale depois de registrar fonte oficial, endereço e data de verificação.</p>
           </section>
           {(credito.data ?? []).length === 0 && (
-            <div className="panel-3d-sub p-3 text-[12px]">Nenhuma linha cadastrada. <button type="button" className={btnCls} data-testid="credito-semear" onClick={() => agir.mutate({ path: "/credit-lines/seed" })}>Criar cartões das 6 linhas (vazios)</button></div>
+            <div className="panel-3d-sub p-3 text-[12px]">Nenhuma linha cadastrada. <button type="button" className={btnCls} data-testid="credito-semear" onClick={() => agir.mutate({ path: "/credit-lines/seed" })}>Criar cartões das 8 linhas (vazios)</button></div>
           )}
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {(credito.data ?? []).map((c) => <CartaoCredito key={c.lineKey} c={c} salvar={(b) => agir.mutate({ path: `/credit-lines/${c.lineKey}`, method: "PUT", body: b })} />)}
@@ -260,4 +267,8 @@ function CartaoCredito({ c, salvar }: { c: FinCredito; salvar: (b: unknown) => v
       }}>Salvar nova versão</button>
     </div>
   );
+}
+
+export default function PaxGoals() {
+  return <PaginaComEmpresa>{() => <PaxGoalsCorpo />}</PaginaComEmpresa>;
 }

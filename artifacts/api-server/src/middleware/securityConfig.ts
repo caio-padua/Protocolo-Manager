@@ -69,7 +69,7 @@ export const corsMiddleware = cors({
   },
   credentials: true,
   methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-scheduling-token"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-scheduling-token", "x-fin-company"],
 });
 
 export const helmetMiddleware = helmet({

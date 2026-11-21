@@ -22,7 +22,9 @@ export const PADUMANN = {
   naturezaJuridica: "Sociedade empresária limitada unipessoal",
   porte: "Empresa de Pequeno Porte (EPP)",
   capitalSocialCents: 50_000_000,
-  capitalIntegralizado: true,
+  capitalIntegralizado: null as boolean | null, // integralizacao NAO comprovada: nao presumir
+  nomeFantasia: "Instituto Padumann Clínica Médica",
+  aliases: ["Padumann", "Instituto Padumann", "Instituto Padumann Clínica Médica"],
   sede: { logradouro: "Rua Guaxupé", numero: "327", complemento: "Sala 02", bairro: "Vila Formosa", municipio: "São Paulo", uf: "SP", cep: "03416-050" },
   cnaePrincipal: "86.30-5-03",
   cnaePrincipalDescricao: "Atividade médica ambulatorial restrita a consultas",
@@ -30,7 +32,7 @@ export const PADUMANN = {
     razaoSocial: [CNPJ_DOC, CONTRATO, JUCESP], cnpj: [CNPJ_DOC], dataConstituicao: [CONTRATO, JUCESP, CNPJ_DOC],
     naturezaJuridica: [CONTRATO, JUCESP, CNPJ_DOC], porte: [CNPJ_DOC], capitalSocial: [CONTRATO, JUCESP],
     capitalIntegralizado: [CONTRATO], sede: [CNPJ_DOC, CONTRATO, JUCESP], cnaePrincipal: [CNPJ_DOC, CONTRATO],
-    cnaesSecundarios: [CNPJ_DOC], observacao: [PAGINA_A_CONFERIR],
+    cnaesSecundarios: [CNPJ_DOC], _registro: ["Cadastro de laboratório — pendente de validação documental (documentos societários enviados)"], nomesExibicao: ["Nomes de exibição informados pelo CEO; todos são da MESMA pessoa jurídica"], observacao: [PAGINA_A_CONFERIR],
   } as Record<string, string[]>,
   pessoas: [
     { nome: "Dayana Ludman Alves Caldas da Silva", papel: "socio_administrador" as const, participacaoBp: 10000, registro: null as string | null, origem: [CONTRATO, JUCESP] },

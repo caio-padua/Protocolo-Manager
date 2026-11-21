@@ -6,7 +6,8 @@ import { TrilhoAbas } from "@/components/ui/trilho-abas";
 import { Switch } from "@/components/ui/switch";
 import { BlockTitle } from "@/components/settings/SettingsUI";
 import { Valor } from "@/components/numeral/Numeral";
-import { finApi, type FinEntidade, type FinResumoGoals } from "@/lib/pax-finance-api";
+import { PaginaComEmpresa } from "../SeletorEmpresa";
+import { finApi, type FinAgente, type FinEntidade, type FinResumoGoals } from "@/lib/pax-finance-api";
 import { Ajuda, Campo, Dado, Indicador, btnCls, btnSoftCls, campoCls, reaisParaCentavos } from "../pax-finance-ui";
 import { Regras } from "./Regras";
 import { Simulador } from "./Simulador";
@@ -21,7 +22,7 @@ function Origem({ docs }: { docs?: string[] }) {
   return <Ajuda texto={`Origem do dado: ${docs.join("; ")}. Conferir a página exata antes de validar.`} rotulo="Origem" />;
 }
 
-export default function PaxTax() {
+function PaxTaxCorpo() {
   const qc = useQueryClient();
   const [aba, setAba] = useState("perfil");
   const [sel, setSel] = useState<number | null>(null);
@@ -33,6 +34,7 @@ export default function PaxTax() {
   const ents = useQuery({ queryKey: ["fin", "entities"], queryFn: () => finApi<FinEntidade[]>("/entities") });
   const mes = useQuery({ queryKey: ["fin", "tax-mes"], queryFn: () => finApi<FinResumoGoals>("/goals/summary?periodType=month") });
   const ano = useQuery({ queryKey: ["fin", "tax-12"], queryFn: () => finApi<FinResumoGoals>("/goals/summary?periodType=rolling12") });
+  const agentes = useQuery({ queryKey: ["fin", "agents"], queryFn: () => finApi<FinAgente[]>("/agents"), enabled: aba === "documentos" });
   const auditoria = useQuery({ queryKey: ["fin", "audit"], queryFn: () => finApi<Auditoria[]>("/audit"), enabled: aba === "auditoria" });
   const agirM = useMutation({
     mutationFn: (a: { path: string; method?: string; body?: unknown }) => finApi(a.path, { method: a.method ?? "POST", body: a.body ?? {} }),
@@ -59,7 +61,7 @@ export default function PaxTax() {
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-3 md:p-4" data-testid="pax-tax">
       <header className="panel-3d p-4">
-        <h1 className="text-[20px] font-bold uppercase tracking-wide">PAX TAX — Gestão Tributária, Multi-CNPJ e Simulações</h1>
+        <h1 className="text-[20px] font-bold uppercase tracking-wide">Impostos & CNPJs — Gestão Tributária, Multi-CNPJ e Simulações</h1>
         <p className="mt-1 text-[12px] text-muted-foreground">Cadastro fiscal por CNPJ, regras com versão e simulações. Dados vindos de documentos entram como rascunho e só valem após conferência humana. Nada aqui emite nota, guia ou cobrança.</p>
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
           <Campo rotulo="CNPJ" ajuda="Cada CNPJ tem cadastro, sócios e simulações próprios. Só aparecem CNPJs desta empresa da sessão.">
@@ -104,10 +106,10 @@ export default function PaxTax() {
       </section>
 
       <Tabs value={aba} onValueChange={setAba}>
-        <TrilhoAbas rotulo="Seções do PAX TAX" testidPrefixo="tax-aba" itens={[
+        <TrilhoAbas rotulo="Seções de Impostos & CNPJs" testidPrefixo="tax-aba" itens={[
           { value: "perfil", label: "Perfil da empresa", grupo: "a" }, { value: "socios", label: "Sócios e responsáveis", grupo: "a" },
           { value: "parametros", label: "Parâmetros e alíquotas", grupo: "b" }, { value: "simuladores", label: "Simuladores", grupo: "b" },
-          { value: "documentos", label: "Documentos e inteligências", grupo: "c" }, { value: "ledger", label: "Apuração, guias e livro-caixa", grupo: "c" }, { value: "auditoria", label: "Auditoria e histórico", grupo: "d" },
+          { value: "documentos", label: "Documentos e inteligências", grupo: "c" }, { value: "ledger", label: "Fechamento do Mês", grupo: "c" }, { value: "auditoria", label: "Auditoria e histórico", grupo: "d" },
         ]} />
 
         <TabsContent value="perfil" className="mt-3 space-y-4">
@@ -172,11 +174,12 @@ export default function PaxTax() {
             <BlockTitle icon={FileText}>Documentos e inteligências</BlockTitle>
             <p className="mb-3 text-[12px]"><b>Ainda não implementado:</b> envio de arquivos (PDF, imagem, XML, CSV, XLSX, OFX), guarda privada com hash, extração e revisão lado a lado. Os dados da PADUMANN foram carregados dos documentos já enviados, como rascunho. Nenhum documento financeiro real é enviado a provedores de inteligência artificial.</p>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              {[["Inteligência 1 — extrai", "Lê o documento e propõe os campos."], ["Inteligência 2 — analisa", "Analisa os dados extraídos."], ["Inteligência 3 — audita", "Recalcula e confere. Desligada ou com falha = NÃO AUDITADO."]].map(([n, a]) => (
-                <div key={n} className="panel-3d-sub flex items-center justify-between gap-3 p-3 text-[12px]" data-testid="tax-ia">
-                  <div><b>{n}</b><Ajuda texto={a} /><br /><span className="text-muted-foreground">Status: desligada — não implementada. {n.includes("3") ? "NÃO AUDITADO." : ""}</span></div>
-                  <Switch checked={false} disabled aria-label={`${n} (indisponível)`} />
+              {(agentes.data ?? []).map((a) => (
+                <div key={a.id} className="panel-3d-sub flex items-center justify-between gap-3 p-3 text-[12px]" data-testid="tax-ia">
+                  <div><b>{a.nome}</b><br /><span className="text-muted-foreground" data-testid={`ia-estado-${a.id}`}>{a.estado === "nao_auditado" ? "NÃO AUDITADO" : "Não configurado"}: {a.motivo}</span></div>
+                  <Switch checked={false} disabled aria-label={`${a.nome} (bloqueada: ${a.motivo})`} />
                 </div>))}
+              {agentes.isError && <p className="text-[12px] text-destructive">{(agentes.error as Error).message}</p>}
             </div>
           </section>
         </TabsContent>
@@ -194,4 +197,8 @@ export default function PaxTax() {
       </Tabs>
     </div>
   );
+}
+
+export default function PaxTax() {
+  return <PaginaComEmpresa>{() => <PaxTaxCorpo />}</PaginaComEmpresa>;
 }

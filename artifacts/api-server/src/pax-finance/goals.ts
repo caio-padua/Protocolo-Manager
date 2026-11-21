@@ -29,7 +29,7 @@ export const CreditoInput = z.object({
 
 /** Nomes das linhas a verificar. Nenhuma condicao numerica e inventada: tudo nasce "Aguardando verificacao". */
 export const LINHAS_CREDITO: { key: string; nome: string }[] = [
-  { key: "pronampe", nome: "Pronampe" }, { key: "procred360", nome: "ProCred 360" }, { key: "bndes", nome: "BNDES / Cartão BNDES / Finame" },
+  { key: "pronampe", nome: "Pronampe" }, { key: "procred360", nome: "ProCred 360" }, { key: "bndes", nome: "BNDES Crédito Pequenas Empresas" }, { key: "cartao_bndes", nome: "Cartão BNDES" }, { key: "finame", nome: "BNDES Finame (equipamentos)" },
   { key: "desenvolve_sp", nome: "Desenvolve SP" }, { key: "fgi_peac", nome: "FGI / PEAC" }, { key: "cooperativas", nome: "Cooperativas (Sicoob / Unicred)" },
 ];
 

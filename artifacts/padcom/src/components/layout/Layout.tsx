@@ -225,8 +225,8 @@ const navigation: NavEntry[] = [
     name: "PAX FINANCE",
     icon: Scale,
     children: [
-      { name: "PAX GOALS", href: "/financeiro/pax-goals", icon: Target },
-      { name: "PAX TAX", href: "/financeiro/pax-tax", icon: Landmark },
+      { name: "Metas & Crédito", href: "/financeiro/pax-goals", icon: Target },
+      { name: "Impostos & CNPJs", href: "/financeiro/pax-tax", icon: Landmark },
     ],
   },
   {

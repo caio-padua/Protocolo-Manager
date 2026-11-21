@@ -2,10 +2,15 @@ import { collabAuthHeaders } from "@/lib/collab-auth";
 
 const apiBase = import.meta.env.VITE_API_URL || `${import.meta.env.BASE_URL}api`;
 
-export async function finApi<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+const COMPANY_KEY = "paxfin_company";
+export const getFinCompany = (): number | null => { try { const n = Number(localStorage.getItem(COMPANY_KEY)); return Number.isSafeInteger(n) && n > 0 ? n : null; } catch { return null; } };
+export const setFinCompany = (id: number) => { try { localStorage.setItem(COMPANY_KEY, String(id)); } catch { /* sem armazenamento: vale so nesta aba */ } };
+
+export async function finApi<T>(path: string, init?: { method?: string; body?: unknown; semEmpresa?: boolean }): Promise<T> {
+  const emp = init?.semEmpresa ? null : getFinCompany();
   const r = await fetch(`${apiBase}/pax-finance${path}`, {
     method: init?.method ?? "GET",
-    headers: collabAuthHeaders(init?.body !== undefined ? { "Content-Type": "application/json" } : undefined),
+    headers: collabAuthHeaders({ ...(init?.body !== undefined ? { "Content-Type": "application/json" } : {}), ...(emp ? { "x-fin-company": String(emp) } : {}) }),
     body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
   });
   const j = await r.json().catch(() => ({}));
@@ -55,3 +60,16 @@ export type FinLedger = {
   totais: { recebidoPagamentosCents: number; receitasManuaisCents: number; aReceberCents: number; despesasPagasCents: number; guiasPagasCents: number; aPagarCents: number; caixaLiquidoCents: number };
   modo: string;
 };
+
+export type FinEmpresaSeletor = { id: number; nomeFantasia: string; razaoSocial: string | null; cnpj: string | null; aliases: string[]; entidadeId: number | null; statusCadastro: string | null };
+export type FinCenarioMes = { mes: number; realComprovadoCents: number | null; realRotulo: string; simulacaoCents: number | null; projecaoCents: number | null };
+export type FinCenarioDemo = { ano: number; rotulo: string; aviso: string; meses: FinCenarioMes[]; totais: { simulacaoCents: number | null; projecaoCents: number | null; projecaoAnualIlustrativaCents: number | null; realComprovadoCents: number | null }; temDemo: boolean; temReal: boolean };
+export type FinAgente = { id: string; nome: string; estado: string; motivo: string; ligado: boolean; pendencias: string[] };
+export type FinCreditoRes = {
+  lineKey: string; nome: string; perfil: string; operadora: string; aderenteAFinalidade: boolean; modo: string; avisoRegra: string | null; statusFonte: string;
+  fonte: { oficial: string | null; url: string | null; verificadaEm: string | null; versao: number | null }; percentualUsado: number; percentualOrigem: string;
+  receitaAnualNecessariaCents: number; metaMensalCents: number; comprovadoUltimos12mCents: number | null; comprovadoRotulo: string; faltaCents: number; cenarioMensalCents: number; mesesParaMeta: number | null;
+  plano: { mes: string; metaMesCents: number; acumuladoCents: number; faltaCents: number }[]; marcos: { percentual: number; acumuladoCents: number; mes: string | null }[];
+  requisitos: { nome: string; exigido: string; situacao: string; detalhe: string }[]; memoria: string[];
+};
+export type FinComparacao = { aviso: string; recomendacaoFirme: boolean; justificativa: string; ordemSugerida: string[]; linhas: FinCreditoRes[] };
