@@ -24,7 +24,7 @@ export function DiretrizesDialog({ tipo, escuro, onClose }: { tipo: "pressao" | 
           <tbody>
             {NIVEIS.map((n) => (
               <tr key={n.id}>
-                <td style={{ textAlign: "left" }}><span className="pn-chip" data-nivel={n.id}>{n.nome}</span></td>
+                <td style={{ textAlign: "left" }}><span className="bevel-3d pn-chip" data-nivel={n.id}>{n.nome}</span></td>
                 {pressao ? <><td>{fp[n.id][0]}</td><td>{fp[n.id][1]}</td></> : <td>{fg[n.id]}</td>}
               </tr>
             ))}

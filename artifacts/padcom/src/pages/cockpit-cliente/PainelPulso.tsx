@@ -12,7 +12,7 @@ export function PainelPulso({ titulo, acoes, children, style, className = "", in
       <header className="pn-painel-topo">
         <h3 className="pn-painel-titulo">{titulo}</h3>
         {acoes}
-        <button type="button" className="pn-mini" onClick={() => setAberto((a) => !a)} aria-expanded={aberto}
+        <button type="button" className="btn-3d-soft pn-mini" onClick={() => setAberto((a) => !a)} aria-expanded={aberto}
           aria-label={aberto ? "Minimizar painel" : "Maximizar painel"} title={aberto ? "Minimizar" : "Maximizar"}>
           {aberto ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
         </button>

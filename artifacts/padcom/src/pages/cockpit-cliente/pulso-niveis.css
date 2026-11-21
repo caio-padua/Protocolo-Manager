@@ -64,8 +64,7 @@
 .pn-painel-titulo { flex: 1; min-width: 0; margin: 0; font: 900 11px/1.2 Inter,sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--pn-tinta); }
 .pn-painel-corpo { margin-top: 12px; }
 .pn-mini { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 26px; border-radius: 5px; color: var(--pn-tinta); cursor: pointer;
-  border: 1px solid var(--pn-fio); background: linear-gradient(180deg, color-mix(in srgb, var(--pn-tinta) 8%, transparent), transparent);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 -2px 0 rgba(0,0,0,.14), 0 2px 3px -1px rgba(0,0,0,.3); }
+  }
 .pn-mini:hover, .pn-mini:focus-visible { outline: none; border-color: var(--pn-tinta); }
 .pn-mini:active { box-shadow: inset 0 2px 3px rgba(0,0,0,.3); }
 .pn-escopo .pn-vals span, .pn-escopo .pn-vals span *, .pn-escopo .pn-medida, .pn-escopo .pn-medida * { color: var(--pn-tinta) !important; }
@@ -120,3 +119,18 @@
 .pn-tab .pn-medida { min-width: 0; padding: 2px 3px; font-size: 12.5px; white-space: nowrap; }
 .pn-tab .vazio { color: var(--pn-mudo); opacity: .6; }
 @media (max-width: 380px) { .pn-tab { font-size: 11px; } .pn-tab .pn-medida { font-size: 11.5px; padding: 2px 2px; } .pn-cal { width: 48px; } }
+
+/* ===== Padrao da skill: canais (nivel, selo, placa, botao) usam o relevo oficial bevel-3d / btn-3d-soft.
+   Aqui so entra a COR semantica do nivel (face tingida + filete + texto), como bevel-3d-ok. O relevo vem do index.css. ===== */
+.bevel-3d.pn-seg, .bevel-3d.pn-chip, .bevel-3d.pn-pino-placa {
+  --face: color-mix(in srgb, var(--c) 18%, #fff); --face2: color-mix(in srgb, var(--c) 30%, #efe8d6); --txt: color-mix(in srgb, var(--c) 72%, #000);
+  background: linear-gradient(180deg, #fff 0%, var(--face) 55%, var(--face2) 100%);
+  border: 1px solid var(--c); color: var(--txt); text-shadow: none; }
+.dark .bevel-3d.pn-seg, .dark .bevel-3d.pn-chip, .dark .bevel-3d.pn-pino-placa, .dark.pn-escopo .bevel-3d.pn-seg, .pn-escopo.dark .bevel-3d.pn-seg, .pn-escopo.dark .bevel-3d.pn-chip, .pn-escopo.dark .bevel-3d.pn-pino-placa {
+  --face: color-mix(in srgb, var(--c) 30%, hsl(215 20% 21%)); --face2: color-mix(in srgb, var(--c) 22%, hsl(215 22% 15%)); --txt: color-mix(in srgb, var(--c) 45%, #fff);
+  background: linear-gradient(180deg, var(--face) 0%, var(--face2) 100%); }
+.bevel-3d.pn-seg { box-shadow: inset 0 3px 0 rgba(255,255,255,.9), inset 0 -6px 11px rgba(0,53,58,.14), 0 10px 16px -8px rgba(7,22,43,.44), 0 5px 9px -3px rgba(7,22,43,.30); }
+.pn-escopo .bevel-3d.pn-pino-placa b, .pn-escopo .bevel-3d.pn-pino-placa b * { color: var(--pn-tinta) !important; }
+.pn-escopo .bevel-3d.pn-pino-placa { background: linear-gradient(180deg, #fff 0%, var(--face) 55%, var(--face2) 100%); }
+.pn-escopo.dark .bevel-3d.pn-pino-placa { background: linear-gradient(180deg, var(--face) 0%, var(--face2) 100%); }
+.btn-3d-soft.pn-mini { width: 28px; height: 26px; padding: 0; color: var(--pn-tinta); }

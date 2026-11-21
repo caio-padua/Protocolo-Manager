@@ -111,7 +111,7 @@ function EscalaDialog({ foco, escuro, onClose }: { foco: string | null; escuro: 
         <ul className="mt-3 space-y-2">
           {ESCALA.map((e) => (
             <li key={e.nome} className="grid grid-cols-[84px_1fr] items-center gap-3">
-              <span className="pn-chip text-center" data-nivel={e.cor}>{e.nome}</span>
+              <span className="bevel-3d pn-chip text-center" data-nivel={e.cor}>{e.nome}</span>
               <span className="text-sm font-bold"><Numeral peso={700}>{`${e.de} a ${e.ate}`}</Numeral></span>
             </li>
           ))}
@@ -209,7 +209,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
   return (
     <div className={`pn-escopo pn-pagina space-y-7${escuro ? " dark" : ""}`} data-testid="meu-pulso">
       <header className="pn-painel flex items-center gap-3">
-        <span className="pn-mini !h-11 !w-11 shrink-0"><Activity className="h-5 w-5" aria-hidden="true" /></span>
+        <span className="btn-3d-soft pn-mini !h-11 !w-11 shrink-0"><Activity className="h-5 w-5" aria-hidden="true" /></span>
         <div className="min-w-0">
           <h2 className="text-lg font-black uppercase leading-tight tracking-wide">Meu pulso</h2>
           <p className="text-xs" style={{ color: "var(--pn-mudo)" }}>Seu dia a dia em números. Registre como você está e veja em que nível cada medida se encontra.</p>
@@ -231,7 +231,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
               <p className="text-[9px] font-extrabold uppercase tracking-[.08em]">{rot}</p>
               <p className="mb-1 text-[8px] font-semibold uppercase tracking-wider" style={{ color: "var(--pn-mudo)" }}>{un}</p>
               <p className="pn-medida !block w-full py-1 text-base font-bold">{val == null ? "—" : <Numeral peso={700}>{val}</Numeral>}</p>
-              <p className="mt-1.5 h-4">{nivel ? <span className="pn-chip" data-nivel={nivel}>{NOME_NIVEL[nivel]}</span> : null}</p>
+              <p className="mt-1.5 h-4">{nivel ? <span className="bevel-3d pn-chip" data-nivel={nivel}>{NOME_NIVEL[nivel]}</span> : null}</p>
             </div>
           ))}
         </div>
@@ -276,7 +276,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
           <div key={k} className="pn-grupo-notas">
             <div className="pn-notas-cab">
               <b>{rot}</b>
-              <button type="button" className="pn-mini" onClick={() => setEscala(k)} aria-label={`O que significa a nota de ${rot}`} title="O que significa cada nota">
+              <button type="button" className="btn-3d-soft pn-mini" onClick={() => setEscala(k)} aria-label={`O que significa a nota de ${rot}`} title="O que significa cada nota">
                 <HelpCircle size={14} aria-hidden="true" />
               </button>
               <span className="ml-auto text-[11px]" style={{ color: "var(--pn-mudo)" }}>{notas[k] == null ? "toque na nota" : <>nota <Numeral peso={700}>{String(notas[k])}</Numeral></>}</span>

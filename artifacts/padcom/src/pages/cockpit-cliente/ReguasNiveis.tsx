@@ -16,7 +16,7 @@ function Regua({ titulo, unidade, linhas, atual, rotuloAtual, dica, onDiretriz }
   return (
     <PainelPulso rotulo={titulo} titulo={<>{titulo} <span style={{ color: "var(--pn-mudo)", letterSpacing: ".08em" }}>· {unidade}</span></>}
       acoes={
-        <button type="button" className="pn-mini" onClick={onDiretriz} aria-label={`Parâmetros e diretrizes: ${titulo}`} title="Parâmetros e diretrizes">
+        <button type="button" className="btn-3d-soft pn-mini" onClick={onDiretriz} aria-label={`Parâmetros e diretrizes: ${titulo}`} title="Parâmetros e diretrizes">
           <BookOpen size={14} aria-hidden="true" />
         </button>
       }>
@@ -28,12 +28,12 @@ function Regua({ titulo, unidade, linhas, atual, rotuloAtual, dica, onDiretriz }
               <div className="pn-pino">
                 {aqui ? (
                   <>
-                    <div className="pn-pino-placa"><span>Média atual</span><b><Numeral peso={800}>{rotuloAtual}</Numeral></b></div>
+                    <div className="bevel-3d pn-pino-placa"><span>Média atual</span><b><Numeral peso={800}>{rotuloAtual}</Numeral></b></div>
                     <i className="pn-seta" aria-hidden="true" />
                   </>
                 ) : null}
               </div>
-              <div className="pn-seg">{n.nome}</div>
+              <div className="bevel-3d pn-seg">{n.nome}</div>
               <div className="pn-vals">
                 {linhas.map((l) => (
                   <p key={l.nome}>
