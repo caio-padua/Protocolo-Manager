@@ -8,7 +8,7 @@ import { BlockTitle } from "@/components/settings/SettingsUI";
 import { Valor } from "@/components/numeral/Numeral";
 import { PaginaComEmpresa } from "../SeletorEmpresa";
 import { finApi, type FinAgente, type FinEntidade, type FinResumoGoals } from "@/lib/pax-finance-api";
-import { Ajuda, Campo, Dado, Indicador, btnCls, btnSoftCls, campoCls, reaisParaCentavos } from "../pax-finance-ui";
+import { Ajuda, Campo, Dado, Indicador, btnCls, btnSoftCls, campoCls, reaisParaCentavos, InputReais } from "../pax-finance-ui";
 import { Regras } from "./Regras";
 import { Simulador } from "./Simulador";
 import { PainelTributario } from "./PainelTributario";
@@ -105,7 +105,7 @@ function PaxTaxCorpo() {
             <div key={x.k} className="panel-3d-sub space-y-2 p-3">
               <div className="flex items-center justify-between text-[12px]"><b>{x.r}</b><span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${x.s.cls}`} data-testid={`semaforo-${x.k}`}>{x.s.rotulo}</span></div>
               <div className="text-[18px]"><Valor valor={x.v === null ? null : x.v / 100} semCentavos /></div>
-              <Campo rotulo="Limite (R$)" ajuda="Digite o limite vigente conforme a fonte oficial. Não fica salvo como regra."><input className={campoCls} inputMode="decimal" value={x.l} onChange={(ev) => setLim({ ...lim, [x.k]: ev.target.value })} placeholder="Aguardando verificação" /></Campo>
+              <Campo rotulo="Limite (R$)" ajuda="Digite o limite vigente conforme a fonte oficial. Não fica salvo como regra."><InputReais className={campoCls}  value={x.l} onChange={(ev) => setLim({ ...lim, [x.k]: ev.target.value })} placeholder="Aguardando verificação" /></Campo>
             </div>))}
         </div>
         <p className="mt-3 rounded bg-muted p-2 text-[12px]" data-testid="tax-risco-societario"><b>Risco de vínculos societários:</b> sócios com participação em outras empresas podem alterar o enquadramento e somar limites. Confira os vínculos de cada sócio antes de confirmar o regime. O sistema ainda não cruza esses vínculos sozinho.</p>

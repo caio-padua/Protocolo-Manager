@@ -5,7 +5,7 @@ import { BlockTitle } from "@/components/settings/SettingsUI";
 import { Percentual, Valor } from "@/components/numeral/Numeral";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { finApi } from "@/lib/pax-finance-api";
-import { Campo, campoCls, reaisParaCentavos } from "../pax-finance-ui";
+import { Campo, campoCls, reaisParaCentavos, InputReais } from "../pax-finance-ui";
 
 type Estado = "calculado" | "vazio" | "informativo" | "nao_se_aplica";
 interface Linha { chave: string; rotulo: string; sigla: string; valorCents: number | null; pct: number | null; estado: Estado; soma: boolean; motivo: string | null; detalhe: string | null; explicacao: { oQueE: string; quemPaga: string; comoCalcula: string; fontes: { nome: string; url: string }[] } }
@@ -98,14 +98,14 @@ export function PainelTributario() {
         <details className="mt-3" open>
           <summary className="min-h-[44px] cursor-pointer text-[12px] font-bold uppercase leading-[44px] md:min-h-0 md:leading-normal">Dados que mudam o cálculo (todos opcionais)</summary>
           <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-3">
-            <Campo rotulo="Faturamento dos últimos 12 meses (R$)" ajuda="Define a faixa do Simples. Vazio: o sistema usa o faturamento do mês x 12 e avisa que é estimativa."><input className={campoCls} inputMode="decimal" value={f.rbt} onChange={set("rbt")} placeholder="Vazio = mês x 12" data-testid="painel-rbt12" /></Campo>
-            <Campo rotulo="Folha dos empregados por mês (R$)" ajuda="Salários dos empregados com carteira. Entra no Fator R, no INSS da empresa, no RAT, em terceiros e no FGTS."><input className={campoCls} inputMode="decimal" value={f.folha} onChange={set("folha")} placeholder="Sem empregados: deixe vazio" data-testid="painel-folha" /></Campo>
-            <Campo rotulo="Pró-labore dos sócios por mês (R$)" ajuda="Salário que os sócios retiram. Entra no Fator R, no INSS da empresa (fora do Simples) e no INSS e imposto de renda do sócio."><input className={campoCls} inputMode="decimal" value={f.pl} onChange={set("pl")} placeholder="Vazio" data-testid="painel-prolabore" /></Campo>
+            <Campo rotulo="Faturamento dos últimos 12 meses (R$)" ajuda="Define a faixa do Simples. Vazio: o sistema usa o faturamento do mês x 12 e avisa que é estimativa."><InputReais className={campoCls}  value={f.rbt} onChange={set("rbt")} placeholder="Vazio = mês x 12" data-testid="painel-rbt12" /></Campo>
+            <Campo rotulo="Folha dos empregados por mês (R$)" ajuda="Salários dos empregados com carteira. Entra no Fator R, no INSS da empresa, no RAT, em terceiros e no FGTS."><InputReais className={campoCls}  value={f.folha} onChange={set("folha")} placeholder="Sem empregados: deixe vazio" data-testid="painel-folha" /></Campo>
+            <Campo rotulo="Pró-labore dos sócios por mês (R$)" ajuda="Salário que os sócios retiram. Entra no Fator R, no INSS da empresa (fora do Simples) e no INSS e imposto de renda do sócio."><InputReais className={campoCls}  value={f.pl} onChange={set("pl")} placeholder="Vazio" data-testid="painel-prolabore" /></Campo>
             <Campo rotulo="Alíquota de ISS do município (%)" ajuda="Imposto sobre serviços da cidade da empresa. A lei federal permite de 2% a 5% para medicina. Pergunte ao contador ou veja a lei do município."><input className={campoCls} inputMode="decimal" value={f.iss} onChange={set("iss")} placeholder="Ex.: informe a da sua cidade" data-testid="painel-iss" /></Campo>
             <Campo rotulo="RAT (%)" ajuda="Adicional de INSS pelo risco da atividade: 1%, 2% ou 3% sobre a folha dos empregados. Depende do CNAE; peça ao contador."><input className={campoCls} inputMode="decimal" value={f.rat} onChange={set("rat")} placeholder="1, 2 ou 3" /></Campo>
             <Campo rotulo="Terceiros (%)" ajuda="Contribuições a Sesc, Senac, Sebrae e outros, sobre a folha. A alíquota depende do enquadramento da empresa; peça ao contador."><input className={campoCls} inputMode="decimal" value={f.terc} onChange={set("terc")} placeholder="Peça ao contador" /></Campo>
-            <Campo rotulo="Despesas dedutíveis por mês (R$)" ajuda="Só para o Lucro Real, que cobra sobre o lucro de verdade (faturamento menos despesas)."><input className={campoCls} inputMode="decimal" value={f.desp} onChange={set("desp")} placeholder="Só Lucro Real" /></Campo>
-            <Campo rotulo="Lucros distribuídos aos sócios por mês (R$)" ajuda="Dinheiro do lucro que os sócios retiram. Em 2026, acima de R$ 50.000 por mês por sócio há retenção de 10% sobre o total."><input className={campoCls} inputMode="decimal" value={f.div} onChange={set("div")} placeholder="Vazio" /></Campo>
+            <Campo rotulo="Despesas dedutíveis por mês (R$)" ajuda="Só para o Lucro Real, que cobra sobre o lucro de verdade (faturamento menos despesas)."><InputReais className={campoCls}  value={f.desp} onChange={set("desp")} placeholder="Só Lucro Real" /></Campo>
+            <Campo rotulo="Lucros distribuídos aos sócios por mês (R$)" ajuda="Dinheiro do lucro que os sócios retiram. Em 2026, acima de R$ 50.000 por mês por sócio há retenção de 10% sobre o total."><InputReais className={campoCls}  value={f.div} onChange={set("div")} placeholder="Vazio" /></Campo>
             <label className="flex min-h-[44px] items-center gap-2 text-[12px] md:self-end">
               <input type="checkbox" checked={f.hosp} onChange={(e) => setF({ ...f, hosp: e.target.checked })} className="h-5 w-5" data-testid="painel-hospitalar" />
               <span>Serviços hospitalares ou de apoio diagnóstico (presunção de 8% no Lucro Presumido)</span>
