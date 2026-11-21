@@ -190,7 +190,8 @@ export function ClinicalCertificateStatus({
     if (!verificando && !state) return null;
     const ok = state === "valid";
     const titulo = verificando ? "Verificando certificado" : ok ? "Certificado digital ativo" : state === "expired" ? "Certificado digital vencido" : copy?.title ?? "Certificado digital";
-    const data = expiry ? `${state === "expired" ? "venceu em" : "válido até"} ${expiry}` : null;
+    const dataCurta = expiry ? expiry.replace(/^(\d{2})\/(\d{2})\/\d{2}(\d{2})$/, "$1.$2.$3").replace(/\//g, ".") : null;
+    const data = dataCurta ? `${state === "expired" ? "Venceu em" : "Válido até"}: ${dataCurta}` : null;
     const dica = `${titulo}${data ? ` · ${data}` : ""}`;
     const [cor, claro, escuro] = verificando ? ["#8a97a8", "#c3ccd8", "#4b5563"] : ok ? ["#1f9d57", "#7fdba8", "#0b4a28"] : ["#c0392b", "#f0a39a", "#6b1a12"];
     return (
@@ -198,7 +199,7 @@ export function ClinicalCertificateStatus({
         className="flex w-full flex-col items-center justify-center gap-1.5 px-1 py-3 text-center">
         <EscudoContorno cor={cor} claro={claro} escuro={escuro} />
         <span className="text-[7.5px] font-bold uppercase leading-[1.25] tracking-[.12em]" style={{ color: cor, textWrap: "balance" }}>{titulo}</span>
-        {data && <span className="text-[10px] leading-tight" style={{ color: cor, textWrap: "balance", fontFamily: "'EB Garamond', serif", fontVariantNumeric: "lining-nums tabular-nums", fontFeatureSettings: '"lnum" 1, "tnum" 1' }}>{data}</span>}
+        {data && <span className="text-[9.5px] leading-tight" style={{ color: "#000", textWrap: "balance", fontFamily: "Inter, Arial, sans-serif", fontWeight: 500, letterSpacing: ".01em", fontVariantNumeric: "lining-nums tabular-nums", fontFeatureSettings: '"lnum" 1, "tnum" 1' }}>{data}</span>}
       </div>
     );
   }
