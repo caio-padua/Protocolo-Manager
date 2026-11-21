@@ -241,14 +241,17 @@
 .cc-rail-item, .cc-rail-arrow { height: 42px; min-height: 42px; }
 .cc-rail-arrow { align-self: start; margin-top: 2px; }
 
-/* Placa Classificacao + Nivel: retangulo com cantos pouco arredondados, up bevel nas DUAS metades e vidro real por cima. */
-.cc-grade-plan { position: relative; overflow: hidden; border-radius: 2px; }
-.cc-grade-plan span { box-shadow: inset 0 1.5px 0 rgba(255,255,255,.9), inset 0 -2px 3px rgba(40,30,10,.22), inset 1px 0 0 rgba(255,255,255,.35), inset -1px 0 0 rgba(40,30,10,.12); }
-.cc-grade-plan:has(span[data-plano="prata"]) span:first-child { color: #38424f; background: linear-gradient(180deg,#e6eaef,#b9c1cc); }
-.cc-grade-plan:has(span[data-plano="ouro"]) span:first-child { color: #4a3608; background: linear-gradient(180deg,#f3dfa3,#c9a24f); }
-.cc-grade-plan:has(span[data-plano="platinum"]) span:first-child { color: #3b4a5a; background: linear-gradient(180deg,#fcfdfe,#dde4ec); }
-.cc-grade-plan:has(span[data-plano="diamond"]) span:first-child { color: #0b3b52; background: linear-gradient(180deg,#d9f2fc,#79cbe9); }
-.cc-grade-plan:has(span[data-plano="pendente"]) span:first-child { color: #2b3340; background: #f4f1ea; }
+/* Placa Classificacao + Nivel: UMA placa continua (sem divisoria), cor do nivel no fundo, up bevel na placa inteira, vidro por cima.
+   A letra da classificacao usa tinta navy propria; o nome do nivel usa a tinta do nivel. */
+.cc-grade-plan { position: relative; overflow: hidden; border-radius: 2px; grid-template-columns: 1fr 3fr; align-items: center; background: #e6eaef;
+  box-shadow: inset 0 1.5px 0 rgba(255,255,255,.9), inset 0 -2px 3px rgba(40,30,10,.22), inset 1px 0 0 rgba(255,255,255,.35), inset -1px 0 0 rgba(40,30,10,.12); }
+.cc-grade-plan span, .cc-grade-plan span[data-plano] { background: transparent !important; box-shadow: none; outline: none; }
+.cc-grade-plan span:first-child { border-right: 0; color: #14233f !important; font-weight: 900; }
+.cc-grade-plan:has(span[data-plano="prata"]) { background: linear-gradient(180deg,#e6eaef,#b9c1cc); }
+.cc-grade-plan:has(span[data-plano="ouro"]) { background: linear-gradient(180deg,#f3dfa3,#c9a24f); }
+.cc-grade-plan:has(span[data-plano="platinum"]) { background: linear-gradient(180deg,#fcfdfe,#dde4ec); }
+.cc-grade-plan:has(span[data-plano="diamond"]) { background: linear-gradient(180deg,#d9f2fc,#79cbe9); }
+.cc-grade-plan:has(span[data-plano="pendente"]) { background: #f4f1ea; outline: 1.5px dashed #6b7280; outline-offset: -3px; }
 /* Vidro: reflexo de borda curva na metade de cima, fio de luz no topo e leve realce na base. Sem brilho animado. */
 .cc-grade-plan::after {
   content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
