@@ -24,6 +24,10 @@ type Props = {
   compact?: boolean;
   /** Apenas um escudo fino dentro do painel: verde = vigente, vermelho = vencido ou com problema. */
   badge?: boolean;
+  /** Selo discreto (escudo + "válido até"), para ficar sob a foto do cliente. */
+  selo?: boolean;
+  /** Esconde a faixa quando o certificado está válido; avisos e a ação de emitir sem assinatura continuam aparecendo. */
+  ocultarSeValido?: boolean;
   iconOnly?: boolean;
   professionalType?: string | null;
   responsibleDoctorName?: string | null;
@@ -56,6 +60,8 @@ export function ClinicalCertificateStatus({
   scope = "professional",
   compact = false,
   badge = false,
+  selo = false,
+  ocultarSeValido = false,
   iconOnly = false,
   professionalType,
   responsibleDoctorName,
@@ -165,6 +171,30 @@ export function ClinicalCertificateStatus({
   const expiry = formatDate(currentCertificate?.validTo ?? null);
   const start = formatDate(currentCertificate?.validFrom ?? null);
   const showUnsignedAction = allowUnsignedPrescription && state === "expired" && !!onGenerateUnsigned;
+
+  if (selo) {
+    if (waitingForDoctor) return null;
+    const verificando = checking || resolvedEpoch !== sessionEpoch;
+    if (!verificando && !state) return null;
+    const ok = state === "valid";
+    const Icone = ok || verificando ? ShieldCheck : ShieldAlert;
+    const cor = verificando ? "#94a3b8" : ok ? "#17703e" : "#b42318";
+    const linha1 = verificando ? "Verificando…" : ok ? "Certificado ativo" : copy?.title ?? "Certificado";
+    const linha2 = ok && expiry ? `Válido até ${expiry}` : !ok && expiry && state === "expired" ? `Venceu em ${expiry}` : null;
+    return (
+      <div role="status" aria-label={`${linha1}${linha2 ? `, ${linha2}` : ""}`} title="Certificado digital do médico autenticado"
+        className="flex items-center gap-2 rounded-[4px] border border-[#b89b5a]/70 bg-gradient-to-b from-[#fbf9f2] to-[#efe8d6] px-2 py-1.5 shadow-[inset_0_1px_0_#fff,0_3px_6px_-3px_rgba(7,22,43,0.45)]"
+        data-testid="selo-certificado">
+        <Icone aria-hidden="true" strokeWidth={1.6} className="h-6 w-6 shrink-0" style={{ color: cor }} />
+        <span className="min-w-0 leading-tight">
+          <span className="block text-[9px] font-extrabold uppercase tracking-[0.14em]" style={{ color: cor }}>{linha1}</span>
+          {linha2 && <span className="block text-[11px] font-semibold tabular-nums text-[#4b4030]" style={{ fontFamily: "'EB Garamond', serif" }}>{linha2}</span>}
+        </span>
+      </div>
+    );
+  }
+
+  if (ocultarSeValido && !checking && resolvedEpoch === sessionEpoch && state === "valid") return null;
 
   if (badge) {
     if (waitingForDoctor) return null;

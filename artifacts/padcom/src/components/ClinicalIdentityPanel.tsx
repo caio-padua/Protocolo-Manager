@@ -45,6 +45,7 @@ export function ClinicalIdentityPanel({
       {issue && <p className="mt-3 text-sm text-amber-700" role="alert">{issue}</p>}
     </section>
     <ClinicalCertificateStatus
+      ocultarSeValido
       professionalType={professional.professionalType}
       responsibleDoctorName={identity.data.responsibleDoctorName}
       allowUnsignedPrescription={allowUnsignedPrescription && identity.data.canPrescribe}

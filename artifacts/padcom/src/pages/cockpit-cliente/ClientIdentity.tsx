@@ -14,6 +14,7 @@ import { ICONES_AVALIACAO } from "./avaliacoes/icones";
 import { dataBr, useMedicoes } from "./avaliacoes/api";
 import { BASE } from "@/pages/comunicacao/_shared";
 import { tituloProprio } from "@/lib/utils";
+import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 import { ehNivelCliente, nivelLegado, rotuloNivel } from "@/lib/nivel-cliente";
 import { NomeClienteResponsivo } from "./NomeClienteResponsivo";
 import { formatarNascimento, idadeCompleta } from "./idadeCliente";
@@ -140,6 +141,7 @@ export default function ClientIdentity({ client, onMensagens }: ClientIdentityPr
           <span title={`Classificação ${classif}`}>{classif}</span>
           <span title={planoTitulo} data-plano={planoMarca}>{planoNome}</span>
         </div>
+        <ClinicalCertificateStatus selo />
       </div>
 
       <div className="cc-identity-information">
