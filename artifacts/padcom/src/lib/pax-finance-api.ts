@@ -83,3 +83,12 @@ export async function finUpload<T>(path: string, campo: string, arquivo: File): 
   if (!r.ok) throw new Error((j as { error?: string }).error ?? `HTTP ${r.status}`);
   return j as T;
 }
+
+export async function finDownload(path: string, nome: string): Promise<void> {
+  const emp = getFinCompany();
+  const r = await fetch(`${apiBase}/pax-finance${path}`, { headers: collabAuthHeaders(emp ? { "x-fin-company": String(emp) } : {}) });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const url = URL.createObjectURL(await r.blob());
+  const a = document.createElement("a"); a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}

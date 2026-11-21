@@ -134,6 +134,7 @@ export async function listarDocumentos(ctx: FinContext, ehCeo: boolean) {
   const campos: Partial<Record<Slot, Record<string, Valor>>> = {};
   for (const s of SLOTS) if (porSlot[s]) campos[s] = porSlot[s]!.campos as Record<string, Valor>;
   const cruzada = conferirCruzado(campos);
+  const hist = (await db.execute(sql`SELECT id, slot, file_name, file_size, status, created_at FROM fin_doc_import WHERE company_id=${ctx.companyId} ORDER BY id DESC`)).rows as Row[];
   const empresa = await empresaDe(ctx);
   const bloqueios: string[] = [];
   const rfbCnpj = campos.cnpj_rfb?.cnpj; if (typeof rfbCnpj === "string" && empresa.cnpj && soDigitos(rfbCnpj) !== soDigitos(empresa.cnpj)) bloqueios.push("O CNPJ do comprovante nao e o CNPJ da empresa selecionada.");
@@ -142,7 +143,7 @@ export async function listarDocumentos(ctx: FinContext, ehCeo: boolean) {
     ehCeo,
     slots: SLOTS.map((s) => {
       const r = porSlot[s];
-      return { slot: s, rotulo: SLOT_ROTULO[s], documento: r ? {
+      return { slot: s, rotulo: SLOT_ROTULO[s], historico: hist.filter((h) => h.slot === s).map((h) => ({ id: Number(h.id), arquivo: h.file_name, bytes: Number(h.file_size), status: h.status, enviadoEm: h.created_at })), documento: r ? {
         id: Number(r.id), arquivo: r.file_name, bytes: Number(r.file_size), sha256: r.sha256, metodo: r.metodo, status: r.status, enviadoEm: r.created_at, aplicadoEm: r.applied_at,
         campos: Object.entries(r.campos as Record<string, Valor>).map(([k, v]) => ({ chave: k, rotulo: ROTULOS[k]?.rotulo ?? ROTULOS_SENSIVEIS[k] ?? k, grupo: ROTULOS[k]?.grupo ?? (ROTULOS_SENSIVEIS[k] ? "Dados pessoais" : "Outros"), valor: v })),
         sensiveis: Object.entries(mascaras(r.sensiveis as Record<string, Cifrado>)).map(([k, v]) => ({ chave: k, ...v })),
@@ -317,4 +318,10 @@ export async function salvarResponsavelTecnico(ctx: FinContext, nome: string, re
     await registrarAuditoria(tx, ctx, "documento.responsavel_tecnico", "fin_company_registry", ctx.companyId, { anterior: { rtNome: d.rtNome ?? null, rtCrm: d.rtCrm ?? null }, novo: { rtNome: n, rtCrm: r }, vinculo });
     return { ok: true, vinculo };
   });
+}
+
+export async function baixarDocumento(ctx: FinContext, docId: number) {
+  const r = (await db.execute(sql`SELECT file_name, file_bytes FROM fin_doc_import WHERE id=${docId} AND company_id=${ctx.companyId}`)).rows[0] as Row | undefined;
+  if (!r) throw new FinError(404, "Documento nao encontrado");
+  return { nome: String(r.file_name), bytes: r.file_bytes as Buffer };
 }

@@ -18,7 +18,7 @@ import { criarParte, editarParte, encerrarParte, lerConformidade, validarParte }
 import { LabSalvarInput, lerLab, limparLab, salvarLab } from "./laboratorio";
 import multer from "multer";
 import { buscarCnae, lerCnaeEmpresa, salvarCnaeEmpresa } from "./cnae";
-import { aplicarDocumentos, enviarDocumento, lerRegistro, listarDocumentos, rejeitarDocumento, revelarSensivel, salvarResponsavelTecnico, slotValido, MAX_BYTES } from "./documentos";
+import { aplicarDocumentos, enviarDocumento, lerRegistro, listarDocumentos, rejeitarDocumento, baixarDocumento, revelarSensivel, salvarResponsavelTecnico, slotValido, MAX_BYTES } from "./documentos";
 import { PerfilInput, SocioInput, criarSocio, editarSocio, encerrarSocio, listarAuditoria, listarSocios, obterEmpresa, salvarPerfil, validarPerfil, validarSocio } from "./cadastro";
 
 /** PAX FINANCE — rotas. Toda rota: colaborador + clínica da sessão + módulo financeiro. */
@@ -59,6 +59,7 @@ router.get("/pax-finance/cnae/search", ...finGuards, wrap(async (req, res) => { 
 router.get("/pax-finance/cnae/company", ...finGuards, wrap(async (req, res) => { res.set("Cache-Control", "no-store"); res.json(await lerCnaeEmpresa(finContext(req))); }));
 router.put("/pax-finance/cnae/company", ...finGuards, wrap(async (req, res) => { const b = req.body ?? {}; res.json(await salvarCnaeEmpresa(finContext(req), b.principal ? String(b.principal) : null, Array.isArray(b.secundarios) ? b.secundarios.map(String) : [])); }));
 router.post("/pax-finance/documents/apply", ...finGuards, wrap(async (req, res) => { res.json(await aplicarDocumentos(finContext(req))); }));
+router.get("/pax-finance/documents/:id/download", ...finGuards, wrap(async (req, res) => { const d = await baixarDocumento(finContext(req), idParam(req)); res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${d.nome.replace(/[^\w.\- ]/g, "_")}"`, "Cache-Control": "no-store" }); res.send(d.bytes); }));
 router.post("/pax-finance/documents/:id/reject", ...finGuards, wrap(async (req, res) => { res.json(await rejeitarDocumento(finContext(req), idParam(req))); }));
 router.post("/pax-finance/documents/:id/reveal", ...finGuards, wrap(async (req, res) => {
   if (!ehCeo(req)) { res.status(403).json({ error: "Somente o CEO pode revelar dados pessoais." }); return; }

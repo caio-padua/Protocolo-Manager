@@ -95,6 +95,14 @@ describe("PAX FINANCE documentos oficiais", () => {
     expect(bruto).not.toMatch(/11144477735/); // nada cifrado: o CPF está em campos, em claro
     expect(l.podeAplicar).toBe(true);
   });
+  it("histórico lista o último e os anteriores, e o download devolve o PDF", async () => {
+    const l = (await request(app).get("/pax-finance/documents").set(H(7))).body;
+    const h = l.slots.find((x: any) => x.slot === "contrato_social").historico;
+    expect(h.length).toBeGreaterThan(0);
+    const r = await request(app).get(`/pax-finance/documents/${h[0].id}/download`).set(H(7)).buffer(true).parse((rs, cb) => { const c: Buffer[] = []; rs.on("data", (d: Buffer) => c.push(d)); rs.on("end", () => cb(null, Buffer.concat(c))); });
+    expect(r.status).toBe(200); expect(r.body.subarray(0, 5).toString()).toBe("%PDF-");
+    expect((await request(app).get(`/pax-finance/documents/${h[0].id}/download`).set(H(7, { "x-fin-company": "8", "x-ceo": "1" }))).status).toBe(404);
+  });
   it("CPF aparece em claro para o colaborador, sem etapa de revelar", async () => {
     const l = (await request(app).get("/pax-finance/documents").set(H(7))).body;
     expect(JSON.stringify(l)).toMatch(/11144477735/);

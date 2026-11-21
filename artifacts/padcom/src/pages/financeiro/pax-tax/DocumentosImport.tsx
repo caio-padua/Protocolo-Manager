@@ -1,13 +1,14 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Eye, FileUp, ShieldAlert } from "lucide-react";
-import { finApi, finUpload } from "@/lib/pax-finance-api";
+import { Download, AlertTriangle, CheckCircle2, Eye, FileUp, ShieldAlert } from "lucide-react";
+import { finApi, finUpload, finDownload } from "@/lib/pax-finance-api";
 import { btnCls, btnSoftCls } from "../pax-finance-ui";
 
 type Campo = { chave: string; rotulo: string; grupo: string; valor: unknown };
 type Sens = { chave: string; rotulo: string; mascara: string };
 type Doc = { id: number; arquivo: string; bytes: number; sha256: string; metodo: "texto" | "visao_ia"; status: string; enviadoEm: string; campos: Campo[]; sensiveis: Sens[]; conferenciaIa: { status: string; divergencias?: string[]; faltando?: string[]; motivo?: string }; avisos: string[] };
-type Lista = { ehCeo: boolean; slots: { slot: string; rotulo: string; documento: Doc | null }[]; cruzada: { chave: string; rotulo: string; resultado: string; valores: Record<string, string> }[]; bloqueios: string[]; podeAplicar: boolean };
+type Hist = { id: number; arquivo: string; bytes: number; status: string; enviadoEm: string };
+type Lista = { ehCeo: boolean; slots: { slot: string; rotulo: string; historico: Hist[]; documento: Doc | null }[]; cruzada: { chave: string; rotulo: string; resultado: string; valores: Record<string, string> }[]; bloqueios: string[]; podeAplicar: boolean };
 type Registro = { existe: boolean; campos: (Campo & { origem: string | null })[]; sensiveis: Sens[] };
 
 const fmt = (v: unknown, chave: string): string => {
@@ -17,6 +18,17 @@ const fmt = (v: unknown, chave: string): string => {
   if (Array.isArray(v)) return v.map((x) => (typeof x === "string" ? x : typeof x === "object" && x ? Object.values(x as object).filter((y) => y !== null).join(" · ") : String(x))).join("\n");
   return String(v);
 };
+
+const ROT_ST: Record<string, string> = { extraido: "extraído", aplicado: "aplicado", substituido: "substituído", rejeitado: "rejeitado" };
+function LinhaHist({ h, destaque }: { h: Hist; destaque?: boolean }) {
+  const baixa = useMutation({ mutationFn: () => finDownload(`/documents/${h.id}/download`, h.arquivo) });
+  return (
+    <div className={`flex items-center justify-between gap-2 py-1 ${destaque ? "font-semibold" : ""}`}>
+      <span className="min-w-0 break-words">{new Date(h.enviadoEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })} · {h.arquivo} · {ROT_ST[h.status] ?? h.status}</span>
+      <button type="button" className={`${btnSoftCls} min-h-[44px] shrink-0 px-2`} onClick={() => baixa.mutate()} disabled={baixa.isPending} aria-label={`Baixar ${h.arquivo}`} data-testid={`doc-baixar-${h.id}`}><Download className="inline h-4 w-4" /> Baixar</button>
+    </div>
+  );
+}
 
 function Cartao({ item, ehCeo }: { item: Lista["slots"][number]; ehCeo: boolean }) {
   const qc = useQueryClient(); const ref = useRef<HTMLInputElement>(null);
@@ -37,6 +49,13 @@ function Cartao({ item, ehCeo }: { item: Lista["slots"][number]; ehCeo: boolean 
       <button type="button" className={`${btnSoftCls} min-h-[44px] w-full`} disabled={envia.isPending} onClick={() => ref.current?.click()} data-testid={`doc-enviar-${item.slot}`}>
         <FileUp className="mr-1 inline h-4 w-4" />{envia.isPending ? "Lendo o documento…" : d ? "Enviar outro arquivo (substitui)" : "Escolher arquivo PDF"}
       </button>
+      {item.historico.length > 0 && (
+        <div className="mt-3" data-testid={`doc-historico-${item.slot}`}>
+          <div className="font-bold uppercase text-muted-foreground">Último enviado</div>
+          <LinhaHist h={item.historico[0]} destaque />
+          {item.historico.length > 1 && <><div className="mt-2 font-bold uppercase text-muted-foreground">Histórico ({item.historico.length - 1})</div>
+            {item.historico.slice(1).map((h) => <LinhaHist key={h.id} h={h} />)}</>}
+        </div>)}
       {envia.isError && <p className="mt-2 text-destructive" role="alert" data-testid={`doc-erro-${item.slot}`}>{(envia.error as Error).message}</p>}
       {d && (
         <div className="mt-3 space-y-2">
