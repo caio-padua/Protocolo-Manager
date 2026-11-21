@@ -371,3 +371,22 @@
 .cc-pulso-periodo[data-periodo="tarde"] svg { color: #d4701f; }
 .cc-pulso-periodo[data-periodo="noite"] svg { color: #4d6ea1; }
 .dark .cc-pulso-periodo[data-periodo="noite"] svg { color: #9db8e6; }
+
+/* Pulso na janela: fundo limpo como a Agenda Diaria (branco, fios finos, sem tom ocre) */
+.cc-pulso.cc-pulso-modal {
+  --p-fundo: transparent; --p-tinta: hsl(var(--foreground)); --p-rotulo: #35527f; --p-mudo: hsl(var(--muted-foreground));
+  --p-fio: color-mix(in srgb, currentColor 11%, transparent); --p-borda: color-mix(in srgb, currentColor 20%, transparent);
+  --p-cab: color-mix(in srgb, #35527f 7%, hsl(var(--background))); --p-dia: color-mix(in srgb, currentColor 3.5%, transparent);
+  border: 0; box-shadow: none; padding: 0; background: transparent;
+}
+.dark .cc-pulso.cc-pulso-modal { --p-rotulo: #9db8e6; --p-cab: color-mix(in srgb, #9db8e6 9%, hsl(var(--background))); box-shadow: none; }
+.cc-pulso-modal .cc-pulso-rolagem { border-color: var(--p-fio); background: hsl(var(--background)); }
+.cc-pulso-modal .cc-pulso-explica { border-left-color: #4d6ea1; background: var(--p-cab); }
+.cc-pulso-modal .cc-pulso-periodo { background: transparent; box-shadow: none; border-color: var(--p-fio); }
+.cc-pulso-modal .cc-pulso-periodo svg,
+.cc-pulso-modal .cc-pulso-periodo[data-periodo] svg { color: #4d6ea1; }
+.dark .cc-pulso-modal .cc-pulso-periodo svg,
+.dark .cc-pulso-modal .cc-pulso-periodo[data-periodo] svg { color: #9db8e6; }
+.cc-pulso-modal .cc-pulso-cal { background: #fff; }
+.dark .cc-pulso-modal .cc-pulso-cal { background: linear-gradient(180deg,hsl(215 20% 21%) 0%,hsl(215 22% 15%) 100%); }
+.cc-pulso-modal .cc-pulso-tabela tbody th.cc-pulso-dia { background: transparent; }
