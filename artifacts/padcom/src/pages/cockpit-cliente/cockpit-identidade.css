@@ -335,3 +335,9 @@
 .cc-pulso-tabela tbody th.cc-pulso-dia { width: 12%; padding: 6px 4px; text-align: center; vertical-align: middle; border-right: 1px solid var(--p-borda); background: var(--p-cab); }
 .cc-pulso-dia b { display: block; font-size: 22px; line-height: 1; color: var(--p-tinta); }
 .cc-pulso-dia small { display: block; margin-top: 4px; font: 700 9px/1 Inter,sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--p-rotulo); }
+
+/* Cabecalho das colunas: faixa propria, letras maiores e com unidade */
+.cc-pulso-tabela thead th { padding: 9px 4px 8px; vertical-align: bottom; border-bottom: 2px solid var(--p-borda); }
+.cc-pulso-tabela thead th span { display: block; font: 800 10.5px/1.1 Inter,sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--p-tinta); }
+.cc-pulso-tabela thead th small { display: block; margin-top: 3px; font: 600 9px/1 Inter,sans-serif; letter-spacing: .06em; color: var(--p-mudo); }
+.cc-pulso-tabela tbody tr.cc-pulso-mes th { top: 44px; }

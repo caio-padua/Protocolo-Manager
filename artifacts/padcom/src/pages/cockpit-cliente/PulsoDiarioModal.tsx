@@ -111,8 +111,9 @@ export function PulsoDiarioModal({ clientId, clienteNome, aberto, janela, onJane
     });
   }, [data, dias]);
   const r = useMemo(() => resumo(noPeriodo(data ?? [], dias)), [data, dias]);
-  const medias: Array<[string, string | null]> = [
-    ["Energia", r.energia], ["Disposição", r.disposicao], ["Sono", r.sono], ["Pressão", r.pa], ["Freq.", r.fc], ["Glicemia", r.glicemia],
+  const medias: Array<[string, string, string | null]> = [
+    ["Energia", "0 a 10", r.energia], ["Disposição", "0 a 10", r.disposicao], ["Sono", "0 a 10", r.sono],
+    ["Pressão", "mmHg", r.pa], ["Freq. cardíaca", "bpm", r.fc], ["Glicemia", "mg/dL", r.glicemia],
   ];
   const botao = (v: "graficos" | "tabela", rotulo: string, I: typeof Table2) => (
     <button type="button" role="tab" aria-selected={aba === v} onClick={() => setAba(v)}
@@ -157,18 +158,24 @@ export function PulsoDiarioModal({ clientId, clienteNome, aberto, janela, onJane
             ))}
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-3 px-5 pt-3 sm:grid-cols-6" aria-label={`Médias dos últimos ${dias} dias`}>
-          {medias.map(([rot, val]) => (
-            <div key={rot} className="text-center">
-              <p className="mb-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground">{rot}</p>
-              <p className="concave-3d py-1.5 text-lg font-bold">{val == null ? "—" : <Numeral peso={700}>{val}</Numeral>}</p>
-            </div>
-          ))}
-        </div>
-        <p className="px-5 pt-1.5 text-[10px] text-muted-foreground">
-          Média de {dias} dias · {r.n} {r.n === 1 ? "registro" : "registros"}
-          {janela === "diretriz" ? " · padrão das diretrizes para pressão medida em casa" : ""}
-        </p>
+        <section className="mx-5 mt-3 panel-3d-sub px-4 py-3" aria-label={`Médias dos últimos ${dias} dias`}>
+          <header className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h3 className="text-[11px] font-black uppercase tracking-[.16em] text-primary">Média dos últimos {dias} dias</h3>
+            <p className="text-[11px] text-muted-foreground">
+              {r.n} {r.n === 1 ? "registro" : "registros"} somados
+              {janela === "diretriz" ? " · padrão das diretrizes para pressão medida em casa" : ""}
+            </p>
+          </header>
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+            {medias.map(([rot, un, val]) => (
+              <div key={rot} className="text-center">
+                <p className="text-[10px] font-extrabold uppercase tracking-[.1em] text-foreground/80">{rot}</p>
+                <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{un}</p>
+                <p className="concave-3d py-1.5 text-lg font-bold">{val == null ? "—" : <Numeral peso={700}>{val}</Numeral>}</p>
+              </div>
+            ))}
+          </div>
+        </section>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-3">
           {aba === "graficos" ? (
             <div className={`grid gap-4 ${maximizado ? "lg:grid-cols-2" : "md:grid-cols-2"}`}>

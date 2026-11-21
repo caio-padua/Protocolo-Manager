@@ -204,15 +204,11 @@ export function PulsoDiarioHistorico({ clientId, janela, naModal = false }: { cl
         <div className="cc-pulso-rolagem">
           <table className="cc-pulso-tabela">
             <thead><tr>
-              <th scope="col">Dia</th><th scope="col">Período</th><th scope="col">Energia</th><th scope="col">Disposição</th>
-              <th scope="col">Sono</th><th scope="col">Pressão</th><th scope="col">Freq.</th><th scope="col">Glicemia</th>
+              {([["Dia", ""], ["Período", ""], ["Energia", "0 a 10"], ["Disposição", "0 a 10"], ["Sono", "0 a 10"], ["Pressão", "mmHg"], ["Freq. cardíaca", "bpm"], ["Glicemia", "mg/dL"]] as const).map(([t, u]) => (
+                <th key={t} scope="col"><span>{t}</span>{u && <small>{u}</small>}</th>
+              ))}
             </tr></thead>
             <tbody>
-              <tr className="cc-pulso-mediaLinha">
-                <th scope="row" className="cc-pulso-mediaRot">Média</th><td className="cc-pulso-per">{dias} dias</td>
-                <td><Valor v={r.energia} /></td><td><Valor v={r.disposicao} /></td><td><Valor v={r.sono} /></td>
-                <td><Valor v={r.pa} /></td><td><Valor v={r.fc} /></td><td><Valor v={r.glicemia} /></td>
-              </tr>
               {meses.map((mes) => (
                 <Fragment key={mes.chave}>
                   <tr className="cc-pulso-mes"><th colSpan={8} scope="colgroup">
