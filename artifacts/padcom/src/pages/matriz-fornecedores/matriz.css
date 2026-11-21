@@ -688,12 +688,11 @@ main:has(.mx-root) {
 @keyframes mx-gira { to { --mx-ang: 360deg; } }
 .mx-lab { position: relative; }
 .mx-lab[data-ganha="1"][data-moldura="1"]::before {
-  content: ""; position: absolute; inset: 1px; padding: 2px; pointer-events: none;
-  background: conic-gradient(from var(--mx-ang), rgba(201,162,74,.25) 0deg, rgba(201,162,74,.25) 230deg, #f6d98c 290deg, #fff 330deg, #c99a38 350deg, rgba(201,162,74,.25) 360deg);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
-  animation: mx-gira 3.2s linear infinite;
+  /* moldura PARADA (sem animacao): filete ouro com relevo, padrao Paxter */
+  content: ""; position: absolute; inset: 2px; pointer-events: none; border-radius: 5px;
+  border: 2px solid #b8924d;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.95), inset 0 -2px 4px rgba(0,53,58,.14), 0 3px 6px -2px rgba(7,22,43,.35);
 }
-@media (prefers-reduced-motion: reduce) { .mx-lab[data-ganha="1"][data-moldura="1"]::before { animation: none; } }
 /* colunas congeladas */
 .mx-frz-box { display: grid; place-items: center; flex: none; }
 .mx-frz-box input { width: 14px; height: 14px; accent-color: var(--gold-d); cursor: pointer; }
@@ -1322,3 +1321,23 @@ main:has(.mx-root) {
 /* quadradinho de cor (sem sigla), em Up Bevel */
 .mx-cs-q { width: 18px !important; height: 18px !important; border-radius: 4px !important; border: 1px solid rgba(7,22,43,.35) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.6), inset 0 -2px 3px rgba(0,0,0,.22), 0 3px 5px -2px rgba(7,22,43,.45) !important; font-size: 0 !important; }
 .mx-cs-op .mx-cs-q { width: 24px !important; height: 24px !important; }
+
+
+/* ===== Planilha monocromática: só um tom claro e um tom escuro (zebra), sem cor por laboratório ===== */
+.mx-table thead th.mx-th-best { background: linear-gradient(180deg, #fbf9f2 0%, #f3eddd 100%) !important; }
+.mx-th-best .mx-th-t span { color: var(--muted); }
+.mx-best { background-image: none !important; }
+.mx-best .mx-money { color: var(--ink); }
+.mx-bestlab { color: var(--ink); }
+.mx-bestlab .mx-sw, .mx-chip-lab .mx-sw { background: var(--navy) !important; }
+.mx-win { background-image: none !important; box-shadow: none; }
+.mx-win.mx-sel { box-shadow: inset 0 0 0 2px var(--gold-d), inset 0 0 0 3px #fff; }
+
+/* ===== Cabeçalho: topo, base e altura IGUAIS em todas as colunas (título no topo; toggle e seletor colados na base) ===== */
+.mx-table thead th .mx-th-in, .mx-table thead th .mx-th-prod-in { box-sizing: border-box; height: 100%; display: flex !important; flex-direction: column; justify-content: space-between !important; gap: 4px; padding: 6px 8px 8px 10px !important; }
+.mx-hd-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; min-width: 0; }
+.mx-hd-top .mx-th-t b { min-height: 0; }
+.mx-hd-top .mx-ord { flex: none; }
+.mx-th-prod-in .mx-cs-bt, .mx-th-lab .mx-tw { box-sizing: border-box; width: 100%; height: 30px; min-height: 30px; margin: 0; padding: 0 10px 0 9px; display: flex; align-items: center; gap: 8px; justify-content: flex-start; font: 700 10.5px Inter, system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; border: 1px solid var(--line-2); border-radius: 4px; box-shadow: inset 0 2px 4px rgba(22,40,74,.22), inset 0 -1px 0 #fff; flex: none; align-self: stretch; }
+.mx-th-lab .mx-tw { text-transform: none; letter-spacing: .01em; font-size: 10.5px; }
+.mx-th-prod-in .mx-cs-bt svg { margin-left: auto; }

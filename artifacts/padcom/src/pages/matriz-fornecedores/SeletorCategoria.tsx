@@ -49,7 +49,6 @@ export function SeletorCategoria({ opcoes, valor, onChange }: { opcoes: OpcaoCat
     <>
       <button ref={bt} type="button" className="mx-cs-bt concave-3d" data-ativo={valor ? 1 : 0} aria-haspopup="listbox" aria-expanded={aberto}
         onClick={(e) => { e.stopPropagation(); abrir(); }} data-testid="seletor-categoria" title="Escolher uma categoria para listar só os produtos dela">
-        <span className="mx-cs-q bevel-3d" style={{ background: atual ? `linear-gradient(180deg, rgba(255,255,255,.32) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,.18) 100%), ${atual.cor}` : TODAS }} aria-hidden />
         <span className="mx-cs-nm">{atual ? atual.titulo : "Categorias"}</span><ChevronDown size={13} aria-hidden />
       </button>
       {aberto && createPortal(

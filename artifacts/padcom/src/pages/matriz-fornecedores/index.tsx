@@ -550,9 +550,11 @@ export default function MatrizFornecedores() {
       return (
         <th key={ci} colSpan={2} className="mx-th mx-th-fix mx-th-prod" style={{ ["--tc" as string]: "#5f719b", left: 0 }} data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
           <div className="mx-th-prod-in" onClick={parar}>
-            <b className="mx-th-prod-t">Substâncias</b>
+            <div className="mx-hd-top">
+              <div className="mx-th-t"><b>Substâncias</b><span>{sub}</span></div>
+              <button type="button" className="mx-ord bevel-3d" data-on={sort?.key === "prod" ? 1 : 0} aria-label="Ordenar substâncias" onClick={() => ciclarSort("prod")}>{ordTxt("prod")}</button>
+            </div>
             <SeletorCategoria opcoes={opcoesCategoria} valor={catSel} onChange={setCatSel} />
-            <button type="button" className="mx-ord bevel-3d" data-on={sort?.key === "prod" ? 1 : 0} aria-label="Ordenar substâncias" onClick={() => ciclarSort("prod")}>{ordTxt("prod")}</button>
           </div>
         </th>
       );
@@ -562,7 +564,7 @@ export default function MatrizFornecedores() {
         style={{ ["--tc" as string]: lab ? corDe(lab.id) : col.kind === "best" ? undefined : "#5f719b", left: leftCongelado(lab?.id) }}
         data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
         <div className={`mx-th-in ${lab ? "mx-th-lab" : "mx-th-col"}`}>
-          <div className="mx-th-l1">
+          <div className="mx-hd-top">
             <div className="mx-th-t"><b title={lab?.nome}>{titulo}</b><span>{sub}</span></div>
           </div>
           {sortKey && (
