@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import NovoProtocolo from "@/pages/protocols/new";
+import EmitidosEncaminhar from "@/components/encaminhamento/EmitidosEncaminhar";
 import {
   Activity, Plus, ChevronDown, ChevronRight,
   Calendar, Clock, ExternalLink,
@@ -207,6 +208,8 @@ export default function ProtocolosPanel({ clientId, client, novoAberto, emAndame
           })}
         </div>
       )}
+
+      <EmitidosEncaminhar clientId={clientId} tipos={["protocolo", "ras_fap", "carta_tratamento"]} titulo="Documentos de protocolo emitidos: encaminhar, baixar e guardar" />
     </div>
   );
 }

@@ -99,9 +99,33 @@ export const LINHAS_PESQUISADAS: LinhaPesquisada[] = [
   },
 ];
 
+/**
+ * Faixa de faturamento ANUAL que cada programa aceita, lida nas mesmas páginas oficiais dos campos acima.
+ * min/max null = a página não fixa esse limite. Linha ausente = nenhuma faixa de faturamento pública.
+ */
+export const FAIXAS_FATURAMENTO: Record<string, { minAnualCents: number | null; maxAnualCents: number | null; mesesFaturamento: number | null; texto: string }> = {
+  pronampe: { minAnualCents: null, maxAnualCents: 480000000, mesesFaturamento: null, texto: "MEI, microempresa e empresa de pequeno porte: até R$ 4,8 milhões por ano. Não há mínimo de faturamento na página lida." },
+  procred360: { minAnualCents: null, maxAnualCents: 36000000, mesesFaturamento: null, texto: "MEI e microempresa com faturamento de até R$ 360 mil por ano. Não há mínimo." },
+  bndes: { minAnualCents: null, maxAnualCents: 30000000000, mesesFaturamento: null, texto: "Receita de até R$ 300 milhões por ano. Não há mínimo." },
+  cartao_bndes: { minAnualCents: null, maxAnualCents: 30000000000, mesesFaturamento: null, texto: "Até R$ 300 milhões por ano (MEI até R$ 360 mil). Não há mínimo." },
+  desenvolve_sp: { minAnualCents: 8100000, maxAnualCents: 480000000, mesesFaturamento: 12, texto: "Faturamento de R$ 81 mil a R$ 4,8 milhões por ano, com 12 meses de faturamento." },
+  fgi_peac: { minAnualCents: null, maxAnualCents: 30000000000, mesesFaturamento: null, texto: "Até R$ 300 milhões por ano. Não há mínimo." },
+};
+
+/** Campos que a regra do programa não usa. Aparecem na mesma posição, apagados, com o motivo. */
+export const NAO_SE_APLICA: Record<string, Partial<Record<CampoKey, string>>> = {
+  bndes: { percentual: "Este programa não limita o crédito por percentual do faturamento." },
+  cartao_bndes: { percentual: "Este programa não limita o crédito por percentual do faturamento." },
+  desenvolve_sp: { percentual: "Este programa não limita o crédito por percentual do faturamento." },
+  fgi_peac: { percentual: "A garantia não define valor por percentual do faturamento: quem decide é o banco." },
+  cooperativas: { vigencia: "Não é programa com prazo de vigência." },
+};
+
 export const CreditoPainelInput = z.object({
   faturamentoMensalCents: z.number().int().nonnegative().max(1e13).nullable().optional(),
   lideradaPorMulheres: z.boolean().optional(),
+  /** Faturamento de cada mês do ano (janeiro a dezembro); null = sem dado naquele mês. */
+  mesesCents: z.array(z.number().int().nonnegative().max(1e13).nullable()).length(12).optional(),
 });
 
 /** Teto teórico por linha: min(percentual do faturamento anual, teto do programa). Sem dado = null. Não é oferta. */
@@ -119,7 +143,21 @@ export function painelCredito(i: z.infer<typeof CreditoPainelInput>) {
       let motivo: string | null = null;
       if (fat <= 0) motivo = "Digite o faturamento mensal para calcular.";
       else if (!pct) motivo = "Este programa não define limite por percentual do faturamento: o valor é definido pelo banco na análise.";
-      return { ...l, percentualUsadoPct: pct, limiteSobreFaturamentoCents: porFat, limiteTeoricoCents: limite, motivoLimiteVazio: motivo, limitadoPeloTeto: porFat !== null && l.tetoCents !== null && porFat > l.tetoCents };
+      const faixa = FAIXAS_FATURAMENTO[l.key] ?? null;
+      const necessarioCheio = pct && l.tetoCents ? Math.ceil((l.tetoCents * 100) / pct / 12) : null;
+      const meta = faixa?.minAnualCents ? { cents: Math.ceil(faixa.minAnualCents / 12), rotulo: "Mínimo mensal exigido pelo programa" }
+        : necessarioCheio ? { cents: necessarioCheio, rotulo: "Faturamento mensal para chegar ao limite cheio do programa" } : null;
+      const serie = (i.mesesCents ?? Array(12).fill(null)).map((v, idx) => ({
+        mes: idx + 1, valorCents: v, atingiu: v === null || !meta ? null : v >= meta.cents,
+      }));
+      const situacaoFaixa: "sem_dado" | "sem_faixa" | "abaixo" | "dentro" | "acima" =
+        fat <= 0 ? "sem_dado" : !faixa ? "sem_faixa"
+          : faixa.minAnualCents !== null && anual < faixa.minAnualCents ? "abaixo"
+            : faixa.maxAnualCents !== null && anual > faixa.maxAnualCents ? "acima" : "dentro";
+      return { ...l, faixa, naoSeAplica: NAO_SE_APLICA[l.key] ?? {}, metaMensalCents: meta?.cents ?? null, metaRotulo: meta?.rotulo ?? null,
+        necessarioLimiteCheioMensalCents: necessarioCheio, serie, mesesAtingidos: serie.filter((x) => x.atingiu === true).length,
+        mesesComDado: serie.filter((x) => x.valorCents !== null).length, situacaoFaixa,
+        percentualUsadoPct: pct, limiteSobreFaturamentoCents: porFat, limiteTeoricoCents: limite, motivoLimiteVazio: motivo, limitadoPeloTeto: porFat !== null && l.tetoCents !== null && porFat > l.tetoCents };
     }),
   };
 }

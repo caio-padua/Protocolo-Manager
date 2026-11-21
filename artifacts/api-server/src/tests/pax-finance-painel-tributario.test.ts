@@ -66,4 +66,17 @@ describe("painel tributário (simulação)", () => {
     expect(b.linhas.find((l) => l.key === "bndes")!.limiteTeoricoCents).toBeNull();
     expect(painelCredito({}).linhas.every((l) => l.limiteTeoricoCents === null)).toBe(true);
   });
+
+  it("crédito: meta mensal, faixa e campos que não se aplicam", () => {
+    const meses = [5000000, 7000000, 8000000, null, null, null, null, null, null, null, null, null];
+    const r = painelCredito({ faturamentoMensalCents: 7000000, mesesCents: meses });
+    const pr = r.linhas.find((l) => l.key === "pronampe")!;
+    expect(pr.necessarioLimiteCheioMensalCents).toBe(6944445);
+    expect(pr.serie.map((x) => x.atingiu).slice(0, 4)).toEqual([false, true, true, null]);
+    expect(pr.mesesAtingidos).toBe(2); expect(pr.mesesComDado).toBe(3); expect(pr.situacaoFaixa).toBe("dentro");
+    const dsp = r.linhas.find((l) => l.key === "desenvolve_sp")!;
+    expect(dsp.metaMensalCents).toBe(675000); expect(dsp.naoSeAplica.percentual).toBeTruthy();
+    expect(painelCredito({ faturamentoMensalCents: 100000 }).linhas.find((l) => l.key === "desenvolve_sp")!.situacaoFaixa).toBe("abaixo");
+    expect(painelCredito({}).linhas.every((l) => l.situacaoFaixa === "sem_dado")).toBe(true);
+  });
 });
