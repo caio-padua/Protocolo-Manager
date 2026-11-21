@@ -1,18 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { FlaskConical, RefreshCw, ExternalLink, Send } from "lucide-react";
+import { FlaskConical, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { collabAuthHeaders } from "@/lib/collab-auth";
+import CobrancaTesteCard, { type CobrancaTeste } from "./CobrancaTesteCard";
 
 const apiBase = import.meta.env.VITE_API_URL || `${import.meta.env.BASE_URL}api`;
 
 interface Resumo { cobrancas: number; totalCentavos: number; maxCobrancas: number; maxTotalCentavos: number; maxCentavosPorCobranca: number }
-interface Item {
-  id: number; cliente: string | null; valor_centavos: number; tipo: string; descricao: string; vencimento: string;
-  estado: string; asaas_charge_id: string | null; asaas_status: string | null; invoice_url: string | null; erro: string | null; pago_em: string | null;
-  liquido_centavos: number | null; link_email_em: string | null; link_telegram_em: string | null;
-}
+type Item = CobrancaTeste;
 
 const brl = (c: number) => (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -127,29 +124,8 @@ export default function TesteCobrancasPanel({ onChanged }: { onChanged: () => vo
       </div>
       {msg && <p className={`text-sm font-medium ${msg.ok ? "text-emerald-600" : "text-red-600"}`}>{msg.texto}</p>}
       {itens.length > 0 && (
-        <div className="space-y-1">
-          {itens.map((i) => (
-            <div key={i.id} className="panel-3d-sub p-2 grid grid-cols-2 lg:grid-cols-[0.4fr_1.4fr_0.7fr_0.7fr_1.2fr_1fr_1.2fr_auto] gap-2 text-[12px] items-center">
-              <span>#{i.id}</span>
-              <span className="truncate">{i.cliente || "—"} · {i.descricao}</span>
-              <span className="tabular-nums">{brl(i.valor_centavos)}</span>
-              <span>{i.tipo}</span>
-              <span>{i.estado}{i.asaas_status ? ` · ${i.asaas_status}` : ""}{i.pago_em ? ` · pago ${i.pago_em}` : ""}</span>
-              <span className="truncate text-muted-foreground">{i.asaas_charge_id || i.erro || "—"}</span>
-              <span className="flex items-center gap-2">
-                {i.estado === "criada" && !i.pago_em ? (
-                  <Button size="sm" variant="outline" className="btn-3d-soft" disabled={enviando === i.id || (!!i.link_email_em && !!i.link_telegram_em)} onClick={() => enviarLink(i.id)}>
-                    <Send className="w-3 h-3 mr-1" />Enviar link
-                  </Button>
-                ) : null}
-                <span className="text-[11px] text-muted-foreground">
-                  {i.liquido_centavos != null ? `liquido ${brl(i.liquido_centavos)} · taxa ${brl(i.valor_centavos - i.liquido_centavos)}` : ""}
-                  {i.link_email_em ? " · e-mail aceito" : ""}{i.link_telegram_em ? " · telegram aceito" : ""}
-                </span>
-              </span>
-              {i.invoice_url ? <a href={i.invoice_url} target="_blank" rel="noreferrer" className="text-primary"><ExternalLink className="w-4 h-4" /></a> : <span />}
-            </div>
-          ))}
+        <div className="grid gap-3 lg:grid-cols-2">
+          {itens.map((i) => <CobrancaTesteCard key={i.id} i={i} enviando={enviando === i.id} onEnviarLink={enviarLink} />)}
         </div>
       )}
     </section>

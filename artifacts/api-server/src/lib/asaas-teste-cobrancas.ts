@@ -196,7 +196,7 @@ export async function criarCobrancaTeste(e: TesteEntrada, operador: string) {
 
 export async function listarTeste() {
   const r = await db.execute(sql`
-    SELECT t.id, t.client_id, c.name AS cliente, t.valor_centavos, t.tipo, t.descricao, t.vencimento, t.estado,
+    SELECT t.id, t.client_id, c.name AS cliente, c.cpf AS cliente_cpf, t.valor_centavos, t.tipo, t.descricao, t.vencimento, t.estado,
            t.asaas_charge_id, t.asaas_status, t.invoice_url, t.erro, t.criado_em, t.pago_em,
            t.liquido_centavos, t.link_email_em, t.link_telegram_em
     FROM asaas_cobrancas_teste t LEFT JOIN clients c ON c.id = t.client_id ORDER BY t.id DESC`);
