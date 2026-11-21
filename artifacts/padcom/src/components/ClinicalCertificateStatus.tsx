@@ -189,7 +189,7 @@ export function ClinicalCertificateStatus({
     const verificando = checking || resolvedEpoch !== sessionEpoch;
     if (!verificando && !state) return null;
     const ok = state === "valid";
-    const linhasTitulo = verificando ? ["VERIFICANDO"] : ok ? ["CERTIFICADO", "DIGITAL", "ATIVO"] : state === "expired" ? ["CERTIFICADO", "DIGITAL", "VENCIDO"] : ["CERTIFICADO", "DIGITAL"];
+    const linhasTitulo = verificando ? ["VERIFICANDO"] : ok ? ["CERTIFICADO", "DIGITAL A1", "ATIVO"] : state === "expired" ? ["CERTIFICADO", "DIGITAL A1", "VENCIDO"] : ["CERTIFICADO", "DIGITAL"];
     const dataCurta = expiry ? expiry.replace(/^(\d{2})\/(\d{2})\/\d{2}(\d{2})$/, "$1.$2.$3").replace(/\//g, ".") : null;
     const rotuloData = state === "expired" ? "Venceu em:" : "Válido até:";
     const dica = `${linhasTitulo.join(" ")}${dataCurta ? ` · ${rotuloData} ${dataCurta}` : ""}`;
@@ -197,7 +197,7 @@ export function ClinicalCertificateStatus({
     const fonteData = { color: "#000", fontFamily: "Inter, Arial, sans-serif", fontWeight: 500, fontVariantNumeric: "lining-nums tabular-nums", fontFeatureSettings: '"lnum" 1, "tnum" 1' } as const;
     return (
       <div role="status" aria-label={dica} title={dica} data-testid="selo-certificado"
-        className="flex h-full w-full flex-col items-center justify-center gap-1.5 px-1 py-2 text-center">
+        className="flex h-full w-full flex-col items-center justify-center gap-1.5 px-1 pb-1 pt-[18px] text-center">
         <div className="relative">
           <span className="absolute right-full top-1/2 mr-[3px] -translate-y-1/2"><EscudoContorno cor={cor} /></span>
           <span className="flex flex-col items-center text-center text-[7.5px] font-extrabold uppercase leading-[1.2] tracking-[.08em]" style={{ color: cor, paddingLeft: ".08em" }}>
