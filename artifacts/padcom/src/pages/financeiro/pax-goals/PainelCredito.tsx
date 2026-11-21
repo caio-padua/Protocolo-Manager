@@ -6,7 +6,7 @@ import { BlockTitle } from "@/components/settings/SettingsUI";
 import { Percentual, Valor } from "@/components/numeral/Numeral";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { finApi, type FinCenarioDemo } from "@/lib/pax-finance-api";
-import { Campo, MESES, campoCls, reaisParaCentavos } from "../pax-finance-ui";
+import { Campo, MESES, campoCls, reaisParaCentavos, InputReais } from "../pax-finance-ui";
 
 const ANO = 2026;
 const brl = (c: number) => (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -92,7 +92,7 @@ export function PainelCredito() {
       <p className="rounded bg-muted p-2 text-[12px] font-bold" data-testid="credito-aviso-aprovacao">Faturamento não garante aprovação. O limite mostrado é o teto teórico do programa; o banco decide na análise de crédito. Condições lidas nas páginas oficiais em 21/11/2026, com conferência humana dispensada nesta etapa (pendente).</p>
       <div className="panel-3d-sub p-3">
         <Campo rotulo="Faturamento do mês (R$)" ajuda="Digite quanto a empresa fatura em um mês. O sistema multiplica por 12 e aplica o percentual de cada programa. Nenhum valor vem pronto.">
-          <input className={`${campoCls} text-[18px] font-bold`} inputMode="decimal" value={fat} onChange={(e) => { setDigitou(true); setFat(e.target.value); }} placeholder="Digite o faturamento mensal" data-testid="credito-faturamento" autoComplete="off" />
+          <InputReais className={`${campoCls} text-[18px] font-bold`}  value={fat} onChange={(e) => { setDigitou(true); setFat(e.target.value); }} placeholder="Digite o faturamento mensal" data-testid="credito-faturamento" autoComplete="off" />
         </Campo>
         <label className="mt-2 flex min-h-[44px] items-center gap-2 text-[12px]"><input type="checkbox" className="h-5 w-5" checked={mulheres} onChange={(e) => setMulheres(e.target.checked)} /><span>Empresa liderada por mulheres (o ProCred 360 aceita até 50% do faturamento)</span></label>
         <p className="mt-1 text-[11px]" data-testid="credito-origem">{!digitou && mediaAuto !== null

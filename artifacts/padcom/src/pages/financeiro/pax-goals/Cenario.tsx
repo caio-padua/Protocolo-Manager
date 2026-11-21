@@ -5,7 +5,7 @@ import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, T
 import { BlockTitle } from "@/components/settings/SettingsUI";
 import { Valor } from "@/components/numeral/Numeral";
 import { finApi, type FinCenarioDemo } from "@/lib/pax-finance-api";
-import { Ajuda, Indicador, MESES, btnCls, btnSoftCls, campoCls, reaisParaCentavos } from "../pax-finance-ui";
+import { Ajuda, Indicador, MESES, btnCls, btnSoftCls, campoCls, reaisParaCentavos, InputReais } from "../pax-finance-ui";
 
 const ANO = 2026;
 
@@ -59,7 +59,7 @@ export function Cenario() {
                   <td className="p-2">{m.projecaoCents === null ? "—" : <Valor valor={m.projecaoCents / 100} />}</td>
                   <td className="p-2">
                     <div className="flex gap-1">
-                      <input className={`${campoCls} max-w-[120px]`} inputMode="decimal" value={edit[m.mes] ?? ""} onChange={(e) => setEdit({ ...edit, [m.mes]: e.target.value })} placeholder="0,00" aria-label={`Valor de ${MESES[m.mes - 1]}`} />
+                      <InputReais className={`${campoCls} max-w-[120px]`}  value={edit[m.mes] ?? ""} onChange={(e) => setEdit({ ...edit, [m.mes]: e.target.value })} placeholder="0,00" aria-label={`Valor de ${MESES[m.mes - 1]}`} />
                       <button type="button" className={btnSoftCls} onClick={() => { const v = reaisParaCentavos(edit[m.mes] ?? ""); if (v === null) { setErro("Informe um valor."); return; } agir.mutate({ path: `/scenario/${m.mes}`, method: "PUT", body: { ano: ANO, valorCents: v, natureza: m.projecaoCents !== null || m.mes > 10 ? "projecao" : "simulacao" } }); }}>Salvar</button>
                       <button type="button" className={btnSoftCls} onClick={() => agir.mutate({ path: `/scenario/${m.mes}?ano=${ANO}`, method: "DELETE" })}>Apagar</button>
                     </div>

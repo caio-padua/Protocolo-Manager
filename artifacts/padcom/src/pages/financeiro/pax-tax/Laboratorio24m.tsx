@@ -4,7 +4,7 @@ import { AlertTriangle, FlaskConical } from "lucide-react";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from "recharts";
 import { BlockTitle } from "@/components/settings/SettingsUI";
 import { finApi } from "@/lib/pax-finance-api";
-import { Campo, Indicador, btnCls, btnSoftCls, campoCls, reaisParaCentavos, rotuloMes } from "../pax-finance-ui";
+import { Campo, Indicador, btnCls, btnSoftCls, campoCls, reaisParaCentavos, rotuloMes, mascaraReais } from "../pax-finance-ui";
 
 type Linha = { chave: string; rotulo: string; valorCents: number };
 type Cen = {
@@ -31,14 +31,14 @@ const pct = (n: number | null) => (n === null ? "—" : `${n.toLocaleString("pt-
 function Reais({ rotulo, ajuda, valor, onChange }: { rotulo: string; ajuda: string; valor: number | null; onChange: (c: number | null) => void }) {
   const [t, setT] = useState(valor === null ? "" : brl(valor));
   useEffect(() => { setT(valor === null ? "" : brl(valor)); }, [valor]);
-  return <Campo rotulo={rotulo} ajuda={ajuda}><input className={campoCls} inputMode="decimal" value={t} onChange={(e) => setT(e.target.value)} onBlur={() => onChange(reaisParaCentavos(t))} /></Campo>;
+  return <Campo rotulo={rotulo} ajuda={ajuda}><input className={campoCls} inputMode="decimal" value={t} onChange={(e) => setT(mascaraReais(e.target.value))} onBlur={() => onChange(reaisParaCentavos(t))} /></Campo>;
 }
 function CelulaFat({ valor, manual, onSalva, mes }: { valor: number; manual: boolean; onSalva: (c: number | null) => void; mes: string }) {
   const [t, setT] = useState(brl(valor));
   useEffect(() => { setT(brl(valor)); }, [valor]);
   return <input className={`${campoCls} max-w-[130px] text-right ${manual ? "font-bold" : ""}`} inputMode="decimal" value={t} aria-label={`Faturamento de ${mes}`} data-testid={`lab-fat-${mes}`}
     onClick={(e) => e.stopPropagation()} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-    onChange={(e) => setT(e.target.value)}
+    onChange={(e) => setT(mascaraReais(e.target.value))}
     onBlur={() => { const c = reaisParaCentavos(t); if (c !== null && c !== valor) onSalva(c); else setT(brl(valor)); }} />;
 }
 function Num({ rotulo, ajuda, valor, onChange }: { rotulo: string; ajuda: string; valor: number; onChange: (n: number) => void }) {

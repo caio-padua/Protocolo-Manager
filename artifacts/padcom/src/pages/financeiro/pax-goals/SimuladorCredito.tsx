@@ -4,7 +4,7 @@ import { Calculator } from "lucide-react";
 import { BlockTitle } from "@/components/settings/SettingsUI";
 import { Valor } from "@/components/numeral/Numeral";
 import { finApi, type FinComparacao, type FinCreditoRes } from "@/lib/pax-finance-api";
-import { Ajuda, Campo, btnCls, campoCls, reaisParaCentavos } from "../pax-finance-ui";
+import { Ajuda, Campo, btnCls, campoCls, reaisParaCentavos, InputReais } from "../pax-finance-ui";
 
 const VALORES = [5000000, 10000000, 15000000, 20000000, 25000000];
 const CENARIOS = [2000000, 3000000, 4000000, 5000000, 6000000, 8000000];
@@ -32,12 +32,12 @@ export function SimuladorCredito() {
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <Campo rotulo="Valor pretendido (R$)" ajuda="Escolha um valor pronto ou digite outro."><div className="space-y-1">
           <div className="flex flex-wrap gap-1">{VALORES.map((v) => <button key={v} type="button" className="bevel-3d min-h-[36px] rounded px-2 text-[11px] font-bold" onClick={() => setValor(String(v / 100))}>{(v / 100000).toFixed(0)} mil</button>)}</div>
-          <input className={campoCls} inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} data-testid="sim-valor" /></div></Campo>
+          <InputReais className={campoCls}  value={valor} onChange={(e) => setValor(e.target.value)} data-testid="sim-valor" /></div></Campo>
         <Campo rotulo="Finalidade" ajuda="Para que o dinheiro será usado."><select className={campoCls} value={finalidade} onChange={(e) => setFinalidade(e.target.value)} data-testid="sim-finalidade"><option value="capital_giro">Capital de giro</option><option value="investimento">Investimento</option><option value="equipamentos">Equipamentos</option></select></Campo>
         <Campo rotulo="Prazo (meses)" ajuda="Prazo desejado. Só vale se o programa permitir."><input className={campoCls} inputMode="numeric" value={prazo} onChange={(e) => setPrazo(e.target.value)} /></Campo>
         <Campo rotulo="Faturamento mensal do cenário (R$)" ajuda="Quanto a empresa passaria a faturar por mês. Vazio = igual à meta mensal necessária."><div className="space-y-1">
           <div className="flex flex-wrap gap-1">{CENARIOS.map((v) => <button key={v} type="button" className="bevel-3d min-h-[36px] rounded px-2 text-[11px] font-bold" onClick={() => setCenario(String(v / 100))}>{v / 100000} mil</button>)}</div>
-          <input className={campoCls} inputMode="decimal" value={cenario} onChange={(e) => setCenario(e.target.value)} placeholder="livre" data-testid="sim-cenario" /></div></Campo>
+          <InputReais className={campoCls}  value={cenario} onChange={(e) => setCenario(e.target.value)} placeholder="livre" data-testid="sim-cenario" /></div></Campo>
         <Campo rotulo="Premissa ilustrativa: % do faturamento anual" ajuda="Usada SOMENTE quando o programa não tem regra verificada. Não é regra de nenhum programa; edite à vontade."><input className={campoCls} inputMode="decimal" value={teto} onChange={(e) => setTeto(e.target.value)} /></Campo>
         <div className="flex items-end"><button type="button" className={btnCls} data-testid="sim-calcular" onClick={calcular} disabled={cmp.isPending}>Comparar linhas</button></div>
       </div>

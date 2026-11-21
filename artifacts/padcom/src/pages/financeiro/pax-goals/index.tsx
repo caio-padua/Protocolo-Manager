@@ -7,7 +7,7 @@ import { TrilhoAbas } from "@/components/ui/trilho-abas";
 import { BlockTitle } from "@/components/settings/SettingsUI";
 import { Percentual, Valor } from "@/components/numeral/Numeral";
 import { finApi, type FinCredito, type FinEmpresa, type FinMarco, type FinMeta, type FinResumoGoals, type PeriodoTipo } from "@/lib/pax-finance-api";
-import { Ajuda, Campo, Indicador, btnCls, btnSoftCls, campoCls, reaisParaCentavos, rotuloMes } from "../pax-finance-ui";
+import { Ajuda, Campo, Indicador, btnCls, btnSoftCls, campoCls, reaisParaCentavos, rotuloMes, InputReais } from "../pax-finance-ui";
 import { Touro } from "./Touro";
 import { PaginaComEmpresa } from "../SeletorEmpresa";
 import { Cenario } from "./Cenario";
@@ -90,7 +90,7 @@ function PaxGoalsCorpo() {
           </Campo>
           <Campo rotulo="Meta deste período (R$)" ajuda="Meta de faturamento recebido. Fica salva só para esta empresa e este período.">
             <div className="flex gap-2">
-              <input className={campoCls} inputMode="decimal" value={metaTxt} onChange={(e) => setMetaTxt(e.target.value)} placeholder="0,00" data-testid="goals-meta-input" />
+              <InputReais className={campoCls}  value={metaTxt} onChange={(e) => setMetaTxt(e.target.value)} placeholder="0,00" data-testid="goals-meta-input" />
               <button type="button" className={btnCls} data-testid="goals-meta-salvar" onClick={() => { const c = reaisParaCentavos(metaTxt); if (!c || !d) { setErro("Informe um valor maior que zero."); return; } agir.mutate({ path: "/goals", method: "PUT", body: { tipo: "faturamento", periodType: tipo, periodKey: d.periodKey, targetCents: c } }); }}>Salvar</button>
             </div>
           </Campo>
@@ -161,7 +161,7 @@ function PaxGoalsCorpo() {
               {[...CENARIOS, reaisParaCentavos(livre)].map((c, i) => (
                 <div key={i} className="panel-3d-sub p-3 text-center" data-testid={`cenario-${i}`}>
                   {c === null ? (
-                    <input className={campoCls} placeholder="Valor livre (R$)" inputMode="decimal" value={livre} onChange={(e) => setLivre(e.target.value)} aria-label="Cenário livre em reais por mês" />
+                    <InputReais className={campoCls} placeholder="Valor livre (R$)"  value={livre} onChange={(e) => setLivre(e.target.value)} aria-label="Cenário livre em reais por mês" />
                   ) : (<>
                     <div className="text-[16px]"><Valor valor={c / 100} semCentavos /><span className="text-[11px] text-muted-foreground"> /mês</span></div>
                     <div className="mt-1 text-[12px]">{d?.resumo.metaCents ? <>≈ <b>{Math.ceil((d.resumo.metaCents - d.resumo.recebidoCents) / c) > 0 ? Math.ceil((d.resumo.metaCents - d.resumo.recebidoCents) / c) : 0}</b> meses (estimativa)</> : "Defina a meta"}</div>
@@ -205,7 +205,7 @@ function PaxGoalsCorpo() {
             <BlockTitle icon={Target} trailing={<Ajuda texto="Meta interna da empresa. Não é promessa nem aprovação de banco." />}>Meta: crédito consecutivo</BlockTitle>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <Campo rotulo="Título" ajuda="Nome da meta."><input className={campoCls} value={credMeta.titulo} onChange={(e) => setCredMeta({ ...credMeta, titulo: e.target.value })} /></Campo>
-              <Campo rotulo="Valor desejado (R$)" ajuda="Quanto de crédito a empresa pretende obter."><input className={campoCls} inputMode="decimal" value={credMeta.valor} onChange={(e) => setCredMeta({ ...credMeta, valor: e.target.value })} /></Campo>
+              <Campo rotulo="Valor desejado (R$)" ajuda="Quanto de crédito a empresa pretende obter."><InputReais className={campoCls}  value={credMeta.valor} onChange={(e) => setCredMeta({ ...credMeta, valor: e.target.value })} /></Campo>
               <Campo rotulo="Plano de ação e calendário" ajuda="Passos e datas internas para chegar lá."><textarea className={`${campoCls} py-2`} rows={2} value={credMeta.plano} onChange={(e) => setCredMeta({ ...credMeta, plano: e.target.value })} /></Campo>
             </div>
             <button type="button" className={`${btnCls} mt-3`} data-testid="credito-meta-salvar" onClick={() => { const c = reaisParaCentavos(credMeta.valor); if (!c) { setErro("Informe o valor desejado."); return; } agir.mutate({ path: "/goals", method: "PUT", body: { tipo: "credito", periodType: "year", periodKey: String(new Date().getFullYear()), targetCents: c, titulo: credMeta.titulo, note: credMeta.plano || null } }); }}>Salvar meta de crédito</button>
@@ -230,7 +230,7 @@ function Trilha({ marcos, media, onSalvar }: { marcos: FinMarco[]; media: number
             <div key={o} className="panel-3d-sub space-y-2 p-3" data-testid={`marco-${o}`}>
               <div className={`flex items-center gap-2 ${ok ? "text-primary" : "text-muted-foreground"}`}><Touro /><b className="text-[12px] uppercase">Marco {o}</b>{ok && <span className="text-[10px] uppercase">atingido</span>}</div>
               <input className={campoCls} placeholder="Nome do marco" aria-label={`Nome do marco ${o}`} value={e.nome} onChange={(x) => setEd({ ...ed, [o]: { ...e, nome: x.target.value } })} />
-              <input className={campoCls} placeholder="Faturamento mensal (R$)" aria-label={`Valor mensal do marco ${o}`} inputMode="decimal" value={e.valor} onChange={(x) => setEd({ ...ed, [o]: { ...e, valor: x.target.value } })} />
+              <InputReais className={campoCls} placeholder="Faturamento mensal (R$)" aria-label={`Valor mensal do marco ${o}`}  value={e.valor} onChange={(x) => setEd({ ...ed, [o]: { ...e, valor: x.target.value } })} />
               <button type="button" className={btnSoftCls} onClick={() => { const c = reaisParaCentavos(e.valor); if (c && e.nome.trim().length > 1) onSalvar({ ordem: o, nome: e.nome.trim(), valorMensalCents: c }); }}>Salvar marco</button>
             </div>
           );
