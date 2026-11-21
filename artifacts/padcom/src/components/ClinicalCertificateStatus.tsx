@@ -179,17 +179,17 @@ export function ClinicalCertificateStatus({
     const ok = state === "valid";
     const Icone = ok || verificando ? ShieldCheck : ShieldAlert;
     const cor = verificando ? "#94a3b8" : ok ? "#17703e" : "#b42318";
-    const linha1 = verificando ? "Verificando…" : ok ? "Certificado ativo" : copy?.title ?? "Certificado";
-    const linha2 = ok && expiry ? `Válido até ${expiry}` : !ok && expiry && state === "expired" ? `Venceu em ${expiry}` : null;
+    const rotulo = verificando ? "Verificando" : ok ? "Ativo" : state === "expired" ? "Vencido" : "Atenção";
+    const data = expiry ? (state === "expired" ? `venceu ${expiry}` : `até ${expiry}`) : null;
+    const dica = `${copy?.title ?? "Certificado digital"}${expiry ? ` · ${ok ? "válido até" : "data"} ${expiry}` : ""}`;
     return (
-      <div role="status" aria-label={`${linha1}${linha2 ? `, ${linha2}` : ""}`} title="Certificado digital do médico autenticado"
-        className="flex items-center gap-2 rounded-[4px] border border-[#b89b5a]/70 bg-gradient-to-b from-[#fbf9f2] to-[#efe8d6] px-2 py-1.5 shadow-[inset_0_1px_0_#fff,0_3px_6px_-3px_rgba(7,22,43,0.45)]"
-        data-testid="selo-certificado">
-        <Icone aria-hidden="true" strokeWidth={1.6} className="h-6 w-6 shrink-0" style={{ color: cor }} />
-        <span className="min-w-0 leading-tight">
-          <span className="block text-[9px] font-extrabold uppercase tracking-[0.14em]" style={{ color: cor }}>{linha1}</span>
-          {linha2 && <span className="block text-[11px] font-semibold tabular-nums text-[#4b4030]" style={{ fontFamily: "'EB Garamond', serif" }}>{linha2}</span>}
+      <div role="status" aria-label={dica} title={dica} data-testid="selo-certificado"
+        className="flex flex-col items-center gap-[3px] border-t border-[#b89b5a]/50 pt-1.5 text-center leading-none">
+        <span className="flex items-center gap-1 whitespace-nowrap text-[8px] font-bold uppercase tracking-[0.16em] text-[#7a5f22]">
+          <Icone aria-hidden="true" strokeWidth={1.6} className="h-3 w-3 shrink-0" style={{ color: cor }} />Certificado
         </span>
+        <span className="whitespace-nowrap text-[10px] font-extrabold uppercase tracking-[0.22em]" style={{ color: cor }}>{rotulo}</span>
+        {data && <span className="whitespace-nowrap text-[10px] tabular-nums text-[#6b5a36]" style={{ fontFamily: "'EB Garamond', serif" }}>{data}</span>}
       </div>
     );
   }
