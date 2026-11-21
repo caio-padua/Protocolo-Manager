@@ -56,6 +56,18 @@ function formatDate(value: string | null): string | null {
   }).format(new Date(value));
 }
 
+/** Escudo vazado, so o contorno em relevo saliente (up bevel), uma unica cor. */
+function EscudoContorno({ cor }: { cor: string }) {
+  const forma = "M24 5 L38.5 10 V23 C38.5 32 32 38.5 24 42.5 C16 38.5 9.5 32 9.5 23 V10 Z";
+  return (
+    <svg viewBox="0 0 48 48" width="17" height="17" aria-hidden="true" style={{ display: "block", flexShrink: 0, overflow: "visible" }}>
+      <path d={forma} fill="none" stroke="#000" strokeOpacity=".35" strokeWidth="4.2" strokeLinejoin="round" transform="translate(.8 1)" />
+      <path d={forma} fill="none" stroke={cor} strokeWidth="4.2" strokeLinejoin="round" />
+      <path d={forma} fill="none" stroke="#fff" strokeOpacity=".55" strokeWidth="1" strokeLinejoin="round" transform="translate(-.6 -.7)" />
+    </svg>
+  );
+}
+
 export function ClinicalCertificateStatus({
   scope = "professional",
   compact = false,
@@ -177,16 +189,27 @@ export function ClinicalCertificateStatus({
     const verificando = checking || resolvedEpoch !== sessionEpoch;
     if (!verificando && !state) return null;
     const ok = state === "valid";
-    const titulo = verificando ? "Verificando certificado" : ok ? "Certificado digital ativo" : state === "expired" ? "Certificado digital vencido" : copy?.title ?? "Certificado digital";
+    const linhasTitulo = verificando ? ["VERIFICANDO"] : ok ? ["CERTIFICADO", "DIGITAL", "ATIVO"] : state === "expired" ? ["CERTIFICADO", "DIGITAL", "VENCIDO"] : ["CERTIFICADO", "DIGITAL"];
     const dataCurta = expiry ? expiry.replace(/^(\d{2})\/(\d{2})\/\d{2}(\d{2})$/, "$1.$2.$3").replace(/\//g, ".") : null;
-    const data = dataCurta ? `${state === "expired" ? "Venceu em" : "Válido até"}: ${dataCurta}` : null;
-    const dica = `${titulo}${data ? ` · ${data}` : ""}`;
+    const rotuloData = state === "expired" ? "Venceu em:" : "Válido até:";
+    const dica = `${linhasTitulo.join(" ")}${dataCurta ? ` · ${rotuloData} ${dataCurta}` : ""}`;
     const cor = verificando ? "#8a97a8" : ok ? "#1f9d57" : "#c0392b";
+    const fonteData = { color: "#000", fontFamily: "Inter, Arial, sans-serif", fontWeight: 500, fontVariantNumeric: "lining-nums tabular-nums", fontFeatureSettings: '"lnum" 1, "tnum" 1' } as const;
     return (
       <div role="status" aria-label={dica} title={dica} data-testid="selo-certificado"
-        className="flex w-full flex-col items-center justify-center gap-1 px-1 py-2 text-center">
-        <span className="text-[7.5px] font-bold uppercase leading-[1.25] tracking-[.12em]" style={{ color: cor, textWrap: "balance" }}>{titulo}</span>
-        {data && <span className="text-[8.5px] leading-tight" style={{ color: "#000", opacity: .75, textWrap: "balance", fontFamily: "Inter, Arial, sans-serif", fontWeight: 400, letterSpacing: ".01em", fontVariantNumeric: "lining-nums tabular-nums", fontFeatureSettings: '"lnum" 1, "tnum" 1' }}>{data}</span>}
+        className="flex w-full flex-col items-center justify-center gap-1.5 px-1 py-2 text-center">
+        <div className="flex items-center justify-center gap-1.5">
+          <EscudoContorno cor={cor} />
+          <span className="flex flex-col text-[7.5px] font-extrabold uppercase leading-[1.2] tracking-[.08em]" style={{ color: cor }}>
+            {linhasTitulo.map((l) => <span key={l}>{l}</span>)}
+          </span>
+        </div>
+        {dataCurta && (
+          <div className="flex flex-col items-center gap-0.5 leading-none" style={fonteData}>
+            <span className="text-[8.5px]">{rotuloData}</span>
+            <span className="text-[9px]">{dataCurta}</span>
+          </div>
+        )}
       </div>
     );
   }
