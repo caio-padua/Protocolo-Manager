@@ -120,15 +120,3 @@
 .pn-tab .pn-medida { min-width: 0; padding: 2px 3px; font-size: 12.5px; white-space: nowrap; }
 .pn-tab .vazio { color: var(--pn-mudo); opacity: .6; }
 @media (max-width: 380px) { .pn-tab { font-size: 11px; } .pn-tab .pn-medida { font-size: 11.5px; padding: 2px 2px; } .pn-cal { width: 48px; } }
-
-/* Forro risca de giz mais nitido na aba Meu pulso */
-body:has(.pn-pagina) .leva-fabric { opacity: 1 !important;
-  background-image: repeating-linear-gradient(170deg, transparent 0, transparent 10px, rgba(138,109,47,.34) 10px, rgba(138,109,47,.34) 11.2px, transparent 11.2px, transparent 14px, rgba(138,109,47,.18) 14px, rgba(138,109,47,.18) 14.7px, transparent 14.7px, transparent 22px); }
-body:has(.pn-pagina) .dark .leva-fabric, body:has(.pn-pagina.dark) .leva-fabric { 
-  background-image: repeating-linear-gradient(170deg, transparent 0, transparent 9px, rgba(190,215,255,.38) 9px, rgba(190,215,255,.38) 10.6px, transparent 10.6px, transparent 13px, rgba(190,215,255,.20) 13px, rgba(190,215,255,.20) 13.6px, transparent 13.6px, transparent 22px); }
-
-.pn-pino-placa span { white-space: nowrap; }
-.pn-escopo .pn-vals p, .pn-escopo .pn-vals span { text-align: center; display: block; }
-.pn-pino { overflow: visible; }
-.pn-col:first-child .pn-pino-placa { align-self: flex-start; }
-.pn-col:last-child .pn-pino-placa { align-self: flex-end; }
