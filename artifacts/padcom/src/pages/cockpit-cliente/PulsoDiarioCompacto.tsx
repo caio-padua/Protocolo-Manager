@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, ChevronDown } from "lucide-react";
 import { Numeral } from "@/components/numeral/Numeral";
@@ -40,6 +40,22 @@ function media(valores: Array<number | null>, casas: 0 | 1): string | null {
   return casas === 0 ? String(Math.round(m)) : ptBr.format(m);
 }
 
+const hojeBrt = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+function inicioJanela(dias: number): string {
+  const [a, m, d] = hojeBrt().split("-").map(Number);
+  const x = new Date(Date.UTC(a, m - 1, d - (dias - 1)));
+  return x.toISOString().slice(0, 10);
+}
+const noPeriodo = (l: Pulso[], dias: number) => { const ini = inicioJanela(dias); return l.filter((x) => x.data >= ini); };
+function resumo(l: Pulso[]) {
+  const sis = media(l.map((x) => x.pressaoSistolica), 0), dia = media(l.map((x) => x.pressaoDiastolica), 0);
+  return {
+    energia: media(l.map((x) => x.energia), 1), disposicao: media(l.map((x) => x.disposicao), 1), sono: media(l.map((x) => x.sono), 1),
+    pa: sis && dia ? `${sis}/${dia}` : null, fc: media(l.map((x) => x.frequenciaCardiaca), 0), glicemia: media(l.map((x) => x.glicemia), 0), n: l.length,
+  };
+}
+const JANELAS = [7, 15, 30] as const;
+
 export function usePulso30(clientId: number) {
   return useQuery<Pulso[]>({
     queryKey: ["pulso-diario", clientId, 30],
@@ -60,31 +76,18 @@ function Valor({ v, tom = "neutro" }: { v: string | null; tom?: Tom }) {
 /** Botão do Pulso Diário: mesma altura dos outros botões, mostra só as médias. */
 export function PulsoDiarioBotao({ clientId, aberto, onToggle }: { clientId: number; aberto: boolean; onToggle: () => void }) {
   const { data, isLoading, isError } = usePulso30(clientId);
-  const m = useMemo(() => {
-    const l = data ?? [];
-    return {
-      energia: media(l.map((x) => x.energia), 1),
-      disposicao: media(l.map((x) => x.disposicao), 1),
-      sono: media(l.map((x) => x.sono), 1),
-      sis: media(l.map((x) => x.pressaoSistolica), 0),
-      dia: media(l.map((x) => x.pressaoDiastolica), 0),
-      fc: media(l.map((x) => x.frequenciaCardiaca), 0),
-      glicemia: media(l.map((x) => x.glicemia), 0),
-      n: l.length,
-    };
-  }, [data]);
-  const pa = m.sis && m.dia ? `${m.sis}/${m.dia}` : null;
+  const m = useMemo(() => resumo(noPeriodo(data ?? [], 7)), [data]);
   const itens: Array<[string, string | null]> = [
-    ["Energia", m.energia], ["Disposição", m.disposicao], ["Sono", m.sono], ["Pressão", pa], ["Freq.", m.fc], ["Glicemia", m.glicemia],
+    ["Energia", m.energia], ["Disposição", m.disposicao], ["Sono", m.sono], ["Pressão", m.pa], ["Freq.", m.fc], ["Glicemia", m.glicemia],
   ];
   return (
     <button type="button" className="cc-context-button cc-pulso-botao" data-active={aberto}
       aria-expanded={aberto} aria-controls="cc-pulso-historico" onClick={onToggle}>
       <Activity size={15} aria-hidden="true" />
       <span className="cc-pulso-botao-rotulo"><strong>PULSO DIÁRIO</strong>
-        <small>{isError ? "Indisponível" : isLoading ? "Carregando" : m.n ? "Média de 30 dias" : "Sem registros"}</small></span>
+        <small>{isError ? "Indisponível" : isLoading ? "Carregando" : m.n ? `7 dias · ${m.n} ${m.n === 1 ? "registro" : "registros"}` : "Sem registros nos 7 dias"}</small></span>
       {!isError && !isLoading && m.n > 0 && (
-        <span className="cc-pulso-medias" aria-label="Médias do último mês">
+        <span className="cc-pulso-medias" aria-label="Médias dos últimos 7 dias">
           {itens.map(([rot, val]) => (
             <span key={rot} className="cc-pulso-media"><small>{rot}</small><b>{val == null ? "—" : <Numeral peso={700}>{val}</Numeral>}</b></span>
           ))}
@@ -98,15 +101,22 @@ export function PulsoDiarioBotao({ clientId, aberto, onToggle }: { clientId: num
 /** Tabela do histórico: um dia por bloco, uma linha por período registrado. */
 export function PulsoDiarioHistorico({ clientId }: { clientId: number }) {
   const { data, isLoading, isError, refetch } = usePulso30(clientId);
+  const [janela, setJanela] = useState<(typeof JANELAS)[number]>(30);
   const linhas = useMemo(
-    () => [...(data ?? [])].sort((a, b) => (a.data === b.data ? ORDEM_PERIODO[a.periodo] - ORDEM_PERIODO[b.periodo] : a.data < b.data ? 1 : -1)),
-    [data],
+    () => noPeriodo(data ?? [], janela).sort((a, b) => (a.data === b.data ? ORDEM_PERIODO[a.periodo] - ORDEM_PERIODO[b.periodo] : a.data < b.data ? 1 : -1)),
+    [data, janela],
   );
+  const r = useMemo(() => resumo(linhas), [linhas]);
   const demo = linhas.some((l) => l.origem === "demo");
   return (
     <section id="cc-pulso-historico" className="cc-pulso" aria-label="Histórico do pulso diário">
       <header className="cc-pulso-topo">
-        <span className="cc-pulso-titulo"><Activity size={12} aria-hidden="true" /> HISTÓRICO · ÚLTIMOS 30 DIAS</span>
+        <span className="cc-pulso-titulo"><Activity size={12} aria-hidden="true" /> HISTÓRICO</span>
+        <span className="cc-pulso-janelas" role="group" aria-label="Janela da média">
+          {JANELAS.map((j) => (
+            <button key={j} type="button" aria-pressed={janela === j} onClick={() => setJanela(j)}>{j} dias</button>
+          ))}
+        </span>
         <span className="cc-pulso-estado">{demo && <em title="Parte dos dados é fictícia">DEMONSTRAÇÃO</em>}{linhas.length} registros</span>
       </header>
       {isError ? (
@@ -114,7 +124,7 @@ export function PulsoDiarioHistorico({ clientId }: { clientId: number }) {
       ) : isLoading ? (
         <p className="cc-pulso-msg" role="status">Carregando…</p>
       ) : !linhas.length ? (
-        <p className="cc-pulso-msg">Sem registros do cliente ainda.</p>
+        <p className="cc-pulso-msg">Sem registros nos últimos {janela} dias.</p>
       ) : (
         <div className="cc-pulso-rolagem">
           <table className="cc-pulso-tabela">
@@ -123,6 +133,11 @@ export function PulsoDiarioHistorico({ clientId }: { clientId: number }) {
               <th scope="col">Sono</th><th scope="col">Pressão</th><th scope="col">Freq.</th><th scope="col">Glicemia</th>
             </tr></thead>
             <tbody>
+              <tr className="cc-pulso-mediaLinha">
+                <th scope="row">Média</th><td className="cc-pulso-per">{janela} dias</td>
+                <td><Valor v={r.energia} /></td><td><Valor v={r.disposicao} /></td><td><Valor v={r.sono} /></td>
+                <td><Valor v={r.pa} /></td><td><Valor v={r.fc} /></td><td><Valor v={r.glicemia} /></td>
+              </tr>
               {linhas.map((l, i) => {
                 const primeira = i === 0 || linhas[i - 1].data !== l.data;
                 const pa = l.pressaoSistolica != null || l.pressaoDiastolica != null ? `${l.pressaoSistolica ?? "—"}/${l.pressaoDiastolica ?? "—"}` : null;
