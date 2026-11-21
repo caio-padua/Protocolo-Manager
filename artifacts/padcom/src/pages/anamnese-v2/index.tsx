@@ -4,6 +4,8 @@ import {
   AlertTriangle,
   Check,
   ChevronLeft,
+  ChevronDown,
+  ChevronUp,
   ChevronRight,
   Clock,
   Eye,
@@ -74,6 +76,11 @@ export default function AnamneseV2() {
   const [refused, setRefused] = useState<Set<string>>(new Set());
   const [groupIdx, setGroupIdx] = useState(0);
   const [focusMode, setFocusMode] = useState(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [minimizado, setMinimizado] = useState<boolean>(() => localStorage.getItem("anamnese-header-min") === "1");
+  useEffect(() => {
+    localStorage.setItem("anamnese-header-min", minimizado ? "1" : "0");
+  }, [minimizado]);
   const [focusIdx, setFocusIdx] = useState(0);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -252,7 +259,7 @@ export default function AnamneseV2() {
   // NAO inclui `focusMode` nas dependencias: ligar/desligar o foco nao deve
   // provocar "pulo" de rolagem (requisito A7 da spec), so a troca de conteudo.
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, [groupIdx, focusIdx]);
 
   // gravacao (upsert) com debounce p/ texto/numero, imediata p/ escolhas
@@ -399,7 +406,7 @@ export default function AnamneseV2() {
         onSuccess: (state) => {
           setFindings(state.findings);
           setFinished(true);
-          window.scrollTo({ top: 0, behavior: "smooth" });
+          scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
         },
       },
     );
@@ -444,7 +451,7 @@ export default function AnamneseV2() {
 
   return (
     <div
-      className={`${themeClass} anamnese-solo${theme !== "dark" ? " anamnese-light" : ""} relative min-h-screen pb-36 text-foreground`}
+      className={`${themeClass} anamnese-solo${theme !== "dark" ? " anamnese-light" : ""} fixed inset-0 flex flex-col text-foreground`}
       style={{ ["--brand" as any]: NAVY }}
     >
       {/* TECIDO TERNO — faixa sutil ao fundo de toda a tela (linho marinho no escuro,
@@ -452,7 +459,7 @@ export default function AnamneseV2() {
       <div className="leva-fabric" aria-hidden="true" />
       {/* Faixa ambar visivel (R1): MODO TESTE (VITE_OPEN_ACCESS) ou demonstracao */}
       {(demo || OPEN_ACCESS) && (
-        <div className="relative z-[1] flex items-center justify-center gap-2 bg-amber-400 px-4 py-1.5 text-center text-[11px] font-bold uppercase tracking-widest text-amber-950">
+        <div className="relative z-[1] flex shrink-0 items-center justify-center gap-2 bg-amber-400 px-4 py-1.5 text-center text-[11px] font-bold uppercase tracking-widest text-amber-950">
           <AlertTriangle className="h-3.5 w-3.5" />
           {OPEN_ACCESS
             ? "Modo teste — acesso aberto, respostas não são de um cliente real"
@@ -460,7 +467,7 @@ export default function AnamneseV2() {
         </div>
       )}
       {/* HEADER / TIMELINE — fiel ao canvas: marca centralizada -> blocos -> barra de barinhas */}
-      <header className="anamnese-solo sticky top-0 z-20 overflow-hidden border-b border-border px-4 py-4">
+      <header className={`anamnese-solo relative z-20 shrink-0 overflow-hidden border-b border-border px-4 ${minimizado ? "py-2" : "py-4"}`}>
         {/* tecido terno CRISP sobre o painel do cabecalho (acima do bg, abaixo do conteudo).
             CEO confirmou em 24/06/2026: MANTER o tecido aqui (claro e escuro) e UNIFICAR com o das
             questoes — por isso a base do header e a MESMA .anamnese-solo da pagina (mesmo degrade/cor),
@@ -489,6 +496,23 @@ export default function AnamneseV2() {
             </button>
             <button
               type="button"
+              onClick={() => setMinimizado((m) => !m)}
+              aria-label={minimizado ? "Expandir cabeçalho" : "Minimizar cabeçalho"}
+              title={minimizado ? "Expandir cabeçalho" : "Minimizar cabeçalho"}
+              aria-expanded={!minimizado}
+              className="btn-3d-soft flex w-7 flex-col items-center justify-center gap-1.5 rounded-md py-2"
+              style={{ color: GOLD }}
+            >
+              {minimizado ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider"
+                style={{ writingMode: "vertical-rl" }}
+              >
+                {minimizado ? "Abrir" : "Minimizar"}
+              </span>
+            </button>
+            <button
+              type="button"
               onClick={toggle}
               aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
               title={theme === "dark" ? "Tema claro" : "Tema escuro"}
@@ -505,6 +529,26 @@ export default function AnamneseV2() {
             </button>
           </div>
 
+          {minimizado ? (
+            <div className="flex min-h-[3.25rem] flex-col justify-center gap-1.5 pr-[6.5rem]">
+              <div className="flex items-baseline gap-2">
+                <span className="text-[11px] font-extrabold uppercase tracking-[0.2em]" style={{ color: GOLD }}>
+                  Paxter
+                </span>
+                <span className="text-[11px] font-semibold text-muted-foreground">
+                  {pct}% · {respondidas}/{totalAtivas} · ~{restanteMin}min
+                </span>
+              </div>
+              <div className="flex gap-1">
+                {Array.from({ length: gruposTotais }).map((_, i) => (
+                  <div key={i} className="paxter-bar-track h-2 flex-1">
+                    {i < gruposCompletos && <div className="paxter-bar-fill" style={{ width: "100%" }} />}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+          <>
           {/* 1) marca centralizada — simbolo grande + PAXTER folgado na faixa navy */}
           <BrandMark tone={theme === "dark" ? "dark" : "light"} />
 
@@ -536,10 +580,13 @@ export default function AnamneseV2() {
               ))}
             </div>
           </div>
+          </>
+          )}
         </div>
       </header>
 
-      <main className="relative z-[1] mx-auto max-w-2xl px-6 pt-4">
+      <div ref={scrollRef} className="relative z-[1] min-h-0 flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" }}>
+      <main className="relative z-[1] mx-auto max-w-2xl px-6 pb-8 pt-4">
         {/* MAPA DE GRUPOS (ordem livre) — escondido no modo foco */}
         {!focusMode && (
           <div className="leva-band -mx-6 -mt-4 mb-4 rounded-b-xl rounded-t-none px-6 pb-3 pt-4">
@@ -639,15 +686,16 @@ export default function AnamneseV2() {
         </div>
 
       </main>
+      </div>
 
       {/* BARRA INFERIOR FIXA — selo de salvamento + FAIXA DE MARCA continua, sempre visivel ao
           rolar (congelada no limite inferior). A faixa e LONGITUDINAL (full-bleed, sem cantos
           curvos), na MESMA COR do painel de questao (.footer-brand-band == cor do .leva-card)
           com relevo "up breve". A frase inglesa "Engineered by" fica EMBAIXO, centralizada sob
           o nome PADCON; a assinatura do diretor fica EM CIMA do wordmark Instituto Padua. */}
-      <div className="fixed inset-x-0 bottom-0 z-30">
+      <div className="relative z-30 shrink-0">
         {/* selo de salvamento — flutua centralizado ACIMA da faixa (sem sobrepor) */}
-        <div className="mb-2 flex justify-center px-3">
+        <div className="pointer-events-none absolute inset-x-0 -top-9 flex justify-center px-3">
           <div
             className="flex items-center gap-1.5 rounded-md bg-card px-3 py-1.5 text-xs font-medium text-primary"
             style={{ color: saving ? "#9ca3af" : undefined, boxShadow: "0 2px 10px rgba(0,0,0,.12)" }}
@@ -661,16 +709,16 @@ export default function AnamneseV2() {
         {/* paddingBottom respeita a AREA SEGURA do iPhone (env safe-area) p/ a faixa
             nao ser cortada pelo "chao"/indicador inferior do celular. */}
         <div
-          className="footer-brand-band px-6 pt-2.5"
-          style={{ paddingBottom: "calc(0.625rem + env(safe-area-inset-bottom, 0px))" }}
+          className="footer-brand-band px-6 pt-1.5"
+          style={{ paddingBottom: "calc(0.375rem + env(safe-area-inset-bottom, 0px))" }}
         >
           <div className="mx-auto flex max-w-2xl items-end justify-between gap-3">
             {/* ESQUERDA: wordmark Instituto Padua CENTRALIZADO sobre a assinatura (meio
                 do logo alinhado ao meio da frase). Contorno preto p/ nitidez. */}
             <div className="flex flex-col items-center">
-              <PaduaWordmark height={33} outlined />
+              <PaduaWordmark height={22} outlined />
               <span
-                className="footer-credit-padua mt-1 whitespace-nowrap text-center text-[10px] leading-none max-[380px]:whitespace-normal"
+                className="footer-credit-padua mt-0.5 whitespace-nowrap text-center text-[8px] leading-none"
                 style={{ fontFamily: "PaxmedNum, 'Lora', Georgia, serif", fontStyle: "italic" }}
               >
                 Dr. Caio Pádua — Medical Director
@@ -678,9 +726,9 @@ export default function AnamneseV2() {
             </div>
             {/* DIREITA: wordmark PADCON CENTRALIZADO sobre "Engineered by". Contorno preto. */}
             <div className="flex flex-col items-center">
-              <PadconWordmark height={20} outlined />
+              <PadconWordmark height={14} outlined />
               <span
-                className="footer-credit-padua mt-1 w-full whitespace-nowrap text-center text-[10px] leading-none"
+                className="footer-credit-padua mt-0.5 w-full whitespace-nowrap text-center text-[8px] leading-none"
                 style={{ fontFamily: "PaxmedNum, 'Lora', Georgia, serif", fontStyle: "italic" }}
               >
                 Engineered by
@@ -881,15 +929,15 @@ function QuestionCard({
 
   return (
     <div
-      className="leva-card rounded-md p-3"
+      className="leva-card leva-card-calm rounded-md p-2.5"
       style={q.eSinalAlarme ? { boxShadow: "0 0 0 2px #ef4444, 0 6px 16px rgba(0,0,0,.18)" } : undefined}
     >
-      <div className="relative z-[1] mb-3 flex items-start justify-between gap-2">
+      <div className="relative z-[1] mb-2 flex items-start justify-between gap-2">
         {(() => {
           const { main, notas } = splitNotas(formatPergunta(q.pergunta));
           return (
             <div className="min-w-0">
-              <p className="leva-q text-base leading-snug text-foreground">{main}</p>
+              <p className="leva-q text-[14.5px] leading-snug text-foreground">{main}</p>
               {notas.map((n, i) => (
                 <p
                   key={i}
@@ -1013,7 +1061,7 @@ function GroupView({
         </div>
       ) : (
         // gap-5 = mais RESPIRO vertical entre cartoes (o tecido creme aparece entre eles).
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-3">
           {group.questions.map((q) => (
             <QuestionCard key={q.id} q={q} value={answers[q.id]} onAnswer={onAnswer} />
           ))}
