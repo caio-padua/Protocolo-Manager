@@ -33,7 +33,10 @@ function PaxTaxCorpo() {
   const [aba, setAba] = useState("perfil");
   const [sel, setSel] = useState<number | null>(null);
   const [erro, setErro] = useState("");
-  const [lim, setLim] = useState({ mes: "", ano: "" });
+  const [lim, setLim] = useState<{ mes: string | null; ano: string | null }>({ mes: null, ano: null });
+  const limites = useQuery({ queryKey: ["fin", "limites"], queryFn: () => finApi<{ anualCents: number; mensalCents: number; fonte: string }>("/limites-regime") });
+  const limAuto = { mes: limites.data ? String(limites.data.mensalCents / 100) : "", ano: limites.data ? String(limites.data.anualCents / 100) : "" };
+  const limV = { mes: lim.mes ?? limAuto.mes, ano: lim.ano ?? limAuto.ano };
   const [novaPessoa, setNovaPessoa] = useState({ nome: "", papel: "socio", part: "" });
   const [fiscal, setFiscal] = useState<Record<number, { regime: string; opcao: string; im: string; ie: string }>>({});
 
@@ -62,7 +65,7 @@ function PaxTaxCorpo() {
     const pct = (valor / l) * 100;
     return pct >= 100 ? { rotulo: "Acima do limite", cls: "bevel-3d text-destructive", pct } : pct >= 80 ? { rotulo: "Atenção", cls: "bevel-3d paxter-alert", pct } : { rotulo: "Dentro do limite", cls: "bevel-3d-ok", pct };
   };
-  const sm = semaforo(recMes, lim.mes), sa = semaforo(rec12, lim.ano);
+  const sm = semaforo(recMes, limV.mes), sa = semaforo(rec12, limV.ano);
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-3 md:p-4" data-testid="pax-tax">
@@ -99,13 +102,13 @@ function PaxTaxCorpo() {
       </div>
 
       <section className="panel-3d p-4" data-testid="tax-semaforo">
-        <BlockTitle icon={AlertTriangle} trailing={<Ajuda texto="Compara o que entrou com limites que VOCÊ informa. O sistema não traz limite legal pronto: confira o valor vigente na fonte oficial." />}>Semáforo de faturamento</BlockTitle>
+        <BlockTitle icon={AlertTriangle} trailing={<Ajuda texto="Compara o que entrou com o limite do Simples Nacional (já preenchido pelo sistema; você pode trocar para testar)." />}>Semáforo de faturamento</BlockTitle>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {[{ r: "Mês atual", v: recMes, l: lim.mes, k: "mes" as const, s: sm }, { r: "Últimos 12 meses (RBT12 de referência)", v: rec12, l: lim.ano, k: "ano" as const, s: sa }].map((x) => (
+          {[{ r: "Mês atual", v: recMes, l: limV.mes, k: "mes" as const, s: sm }, { r: "Últimos 12 meses (RBT12 de referência)", v: rec12, l: limV.ano, k: "ano" as const, s: sa }].map((x) => (
             <div key={x.k} className="panel-3d-sub space-y-2 p-3">
               <div className="flex items-center justify-between text-[12px]"><b>{x.r}</b><span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${x.s.cls}`} data-testid={`semaforo-${x.k}`}>{x.s.rotulo}</span></div>
               <div className="text-[18px]"><Valor valor={x.v === null ? null : x.v / 100} semCentavos /></div>
-              <Campo rotulo="Limite (R$)" ajuda="Digite o limite vigente conforme a fonte oficial. Não fica salvo como regra."><InputReais className={campoCls}  value={x.l} onChange={(ev) => setLim({ ...lim, [x.k]: ev.target.value })} placeholder="Aguardando verificação" /></Campo>
+              <Campo rotulo="Limite (R$)" ajuda={limites.data?.fonte ?? "Limite do Simples Nacional."}><InputReais className={campoCls}  value={x.l} onChange={(ev) => setLim({ ...lim, [x.k]: ev.target.value })} placeholder="Aguardando verificação" /></Campo>
             </div>))}
         </div>
         <p className="mt-3 rounded bg-muted p-2 text-[12px]" data-testid="tax-risco-societario"><b>Risco de vínculos societários:</b> sócios com participação em outras empresas podem alterar o enquadramento e somar limites. Confira os vínculos de cada sócio antes de confirmar o regime. O sistema ainda não cruza esses vínculos sozinho.</p>

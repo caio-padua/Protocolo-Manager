@@ -3,6 +3,7 @@ import { tituloProprio } from "@/lib/utils";
 import { PaxterClientSelector, type PaxterClientOption } from "@/components/PaxterClientSelector";
 import { useListClients, type Client } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
+import { mascaraReais, reaisDeTexto, textoDeReais } from "./pax-finance-ui";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { getCollabToken } from "@/lib/collab-auth";
@@ -166,7 +167,7 @@ export default function LancadorCobranca() {
     });
   }
 
-  const amountNum = parseFloat(amount.replace(",", "."));
+  const amountNum = reaisDeTexto(amount);
   const amountValid = !isNaN(amountNum) && amountNum >= 5;
   const anyChannel = selected.email || selected.whatsapp || selected.telegram;
   const canLaunch = !!client && amountValid && anyChannel && !launching;
@@ -277,7 +278,7 @@ export default function LancadorCobranca() {
               inputMode="decimal"
               placeholder="Mínimo R$ 5,00"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => setAmount(mascaraReais(e.target.value))}
               className="bevel-3d h-11"
             />
             {amount && !amountValid && (

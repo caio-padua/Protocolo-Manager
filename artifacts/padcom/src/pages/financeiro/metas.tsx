@@ -8,6 +8,7 @@ import {
   type FinancialGoalInputPeriodType,
 } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
+import { mascaraReais } from "./pax-finance-ui";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -133,7 +134,7 @@ export default function FinanceiroMetas() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Meta (R$)</label>
-            <Input className="field-engraved" inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="50.000,00" />
+            <Input className="field-engraved" inputMode="decimal" value={target} onChange={(e) => setTarget(mascaraReais(e.target.value))} placeholder="50.000,00" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Observacao</label>

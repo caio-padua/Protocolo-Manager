@@ -12,14 +12,14 @@ type Cen = {
   anexo: "III" | "V"; fatorRPct: number; rbt12Cents: number; rbt12Estimado: boolean; aliquotaEfetivaPct: number | null;
   tributos: Linha[]; tributosCents: number; retencoesSocio: Linha[]; retencoesCents: number; resultadoOperacionalCents: number; saldoCaixaCents: number | null; notaLucro: string; pendencias: string[];
 };
-type Mes = { mes: string; fase: { fase: string; rotulo: string }; sem: Cen; com: Cen };
+type Mes = { ativo: Cen; mes: string; fase: { fase: string; rotulo: string }; sem: Cen; com: Cen };
 type Prem = {
   inicio: string; faturamentoBaseCents: number; crescimentoMensalPct: number; tetoFaturamentoCents: number | null; folhaCltCents: number; proLaboreMinimoCents: number;
-  prestadoresPct: number; rpaContaFatorR: boolean; despesasFixasCents: number; despesasVariaveisPct: number; issPct: number; recebimentoNoMesPct: number; caixaInicialCents: number; metaMensalCents: number | null;
+  prestadoresPct: number; rpaContaFatorR: boolean; fatorRAutomatico: boolean; despesasFixasCents: number; despesasVariaveisPct: number; issPct: number; recebimentoNoMesPct: number; caixaInicialCents: number; metaMensalCents: number | null;
 };
 type Ov = Record<string, { faturamentoCents?: number; folhaCltCents?: number; proLaboreCents?: number; despesasCents?: number }>;
 type Lab = {
-  selo: string; salvo: boolean; premissas: Prem; overrides: Ov; meses: Mes[]; avisos: string[];
+  selo: string; origemPremissas: string; salvo: boolean; premissas: Prem; overrides: Ov; meses: Mes[]; avisos: string[];
   totais: { sem_planejamento: Tot; com_planejamento: Tot; economiaCargaCents: number };
 };
 type Tot = { faturamentoCents: number; recebimentoCents: number; tributosCents: number; retencoesCents: number; resultadoOperacionalCents: number; saldoFinalCaixaCents: number | null };
@@ -136,7 +136,13 @@ export function Laboratorio24m() {
       {erro && <p role="alert" className="text-[12px] font-bold text-destructive">{erro}</p>}
 
       <section className="panel-3d-sub space-y-3 p-3">
-        <BlockTitle icon={FlaskConical}>Premissas da simulação (todas editáveis)</BlockTitle>
+        <BlockTitle icon={FlaskConical}>Automação da simulação</BlockTitle>
+        <label className="flex min-h-[44px] items-center gap-3 text-[13px]" data-testid="toggle-fator-r">
+          <input type="checkbox" className="h-5 w-5" checked={p.fatorRAutomatico} onChange={(e) => { const n = { ...p, fatorRAutomatico: e.target.checked }; setP(n); salvar.mutate({ premissas: n, overrides: ov }); }} />
+          <span><b>Fator R automático:</b> o sistema calcula o pró-labore de cada mês para a folha chegar a 28% do faturamento (Anexo III). Desligado: vale o pró-labore mínimo.</span>
+        </label>
+        <p className="text-[12px] text-muted-foreground" data-testid="origem-premissas">Premissas preenchidas a partir de: {d.origemPremissas}. Nada precisa ser digitado; ajuste só se quiser testar outro cenário.</p>
+        <details><summary className="min-h-[44px] cursor-pointer py-2 text-[12px] font-bold uppercase">Ajustar premissas manualmente</summary>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <Campo rotulo="Primeiro mês da janela" ajuda="A janela mostra 24 meses seguidos a partir deste mês. Meses antes de 13/08/2026 são de uma clínica-modelo, não da PADUMANN.">
             <input className={campoCls} type="month" value={p.inicio} onChange={(e) => e.target.value && set("inicio", e.target.value)} />
@@ -157,9 +163,10 @@ export function Laboratorio24m() {
           <Reais rotulo="Caixa inicial" ajuda="Saldo de partida do caixa simulado no primeiro mês da janela." valor={p.caixaInicialCents} onChange={(c) => set("caixaInicialCents", c ?? 0)} />
           <Reais rotulo="Meta mensal de faturamento" ajuda="Opcional. Compara a curva com a meta para mostrar quantos meses ela é atingida." valor={p.metaMensalCents} onChange={(c) => set("metaMensalCents", c)} />
         </div>
+        </details>
         <div className="flex flex-wrap gap-2">
           <button type="button" className={btnCls} disabled={salvar.isPending} onClick={() => salvar.mutate({ premissas: p, overrides: ov })}>{salvar.isPending ? "Salvando…" : "Salvar e recalcular"}</button>
-          <button type="button" className={btnSoftCls} disabled={limpar.isPending || !d.salvo} onClick={() => limpar.mutate()}>Limpar simulação salva</button>
+          <button type="button" className={btnSoftCls} disabled={limpar.isPending || !d.salvo} onClick={() => limpar.mutate()}>Voltar ao automático</button>
         </div>
         <p className="text-[11px] text-muted-foreground">{d.salvo ? "Simulação salva para esta empresa." : "Ainda não salva: estes são valores padrão de demonstração."} Limpar apaga só esta simulação; notas, cobranças e lançamentos reais não são tocados.</p>
       </section>
@@ -191,9 +198,9 @@ export function Laboratorio24m() {
       <section className="panel-3d-sub p-3">
         <BlockTitle icon={FlaskConical}>Mês a mês: digite o faturamento de cada mês; toque na linha para abrir o Raio-X</BlockTitle>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-[12px]">
+          <table className="w-full min-w-[860px] text-[12px]">
             <thead><tr className="text-left text-[10px] uppercase tracking-wider text-muted-foreground">
-              <th className="p-1">Mês</th><th className="p-1">Origem</th><th className="p-1 text-right">Faturamento (digite o valor de cada mês)</th><th className="p-1 text-center">Anexo sem/com</th><th className="p-1 text-right">Carga sem</th><th className="p-1 text-right">Carga com</th><th className="p-1 text-right">Caixa (com)</th>
+              <th className="p-1">Mês</th><th className="p-1">Origem</th><th className="p-1 text-right">Faturamento (digite o valor de cada mês)</th><th className="p-1 text-right">Pró-labore</th><th className="p-1 text-center">Fator R / Anexo</th><th className="p-1 text-center">Anexo sem/com</th><th className="p-1 text-right">Carga sem</th><th className="p-1 text-right">Carga com</th><th className="p-1 text-right">Caixa (com)</th>
             </tr></thead>
             <tbody>
               {d.meses.map((m) => (
@@ -203,7 +210,7 @@ export function Laboratorio24m() {
                   <td className="p-1 text-right"><div className="flex items-center justify-end gap-1"><CelulaFat mes={m.mes} valor={m.sem.faturamentoCents} manual={ov[m.mes]?.faturamentoCents !== undefined}
                     onSalva={(c) => { const n = { ...ov, [m.mes]: { ...(ov[m.mes] ?? {}), faturamentoCents: c ?? undefined } }; setOv(n); salvar.mutate({ premissas: p, overrides: n }); }} />
                     {ov[m.mes]?.faturamentoCents !== undefined && <button type="button" className="min-h-[44px] px-1 text-[10px] underline md:min-h-0" onClick={(e) => { e.stopPropagation(); const o = { ...(ov[m.mes] ?? {}) }; delete o.faturamentoCents; const n = { ...ov, [m.mes]: o }; setOv(n); salvar.mutate({ premissas: p, overrides: n }); }}>voltar à curva</button>}</div></td>
-                  <td className="p-1 text-center">{m.sem.anexo} / {m.com.anexo}</td>
+                  <td className="p-1 text-right tabular-nums">{fmt(m.ativo.proLaboreCents)}</td><td className="p-1 text-center">{pct(m.ativo.fatorRPct)} · {m.ativo.anexo}</td><td className="p-1 text-center">{m.sem.anexo} / {m.com.anexo}</td>
                   <td className="p-1 text-right tabular-nums">{fmt(m.sem.tributosCents + m.sem.retencoesCents)}</td>
                   <td className="p-1 text-right tabular-nums">{fmt(m.com.tributosCents + m.com.retencoesCents)}</td>
                   <td className="p-1 text-right tabular-nums">{fmt(m.com.saldoCaixaCents)}</td>

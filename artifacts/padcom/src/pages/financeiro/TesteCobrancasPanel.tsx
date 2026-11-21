@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FlaskConical, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { mascaraReais, reaisDeTexto, textoDeReais } from "./pax-finance-ui";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import CobrancaTesteCard, { type CobrancaTeste } from "./CobrancaTesteCard";
@@ -38,7 +39,7 @@ export default function TesteCobrancasPanel({ onChanged }: { onChanged: () => vo
 
   if (!visivel) return null;
 
-  const centavos = Math.round(parseFloat(valor.replace(",", ".")) * 100);
+  const centavos = Math.round(reaisDeTexto(valor) * 100);
 
   async function criar() {
     setBusy(true); setMsg(null);
@@ -95,7 +96,7 @@ export default function TesteCobrancasPanel({ onChanged }: { onChanged: () => vo
         </div>
         <div>
           <label className="text-[11px] uppercase text-muted-foreground">Valor (R$, max {brl(resumo?.maxCentavosPorCobranca ?? 500)})</label>
-          <Input value={valor} onChange={(e) => setValor(e.target.value)} inputMode="decimal" />
+          <Input value={valor} onChange={(e) => setValor(mascaraReais(e.target.value))} inputMode="decimal" />
         </div>
         <div>
           <label className="text-[11px] uppercase text-muted-foreground">Forma</label>

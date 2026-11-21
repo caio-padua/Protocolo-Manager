@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { Input } from "@/components/ui/input";
+import { mascaraReais, reaisDeTexto, textoDeReais } from "./pax-finance-ui";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -104,7 +105,7 @@ export default function Transferencias() {
 
   const account = useMemo(() => accounts.find((a) => String(a.id) === accountId) || null, [accounts, accountId]);
 
-  const valueNum = parseFloat(value.replace(",", "."));
+  const valueNum = reaisDeTexto(value);
   const valueValid = !isNaN(valueNum) && valueNum >= TRANSFER_MIN;
   const overLimit = !isNaN(valueNum) && valueNum > TRANSFER_MAX;
   const canReview = !!account && valueValid && !overLimit && !sending;
@@ -214,7 +215,7 @@ export default function Transferencias() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Valor (R$)</label>
-              <Input inputMode="decimal" placeholder="0,00" value={value} onChange={(e) => setValue(e.target.value)} className="bevel-3d h-11" />
+              <Input inputMode="decimal" placeholder="0,00" value={value} onChange={(e) => setValue(mascaraReais(e.target.value))} className="bevel-3d h-11" />
               {value && !valueValid && !overLimit && (
                 <p className="text-[12px] text-red-600 dark:text-red-400">Mínimo de {brl(TRANSFER_MIN)} por transferência.</p>
               )}

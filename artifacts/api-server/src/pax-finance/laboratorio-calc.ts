@@ -15,7 +15,7 @@ const c = z.number().int().nonnegative().max(1e12);
 export const PremissasInput = z.object({
   inicio: ym,
   faturamentoBaseCents: c, crescimentoMensalPct: z.number().min(-50).max(100), tetoFaturamentoCents: c.nullable(),
-  folhaCltCents: c, proLaboreMinimoCents: c, prestadoresPct: z.number().min(0).max(100), rpaContaFatorR: z.boolean(),
+  folhaCltCents: c, proLaboreMinimoCents: c, prestadoresPct: z.number().min(0).max(100), rpaContaFatorR: z.boolean(), fatorRAutomatico: z.boolean().default(true),
   despesasFixasCents: c, despesasVariaveisPct: z.number().min(0).max(100), issPct: z.number().min(2).max(5),
   recebimentoNoMesPct: z.number().min(0).max(100), caixaInicialCents: z.number().int().min(-1e12).max(1e12),
   metaMensalCents: c.nullable(),
@@ -31,7 +31,7 @@ export function premissasPadrao(hoje = new Date()): Premissas {
   return {
     inicio: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
     faturamentoBaseCents: 2_500_000, crescimentoMensalPct: 6, tetoFaturamentoCents: 12_000_000,
-    folhaCltCents: 900_000, proLaboreMinimoCents: Math.round(VALORES.inss.salarioMinimo * 100), prestadoresPct: 10, rpaContaFatorR: false,
+    folhaCltCents: 900_000, proLaboreMinimoCents: Math.round(VALORES.inss.salarioMinimo * 100), prestadoresPct: 10, rpaContaFatorR: false, fatorRAutomatico: true,
     despesasFixasCents: 800_000, despesasVariaveisPct: 5, issPct: 3, recebimentoNoMesPct: 60, caixaInicialCents: 0, metaMensalCents: null,
   };
 }
@@ -57,7 +57,7 @@ export interface MesCenario {
   resultadoOperacionalCents: number; saldoCaixaCents: number | null;
   lucroContabilCents: null; lucroDistribuivelCents: null; notaLucro: string; pendencias: string[];
 }
-export interface MesLab { mes: string; fase: ReturnType<typeof faseDoMes>; dentroDaJanela: boolean; meta: number | null; sem: MesCenario; com: MesCenario }
+export interface MesLab { ativo: MesCenario; mes: string; fase: ReturnType<typeof faseDoMes>; dentroDaJanela: boolean; meta: number | null; sem: MesCenario; com: MesCenario }
 
 const NOTA_LUCRO = "Lucro contábil e lucro distribuível só existem com contabilidade completa (balanço, despesas e ajustes). Aqui aparece só o resultado operacional estimado.";
 
@@ -124,7 +124,8 @@ export function calcularLab(p: Premissas, ov: Overrides = {}) {
   const sem = rodar(p, ov, "sem_planejamento"), com = rodar(p, ov, "com_planejamento");
   const meses: MesLab[] = Array.from({ length: 24 }, (_, i) => {
     const m = somaMes(p.inicio, i);
-    return { mes: m, fase: faseDoMes(m), dentroDaJanela: true, meta: p.metaMensalCents, sem: sem.get(m)!, com: com.get(m)! };
+    const s = sem.get(m)!, cm = com.get(m)!;
+    return { mes: m, fase: faseDoMes(m), dentroDaJanela: true, meta: p.metaMensalCents, sem: s, com: cm, ativo: p.fatorRAutomatico ? cm : s };
   });
   const soma = (f: (x: MesCenario) => number, k: "sem" | "com") => meses.reduce((a, x) => a + f(x[k]), 0);
   const tot = (k: "sem" | "com") => ({

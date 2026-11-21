@@ -15,6 +15,7 @@ import { CreditoPainelInput, painelCredito } from "./credito-pesquisa";
 import { FlagsInput, estadoAgentes, lerConfig, salvarFlags } from "./produto";
 import { ParteInput } from "./conformidade-calc";
 import { criarParte, editarParte, encerrarParte, lerConformidade, validarParte } from "./conformidade";
+import { VALORES } from "./tributos-catalogo";
 import { LabSalvarInput, lerLab, limparLab, salvarLab } from "./laboratorio";
 import multer from "multer";
 import { buscarCnae, lerCnaeEmpresa, salvarCnaeEmpresa } from "./cnae";
@@ -153,6 +154,7 @@ router.get("/pax-finance/lab", ...finGuards, wrap(async (req, res) => {
   const inicio = typeof req.query.inicio === "string" ? z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).parse(req.query.inicio) : undefined;
   res.json(await lerLab(finContext(req), inicio));
 }));
+router.get("/pax-finance/limites-regime", ...finGuards, wrap(async (_req, res) => { res.json({ anualCents: VALORES.simples.limiteEPP * 100, mensalCents: Math.round((VALORES.simples.limiteEPP * 100) / 12), fonte: "Lei Complementar 123/2006 (Simples Nacional): R$ 4.800.000,00 por ano; limite mensal = anual dividido por 12 (proporcional)." }); }));
 router.put("/pax-finance/lab", ...finGuards, wrap(async (req, res) => { res.json(await salvarLab(finContext(req), LabSalvarInput.parse(req.body))); }));
 router.delete("/pax-finance/lab", ...finGuards, wrap(async (req, res) => { res.json(await limparLab(finContext(req))); }));
 

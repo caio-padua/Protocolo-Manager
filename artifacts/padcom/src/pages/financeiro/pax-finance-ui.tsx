@@ -61,3 +61,8 @@ export function InputReais(props: Omit<InputHTMLAttributes<HTMLInputElement>, "v
   const { value, onChange, ...rest } = props;
   return <input {...rest} inputMode="numeric" value={exibeReais(value)} onChange={(e) => { e.target.value = mascaraReais(e.target.value); onChange(e); }} />;
 }
+
+/** "1.234,56" -> 1234.56 (NaN se vazio). Usar no lugar de parseFloat(texto.replace(",", ".")), que erra com ponto de milhar. */
+export const reaisDeTexto = (t: string): number => { const s = t.replace(/\./g, "").replace(",", "."); return s.trim() === "" ? NaN : Number(s); };
+/** 1234.5 -> "1.234,50" */
+export const textoDeReais = (n: number): string => mascaraReais(String(Math.round(n * 100)));

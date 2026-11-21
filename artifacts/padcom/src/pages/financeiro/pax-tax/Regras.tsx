@@ -4,7 +4,7 @@ import { BlockTitle } from "@/components/settings/SettingsUI";
 import { Percentual, Valor } from "@/components/numeral/Numeral";
 import { ScrollText } from "lucide-react";
 import { centavosDeTexto, finApi, type FinRegra } from "@/lib/pax-finance-api";
-import { Campo, btnCls, btnSoftCls, campoCls } from "../pax-finance-ui";
+import { Campo, btnCls, btnSoftCls, campoCls, InputReais } from "../pax-finance-ui";
 
 const ROTULO_STATUS: Record<string, string> = { rascunho: "Rascunho", pendente: "Pendente de aprovação", aprovada: "Aprovada", ativa: "Ativa", substituida: "Substituída" };
 
@@ -54,9 +54,9 @@ export function Regras({ agir }: { agir: (a: { path: string; method?: string; bo
         <Campo rotulo="Anexo" ajuda="Anexo do Simples Nacional, quando houver."><input className={campoCls} value={nr.anexo} onChange={(e) => setNr({ ...nr, anexo: e.target.value })} /></Campo>
         <Campo rotulo="Esfera" ajuda="Quem arrecada."><select className={campoCls} value={nr.esfera} onChange={(e) => setNr({ ...nr, esfera: e.target.value })}><option value="federal">Federal</option><option value="estadual">Estadual</option><option value="municipal">Municipal</option></select></Campo>
         <Campo rotulo="Alíquota (%)" ajuda="Alíquota nominal conforme a fonte."><input className={campoCls} value={nr.aliquota} onChange={(e) => setNr({ ...nr, aliquota: e.target.value })} /></Campo>
-        <Campo rotulo="Parcela a deduzir (R$)" ajuda="Valor a deduzir conforme a fonte."><input className={campoCls} value={nr.parcela} onChange={(e) => setNr({ ...nr, parcela: e.target.value })} /></Campo>
-        <Campo rotulo="Faixa de (R$)" ajuda="Limite inferior da faixa de receita."><input className={campoCls} value={nr.min} onChange={(e) => setNr({ ...nr, min: e.target.value })} /></Campo>
-        <Campo rotulo="Faixa até (R$)" ajuda="Limite superior da faixa."><input className={campoCls} value={nr.max} onChange={(e) => setNr({ ...nr, max: e.target.value })} /></Campo>
+        <Campo rotulo="Parcela a deduzir (R$)" ajuda="Valor a deduzir conforme a fonte."><InputReais className={campoCls} value={nr.parcela} onChange={(e) => setNr({ ...nr, parcela: e.target.value })} /></Campo>
+        <Campo rotulo="Faixa de (R$)" ajuda="Limite inferior da faixa de receita."><InputReais className={campoCls} value={nr.min} onChange={(e) => setNr({ ...nr, min: e.target.value })} /></Campo>
+        <Campo rotulo="Faixa até (R$)" ajuda="Limite superior da faixa."><InputReais className={campoCls} value={nr.max} onChange={(e) => setNr({ ...nr, max: e.target.value })} /></Campo>
         <Campo rotulo="Fonte oficial" ajuda="Nome da norma ou órgão."><input className={campoCls} value={nr.fonteOficial} onChange={(e) => setNr({ ...nr, fonteOficial: e.target.value })} /></Campo>
         <Campo rotulo="Endereço da fonte" ajuda="Link da norma publicada."><input className={campoCls} value={nr.fonteUrl} onChange={(e) => setNr({ ...nr, fonteUrl: e.target.value })} /></Campo>
         <Campo rotulo="Consultada em" ajuda="Data da consulta."><input className={campoCls} type="date" value={nr.consulta} onChange={(e) => setNr({ ...nr, consulta: e.target.value })} /></Campo>
