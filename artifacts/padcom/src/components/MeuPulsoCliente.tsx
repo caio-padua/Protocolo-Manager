@@ -208,7 +208,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
 
   return (
     <div className={`pn-escopo pn-pagina space-y-7${escuro ? " dark" : ""}`} data-testid="meu-pulso">
-      <header className="pn-painel flex items-center gap-3">
+      <header className="panel-3d-sub pn-painel flex items-center gap-3">
         <span className="btn-3d-soft pn-mini !h-11 !w-11 shrink-0"><Activity className="h-5 w-5" aria-hidden="true" /></span>
         <div className="min-w-0">
           <h2 className="text-lg font-black uppercase leading-tight tracking-wide">Meu pulso</h2>
@@ -217,7 +217,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
       </header>
 
       {/* Painel congelado: acompanha a rolagem logo abaixo da faixa superior */}
-      <PainelPulso className="sticky z-20" style={{ top: "calc(var(--paxter-topbar-h, 0px) + 8px)", background: "var(--pn-painel)", backdropFilter: "blur(6px)" }}
+      <PainelPulso className="sticky z-20" style={{ top: "calc(var(--paxter-topbar-h, 0px) + 8px)" }}
         titulo={`Média dos últimos ${dias} dias`} rotulo={`Médias dos últimos ${dias} dias`}>
         <div role="radiogroup" aria-label="Período da média" className="mb-3 flex gap-1.5">
           {JANELAS.map((j) => (

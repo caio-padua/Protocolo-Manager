@@ -1,3 +1,4 @@
+- [Forro risca de giz parado + painéis oficiais](forro-risca-de-giz-parado.md) — leva-fabric-fixo em fundo de página; panel-3d-sub/bevel-3d oficiais; barra inferior com touch-action pan-x.
 - [PaxCare planos B2C](paxcare-planos-b2c.md) — previa admin separada do token do paciente; plano nasce vazio; aceite com hash; franquia idempotente.
 - [PAX FINANCE domínio isolado](pax-finance-dominio.md) — fases 1-2 prontas; fronteira em src/pax-finance; tenant.ts único acoplamento; 3-8 pendentes.
 - [PAX FINANCE painel tributário e crédito](pax-finance-painel-tributario-credito.md) — fontes oficiais em código, validação do CEO dispensada, vazio com motivo.

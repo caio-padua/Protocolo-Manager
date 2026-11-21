@@ -288,7 +288,7 @@ export default function LoginPage() {
 
   return (
     <div className={`${theme === "dark" ? "dark bg-[#0f2440] text-[#f4e2a8]" : "bg-[#f3ecdd] text-[#16284a]"} relative isolate flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden px-4 py-8`}>
-      <div className="leva-fabric pointer-events-none" aria-hidden="true" />
+      <div className="leva-fabric leva-fabric-fixo pointer-events-none" aria-hidden="true" />
       <div className="absolute right-4 top-4 z-20">
         <ThemeToggle theme={theme} onToggle={toggle} />
       </div>

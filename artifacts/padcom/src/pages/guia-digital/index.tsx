@@ -526,7 +526,7 @@ export default function GuiaDigital() {
           background: theme === "dark" ? "linear-gradient(160deg,#0b1e3a 0%,#0e2244 55%,#122a50 100%)" : "#f3ecdd",
         }}
       >
-        <div className="leva-fabric" aria-hidden="true" />
+        <div className="leva-fabric leva-fabric-fixo" aria-hidden="true" />
         <div className="relative z-[1] flex flex-col min-h-screen">
           {/* Cabeçalho: marca PAXMED em destaque */}
           <header className="panel-3d sticky top-0 z-20 flex items-center justify-between px-4 py-3 border-b border-border/60">

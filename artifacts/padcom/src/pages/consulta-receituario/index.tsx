@@ -148,7 +148,7 @@ export default function ConsultaReceituario() {
       style={{ background: bgBase }}
     >
       {/* ── Tecido terno de alfaiataria (absoluto, z=0) ──────────── */}
-      <div className="leva-fabric" />
+      <div className="leva-fabric leva-fabric-fixo" />
 
       {/* ── CONTEÚDO sobre o terno (z=10) ────────────────────────── */}
       <div className="relative z-10 flex flex-col min-h-screen">

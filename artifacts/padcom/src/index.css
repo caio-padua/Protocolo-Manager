@@ -1728,6 +1728,9 @@ html, body { max-width: 100%; overflow-x: clip; }
     );
   opacity: 0.80;
 }
+/* FORRO PARADO: no fundo de pagina inteira o tecido e fixo na janela; o conteudo e os paineis rolam por cima.
+   Usar leva-fabric + leva-fabric-fixo so em fundo de PAGINA. Em cabecalho/rodape/cartao, so leva-fabric (fica dentro do painel). */
+.leva-fabric.leva-fabric-fixo { position: fixed; inset: 0; }
 .dark .leva-fabric {
   /* Risca de giz navy: linha principal azul-platina (1.5px) +
      linha companheira (0.5px) a 2.5px, ciclo 22px — tecido de terno exclusivo */

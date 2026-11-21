@@ -195,7 +195,7 @@ export default function Area() {
       className={`${themeClass} area-elite relative`}
       style={{ minHeight: "100vh", background: theme === "dark" ? "linear-gradient(160deg, #0b1e3a 0%, #0e2244 55%, #122a50 100%)" : "#f3ecdd" }}
     >
-      <div className="leva-fabric" aria-hidden="true" />
+      <div className="leva-fabric leva-fabric-fixo" aria-hidden="true" />
       <div className="relative z-10 flex flex-col min-h-screen">
       {/* Faixa de aviso quando o admin está no modo preview */}
       {adminMode && (
@@ -256,7 +256,7 @@ export default function Area() {
       </header>
 
       {/* Conteúdo principal — pb-24 libera espaço para bottom nav fixa */}
-      <main className={`relative isolate z-0 flex-1 px-4 py-5 w-full mx-auto pb-28 ${tab === "evolucao" ? "max-w-lg lg:max-w-6xl" : "max-w-lg"}`}>
+      <main className={`relative isolate z-0 flex-1 px-4 py-5 w-full mx-auto pb-36 ${tab === "evolucao" ? "max-w-lg lg:max-w-6xl" : "max-w-lg"}`}>
         {tab === "inicio"     && <InicioTab     client={client} onGo={setTab} />}
         {tab === "protocolos" && <ProtocolosTab client={client} />}
         {tab === "agenda"     && <AgendaTab     client={client} />}
@@ -300,7 +300,7 @@ export default function Area() {
       {/* Mini-painel VERTICAL — largura 58px, altura automática igual à nav */}
       <div
         className="panel-3d fixed bottom-0 right-0 z-30 border-t border-l border-border/60 flex flex-col items-center justify-center gap-2 py-2"
-        style={{ borderTopLeftRadius: 8, width: 58 }}
+        style={{ borderTopLeftRadius: 8, width: 58, touchAction: "none", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
       >
         <button
           type="button"
@@ -343,6 +343,9 @@ export default function Area() {
           scrollbarWidth: "none",
           WebkitOverflowScrolling: "touch",  /* iOS smooth scroll */
           transform: "translateZ(0)",          /* fixa o elemento no iOS */
+          touchAction: "pan-x",                /* arrastar a barra nunca move a tela */
+          overscrollBehavior: "contain",
+          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)", /* sobe a barra: margem sobre a base do iPhone */
         } as React.CSSProperties}
       >
         <div
@@ -504,7 +507,7 @@ function LoginShell({ subtitle, children }: { subtitle: string; children: ReactN
       className={`${themeClass} area-elite relative`}
       style={{ minHeight: "100vh", background: isDark ? "linear-gradient(160deg, #0b1e3a 0%, #0e2244 55%, #122a50 100%)" : "#f3ecdd" }}
     >
-      <div className="leva-fabric" aria-hidden="true" />
+      <div className="leva-fabric leva-fabric-fixo" aria-hidden="true" />
       <div className="relative z-10 flex flex-col min-h-screen">
         <header className="panel-3d px-4 py-5 flex items-center justify-between border-b border-border/60">
           <div className="flex items-center gap-3">

@@ -58,8 +58,8 @@
 /* ===== Area do Cliente: paineis calmos, tinta explicita (legivel no claro e no escuro) ===== */
 .pn-escopo { --pn-tinta: #1c2f4f; --pn-mudo: #5d6c84; --pn-fio: rgba(138,109,47,.30); --pn-painel: rgba(255,253,246,.80); --pn-campo: rgba(28,47,79,.06); }
 .dark .pn-escopo, .pn-escopo.dark { --pn-tinta: #f1ead6; --pn-mudo: #a9b8d0; --pn-fio: rgba(190,215,255,.20); --pn-painel: rgba(12,30,58,.80); --pn-campo: rgba(0,0,0,.28); }
-.pn-painel { position: relative; padding: 14px 16px 16px; border-radius: 8px; color: var(--pn-tinta); background: var(--pn-painel); border: 1px solid var(--pn-fio);
-  box-shadow: 0 1px 2px rgba(20,30,50,.14); }
+/* Relevo do painel vem de .panel-3d-sub (index.css), igual as outras telas. Aqui so medidas e tinta. */
+.pn-painel { position: relative; padding: 14px 16px 16px; color: var(--pn-tinta); }
 .pn-painel-topo { display: flex; align-items: center; gap: 8px; }
 .pn-painel-titulo { flex: 1; min-width: 0; margin: 0; font: 900 11px/1.2 Inter,sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--pn-tinta); }
 .pn-painel-corpo { margin-top: 12px; }

@@ -8,7 +8,7 @@ export function PainelPulso({ titulo, acoes, children, style, className = "", in
 }) {
   const [aberto, setAberto] = useState(iniciaAberto);
   return (
-    <section className={`pn-painel ${className}`} style={style} aria-label={rotulo}>
+    <section className={`panel-3d-sub pn-painel ${className}`} style={style} aria-label={rotulo}>
       <header className="pn-painel-topo">
         <h3 className="pn-painel-titulo">{titulo}</h3>
         {acoes}

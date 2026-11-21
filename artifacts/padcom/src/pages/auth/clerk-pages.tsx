@@ -29,7 +29,7 @@ function safeReturnTo(): string {
 function AuthFrame({ children }: { children: ReactNode }) {
   return (
     <main className="relative isolate min-h-[100dvh] overflow-hidden bg-[#f3ecdd] px-4 py-8 text-[#16284a]">
-      <div className="leva-fabric pointer-events-none" aria-hidden="true" />
+      <div className="leva-fabric leva-fabric-fixo pointer-events-none" aria-hidden="true" />
       <div className="relative z-10 flex min-h-[calc(100dvh-4rem)] flex-col items-center justify-center">
         <div className="mb-7 flex flex-col items-center gap-3 select-none">
           <PaxterSymbolGlass size={52} tone="dark" sharp />
