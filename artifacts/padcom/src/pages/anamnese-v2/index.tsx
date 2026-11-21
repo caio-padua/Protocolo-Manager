@@ -280,7 +280,7 @@ export default function AnamneseV2() {
   // NAO inclui `focusMode` nas dependencias: ligar/desligar o foco nao deve
   // provocar "pulo" de rolagem (requisito A7 da spec), so a troca de conteudo.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    scrollRef.current?.scrollTo({ top: 0, behavior: "auto" }); // instantaneo: mais rapido
   }, [groupIdx, focusIdx]);
 
   // gravacao (upsert) com debounce p/ texto/numero, imediata p/ escolhas
@@ -552,17 +552,15 @@ export default function AnamneseV2() {
           })()}
 
           {minimizado ? (
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2 pr-[7.5rem]">
+            <div className="flex flex-col gap-2">
+              <div className="flex min-h-[34px] items-center gap-2 pr-[7.5rem]">
                 <div className="shrink-0"><PaxterSymbolGlass size={30} tone={theme === "dark" ? "dark" : "light"} /></div>
-                <div className="grid min-w-0 flex-1 grid-cols-4 gap-1">
-                  <MiniMeter icon={<ListChecks className="h-2.5 w-2.5" />} value={`${pct}%`} />
-                  <MiniMeter icon={<Check className="h-2.5 w-2.5" />} value={`${respondidas}/${totalAtivas}`} />
-                  <MiniMeter icon={<Activity className="h-2.5 w-2.5" />} value={`${gruposCompletos}/${gruposTotais}`} />
-                  <MiniMeter icon={<Clock className="h-2.5 w-2.5" />} value={`${restanteMin}m`} />
+                <div className="flex min-w-0 flex-1 flex-col items-center justify-center text-center leading-tight" aria-live="polite">
+                  <span className="text-[17px] font-extrabold tabular-nums" style={{ color: GOLD }}>{pct}% <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">concluído</span></span>
+                  <span className="flex items-center gap-1 text-[11px] font-semibold text-foreground"><Clock className="h-3 w-3" aria-hidden />faltam ~{restanteMin} min</span>
                 </div>
               </div>
-              <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
+              <Trilho ativoKey={groupIdx}>
                 {groups.map((g, i) => (
                   <GrupoChip
                     key={g.bloco}
@@ -573,11 +571,10 @@ export default function AnamneseV2() {
                     active={i === groupIdx}
                     done={g.questions.every((q) => isAnswered(answers[q.id]))}
                     refused={isRefused(g.bloco)}
-                    isDark={theme === "dark"}
                     onClick={() => setGroupIdx(i)}
                   />
                 ))}
-              </div>
+              </Trilho>
             </div>
           ) : (
           <>
@@ -622,7 +619,7 @@ export default function AnamneseV2() {
         {/* MAPA DE GRUPOS (ordem livre) — escondido no modo foco */}
         {!focusMode && (
           <div className="leva-band -mx-6 -mt-4 mb-4 rounded-b-xl rounded-t-none px-6 pb-3 pt-4">
-            <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+            <div className="grid grid-cols-4 gap-3 sm:grid-cols-7">
               {groups.map((g, i) => (
                 <GrupoChip
                   key={g.bloco}
@@ -640,7 +637,7 @@ export default function AnamneseV2() {
           </div>
         )}
 
-        <div className="mx-auto max-w-xl">
+        <div className="mx-auto max-w-xl px-1.5">
         {retorno && (
           <RetornoPanel
             retorno={retorno}
@@ -826,7 +823,7 @@ function TipButton({
   const abrir = (auto: boolean) => {
     if (timer.current) clearTimeout(timer.current);
     setAberto(true);
-    if (auto) timer.current = setTimeout(() => setAberto(false), 3200);
+    if (auto) timer.current = setTimeout(() => setAberto(false), 1600);
   };
   const fechar = () => {
     if (timer.current) clearTimeout(timer.current);
@@ -852,7 +849,7 @@ function TipButton({
         <span
           role="tooltip"
           className="pointer-events-none absolute right-0 top-full z-50 mt-2 w-48 whitespace-normal rounded-md px-2.5 py-2 text-left text-[11.5px] font-medium normal-case leading-snug tracking-normal"
-          style={{ background: "#0b1a33", color: "#f3e7c6", border: `1px solid ${GOLD}`, boxShadow: "0 8px 20px rgba(0,0,0,.45)" }}
+          style={{ background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))", border: `1px solid ${GOLD}`, boxShadow: "0 6px 16px rgba(0,0,0,.18)" }}
         >
           {tip}
         </span>
@@ -861,11 +858,12 @@ function TipButton({
   );
 }
 
-// Titulo de grupo com mini barra de evolucao embaixo e porcentagem.
+// Titulo de grupo: placa saliente (up bevel) retangular; a barra de evolucao e um trilho afundado
+// (inset bevel), retangular e mais alto; porcentagem nitida. O grupo atual NAO muda de cor: ganha moldura.
 function GrupoChip({
-  label, title, pct, active, done, refused, isDark, compact, onClick,
+  label, title, pct, active, done, refused, compact, onClick,
 }: {
-  label: string; title: string; pct: number; active: boolean; done: boolean; refused: boolean; isDark: boolean; compact?: boolean; onClick: () => void;
+  label: string; title: string; pct: number; active: boolean; done: boolean; refused: boolean; isDark?: boolean; compact?: boolean; onClick: () => void;
 }) {
   return (
     <button
@@ -873,20 +871,51 @@ function GrupoChip({
       onClick={onClick}
       title={title}
       aria-label={`${title}: ${pct}% concluído`}
-      className={`flex min-w-0 flex-col justify-center gap-1 rounded-md px-1.5 transition-all ${compact ? "h-[34px] w-[74px] shrink-0" : "h-[46px]"}`}
-      style={gchipStyle(active, done, refused, isDark)}
+      aria-current={active ? "true" : undefined}
+      data-grupo-ativo={active ? "true" : undefined}
+      className={`bevel-3d flex min-w-0 flex-col justify-center gap-1 rounded-[3px] px-1.5 text-foreground ${compact ? "h-[42px] w-[88px] shrink-0" : "h-[54px]"} ${refused ? "opacity-60" : ""}`}
+      style={active ? { outline: `2.5px solid ${GOLD}`, outlineOffset: "2px" } : undefined}
     >
-      <span className={`flex items-center justify-center gap-1 font-bold tracking-tight ${compact ? "text-[9.5px]" : "text-[11px]"}`}>
-        {done && !active ? <Check className="h-3 w-3 shrink-0" /> : null}
+      <span className={`flex items-center justify-center gap-1 font-bold tracking-tight ${compact ? "text-[10px]" : "text-[11px]"}`}>
+        {done ? <Check className="h-3 w-3 shrink-0" aria-hidden /> : null}
         <span className="truncate">{label}</span>
       </span>
       <span className="flex items-center gap-1">
-        <span className="paxter-bar-track h-1 flex-1">
-          {pct > 0 && <span className="paxter-bar-fill block h-full" style={{ width: `${pct}%` }} />}
+        <span className="paxter-bar-track !rounded-[2px] h-[9px] flex-1" style={{ boxShadow: "inset 0 2px 4px rgba(0,0,0,.45), inset 0 -1px 0 rgba(255,255,255,.35)" }}>
+          {pct > 0 && <span className="paxter-bar-fill !rounded-[1px] block h-full" style={{ width: `${pct}%` }} />}
         </span>
-        <span className="w-6 shrink-0 text-right text-[8.5px] font-bold leading-none">{pct}%</span>
+        <span className="w-8 shrink-0 text-right text-[10.5px] font-extrabold leading-none tabular-nums">{pct}%</span>
       </span>
     </button>
+  );
+}
+
+// Trilho rolavel: deixa claro que da para arrastar para os lados (bordas com sombra + setas).
+function Trilho({ children, ativoKey }: { children: ReactNode; ativoKey: number }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [esq, setEsq] = useState(false);
+  const [dir, setDir] = useState(false);
+  const medir = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    setEsq(el.scrollLeft > 4);
+    setDir(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+  useEffect(() => {
+    medir();
+    const el = ref.current;
+    el?.querySelector<HTMLElement>('[data-grupo-ativo="true"]')?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [ativoKey, medir]);
+  const rolar = (d: number) => ref.current?.scrollBy({ left: d * 180, behavior: "smooth" });
+  const seta = "absolute top-1/2 z-10 flex h-8 w-6 -translate-y-1/2 items-center justify-center rounded-[3px] bevel-3d text-foreground";
+  return (
+    <div className="relative rounded-[4px] px-7 py-1.5" style={{ background: "rgba(0,0,0,0.10)", boxShadow: "inset 0 2px 5px rgba(0,0,0,.35), inset 0 -1px 0 rgba(255,255,255,.25)" }} role="group" aria-label="Grupos de perguntas (deslize para os lados)">
+      {esq && <button type="button" onClick={() => rolar(-1)} aria-label="Ver grupos anteriores" className={`${seta} left-0.5`}><ChevronLeft className="h-4 w-4" /></button>}
+      <div ref={ref} onScroll={medir} className="flex gap-2.5 overflow-x-auto px-1 py-1 [scrollbar-width:none]" style={{ scrollSnapType: "x proximity" }}>
+        {children}
+      </div>
+      {dir && <button type="button" onClick={() => rolar(1)} aria-label="Ver próximos grupos" className={`${seta} right-0.5`}><ChevronRight className="h-4 w-4" /></button>}
+    </div>
   );
 }
 
@@ -1088,7 +1117,8 @@ function QuestionCard({
 
   return (
     <div
-      className="leva-card leva-card-calm rounded-md p-2"
+      data-qid={q.id}
+      className="leva-card leva-card-calm scroll-mt-3 rounded-md p-3"
       style={q.eSinalAlarme ? { boxShadow: "0 0 0 2px #ef4444, 0 6px 16px rgba(0,0,0,.18)" } : undefined}
     >
       <div className="relative z-[1] mb-2 flex items-start justify-between gap-2">
@@ -1223,8 +1253,19 @@ function GroupView({
   onToggleRefuse: () => void;
 }) {
   const podeRecusar = !group.questions.some((q) => q.eSinalAlarme);
+  // Ao escolher uma resposta (toque unico), a tela ja sobe ate a proxima pergunta sem resposta.
+  const responder = (q: AnamneseQuestion, v: Valor, opts?: { commit?: boolean }) => {
+    onAnswer(q, v, opts);
+    if (!opts?.commit) return;
+    const i = group.questions.findIndex((x) => x.id === q.id);
+    const proxima = group.questions.slice(i + 1).find((x) => !isAnswered(answers[x.id])) ?? group.questions[i + 1];
+    if (!proxima) return;
+    setTimeout(() => {
+      document.querySelector(`[data-qid="${proxima.id}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 140);
+  };
   return (
-    <section className="flex flex-col gap-3">
+    <section className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-2">
         <h2 className="bevel-3d rounded-md px-3 py-2 text-sm font-bold uppercase tracking-wide text-primary">
           {group.bloco}
@@ -1248,9 +1289,9 @@ function GroupView({
         </div>
       ) : (
         // gap-5 = mais RESPIRO vertical entre cartoes (o tecido creme aparece entre eles).
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-7">
           {group.questions.map((q) => (
-            <QuestionCard key={q.id} q={q} value={answers[q.id]} onAnswer={onAnswer} />
+            <QuestionCard key={q.id} q={q} value={answers[q.id]} onAnswer={responder} />
           ))}
         </div>
       )}
