@@ -16,6 +16,7 @@ import { LedgerAba } from "./Ledger";
 import { Laboratorio24m } from "./Laboratorio24m";
 import { Conformidade } from "./Conformidade";
 import { DocumentosImport } from "./DocumentosImport";
+import { CnaeEmpresa } from "./CnaeEmpresa";
 
 const PAPEL: Record<string, string> = { socio: "Sócio", administrador: "Administrador", socio_administrador: "Sócio administrador", procurador: "Procurador" };
 const SIMPLES: Record<string, string> = { nao_verificada: "Não verificada", confirmada: "Confirmada", nao_optante: "Não optante" };
@@ -181,6 +182,7 @@ function PaxTaxCorpo() {
           <section className="panel-3d p-4" data-testid="tax-documentos">
             <BlockTitle icon={FileText}>Documentos e inteligências</BlockTitle>
             <DocumentosImport />
+            <CnaeEmpresa />
             <p className="my-3 text-[12px]"><b>Ainda não implementado:</b> envio de imagem, XML, CSV, XLSX e OFX financeiros, e extração financeira. Nenhum documento financeiro real é enviado a provedores de inteligência artificial.</p>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               {(agentes.data ?? []).map((a) => (

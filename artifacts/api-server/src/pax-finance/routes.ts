@@ -17,6 +17,7 @@ import { ParteInput } from "./conformidade-calc";
 import { criarParte, editarParte, encerrarParte, lerConformidade, validarParte } from "./conformidade";
 import { LabSalvarInput, lerLab, limparLab, salvarLab } from "./laboratorio";
 import multer from "multer";
+import { buscarCnae, lerCnaeEmpresa, salvarCnaeEmpresa } from "./cnae";
 import { aplicarDocumentos, enviarDocumento, lerRegistro, listarDocumentos, rejeitarDocumento, revelarSensivel, salvarResponsavelTecnico, slotValido, MAX_BYTES } from "./documentos";
 import { PerfilInput, SocioInput, criarSocio, editarSocio, encerrarSocio, listarAuditoria, listarSocios, obterEmpresa, salvarPerfil, validarPerfil, validarSocio } from "./cadastro";
 
@@ -54,6 +55,9 @@ const ehCeo = (req: Request) => req.tenantContext?.authenticated === true && req
 router.get("/pax-finance/documents", ...finGuards, wrap(async (req, res) => { res.set("Cache-Control", "no-store"); res.json(await listarDocumentos(finContext(req), ehCeo(req))); }));
 router.get("/pax-finance/documents/registry", ...finGuards, wrap(async (req, res) => { res.set("Cache-Control", "no-store"); res.json(await lerRegistro(finContext(req))); }));
 router.put("/pax-finance/documents/registry/responsavel-tecnico", ...finGuards, wrap(async (req, res) => { res.json(await salvarResponsavelTecnico(finContext(req), String(req.body?.nome ?? ""), String(req.body?.registro ?? ""))); }));
+router.get("/pax-finance/cnae/search", ...finGuards, wrap(async (req, res) => { res.set("Cache-Control", "no-store"); res.json(await buscarCnae(String(req.query.q ?? ""), req.query.todas === "1", Number(req.query.limite) || 25)); }));
+router.get("/pax-finance/cnae/company", ...finGuards, wrap(async (req, res) => { res.set("Cache-Control", "no-store"); res.json(await lerCnaeEmpresa(finContext(req))); }));
+router.put("/pax-finance/cnae/company", ...finGuards, wrap(async (req, res) => { const b = req.body ?? {}; res.json(await salvarCnaeEmpresa(finContext(req), b.principal ? String(b.principal) : null, Array.isArray(b.secundarios) ? b.secundarios.map(String) : [])); }));
 router.post("/pax-finance/documents/apply", ...finGuards, wrap(async (req, res) => { res.json(await aplicarDocumentos(finContext(req))); }));
 router.post("/pax-finance/documents/:id/reject", ...finGuards, wrap(async (req, res) => { res.json(await rejeitarDocumento(finContext(req), idParam(req))); }));
 router.post("/pax-finance/documents/:id/reveal", ...finGuards, wrap(async (req, res) => {

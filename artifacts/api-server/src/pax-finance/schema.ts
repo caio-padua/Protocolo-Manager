@@ -319,6 +319,16 @@ export const PAX_FINANCE_DDL: readonly string[] = [
     updated_by INTEGER,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+  `CREATE TABLE IF NOT EXISTS fin_cnae_catalogo (
+    codigo TEXT PRIMARY KEY CHECK (codigo ~ '^[0-9]{2}\\.[0-9]{2}-[0-9]-[0-9]{2}$'),
+    descricao TEXT NOT NULL,
+    divisao TEXT,
+    area_saude TEXT,
+    busca TEXT NOT NULL,
+    origem TEXT NOT NULL DEFAULT 'ibge' CHECK (origem IN ('ibge','manual')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS fin_cnae_catalogo_area ON fin_cnae_catalogo (area_saude)`,
 ];
 
 let ready: Promise<void> | null = null;

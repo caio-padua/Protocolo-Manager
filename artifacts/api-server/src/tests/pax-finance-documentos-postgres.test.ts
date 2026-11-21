@@ -29,7 +29,7 @@ import { PAX_FINANCE_DDL } from "../pax-finance/schema";
 let iso: Awaited<ReturnType<typeof startIsolatedPostgres>>;
 const q = (t: string, p?: any[]) => iso.pool.query(t, p);
 const app = express();
-app.use(express.json(), (req: any, _r: any, n: any) => { req.log = { error() {}, info() {}, warn() {} }; n(); }, router);
+app.use(express.json(), (req: any, _r: any, n: any) => { req.log = { error(...a: any[]) { console.log("LOGERR", String((a[0] as any)?.err?.message ?? a[0]).slice(0, 400)); }, info() {}, warn() {} }; n(); }, router);
 const H = (empresa: number, extra: Record<string, string> = {}) => ({ "x-collab": "1", "x-empresa": String(empresa), ...extra });
 
 async function pdf(linhas: string[]): Promise<Buffer> {
@@ -146,6 +146,26 @@ describe("PAX FINANCE documentos oficiais", () => {
     expect(reg.campos.find((c: any) => c.chave === "foro")).toBeTruthy(); // não apagou o restante
     expect(Number((await q("SELECT count(*) c FROM fin_partner WHERE company_id=7 AND nome ILIKE '%Medico Clinico%'")).rows[0].c)).toBe(0);
     expect((await request(app).put("/pax-finance/documents/registry/responsavel-tecnico").set(H(7)).send({ nome: "x", registro: "" })).status).toBe(400);
+  });
+  it("CNAE: catálogo da saúde com autocompletar, e a empresa troca principal e acrescenta secundários", async () => {
+    const h0 = await request(app).get("/pax-finance/cnae/search?q=hospital").set(H(7)); const hosp = h0.body;
+    expect(hosp.map((x: any) => x.codigo)).toContain("86.10-1-01");
+    expect((await request(app).get("/pax-finance/cnae/search?q=8630").set(H(7))).body.map((x: any) => x.codigo)).toContain("86.30-5-03");
+    expect((await request(app).get("/pax-finance/cnae/search?q=m%C3%A9dica%20ambulatorial").set(H(7))).body.length).toBeGreaterThan(1); // acento e várias palavras
+    expect((await request(app).get("/pax-finance/cnae/search?q=transporte rodoviario").set(H(7))).body).toEqual([]); // fora da saúde só com "todas"
+    expect((await request(app).get("/pax-finance/cnae/search?q=transporte rodoviario&todas=1").set(H(7))).body.length).toBeGreaterThan(0);
+    const total = Number((await q("SELECT count(*) c FROM fin_cnae_catalogo")).rows[0].c); const saude = Number((await q("SELECT count(*) c FROM fin_cnae_catalogo WHERE area_saude IS NOT NULL")).rows[0].c);
+    expect(total).toBe(1332); expect(saude).toBeGreaterThanOrEqual(80);
+    const put = (b: any, h = H(7)) => request(app).put("/pax-finance/cnae/company").set(h).send(b);
+    expect((await put({ principal: "86.30-5-03", secundarios: ["86.40-2-02", "86.30-5-03", "86.40-2-02", "72.10-0-00"] })).body.secundarios).toBe(2);
+    const c = (await request(app).get("/pax-finance/cnae/company").set(H(7))).body;
+    expect(c.principal.codigo).toBe("86.30-5-03"); expect(c.principal.descricao).toMatch(/ambulatorial/i);
+    expect(c.secundarios.map((x: any) => x.codigo)).toEqual(["86.40-2-02", "72.10-0-00"]); expect(c.secundarios[0].descricao).toMatch(/clínicos/i);
+    expect((await q("SELECT cnae FROM empresas WHERE id=7")).rows[0].cnae).toBe("86.30-5-03");
+    expect((await q("SELECT cnae FROM empresas WHERE id=8")).rows[0].cnae).toBeNull(); // outra empresa intocada
+    expect((await put({ principal: "8630503", secundarios: [] })).status).toBe(400);
+    expect((await put({ principal: "99.99-9-99", secundarios: [] })).status).toBe(422);
+    expect(Number((await q("SELECT count(*) c FROM fin_audit_log WHERE action='cnae.salvar'")).rows[0].c)).toBe(1);
   });
   it("novo envio substitui sem apagar; mesmo arquivo repetido é recusado; razão social divergente bloqueia", async () => {
     const b = await pdf(RFB("11.222.333/0001-81", "EMPRESA TESTE LTDA").concat(["observacao nova"]));
