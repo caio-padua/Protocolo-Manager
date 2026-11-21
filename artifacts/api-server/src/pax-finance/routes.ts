@@ -2,6 +2,11 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
 import { finContext, finGuards } from "./tenant";
 import { FinError, RegraInput, aprovar, ativar, criarRascunho, editarRascunho, enviarParaAprovacao, listarRegras, obterRegra } from "./regras";
+import { MetaInput, MarcoInput, CreditoInput, apagarMeta, listarCredito, listarMarcos, listarMetas, novaVersaoCredito, resumoGoals, salvarMarco, salvarMeta, semearCredito } from "./goals";
+import { PERIOD_TYPES, type PeriodType } from "./goals-calc";
+import { EntidadeInput, PessoaInput, adicionarPessoa, carregarRascunhoPadumann, criarEntidade, editarEntidade, listarEntidades, validarEntidade } from "./entidades";
+import { SimInput, simular } from "./simulador";
+import { LancInput, cancelarLancamento, criarLancamento, livroCaixa } from "./ledger";
 import { PerfilInput, SocioInput, criarSocio, editarSocio, encerrarSocio, listarAuditoria, listarSocios, obterEmpresa, salvarPerfil, validarPerfil, validarSocio } from "./cadastro";
 
 /** PAX FINANCE — rotas. Toda rota: colaborador + clínica da sessão + módulo financeiro. */
@@ -26,9 +31,9 @@ router.get("/pax-finance/status", ...finGuards, wrap(async (_req, res) => {
       { fase: 2, nome: "Cadastro de empresas e parametros versionados", estado: "implementada" },
       { fase: 3, nome: "Upload, extracao e revisao humana", estado: "nao_iniciada" },
       { fase: 4, nome: "Maia e tres inteligencias", estado: "nao_iniciada" },
-      { fase: 5, nome: "Pax Tax e simuladores", estado: "nao_iniciada" },
-      { fase: 6, nome: "Pax Goals", estado: "nao_iniciada" },
-      { fase: 7, nome: "Pax Ledger", estado: "nao_iniciada" },
+      { fase: 5, nome: "Pax Tax e simuladores", estado: "implementada_parcial" },
+      { fase: 6, nome: "Pax Goals", estado: "implementada_parcial" },
+      { fase: 7, nome: "Pax Ledger", estado: "implementada_parcial" },
     ],
   });
 }));
@@ -55,6 +60,32 @@ router.put("/pax-finance/rules/:id", ...finGuards, wrap(async (req, res) => { re
 router.post("/pax-finance/rules/:id/submit", ...finGuards, wrap(async (req, res) => { res.json(await enviarParaAprovacao(finContext(req), idParam(req))); }));
 router.post("/pax-finance/rules/:id/approve", ...finGuards, wrap(async (req, res) => { res.json(await aprovar(finContext(req), idParam(req))); }));
 router.post("/pax-finance/rules/:id/activate", ...finGuards, wrap(async (req, res) => { res.json(await ativar(finContext(req), idParam(req))); }));
+
+router.get("/pax-finance/entities", ...finGuards, wrap(async (req, res) => { res.json(await listarEntidades(finContext(req))); }));
+router.post("/pax-finance/entities", ...finGuards, wrap(async (req, res) => { res.status(201).json(await criarEntidade(finContext(req), EntidadeInput.parse(req.body))); }));
+router.post("/pax-finance/entities/seed-padumann", ...finGuards, wrap(async (req, res) => { res.json(await carregarRascunhoPadumann(finContext(req))); }));
+router.put("/pax-finance/entities/:id", ...finGuards, wrap(async (req, res) => { res.json(await editarEntidade(finContext(req), idParam(req), EntidadeInput.parse(req.body))); }));
+router.post("/pax-finance/entities/:id/validate", ...finGuards, wrap(async (req, res) => { res.json(await validarEntidade(finContext(req), idParam(req))); }));
+router.post("/pax-finance/entities/:id/people", ...finGuards, wrap(async (req, res) => { res.status(201).json(await adicionarPessoa(finContext(req), idParam(req), PessoaInput.parse(req.body))); }));
+
+router.get("/pax-finance/goals", ...finGuards, wrap(async (req, res) => { res.json(await listarMetas(finContext(req))); }));
+router.put("/pax-finance/goals", ...finGuards, wrap(async (req, res) => { res.json(await salvarMeta(finContext(req), MetaInput.parse(req.body))); }));
+router.delete("/pax-finance/goals/:id", ...finGuards, wrap(async (req, res) => { res.json(await apagarMeta(finContext(req), idParam(req))); }));
+router.get("/pax-finance/goals/summary", ...finGuards, wrap(async (req, res) => {
+  const pt = z.enum(PERIOD_TYPES as [PeriodType, ...PeriodType[]]).parse(req.query.periodType ?? "month");
+  res.json(await resumoGoals(finContext(req), pt, typeof req.query.periodKey === "string" ? req.query.periodKey : undefined));
+}));
+router.get("/pax-finance/milestones", ...finGuards, wrap(async (req, res) => { res.json(await listarMarcos(finContext(req))); }));
+router.put("/pax-finance/milestones", ...finGuards, wrap(async (req, res) => { res.json(await salvarMarco(finContext(req), MarcoInput.parse(req.body))); }));
+router.get("/pax-finance/credit-lines", ...finGuards, wrap(async (req, res) => { res.json(await listarCredito(finContext(req))); }));
+router.post("/pax-finance/credit-lines/seed", ...finGuards, wrap(async (req, res) => { res.json(await semearCredito(finContext(req))); }));
+router.put("/pax-finance/credit-lines/:key", ...finGuards, wrap(async (req, res) => { res.json(await novaVersaoCredito(finContext(req), String(req.params.key), CreditoInput.parse(req.body))); }));
+
+router.post("/pax-finance/simulate", ...finGuards, wrap(async (req, res) => { res.json(await simular(finContext(req), SimInput.parse(req.body))); }));
+
+router.get("/pax-finance/ledger", ...finGuards, wrap(async (req, res) => { res.json(await livroCaixa(finContext(req))); }));
+router.post("/pax-finance/ledger", ...finGuards, wrap(async (req, res) => { res.status(201).json(await criarLancamento(finContext(req), LancInput.parse(req.body))); }));
+router.post("/pax-finance/ledger/:id/cancel", ...finGuards, wrap(async (req, res) => { res.json(await cancelarLancamento(finContext(req), idParam(req))); }));
 
 router.get("/pax-finance/audit", ...finGuards, wrap(async (req, res) => { res.json(await listarAuditoria(finContext(req))); }));
 

@@ -75,7 +75,7 @@ import ConfigReceituario from "@/pages/configuracoes/receituario";
 import ConfigMedico from "@/pages/configuracoes/medico";
 import ModeloReceituario from "@/pages/modelo-receituario";
 import FinanceiroConciliacao from "@/pages/financeiro/conciliacao";
-import FinanceiroMetas from "@/pages/financeiro/metas";
+import PaxGoals from "@/pages/financeiro/pax-goals";
 import FinanceiroCobranca from "@/pages/financeiro/cobranca";
 import FinanceiroNfse from "@/pages/financeiro/nfse";
 import FinanceiroBancos from "@/pages/financeiro/bancos";
@@ -345,7 +345,8 @@ function Router() {
                   <Route path="/financeiro/bancos" component={FinanceiroBancos} />
                   <Route path="/financeiro/transferencias" component={FinanceiroTransferencias} />
                   <Route path="/financeiro/conciliacao" component={FinanceiroConciliacao} />
-                  <Route path="/financeiro/metas" component={FinanceiroMetas} />
+                  <Route path="/financeiro/metas"><Redirect to="/financeiro/pax-goals" replace /></Route>
+                  <Route path="/financeiro/pax-goals" component={PaxGoals} />
                   <Route path="/financeiro/pax-tax" component={PaxTax} />
                   <Route component={NotFound} />
                 </Switch>

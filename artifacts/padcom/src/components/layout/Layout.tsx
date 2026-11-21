@@ -219,14 +219,14 @@ const navigation: NavEntry[] = [
       { name: "Transferências", href: "/financeiro/transferencias", icon: ArrowLeftRight },
       { name: "Pagamentos", href: "/payments", icon: CreditCard },
       { name: "Conciliação", href: "/financeiro/conciliacao", icon: Scale },
-      { name: "Metas & Crescimento", href: "/financeiro/metas", icon: Target },
     ],
   },
   {
     name: "PAX FINANCE",
     icon: Scale,
     children: [
-      { name: "Pax Tax (Gestão Tributária)", href: "/financeiro/pax-tax", icon: Landmark },
+      { name: "PAX GOALS", href: "/financeiro/pax-goals", icon: Target },
+      { name: "PAX TAX", href: "/financeiro/pax-tax", icon: Landmark },
     ],
   },
   {
@@ -373,6 +373,7 @@ const HREF_FERRAMENTA: Record<string, string> = {
   "/payments": "financeiro",
   "/financeiro/conciliacao": "financeiro",
   "/financeiro/metas": "financeiro",
+  "/financeiro/pax-goals": "financeiro",
   "/financeiro/pax-tax": "financeiro",
 };
 

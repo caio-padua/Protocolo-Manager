@@ -57,7 +57,7 @@ describe("PAX FINANCE - fundacao", () => {
     expect(r.body.empresa.id).toBe(A);
     expect(r.body.empresa.cnpj).toBe("00.000.000/0001-00");
     expect(r.body.perfil).toBeNull();
-    const cols = (await q("SELECT column_name FROM information_schema.columns WHERE table_name LIKE 'fin_%'")).rows.map((x: any) => x.column_name);
+    const cols = (await q("SELECT column_name FROM information_schema.columns WHERE table_name LIKE 'fin_%' AND table_name <> 'fin_entity'")).rows.map((x: any) => x.column_name);
     expect(cols).not.toContain("cnpj");
     expect(cols).not.toContain("cpf");
   });
@@ -163,6 +163,7 @@ describe("PAX FINANCE - fundacao", () => {
 
   it("nao toca em payments nem em tabelas clinicas: so tabelas fin_* foram criadas", async () => {
     const t = (await q("SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY 1")).rows.map((x: any) => x.table_name);
-    expect(t).toEqual(["empresas", "fin_audit_log", "fin_company_profile", "fin_partner", "fin_tax_rule"]);
+    expect(t.filter((n: string) => !n.startsWith("fin_"))).toEqual(["empresas"]);
+    for (const n of ["fin_audit_log", "fin_company_profile", "fin_partner", "fin_tax_rule"]) expect(t).toContain(n);
   });
 });
