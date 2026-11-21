@@ -128,13 +128,13 @@ function RaioX({ m, ov, onEdit }: { m: Mes; ov: Ov[string] | undefined; onEdit: 
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const diasNoMes = (ym: string) => new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0).getDate();
-const dataIni = (ym: string) => `01.${ym.slice(5, 7)}.${ym.slice(0, 4)}`;
-const dataFim = (ym: string) => `${pad2(diasNoMes(ym))}.${ym.slice(5, 7)}.${ym.slice(0, 4)}`;
-/** Digita só números: 14112025 vira 14.11.2025. */
-const mascaraData = (t: string) => { const d = t.replace(/\D/g, "").slice(0, 8); return [d.slice(0, 2), d.slice(2, 4), d.slice(4)].filter((x) => x).join("."); };
+const dataIni = (ym: string) => `01 / ${ym.slice(5, 7)} / ${ym.slice(0, 4)}`;
+const dataFim = (ym: string) => `${pad2(diasNoMes(ym))} / ${ym.slice(5, 7)} / ${ym.slice(0, 4)}`;
+/** Digita só números: 14112025 vira 14 / 11 / 2025. */
+const mascaraData = (t: string) => { const d = t.replace(/\D/g, "").slice(0, 8); return [d.slice(0, 2), d.slice(2, 4), d.slice(4)].filter((x) => x).join(" / "); };
 /** "14.11.2025" -> "2025-11" (null se a data não existe). */
 const mesDaData = (t: string): string | null => {
-  const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(t); if (!m) return null;
+  const m = /^(\d{2}) \/ (\d{2}) \/ (\d{4})$/.exec(t); if (!m) return null;
   const dia = Number(m[1]), mes = Number(m[2]), ano = Number(m[3]);
   if (mes < 1 || mes > 12 || dia < 1 || dia > new Date(ano, mes, 0).getDate()) return null;
   return `${ano}-${pad2(mes)}`;
@@ -146,9 +146,9 @@ function CampoData({ rotulo, valor, onValida, id }: { rotulo: string; valor: str
   const aplicar = () => { const ym = mesDaData(t); if (ym) { setRuim(false); onValida(ym); } else { setRuim(true); } };
   return (
     <label className="block text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{rotulo}
-      <input className={`${campoCls} mt-1 text-center text-[14px] font-bold tabular-nums ${ruim ? "border-destructive" : ""}`} inputMode="numeric" placeholder="dd.mm.aaaa" maxLength={10} value={t} data-testid={id}
+      <input className={`${campoCls} mt-1 text-center text-[14px] font-bold tabular-nums ${ruim ? "border-destructive" : ""}`} inputMode="numeric" placeholder="dd / mm / aaaa" maxLength={14} value={t} data-testid={id}
         aria-invalid={ruim} onChange={(e) => setT(mascaraData(e.target.value))} onBlur={() => { if (t !== valor) aplicar(); }} onKeyDown={(e) => { if (e.key === "Enter") aplicar(); }} />
-      {ruim && <span className="mt-1 block text-[10px] normal-case text-destructive" role="alert">Data inválida. Exemplo: 14.11.2025</span>}
+      {ruim && <span className="mt-1 block text-[10px] normal-case text-destructive" role="alert">Data inválida. Exemplo: 14 / 11 / 2025</span>}
     </label>
   );
 }
