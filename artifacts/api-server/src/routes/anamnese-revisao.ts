@@ -39,7 +39,7 @@ router.get(
     }
 
     // Isolamento por clinica: sessao de cliente so da propria clinica; sessao sem cliente so da propria (ou sem clinica).
-    conds.push(sql`(${clientsTable.empresaId} = ${req.messageEmpresaId!} OR (${anamneseSessionsTable.clientId} IS NULL AND (anamnese_sessions.empresa_id = ${req.messageEmpresaId!} OR anamnese_sessions.empresa_id IS NULL)))` as never);
+    conds.push(sql`(${clientsTable.empresaId} = ${req.messageEmpresaId!} OR (${anamneseSessionsTable.clientId} IS NULL AND (anamnese_sessions.empresa_id = ${req.messageEmpresaId!})))` as never);
     const rows = await db
       .select({
         id: anamneseSessionsTable.id,
@@ -126,7 +126,7 @@ router.get(
       .leftJoin(clientsTable, eq(clientsTable.id, anamneseSessionsTable.clientId))
       .where(and(
         eq(anamneseSessionsTable.id, id),
-        sql`(${clientsTable.empresaId} = ${req.messageEmpresaId!} OR (${anamneseSessionsTable.clientId} IS NULL AND (anamnese_sessions.empresa_id = ${req.messageEmpresaId!} OR anamnese_sessions.empresa_id IS NULL)))`,
+        sql`(${clientsTable.empresaId} = ${req.messageEmpresaId!} OR (${anamneseSessionsTable.clientId} IS NULL AND (anamnese_sessions.empresa_id = ${req.messageEmpresaId!})))`,
       ))
       .limit(1);
     if (!session) {

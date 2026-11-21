@@ -170,7 +170,7 @@ describe("pacientes e clinicas distintos", () => {
     expect(listaA.length).toBeGreaterThan(0);
     expect(listaA.every((s) => s.clientId !== C3)).toBe(true);
     expect(listaB.map((s) => s.clientId)).toEqual(expect.arrayContaining([C3]));
-    expect(listaB.every((s) => s.clientId === C3 || s.clientId === null)).toBe(true);
+    expect(listaB.every((s) => s.clientId === C3)).toBe(true);
     expect((await get(`/collaborator/anamnese/sessions/${s3.id}`, 5)).status).toBe(404);
     expect((await get(`/collaborator/anamnese/sessions/${s3.id}`, 6)).status).toBe(200);
     const idC1 = listaA.find((s) => s.clientId === C1)!.id;
@@ -190,5 +190,21 @@ describe("pacientes e clinicas distintos", () => {
     const nome = d.respostas.find((r: any) => r.questionRowId === 1);
     expect(nome.origemCadastro).toBe(true);
     expect(nome.valor.texto).toBe("BETE BOQUETE"); // evidencia preservada
+  });
+  it("sessao orfa (sem cliente e sem clinica) nao aparece para nenhuma clinica e fica preservada", async () => {
+    const t = "e".repeat(48);
+    const sid = (await q("INSERT INTO anamnese_sessions (token, client_id, mode, status, empresa_id) VALUES ($1,NULL,'paciente','concluida',NULL) RETURNING id", [t])).rows[0].id;
+    for (const emp of [5, 6]) {
+      const lista = (await get("/collaborator/anamnese/sessions", emp)).body as any[];
+      expect(lista.some((s) => s.id === sid)).toBe(false);
+      expect((await get(`/collaborator/anamnese/sessions/${sid}`, emp)).status).toBe(404);
+    }
+    expect((await q("SELECT COUNT(*)::int n FROM anamnese_sessions WHERE id=$1", [sid])).rows[0].n).toBe(1);
+  });
+  it("sessao sem cliente mas com clinica comprovada so aparece para essa clinica", async () => {
+    const t = "d".repeat(48);
+    const sid = (await q("INSERT INTO anamnese_sessions (token, client_id, mode, status, empresa_id) VALUES ($1,NULL,'paciente','concluida',6) RETURNING id", [t])).rows[0].id;
+    expect(((await get("/collaborator/anamnese/sessions", 5)).body as any[]).some((s) => s.id === sid)).toBe(false);
+    expect(((await get("/collaborator/anamnese/sessions", 6)).body as any[]).some((s) => s.id === sid)).toBe(true);
   });
 });
