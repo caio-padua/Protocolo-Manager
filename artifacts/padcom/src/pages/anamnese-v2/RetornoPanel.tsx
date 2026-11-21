@@ -5,11 +5,13 @@ import type { Valor } from "./types";
 
 /** Nome (1), CPF (2) e idade (41): vem do cadastro, nunca sao perguntas de evolucao. */
 export const IDENTIDADE_IDS = [1, 2, 41];
+/** Sexo biologico (A04): nao se muda. Se o cadastro ja tem, a pergunta some e vale o cadastro. */
+export const SEXO_ID = 42;
 /** Pergunta de texto livre onde o cliente ACRESCENTA nova cirurgia (id real do questionario). */
 const ID_OUTRA_CIRURGIA = 315;
 
 export interface Retorno {
-  identidade: { nome: string | null; cpfMascarado: string | null; dataNascimento: string | null; idade: number | null } | null;
+  identidade: { nome: string | null; cpfMascarado: string | null; dataNascimento: string | null; idade: number | null; sexoBiologico?: "M" | "F" | null } | null;
   bloqueados: Record<string, Record<string, unknown>>;
   correcoes: Array<{ id: number; questionRowId: number; texto: string; status: string }>;
 }
@@ -72,6 +74,7 @@ export default function RetornoPanel({ retorno, token, questions, answers, onAns
           <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
             <dt className="text-muted-foreground">Nome</dt><dd className="font-semibold">{id.nome ?? "—"}</dd>
             <dt className="text-muted-foreground">CPF</dt><dd className="font-semibold">{id.cpfMascarado ?? "—"}</dd>
+            <dt className="text-muted-foreground">Sexo biológico</dt><dd className="font-semibold">{id.sexoBiologico === "M" ? "Masculino" : id.sexoBiologico === "F" ? "Feminino" : "informado uma única vez nesta anamnese"}</dd>
             <dt className="text-muted-foreground">Idade</dt><dd className="font-semibold">{id.idade != null ? `${id.idade} anos` : "calculada quando houver data de nascimento"}</dd>
           </dl>
           <p className="mt-2 text-xs text-muted-foreground">Vêm do seu cadastro. Para atualizar, fale com a clínica; esta anamnese não altera cadastro.</p>

@@ -73,11 +73,51 @@ export async function fatosBloqueados(clientId: number, sessaoId: number): Promi
   return out;
 }
 
-export interface IdentidadeCadastro { nome: string | null; cpfMascarado: string | null; dataNascimento: string | null; idade: number | null }
+export interface IdentidadeCadastro { nome: string | null; cpfMascarado: string | null; dataNascimento: string | null; idade: number | null; sexoBiologico: "M" | "F" | null }
+
+/** Pergunta A04 (sexo biologico). Sexo nao se edita: depois de gravado no cadastro, a anamnese so le. */
+export const SEXO_QUESTION_ID = 42;
+
+let colunasSexoProntas: Promise<void> | null = null;
+/** Colunas aditivas (fora do Drizzle): sexo do cadastro e referencia/motivo das perguntas. Idempotente. */
+export function garantirColunasSexoReferencia(): Promise<void> {
+  colunasSexoProntas ??= (async () => {
+    await db.execute(sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS sexo_biologico text`);
+    await db.execute(sql`DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clients_sexo_biologico_chk') THEN
+        ALTER TABLE clients ADD CONSTRAINT clients_sexo_biologico_chk CHECK (sexo_biologico IS NULL OR sexo_biologico IN ('M','F'));
+      END IF; END $$`);
+    await db.execute(sql`ALTER TABLE anamnese_questionario ADD COLUMN IF NOT EXISTS referencia jsonb`);
+  })().catch((e) => { colunasSexoProntas = null; throw e; });
+  return colunasSexoProntas;
+}
+
+export async function sexoDoCadastro(clientId: number): Promise<"M" | "F" | null> {
+  await garantirColunasSexoReferencia();
+  const r = (await db.execute(sql`SELECT sexo_biologico FROM clients WHERE id=${clientId}`)).rows[0] as { sexo_biologico: string | null } | undefined;
+  return r?.sexo_biologico === "M" || r?.sexo_biologico === "F" ? r.sexo_biologico : null;
+}
+
+/** Converte a resposta da A04 em M/F; qualquer outra coisa vira null (nunca inventa). */
+export function sexoDaResposta(valor: unknown): "M" | "F" | null {
+  const v = valor as { tipo?: string; valor?: unknown; opcao?: unknown } | null;
+  if (!v || v.tipo !== "single") return null;
+  const t = String(v.valor ?? v.opcao ?? "").trim().toUpperCase();
+  return t === "M" || t === "MASCULINO" ? "M" : t === "F" || t === "FEMININO" ? "F" : null;
+}
+
+/** Grava o sexo SOMENTE se o cadastro ainda estiver vazio. Nunca sobrescreve. Retorna true se gravou. */
+export async function gravarSexoSeVazio(clientId: number, sexo: "M" | "F"): Promise<boolean> {
+  await garantirColunasSexoReferencia();
+  const r = await db.execute(sql`UPDATE clients SET sexo_biologico=${sexo} WHERE id=${clientId} AND sexo_biologico IS NULL`);
+  return (r.rowCount ?? 0) > 0;
+}
 export async function identidadeDoCadastro(clientId: number): Promise<IdentidadeCadastro | null> {
-  const c = (await db.execute(sql`SELECT name, cpf, birth_date FROM clients WHERE id=${clientId}`)).rows[0] as { name: string | null; cpf: string | null; birth_date: string | null } | undefined;
+  await garantirColunasSexoReferencia();
+  const c = (await db.execute(sql`SELECT name, cpf, birth_date, sexo_biologico FROM clients WHERE id=${clientId}`)).rows[0] as { name: string | null; cpf: string | null; birth_date: string | null; sexo_biologico: string | null } | undefined;
   if (!c) return null;
-  return { nome: c.name, cpfMascarado: mascararCpf(c.cpf), dataNascimento: c.birth_date, idade: idadeDe(c.birth_date) };
+  const sexo = c.sexo_biologico === "M" || c.sexo_biologico === "F" ? c.sexo_biologico : null;
+  return { nome: c.name, cpfMascarado: mascararCpf(c.cpf), dataNascimento: c.birth_date, idade: idadeDe(c.birth_date), sexoBiologico: sexo };
 }
 
 let tabelaPronta: Promise<void> | null = null;

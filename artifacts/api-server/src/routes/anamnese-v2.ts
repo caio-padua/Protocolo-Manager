@@ -16,7 +16,7 @@ import { buildFindings, type AdapterQuestion } from "../lib/anamnese-findings-ad
 import { verifyPortalToken } from "../lib/portal-token";
 import { sql } from "drizzle-orm";
 import {
-  ehCirurgia, ehIdentidade, fatosBloqueados, garantirIndiceRascunhoUnico, garantirTabelaCorrecoes, idadeDe, identidadeDoCadastro, retiraFato,
+  ehCirurgia, ehIdentidade, garantirColunasSexoReferencia, gravarSexoSeVazio, SEXO_QUESTION_ID, sexoDaResposta, sexoDoCadastro, fatosBloqueados, garantirIndiceRascunhoUnico, garantirTabelaCorrecoes, idadeDe, identidadeDoCadastro, retiraFato,
   type ValorResposta,
 } from "../lib/anamnese-retorno";
 
@@ -108,6 +108,7 @@ async function loadState(session: AnamneseSessionRow) {
 
 // GET /anamnese-v2/questions — questionario completo
 router.get("/anamnese-v2/questions", async (req, res) => {
+  await garantirColunasSexoReferencia();
   const rows = await db
     .select({
       id: anamneseQuestionarioTable.id,
@@ -125,6 +126,7 @@ router.get("/anamnese-v2/questions", async (req, res) => {
       observacao: anamneseQuestionarioTable.observacao,
       escalaValidada: anamneseQuestionarioTable.escalaValidada,
       aplicavelEm: anamneseQuestionarioTable.aplicavelEm,
+      referencia: anamneseQuestionarioTable.referencia,
       videoUrl: anamneseQuestionarioTable.videoUrl,
       dependeDe: anamneseQuestionarioTable.dependeDe,
       audioUrl: anamneseQuestionarioTable.audioUrl,
@@ -216,6 +218,9 @@ router.patch("/anamnese-v2/sessions/:token/answers", async (req, res) => {
   if (session.clientId !== null) {
     if (ehIdentidade(parsed.data.questionRowId)) {
       return res.status(409).json({ codigo: "IDENTIDADE_DO_CADASTRO", error: "Nome, CPF e idade vêm do cadastro e não são respondidos aqui." });
+    }
+    if (parsed.data.questionRowId === SEXO_QUESTION_ID && (await sexoDoCadastro(session.clientId)) !== null) {
+      return res.status(409).json({ codigo: "SEXO_DO_CADASTRO", error: "O sexo biológico vem do cadastro e não é alterado aqui. Para a identidade de gênero, use a pergunta própria." });
     }
     if (ehCirurgia(parsed.data.questionRowId)) {
       const base = (await fatosBloqueados(session.clientId, session.id)).get(parsed.data.questionRowId);
@@ -367,6 +372,11 @@ router.post("/anamnese-v2/sessions/:token/complete", async (req, res) => {
         const i = answers.findIndex((a) => a.questionRowId === 41);
         if (i >= 0) answers[i] = { questionRowId: 41, valor }; else answers.push({ questionRowId: 41, valor });
       }
+    }
+    // Sexo biologico: se o cadastro ainda nao tem, grava a resposta da A04 UMA vez (nunca sobrescreve).
+    if (session.clientId !== null) {
+      const sx = sexoDaResposta(answers.find((a) => a.questionRowId === SEXO_QUESTION_ID)?.valor);
+      if (sx) await gravarSexoSeVazio(session.clientId, sx);
     }
     const questions: AdapterQuestion[] = await tx
       .select({

@@ -57,7 +57,7 @@ const AREA_URL = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/area`;
 // senha de colaborador) com faixa visivel "MODO TESTE". Default DESLIGADO.
 const OPEN_ACCESS = import.meta.env.VITE_OPEN_ACCESS === "1";
 
-import RetornoPanel, { IDENTIDADE_IDS, type Retorno } from "./RetornoPanel";
+import RetornoPanel, { IDENTIDADE_IDS, SEXO_ID, type Retorno } from "./RetornoPanel";
 
 export default function AnamneseV2() {
   const { toast } = useToast();
@@ -176,6 +176,7 @@ export default function AnamneseV2() {
     const set = new Set<number>();
     if (!retorno) return set;
     for (const id of IDENTIDADE_IDS) set.add(id); // identidade vem do cadastro
+    if (retorno.identidade?.sexoBiologico) set.add(SEXO_ID); // sexo vem do cadastro e nao se muda
     for (const k of Object.keys(retorno.bloqueados ?? {})) set.add(Number(k)); // fatos ja registrados: somente leitura
     return set;
   }, [retorno]);
@@ -184,8 +185,10 @@ export default function AnamneseV2() {
     for (const q of questions ?? []) if (q.perguntaId) byPid.set(q.perguntaId, q);
     const sexoQ = byPid.get("A04");
     const sexoVal = sexoQ ? answers[sexoQ.id] : undefined;
+    // Sexo biologico: o CADASTRO manda; so sem cadastro vale a resposta unica da A04.
+    const sexoCadastro = retorno?.identidade?.sexoBiologico ?? undefined;
     const sexo =
-      sexoVal?.tipo === "single" ? String(sexoVal.valor ?? sexoVal.opcao) : undefined;
+      sexoCadastro ?? (sexoVal?.tipo === "single" ? String(sexoVal.valor ?? sexoVal.opcao) : undefined);
 
     const isVisible = (q: AnamneseQuestion): boolean => {
       const ap = q.aplicavelEm as { sexo?: "M" | "F" } | null | undefined;
@@ -214,7 +217,7 @@ export default function AnamneseV2() {
       list[idx.get(b)!].questions.push(q);
     }
     return list;
-  }, [questions, answers, ocultas]);
+  }, [questions, answers, ocultas, retorno]);
 
   const isRefused = useCallback((bloco: string) => refused.has(`bloco:${bloco}`), [refused]);
 
@@ -901,6 +904,8 @@ function QuestionCard({
 }) {
   const answered = isAnswered(value);
   const [showVideo, setShowVideo] = useState(false);
+  const [refAberta, setRefAberta] = useState(false);
+  const referencia = (q as unknown as { referencia?: { titulo?: string; motivo?: string; fonte?: string; url?: string | null } | null }).referencia ?? null;
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
 
@@ -974,6 +979,33 @@ function QuestionCard({
           <p className="whitespace-pre-line text-[13px] leading-relaxed text-muted-foreground">
             {q.observacao}
           </p>
+        </div>
+      )}
+
+      {/* De onde vem esta pergunta (sanfona): mostra a fonte para o cliente saber que nao e "da nossa cabeca" */}
+      {referencia && (
+        <div className="relative z-[1] mb-2">
+          <button
+            type="button"
+            onClick={() => setRefAberta((v) => !v)}
+            aria-expanded={refAberta}
+            className="flex items-center gap-1 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground"
+          >
+            {refAberta ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            De onde vem esta pergunta
+          </button>
+          {refAberta && (
+            <div className="mt-1 rounded-md bg-muted px-2.5 py-2 text-[11.5px] leading-snug text-muted-foreground">
+              <p className="font-semibold text-foreground">{referencia.titulo}</p>
+              {referencia.motivo && <p className="mt-0.5">Por que perguntamos: {referencia.motivo}</p>}
+              {referencia.fonte && <p className="mt-0.5">Fonte: {referencia.fonte}</p>}
+              {referencia.url && (
+                <a href={referencia.url} target="_blank" rel="noopener noreferrer" className="mt-0.5 inline-block underline" style={{ color: GOLD }}>
+                  Abrir a fonte
+                </a>
+              )}
+            </div>
+          )}
         </div>
       )}
 

@@ -179,6 +179,8 @@ export const anamneseQuestionarioTable = pgTable("anamnese_questionario", {
   // --- Humanizacao (colunas novas, aditivas) ---
   videoUrl: text("video_url"),
   dependeDe: jsonb("depende_de"),
+  // Referencia cientifica/documental da pergunta {codigo,titulo,fonte,url,motivo} (aditivo, catalogo integrado).
+  referencia: jsonb("referencia"),
   ordem: integer("ordem"),
   // --- Voz premium (colunas novas, aditivas) ---
   // voiceId: id da voz OpenAI (alloy, shimmer, nova, ...). voiceLabel: rotulo
