@@ -60,7 +60,10 @@ beforeAll(async () => {
   await q("INSERT INTO empresas (id,nome,cnpj,razao_social) VALUES (7,'Teste','11.222.333/0001-81','EMPRESA TESTE LTDA'),(8,'Outra','69.410.873/0001-79','OUTRA LTDA')");
   await q("CREATE TABLE professional_empresas (id serial PRIMARY KEY, professional_id int, empresa_id int, ordem int)");
   await q("INSERT INTO professional_empresas (professional_id, empresa_id, ordem) VALUES (1,7,1),(1,8,2)");
-  await q("CREATE TABLE professionals (id int PRIMARY KEY, empresa_id int)"); await q("INSERT INTO professionals VALUES (1,7)");
+  await q("CREATE TABLE professionals (id int PRIMARY KEY, empresa_id int, active boolean DEFAULT true, professional_type text, registration_number text, crm text)");
+  await q("INSERT INTO professionals (id,empresa_id,professional_type,registration_number) VALUES (1,7,'medico',NULL),(2,7,'medico','CRM/SP 123456')");
+  await q("CREATE TABLE empresa_responsaveis (empresa_id int PRIMARY KEY, administrador_professional_id int, responsavel_tecnico_professional_id int, atualizado_por int, atualizado_em timestamptz DEFAULT now())");
+  await q("CREATE TABLE empresa_responsaveis_auditoria (id serial PRIMARY KEY, empresa_id int, funcao text, antes int, depois int, por int)");
   await q("CREATE TABLE financial_goals (id serial PRIMARY KEY)");
   await q("CREATE TABLE payments (id serial PRIMARY KEY, empresa_id int, amount numeric, status text, paid_at text, due_date text, created_at text, provider text, asaas_invoice_url text)");
   for (const x of PAX_FINANCE_DDL) await q(x);
@@ -128,6 +131,8 @@ describe("PAX FINANCE documentos oficiais", () => {
     expect(Number((await q("SELECT count(*) c FROM fin_partner WHERE company_id=7 AND (papel='responsavel_tecnico' OR nome ILIKE '%Clinico%')")).rows[0].c)).toBe(0);
     expect(reg.campos.find((c: any) => c.chave === "rtNome").valor).toMatch(/Joao Clinico/);
     expect(reg.campos.find((c: any) => c.chave === "rtNome").grupo).toMatch(/não societário/);
+    const rt = (await q("SELECT administrador_professional_id a, responsavel_tecnico_professional_id r FROM empresa_responsaveis WHERE empresa_id=7")).rows[0];
+    expect(rt.r).toBe(2); expect(rt.a).toBeNull(); // ligado ao campo Responsável técnico pelo registro CRM; administrador intocado
     expect(e.dono_nome).not.toMatch(/Clinico/); expect(e.responsavel_legal_nome).not.toMatch(/Clinico/);
     expect((await request(app).post("/pax-finance/documents/apply").set(H(7))).status).toBe(200);
     expect(Number((await q("SELECT count(*) c FROM fin_partner WHERE company_id=7")).rows[0].c)).toBe(1);

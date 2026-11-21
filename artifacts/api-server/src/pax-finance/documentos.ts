@@ -180,6 +180,24 @@ export async function lerRegistro(ctx: FinContext) {
   };
 }
 
+
+/** Liga o medico ao campo "Responsavel tecnico" do cadastro da empresa (empresa_responsaveis) quando o registro profissional bate com UM unico medico ativo vinculado a empresa. Nunca sobrescreve escolha existente; nunca toca em administrador. */
+async function vincularResponsavelTecnico(tx: Pick<typeof db, "execute">, ctx: FinContext, registro: unknown): Promise<"vinculado" | "ja_definido" | "sem_correspondencia"> {
+  const dig = typeof registro === "string" ? soDigitos(registro) : "";
+  if (dig.length < 4) return "sem_correspondencia";
+  const c = (await tx.execute(sql`SELECT id FROM professionals p WHERE p.active AND p.professional_type='medico'
+    AND regexp_replace(coalesce(p.registration_number, p.crm, ''), '\\D', '', 'g') = ${dig}
+    AND (p.empresa_id=${ctx.companyId} OR EXISTS (SELECT 1 FROM professional_empresas pe WHERE pe.professional_id=p.id AND pe.empresa_id=${ctx.companyId}))`)).rows as Row[];
+  if (c.length !== 1) return "sem_correspondencia";
+  const id = Number(c[0].id);
+  const atual = (await tx.execute(sql`SELECT responsavel_tecnico_professional_id AS rt FROM empresa_responsaveis WHERE empresa_id=${ctx.companyId}`)).rows[0] as Row | undefined;
+  if (atual?.rt) return "ja_definido";
+  await tx.execute(sql`INSERT INTO empresa_responsaveis (empresa_id, responsavel_tecnico_professional_id, atualizado_por) VALUES (${ctx.companyId}, ${id}, ${ctx.actorId})
+    ON CONFLICT (empresa_id) DO UPDATE SET responsavel_tecnico_professional_id=EXCLUDED.responsavel_tecnico_professional_id, atualizado_por=EXCLUDED.atualizado_por, atualizado_em=now()`);
+  await tx.execute(sql`INSERT INTO empresa_responsaveis_auditoria (empresa_id, funcao, antes, depois, por) VALUES (${ctx.companyId}, 'responsavel_tecnico', NULL, ${id}, ${ctx.actorId})`);
+  return "vinculado";
+}
+
 // ---------- aplicar ----------
 const val = (d: Record<string, Valor>, k: string) => (typeof d[k] === "string" || typeof d[k] === "number" ? d[k] : undefined);
 export async function aplicarDocumentos(ctx: FinContext) {
@@ -239,6 +257,8 @@ export async function aplicarDocumentos(ctx: FinContext) {
       VALUES (${ctx.companyId}, ${JSON.stringify(merged)}::jsonb, ${JSON.stringify(sens)}::jsonb, ${JSON.stringify(origem)}::jsonb, ${ctx.actorId})
       ON CONFLICT (company_id) DO UPDATE SET dados=EXCLUDED.dados, sensiveis=EXCLUDED.sensiveis, origem=EXCLUDED.origem, updated_by=EXCLUDED.updated_by, updated_at=now()`);
 
+    const rtVinculo = await vincularResponsavelTecnico(tx, ctx, merged.rtCrm);
+
     // 3) Pax Finance: cadastro da entidade e pessoas (sem duplicar), devolvido a rascunho
     const cnpjFmt = String(merged.cnpj ?? empresa.cnpj);
     let ent = (await tx.execute(sql`SELECT id FROM fin_entity WHERE company_id=${ctx.companyId} AND cnpj=${cnpjFmt}`)).rows[0] as Row | undefined;
@@ -273,8 +293,8 @@ export async function aplicarDocumentos(ctx: FinContext) {
       // Responsavel tecnico (medico responsavel clinico) NAO e socio nem responsavel da empresa: fica so no cadastro informativo (registry).
     }
     await tx.execute(sql`UPDATE fin_doc_import SET status='aplicado', applied_by=${ctx.actorId}, applied_at=now() WHERE company_id=${ctx.companyId} AND status='extraido'`);
-    await registrarAuditoria(tx, ctx, "documento.aplicar", "empresas", ctx.companyId, { anterior, gravado, camposRegistro: Object.keys(merged).length, pessoasNovas: pessoas, entidadeId: ent ? Number(ent.id) : null });
-    return { camposRegistro: Object.keys(merged).length, camposEmpresaAlterados: Object.keys(gravado), pessoasNovas: pessoas, entidadeId: ent ? Number(ent.id) : null, sensiveisGuardados: Object.keys(sens).length };
+    await registrarAuditoria(tx, ctx, "documento.aplicar", "empresas", ctx.companyId, { anterior, gravado, camposRegistro: Object.keys(merged).length, pessoasNovas: pessoas, rtVinculo, entidadeId: ent ? Number(ent.id) : null });
+    return { rtVinculo, camposRegistro: Object.keys(merged).length, camposEmpresaAlterados: Object.keys(gravado), pessoasNovas: pessoas, entidadeId: ent ? Number(ent.id) : null, sensiveisGuardados: Object.keys(sens).length };
   });
 }
 
@@ -289,7 +309,8 @@ export async function salvarResponsavelTecnico(ctx: FinContext, nome: string, re
       VALUES (${ctx.companyId}, ${JSON.stringify({ rtNome: n, rtCrm: r })}::jsonb, '{}'::jsonb, ${JSON.stringify({ rtNome: "manual", rtCrm: "manual" })}::jsonb, ${ctx.actorId})
       ON CONFLICT (company_id) DO UPDATE SET dados = fin_company_registry.dados || ${JSON.stringify({ rtNome: n, rtCrm: r })}::jsonb,
         origem = fin_company_registry.origem || ${JSON.stringify({ rtNome: "manual", rtCrm: "manual" })}::jsonb, updated_by=EXCLUDED.updated_by, updated_at=now()`);
-    await registrarAuditoria(tx, ctx, "documento.responsavel_tecnico", "fin_company_registry", ctx.companyId, { anterior: { rtNome: d.rtNome ?? null, rtCrm: d.rtCrm ?? null }, novo: { rtNome: n, rtCrm: r } });
-    return { ok: true };
+    const vinculo = await vincularResponsavelTecnico(tx, ctx, r);
+    await registrarAuditoria(tx, ctx, "documento.responsavel_tecnico", "fin_company_registry", ctx.companyId, { anterior: { rtNome: d.rtNome ?? null, rtCrm: d.rtCrm ?? null }, novo: { rtNome: n, rtCrm: r }, vinculo });
+    return { ok: true, vinculo };
   });
 }
