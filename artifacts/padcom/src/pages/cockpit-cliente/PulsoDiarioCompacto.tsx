@@ -197,7 +197,7 @@ export function PulsoDiarioHistorico({ clientId, janela, naModal = false }: { cl
   }, [linhas]);
   const demo = linhas.some((l) => l.origem === "demo");
   return (
-    <section id="cc-pulso-historico" className={`cc-pulso${naModal ? " cc-pulso-modal" : ""}`} aria-label="Histórico do pulso diário">
+    <section id="cc-pulso-historico" className={`cc-pulso${naModal ? " cc-pulso-modal panel-3d-sub" : ""}`} aria-label="Histórico do pulso diário">
       <header className="cc-pulso-topo cc-pulso-explica">
         <h4 className="cc-pulso-explica-titulo">
           <Activity size={13} aria-hidden="true" /> Registros dia a dia
@@ -218,7 +218,7 @@ export function PulsoDiarioHistorico({ clientId, janela, naModal = false }: { cl
           <table className="cc-pulso-tabela">
             <thead><tr>
               {([["Dia", ""], ["Período", ""], ["Energia", "0 a 10"], ["Disposição", "0 a 10"], ["Sono", "0 a 10"], ["Pressão", "mmHg"], ["Freq. cardíaca", "bpm"], ["Glicemia", "mg/dL"]] as const).map(([t, u]) => (
-                <th key={t} scope="col"><span>{t}</span>{u && <small>{u}</small>}</th>
+                <th key={t} scope="col"><span>{t}</span><small>{u || "\u00a0"}</small></th>
               ))}
             </tr></thead>
             <tbody>

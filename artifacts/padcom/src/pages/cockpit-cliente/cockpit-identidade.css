@@ -374,9 +374,9 @@
   --p-fundo: transparent; --p-tinta: hsl(var(--foreground)); --p-rotulo: #35527f; --p-mudo: hsl(var(--muted-foreground));
   --p-fio: color-mix(in srgb, currentColor 11%, transparent); --p-borda: color-mix(in srgb, currentColor 20%, transparent);
   --p-cab: color-mix(in srgb, #35527f 7%, hsl(var(--background))); --p-dia: color-mix(in srgb, currentColor 3.5%, transparent);
-  border: 0; box-shadow: none; padding: 0; background: transparent;
+  padding: 12px 16px 14px; margin-top: 0;
 }
-.dark .cc-pulso.cc-pulso-modal { --p-rotulo: #9db8e6; --p-cab: color-mix(in srgb, #9db8e6 9%, hsl(var(--background))); box-shadow: none; }
+.dark .cc-pulso.cc-pulso-modal { --p-rotulo: #9db8e6; --p-cab: color-mix(in srgb, #9db8e6 9%, hsl(var(--background))); }
 .cc-pulso-modal .cc-pulso-rolagem { border-color: var(--p-fio); background: hsl(var(--background)); }
 .cc-pulso-modal .cc-pulso-explica { border-left-color: #4d6ea1; background: var(--p-cab); }
 .cc-pulso-modal .cc-pulso-periodo { background: transparent; box-shadow: none; border-color: var(--p-fio); }
@@ -423,3 +423,12 @@
 .cc-pulso-tabela tbody tr.cc-pulso-linha td { padding: 3px 3px; }
 .cc-pulso-tabela tbody th.cc-pulso-dia { padding: 7px 6px; }
 .cc-pulso-cal { min-height: 88px; }
+
+/* Painel do historico = mesmo perfil do painel de medias (panel-3d-sub, titulo igual) */
+.cc-pulso-modal .cc-pulso-explica { margin-bottom: 10px; padding: 0; border: 0; border-radius: 0; background: transparent; align-items: baseline; }
+.cc-pulso-modal .cc-pulso-explica-titulo { font: 900 11px/1.2 Inter,sans-serif; letter-spacing: .16em; color: hsl(var(--primary)); }
+.cc-pulso-modal .cc-pulso-explica-titulo svg { display: none; }
+.cc-pulso-modal .cc-pulso-estado { font: 500 11px/1.2 Inter,sans-serif; letter-spacing: 0; color: var(--p-mudo); }
+/* Cabecalho das colunas: todas as palavras na mesma linha horizontal */
+.cc-pulso-tabela thead th { vertical-align: top; }
+.cc-pulso-tabela thead th small { min-height: 9px; }
