@@ -13,6 +13,8 @@ import { SimCreditoInput, CATALOGO, compararCredito, simularCredito } from "./cr
 import { PainelInput, calcularPainel } from "./painel-tributario";
 import { CreditoPainelInput, painelCredito } from "./credito-pesquisa";
 import { FlagsInput, estadoAgentes, lerConfig, salvarFlags } from "./produto";
+import { ParteInput } from "./conformidade-calc";
+import { criarParte, editarParte, encerrarParte, lerConformidade, validarParte } from "./conformidade";
 import { LabSalvarInput, lerLab, limparLab, salvarLab } from "./laboratorio";
 import { PerfilInput, SocioInput, criarSocio, editarSocio, encerrarSocio, listarAuditoria, listarSocios, obterEmpresa, salvarPerfil, validarPerfil, validarSocio } from "./cadastro";
 
@@ -125,6 +127,12 @@ router.get("/pax-finance/lab", ...finGuards, wrap(async (req, res) => {
 }));
 router.put("/pax-finance/lab", ...finGuards, wrap(async (req, res) => { res.json(await salvarLab(finContext(req), LabSalvarInput.parse(req.body))); }));
 router.delete("/pax-finance/lab", ...finGuards, wrap(async (req, res) => { res.json(await limparLab(finContext(req))); }));
+
+router.get("/pax-finance/entities/:id/compliance", ...finGuards, wrap(async (req, res) => { res.json(await lerConformidade(finContext(req), idParam(req))); }));
+router.post("/pax-finance/entities/:id/compliance/parties", ...finGuards, wrap(async (req, res) => { res.status(201).json(await criarParte(finContext(req), idParam(req), ParteInput.parse(req.body))); }));
+router.put("/pax-finance/compliance/parties/:id", ...finGuards, wrap(async (req, res) => { res.json(await editarParte(finContext(req), idParam(req), ParteInput.parse(req.body))); }));
+router.post("/pax-finance/compliance/parties/:id/validate", ...finGuards, wrap(async (req, res) => { res.json(await validarParte(finContext(req), idParam(req))); }));
+router.post("/pax-finance/compliance/parties/:id/end", ...finGuards, wrap(async (req, res) => { res.json(await encerrarParte(finContext(req), idParam(req))); }));
 
 router.get("/pax-finance/audit", ...finGuards, wrap(async (req, res) => { res.json(await listarAuditoria(finContext(req))); }));
 

@@ -21,3 +21,7 @@ Liberado pelo CEO em 21/11/2026 (saiu do standby). Fases 1 e 2 prontas; 3 a 8 pe
 ## Laboratório de 24 meses (21/11/2026)
 Simulação pura em laboratorio-calc.ts reusa calcularPainel (faixas do Simples); só premissas+ajustes por mês são gravados (fin_sim_scenario, is_simulation sempre true). Meses antes de 13/08/2026 = clínica-modelo sem CNPJ; Carlúcia nunca recebe receita. Planejamento = manter folha elegível em 28% mês a mês (Fator R usa 12 meses anteriores); pode piorar mês isolado. Lucro contábil/distribuível sempre nulo. Anexo do pedido propunha titularidade nominal/pulverização para crédito: NÃO implementar. Pendente: Roteador de Serviços, beneficiário final, equiparação hospitalar, Maia/upload real.
 **Why:** pedido do CEO com exclusão ética explícita. **How to apply:** ao continuar o Pax Finance.
+
+## Conformidade societária (21/11/2026)
+fin_related_party guarda beneficiário final (sempre pessoa física), controle efetivo e partes relacionadas; sem CPF/RG; encerrar, nunca apagar; editar volta a rascunho; validar exige documento de origem. O parecer devolve bloqueiaRoteador (pendência = BF ausente/rascunho ou participações ≠ 100%); empresa relacionada só gera alerta e nunca sugere dividir receita. O Roteador de Serviços deve consumir bloqueiaRoteador.
+**Why:** exigência do CEO de transparência e exclusão de pulverização para crédito. **How to apply:** ao construir o Roteador, ler lerConformidade antes de qualquer cálculo.

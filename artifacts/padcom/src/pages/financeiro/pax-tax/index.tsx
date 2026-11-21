@@ -14,6 +14,7 @@ import { Simulador } from "./Simulador";
 import { PainelTributario } from "./PainelTributario";
 import { LedgerAba } from "./Ledger";
 import { Laboratorio24m } from "./Laboratorio24m";
+import { Conformidade } from "./Conformidade";
 
 const PAPEL: Record<string, string> = { socio: "Sócio", administrador: "Administrador", socio_administrador: "Sócio administrador", responsavel_tecnico: "Responsável técnico (não é sócio)", procurador: "Procurador" };
 const SIMPLES: Record<string, string> = { nao_verificada: "Não verificada", confirmada: "Confirmada", nao_optante: "Não optante" };
@@ -166,6 +167,7 @@ function PaxTaxCorpo() {
               </div>
             </>)}
           </section>
+          {e && <div className="mt-4"><Conformidade entidadeId={e.id} /></div>}
         </TabsContent>
 
         <TabsContent value="parametros" className="mt-3"><Regras agir={agir} /></TabsContent>
