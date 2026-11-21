@@ -1446,3 +1446,31 @@ mtime_ms = 1795217743363
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/854c7f3f-dc63-49c3-80fa-1be104041bc1/58aa9e9b-29be-4f53-a481-1aa1efaef946"
 storage_version_token = "1795217745653809"
 content_type = "text/plain"
+
+[[outputs]]
+id = "g7ZEUBr2GTxOiglpMi6mA"
+uri = "file://.agents/skills/paxter-loop/CODIGO-PAXTER.md"
+type = "text"
+title = "Bíblia — Código Paxter"
+description = "Regras do projeto (Código Penal)."
+logical_id = "2476e870-05e1-4184-b169-1bb44955c210"
+content_hash = "sha256:742079026ff6f74822d38bad6384b3506c9e22e4a2542849fc572f9059673ffe"
+size = 47926
+mtime_ms = 1794178898672
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/2476e870-05e1-4184-b169-1bb44955c210/70d59274-0d29-4ecf-9521-2d67533cdce3"
+storage_version_token = "1795273871238945"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "po2XZTH3zAL_yDxKPP5kf"
+uri = "file://.agents/COMUNICACAO-DR-CAIO.md"
+type = "text"
+title = "Regras de comunicação com o Dr. Caio"
+description = "Lidas no início de toda demanda."
+logical_id = "946a7e8d-1bdd-4afe-94e9-84fdf561c0b8"
+content_hash = "sha256:e62c3be87c02e4a0b188c32be268f3964106af3c62f967ce75e1f431d4d384fd"
+size = 1009
+mtime_ms = 1795273870076
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/946a7e8d-1bdd-4afe-94e9-84fdf561c0b8/469a891f-f013-48de-ae6c-475401d3038b"
+storage_version_token = "1795273871837772"
+content_type = "text/markdown"

@@ -1,3 +1,8 @@
+> ## LEITURA OBRIGATORIA NO INICIO DE TODA DEMANDA
+>
+> 1. `.agents/skills/paxter-loop/CODIGO-PAXTER.md` (a Biblia / Codigo Penal do projeto)
+> 2. `.agents/COMUNICACAO-DR-CAIO.md` (como falar com o Dr. Caio)
+
 > ## ORDEM PERMANENTE — SATELITE DE CONHECIMENTO (14/08/2026)
 >
 > **Antes de implementar qualquer capacidade, leia a nota da capacidade no PADUA BRAIN.**
