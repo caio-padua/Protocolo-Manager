@@ -126,8 +126,35 @@ function RaioX({ m, ov, onEdit }: { m: Mes; ov: Ov[string] | undefined; onEdit: 
   );
 }
 
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const diasNoMes = (ym: string) => new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0).getDate();
+const dataIni = (ym: string) => `01.${ym.slice(5, 7)}.${ym.slice(0, 4)}`;
+const dataFim = (ym: string) => `${pad2(diasNoMes(ym))}.${ym.slice(5, 7)}.${ym.slice(0, 4)}`;
+/** Digita só números: 14112025 vira 14.11.2025. */
+const mascaraData = (t: string) => { const d = t.replace(/\D/g, "").slice(0, 8); return [d.slice(0, 2), d.slice(2, 4), d.slice(4)].filter((x) => x).join("."); };
+/** "14.11.2025" -> "2025-11" (null se a data não existe). */
+const mesDaData = (t: string): string | null => {
+  const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(t); if (!m) return null;
+  const dia = Number(m[1]), mes = Number(m[2]), ano = Number(m[3]);
+  if (mes < 1 || mes > 12 || dia < 1 || dia > new Date(ano, mes, 0).getDate()) return null;
+  return `${ano}-${pad2(mes)}`;
+};
+function CampoData({ rotulo, valor, onValida, id }: { rotulo: string; valor: string; onValida: (ym: string) => void; id: string }) {
+  const [t, setT] = useState(valor);
+  const [ruim, setRuim] = useState(false);
+  useEffect(() => { setT(valor); setRuim(false); }, [valor]);
+  const aplicar = () => { const ym = mesDaData(t); if (ym) { setRuim(false); onValida(ym); } else { setRuim(true); } };
+  return (
+    <label className="block text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{rotulo}
+      <input className={`${campoCls} mt-1 text-center text-[14px] font-bold tabular-nums ${ruim ? "border-destructive" : ""}`} inputMode="numeric" placeholder="dd.mm.aaaa" maxLength={10} value={t} data-testid={id}
+        aria-invalid={ruim} onChange={(e) => setT(mascaraData(e.target.value))} onBlur={() => { if (t !== valor) aplicar(); }} onKeyDown={(e) => { if (e.key === "Enter") aplicar(); }} />
+      {ruim && <span className="mt-1 block text-[10px] normal-case text-destructive" role="alert">Data inválida. Exemplo: 14.11.2025</span>}
+    </label>
+  );
+}
+
 /** Faixa de meses com duas alças: arraste e solte (ou aperte Enter) para aplicar o corte. Não apaga nenhum dado. */
-function FaixaMeses({ titulo, ajuda, rotulos, valor, onAplicar, id }: { titulo: string; ajuda: string; rotulos: string[]; valor: [number, number]; onAplicar: (v: [number, number]) => void; id: string }) {
+function FaixaMeses({ titulo, ajuda, rotulos, meses, valor, onAplicar, id }: { titulo: string; ajuda: string; rotulos: string[]; meses: string[]; valor: [number, number]; onAplicar: (v: [number, number]) => void; id: string }) {
   const [r, setR] = useState<[number, number]>(valor);
   useEffect(() => setR(valor), [valor[0], valor[1]]);
   const max = rotulos.length - 1;
@@ -138,7 +165,11 @@ function FaixaMeses({ titulo, ajuda, rotulos, valor, onAplicar, id }: { titulo: 
     <div className="panel-3d-sub space-y-2 p-3" data-testid={id}>
       <div className="flex flex-wrap items-center justify-between gap-2 text-[12px]">
         <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{titulo}<Ajuda texto={ajuda} rotulo={titulo} /></span>
-        <b data-testid={`${id}-texto`}>{rotulos[r[0]]} até {rotulos[r[1]]} ({r[1] - r[0] + 1} meses)</b>
+        <b data-testid={`${id}-texto`}>{dataIni(meses[r[0]])} até {dataFim(meses[r[1]])} ({r[1] - r[0] + 1} meses)</b>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <CampoData id={`${id}-de`} rotulo="Data inicial" valor={dataIni(meses[r[0]])} onValida={(ym) => { const i = Math.min(Math.max(meses.indexOf(ym) < 0 ? (ym < meses[0] ? 0 : max) : meses.indexOf(ym), 0), r[1]); const n: [number, number] = [i, r[1]]; setR(n); onAplicar(n); }} />
+        <CampoData id={`${id}-ate`} rotulo="Data final" valor={dataFim(meses[r[1]])} onValida={(ym) => { const i = Math.max(Math.min(meses.indexOf(ym) < 0 ? (ym < meses[0] ? 0 : max) : meses.indexOf(ym), max), r[0]); const n: [number, number] = [r[0], i]; setR(n); onAplicar(n); }} />
       </div>
       <div className="relative mx-3 h-8">
         <div className="concave-3d absolute inset-x-0 top-1/2 h-3 -translate-y-1/2 rounded-[3px]" />
@@ -146,7 +177,7 @@ function FaixaMeses({ titulo, ajuda, rotulos, valor, onAplicar, id }: { titulo: 
         <input type="range" className={cls} min={0} max={max} value={r[0]} aria-label={`${titulo}: mês inicial`} onKeyDown={tecla} onPointerUp={() => onAplicar(r)} onChange={(e) => setR([Math.min(Number(e.target.value), r[1]), r[1]])} />
         <input type="range" className={cls} min={0} max={max} value={r[1]} aria-label={`${titulo}: mês final`} onKeyDown={tecla} onPointerUp={() => onAplicar(r)} onChange={(e) => setR([r[0], Math.max(Number(e.target.value), r[0])])} />
       </div>
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground"><span>{rotulos[0]}</span><span>{mudou ? "Solte ou aperte Enter para aplicar" : "Arraste as alças para mudar o corte"}</span><span>{rotulos[max]}</span></div>
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground"><span>{dataIni(meses[0])}</span><span>{mudou ? "Solte ou aperte Enter para aplicar" : "Arraste as alças para mudar o corte"}</span><span>{dataFim(meses[max])}</span></div>
     </div>
   );
 }
@@ -225,8 +256,8 @@ export function Laboratorio24m() {
       </section>
 
       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-        <FaixaMeses id="faixa-grafico" titulo="Período do gráfico e dos totais" ajuda="Escolha de que mês até que mês o gráfico e os quatro totais abaixo calculam. Os dados de todos os 24 meses continuam guardados." rotulos={rot} valor={gr} onAplicar={setGr} />
-        <FaixaMeses id="faixa-digitacao" titulo="Período para digitar na tabela" ajuda="A tabela mês a mês mostra só os meses deste período, para você digitar o faturamento sem rolar. Os outros meses continuam guardados e calculados." rotulos={rot} valor={tr} onAplicar={setTr} />
+        <FaixaMeses id="faixa-grafico" titulo="Período do gráfico e dos totais" ajuda="Escolha de que mês até que mês o gráfico e os quatro totais abaixo calculam. Os dados de todos os 24 meses continuam guardados." rotulos={rot} meses={d.meses.map((m) => m.mes)} valor={gr} onAplicar={setGr} />
+        <FaixaMeses id="faixa-digitacao" titulo="Período para digitar na tabela" ajuda="A tabela mês a mês mostra só os meses deste período, para você digitar o faturamento sem rolar. Os outros meses continuam guardados e calculados." rotulos={rot} meses={d.meses.map((m) => m.mes)} valor={tr} onAplicar={setTr} />
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
