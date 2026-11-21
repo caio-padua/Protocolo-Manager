@@ -173,7 +173,7 @@ router.get("/clinical-documents/delivery-targets/:clientId", async (req, res) =>
     client.phone?.trim() ? { channel: "WHATSAPP", recipient: client.phone.trim() } : null,
     client.telegramChatId?.trim() ? { channel: "TELEGRAM", recipient: client.telegramChatId.trim() } : null,
   ].filter((target): target is { channel: Channel; recipient: string } => target !== null);
-  res.json({ targets });
+  res.json({ targets, manual: { instagram: client.instagram?.trim() || null } });
 });
 
 router.get("/clinical-documents/delivery-history/:documentType/:documentId", async (req, res) => {
