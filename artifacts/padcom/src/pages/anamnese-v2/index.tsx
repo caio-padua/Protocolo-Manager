@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties, type ReactNode } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -24,6 +24,7 @@ import {
   Sparkles,
   Volume2,
   Square,
+  HelpCircle,
 } from "lucide-react";
 import {
   useListAnamneseQuestions,
@@ -89,6 +90,10 @@ export default function AnamneseV2() {
   const [findings, setFindings] = useState<AnamneseFinding[]>([]);
   const [demo, setDemo] = useState<boolean>(() => localStorage.getItem(DEMO_KEY) === "1");
 
+  // Retomada: tela "Voce parou aqui" ao reabrir a pagina ou voltar de uma ligacao/outro aplicativo.
+  const [retomadaAberta, setRetomadaAberta] = useState(false);
+  const ultimaRespondidaRef = useRef<number | null>(null);
+  const saiuEmRef = useRef<number | null>(null);
   const startRef = useRef<number>(Date.now());
   const milestoneRef = useRef<Set<number>>(new Set());
   const saveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
@@ -141,6 +146,11 @@ export default function AnamneseV2() {
       if (a.valor && typeof a.valor === "object") map[a.questionRowId] = a.valor as Valor;
     }
     setAnswers(map);
+    const feitas = sessionState.answers
+      .filter((a) => a.valor && typeof a.valor === "object" && isAnswered(a.valor as Valor))
+      .sort((a, b) => String(a.respondidoEm ?? "").localeCompare(String(b.respondidoEm ?? "")));
+    ultimaRespondidaRef.current = feitas.length ? feitas[feitas.length - 1].questionRowId : null;
+    if (feitas.length > 0 && sessionState.session.status !== "concluida") setRetomadaAberta(true);
     setRefused(new Set(sessionState.refusals.map((r) => `${r.escopo}:${r.alvo}`)));
     if (sessionState.session.status === "concluida") {
       setFinished(true);
@@ -236,6 +246,13 @@ export default function AnamneseV2() {
     (g) => isRefused(g.bloco) || g.questions.every((q) => isAnswered(answers[q.id])),
   ).length;
 
+  // % de evolucao de cada titulo (grupo recusado conta como resolvido).
+  const grupoPct = (g: { bloco: string; questions: AnamneseQuestion[] }): number => {
+    if (isRefused(g.bloco)) return 100;
+    if (g.questions.length === 0) return 0;
+    return Math.round((g.questions.filter((q) => isAnswered(answers[q.id])).length / g.questions.length) * 100);
+  };
+
   // tempo medio por resposta + estimativa
   const elapsedSeg = Math.round((Date.now() - startRef.current) / 1000);
   const tempoMedio = respondidas > 0 ? Math.max(2, Math.round(elapsedSeg / respondidas)) : 6;
@@ -298,6 +315,7 @@ export default function AnamneseV2() {
   const handleAnswer = useCallback(
     (q: AnamneseQuestion, v: Valor, opts?: { commit?: boolean }) => {
       setAnswers((prev) => ({ ...prev, [q.id]: v }));
+      if (isAnswered(v)) ultimaRespondidaRef.current = q.id;
       const kind = controlKind(q);
       const debounced = kind === "texto" || kind === "number";
       if (debounced) {
@@ -390,7 +408,13 @@ export default function AnamneseV2() {
 
   useEffect(() => {
     const onHide = () => {
-      if (document.visibilityState === "hidden") flushBeacon();
+      if (document.visibilityState === "hidden") {
+        saiuEmRef.current = Date.now();
+        flushBeacon();
+      } else if (saiuEmRef.current && Date.now() - saiuEmRef.current >= 15000) {
+        saiuEmRef.current = null;
+        setRetomadaAberta(true); // voltou de ligacao/outro aplicativo: mostra onde parou
+      }
     };
     window.addEventListener("pagehide", flushBeacon);
     document.addEventListener("visibilitychange", onHide);
@@ -471,7 +495,7 @@ export default function AnamneseV2() {
         </div>
       )}
       {/* HEADER / TIMELINE — fiel ao canvas: marca centralizada -> blocos -> barra de barinhas */}
-      <header className={`anamnese-solo relative z-20 shrink-0 overflow-hidden border-b border-border px-4 ${minimizado ? "py-2" : "py-4"}`}>
+      <header className={`anamnese-solo relative z-20 shrink-0 border-b border-border px-4 ${minimizado ? "py-2" : "py-4"}`}>
         {/* tecido terno CRISP sobre o painel do cabecalho (acima do bg, abaixo do conteudo).
             CEO confirmou em 24/06/2026: MANTER o tecido aqui (claro e escuro) e UNIFICAR com o das
             questoes — por isso a base do header e a MESMA .anamnese-solo da pagina (mesmo degrade/cor),
@@ -482,56 +506,54 @@ export default function AnamneseV2() {
           {/* controles verticais no canto superior direito (retangulos finos,
               texto girado 90 graus) — nao competem com a marca centralizada */}
           {(() => {
+            // Os 3 botoes: MESMO tamanho, MESMO alinhamento, relevo saliente (bevel-3d).
             const cls = minimizado
-              ? "btn-3d-soft flex h-6 w-8 items-center justify-center rounded-[4px]"
-              : "btn-3d-soft flex h-7 w-[76px] items-center justify-start gap-1.5 rounded-[5px] px-2";
-            const lbl = "text-[9px] font-bold uppercase tracking-wider";
-            const ic = "h-3 w-3 shrink-0";
+              ? "bevel-3d relative flex h-8 w-9 items-center justify-center rounded-[5px]"
+              : "bevel-3d relative flex h-8 w-[108px] items-center justify-center gap-1.5 whitespace-nowrap rounded-[5px] px-2";
+            const lbl = "text-[9.5px] font-bold uppercase tracking-wide";
+            const ic = "h-3.5 w-3.5 shrink-0";
             return (
               <div
-                className={`absolute right-0 top-0 z-10 flex gap-1 ${minimizado ? "flex-row items-center" : "flex-col items-stretch"}`}
+                className={`absolute right-0 top-0 z-30 flex gap-1.5 ${minimizado ? "flex-row items-center" : "flex-col items-stretch"}`}
               >
-                <button
-                  type="button"
+                <TipButton
                   onClick={() => setFocusMode((f) => !f)}
-                  aria-label={focusMode ? "Sair do modo foco" : "Entrar no modo foco"}
-                  title={focusMode ? "Sair do foco" : "Modo foco"}
+                  label={focusMode ? "Ver todas as perguntas" : "Uma pergunta por vez"}
+                  tip={focusMode ? "Volta a mostrar todas as perguntas do grupo juntas, na mesma tela." : "Mostra uma pergunta por vez, em tela cheia, para você responder com calma."}
                   className={cls}
-                  style={focusMode ? { boxShadow: `0 0 0 2px ${GOLD}`, color: GOLD } : undefined}
+                  style={focusMode ? { boxShadow: `0 0 0 2px ${GOLD}`, color: GOLD } : { color: GOLD }}
                 >
                   {focusMode ? <EyeOff className={ic} /> : <Eye className={ic} />}
-                  {!minimizado && <span className={lbl}>Foco</span>}
-                </button>
-                <button
-                  type="button"
+                  {!minimizado && <span className={lbl}>{focusMode ? "Ver todas" : "Uma a uma"}</span>}
+                </TipButton>
+                <TipButton
                   onClick={toggle}
-                  aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
-                  title={theme === "dark" ? "Tema claro" : "Tema escuro"}
+                  label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
+                  tip={theme === "dark" ? "Troca para o fundo claro, mais fácil de ler à luz do dia." : "Troca para o fundo escuro, mais confortável à noite."}
                   className={cls}
                   style={{ color: GOLD }}
                 >
                   {theme === "dark" ? <Sun className={ic} /> : <Moon className={ic} />}
                   {!minimizado && <span className={lbl}>Tema</span>}
-                </button>
-                <button
-                  type="button"
+                </TipButton>
+                <TipButton
                   onClick={() => setMinimizado((m) => !m)}
-                  aria-label={minimizado ? "Expandir cabeçalho" : "Minimizar cabeçalho"}
-                  title={minimizado ? "Expandir cabeçalho" : "Minimizar cabeçalho"}
-                  aria-expanded={!minimizado}
+                  label={minimizado ? "Expandir cabeçalho" : "Minimizar cabeçalho"}
+                  tip={minimizado ? "Abre o topo completo, com o resumo do seu progresso." : "Recolhe o topo para sobrar mais espaço para as perguntas."}
+                  expanded={!minimizado}
                   className={cls}
                   style={{ color: GOLD }}
                 >
                   {minimizado ? <ChevronDown className={ic} /> : <ChevronUp className={ic} />}
                   {!minimizado && <span className={lbl}>Minimizar</span>}
-                </button>
+                </TipButton>
               </div>
             );
           })()}
 
           {minimizado ? (
             <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2 pr-[6.75rem]">
+              <div className="flex items-center gap-2 pr-[7.5rem]">
                 <div className="shrink-0"><PaxterSymbolGlass size={30} tone={theme === "dark" ? "dark" : "light"} /></div>
                 <div className="grid min-w-0 flex-1 grid-cols-4 gap-1">
                   <MiniMeter icon={<ListChecks className="h-2.5 w-2.5" />} value={`${pct}%`} />
@@ -540,11 +562,20 @@ export default function AnamneseV2() {
                   <MiniMeter icon={<Clock className="h-2.5 w-2.5" />} value={`${restanteMin}m`} />
                 </div>
               </div>
-              <div className="flex gap-1">
-                {Array.from({ length: gruposTotais }).map((_, i) => (
-                  <div key={i} className="paxter-bar-track h-1.5 flex-1">
-                    {i < gruposCompletos && <div className="paxter-bar-fill" style={{ width: "100%" }} />}
-                  </div>
+              <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
+                {groups.map((g, i) => (
+                  <GrupoChip
+                    key={g.bloco}
+                    compact
+                    label={siglaBloco(g.bloco)}
+                    title={g.bloco}
+                    pct={grupoPct(g)}
+                    active={i === groupIdx}
+                    done={g.questions.every((q) => isAnswered(answers[q.id]))}
+                    refused={isRefused(g.bloco)}
+                    isDark={theme === "dark"}
+                    onClick={() => setGroupIdx(i)}
+                  />
                 ))}
               </div>
             </div>
@@ -592,25 +623,19 @@ export default function AnamneseV2() {
         {!focusMode && (
           <div className="leva-band -mx-6 -mt-4 mb-4 rounded-b-xl rounded-t-none px-6 pb-3 pt-4">
             <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-              {groups.map((g, i) => {
-                const done = g.questions.every((q) => isAnswered(answers[q.id]));
-                const ref = isRefused(g.bloco);
-                const active = i === groupIdx;
-                const tag = siglaBloco(g.bloco);
-                return (
-                  <button
-                    key={g.bloco}
-                    type="button"
-                    onClick={() => setGroupIdx(i)}
-                    title={g.bloco}
-                    className="flex h-8 min-w-0 items-center justify-center gap-1 rounded-md px-1 text-[11px] font-bold tracking-tight transition-all"
-                    style={gchipStyle(active, done, ref, theme === "dark")}
-                  >
-                    {done && !active ? <Check className="h-3 w-3 shrink-0" /> : null}
-                    <span className="truncate">{tag}</span>
-                  </button>
-                );
-              })}
+              {groups.map((g, i) => (
+                <GrupoChip
+                  key={g.bloco}
+                  label={siglaBloco(g.bloco)}
+                  title={g.bloco}
+                  pct={grupoPct(g)}
+                  active={i === groupIdx}
+                  done={g.questions.every((q) => isAnswered(answers[q.id]))}
+                  refused={isRefused(g.bloco)}
+                  isDark={theme === "dark"}
+                  onClick={() => setGroupIdx(i)}
+                />
+              ))}
             </div>
           </div>
         )}
@@ -738,11 +763,132 @@ export default function AnamneseV2() {
           </div>
         </div>
       </div>
+      {retomadaAberta && respondidas > 0 && (() => {
+        const lastQ = (questions ?? []).find((q) => q.id === ultimaRespondidaRef.current) ?? null;
+        const idxLast = lastQ ? activeQuestions.findIndex((q) => q.id === lastQ.id) : -1;
+        const proxima =
+          activeQuestions.slice(idxLast + 1).find((q) => !isAnswered(answers[q.id])) ??
+          activeQuestions.find((q) => !isAnswered(answers[q.id])) ??
+          null;
+        const continuar = () => {
+          setRetomadaAberta(false);
+          if (!proxima) return;
+          const gi = groups.findIndex((g) => g.questions.some((q) => q.id === proxima.id));
+          if (gi >= 0) setGroupIdx(gi);
+          setFocusIdx(Math.max(0, activeQuestions.findIndex((q) => q.id === proxima.id)));
+        };
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-5"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Você parou aqui"
+            data-testid="anamnese-retomada"
+          >
+            <div className="leva-card w-full max-w-sm rounded-xl p-5 text-center">
+              <div className="relative z-[1] flex flex-col items-center gap-3">
+                <PaxterSymbolGlass size={44} tone={theme === "dark" ? "dark" : "light"} />
+                <h2 className="text-base font-extrabold uppercase tracking-wide" style={{ color: GOLD }}>Você parou aqui</h2>
+                {lastQ && (
+                  <p className="text-[13px] leading-snug text-foreground">
+                    Última pergunta respondida:
+                    <span className="mt-1 block font-semibold">{formatPergunta(lastQ.pergunta)}</span>
+                  </p>
+                )}
+                <p className="text-[12px] text-muted-foreground">{pct}% concluído · {respondidas} de {totalAtivas} perguntas</p>
+                <button
+                  type="button"
+                  onClick={continuar}
+                  className="btn-3d flex h-12 w-full items-center justify-center gap-2 rounded-md px-5 text-sm font-bold uppercase tracking-wide text-white"
+                  data-testid="anamnese-retomada-continuar"
+                >
+                  <Play className="h-4 w-4" /> Vamos recomeçar de onde parei
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
 
 // ---------- subcomponentes ----------
+
+// Botao com balaozinho explicativo: passar o mouse, focar ou tocar com o dedo abre a explicacao.
+function TipButton({
+  tip, label, onClick, className, style, expanded, children,
+}: {
+  tip: string; label: string; onClick: () => void; className: string; style?: CSSProperties; expanded?: boolean; children: ReactNode;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abrir = (auto: boolean) => {
+    if (timer.current) clearTimeout(timer.current);
+    setAberto(true);
+    if (auto) timer.current = setTimeout(() => setAberto(false), 3200);
+  };
+  const fechar = () => {
+    if (timer.current) clearTimeout(timer.current);
+    setAberto(false);
+  };
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-expanded={expanded}
+      className={className}
+      style={style}
+      onPointerEnter={(e) => { if (e.pointerType === "mouse") abrir(false); }}
+      onPointerLeave={(e) => { if (e.pointerType === "mouse") fechar(); }}
+      onPointerDown={(e) => { if (e.pointerType !== "mouse") abrir(true); }}
+      onFocus={() => abrir(true)}
+      onBlur={fechar}
+    >
+      {children}
+      {aberto && (
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute right-0 top-full z-50 mt-2 w-48 whitespace-normal rounded-md px-2.5 py-2 text-left text-[11.5px] font-medium normal-case leading-snug tracking-normal"
+          style={{ background: "#0b1a33", color: "#f3e7c6", border: `1px solid ${GOLD}`, boxShadow: "0 8px 20px rgba(0,0,0,.45)" }}
+        >
+          {tip}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// Titulo de grupo com mini barra de evolucao embaixo e porcentagem.
+function GrupoChip({
+  label, title, pct, active, done, refused, isDark, compact, onClick,
+}: {
+  label: string; title: string; pct: number; active: boolean; done: boolean; refused: boolean; isDark: boolean; compact?: boolean; onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={`${title}: ${pct}% concluído`}
+      className={`flex min-w-0 flex-col justify-center gap-1 rounded-md px-1.5 transition-all ${compact ? "h-[34px] w-[74px] shrink-0" : "h-[46px]"}`}
+      style={gchipStyle(active, done, refused, isDark)}
+    >
+      <span className={`flex items-center justify-center gap-1 font-bold tracking-tight ${compact ? "text-[9.5px]" : "text-[11px]"}`}>
+        {done && !active ? <Check className="h-3 w-3 shrink-0" /> : null}
+        <span className="truncate">{label}</span>
+      </span>
+      <span className="flex items-center gap-1">
+        <span className="paxter-bar-track h-1 flex-1">
+          {pct > 0 && <span className="paxter-bar-fill block h-full" style={{ width: `${pct}%` }} />}
+        </span>
+        <span className="w-6 shrink-0 text-right text-[8.5px] font-bold leading-none">{pct}%</span>
+      </span>
+    </button>
+  );
+}
 
 // Siglas que devem permanecer em CAIXA-ALTA mesmo na exibicao em caixa-baixa.
 const PERGUNTA_SIGLAS = new Set([
@@ -904,8 +1050,9 @@ function QuestionCard({
 }) {
   const answered = isAnswered(value);
   const [showVideo, setShowVideo] = useState(false);
-  const [refAberta, setRefAberta] = useState(false);
+  const [ajudaAberta, setAjudaAberta] = useState(false);
   const referencia = (q as unknown as { referencia?: { titulo?: string; motivo?: string; fonte?: string; url?: string | null } | null }).referencia ?? null;
+  const temAjuda = !!q.observacao || !!referencia;
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
 
@@ -972,43 +1119,6 @@ function QuestionCard({
         </div>
       </div>
 
-      {/* Ajuda em linguagem leiga (observacao) */}
-      {q.observacao && (
-        <div className="relative z-[1] mb-3 flex gap-2 rounded-md bg-muted px-3 py-2">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-          <p className="whitespace-pre-line text-[13px] leading-relaxed text-muted-foreground">
-            {q.observacao}
-          </p>
-        </div>
-      )}
-
-      {/* De onde vem esta pergunta (sanfona): mostra a fonte para o cliente saber que nao e "da nossa cabeca" */}
-      {referencia && (
-        <div className="relative z-[1] mb-2">
-          <button
-            type="button"
-            onClick={() => setRefAberta((v) => !v)}
-            aria-expanded={refAberta}
-            className="flex items-center gap-1 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground"
-          >
-            {refAberta ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            De onde vem esta pergunta
-          </button>
-          {refAberta && (
-            <div className="mt-1 rounded-md bg-muted px-2.5 py-2 text-[11.5px] leading-snug text-muted-foreground">
-              <p className="font-semibold text-foreground">{referencia.titulo}</p>
-              {referencia.motivo && <p className="mt-0.5">Por que perguntamos: {referencia.motivo}</p>}
-              {referencia.fonte && <p className="mt-0.5">Fonte: {referencia.fonte}</p>}
-              {referencia.url && (
-                <a href={referencia.url} target="_blank" rel="noopener noreferrer" className="mt-0.5 inline-block underline" style={{ color: GOLD }}>
-                  Abrir a fonte
-                </a>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Video explicativo opcional (player inline; toggle vive na fileira de acoes) */}
       {q.videoUrl && showVideo && (
         <div className="relative z-[1] mb-3">
@@ -1029,31 +1139,69 @@ function QuestionCard({
       {/* Exemplo de preenchimento */}
       {q.exemplo && <p className="relative z-[1] mt-2 text-[12px] italic text-gray-400">{q.exemplo}</p>}
 
-      {/* Fileira de acoes da pergunta: Ouvir | Video — selos embutidos ciano.
-          Ouvir so com audioUrl (mp3 premium; Web Speech API proibida);
-          Video so com videoUrl. Gravar (voz) vive no controle de texto. */}
-      {(q.audioUrl || q.videoUrl) && (
-        <div className="relative z-[1] mt-3 flex flex-wrap items-center gap-2">
-          {q.audioUrl && (
+      {/* Fileira de acoes: Ouvir | Video a esquerda; "?" discreto a direita abre a explicacao detalhada
+          (o que significa, por que perguntamos e de onde vem). Menos texto fixo na tela. */}
+      {(q.audioUrl || q.videoUrl || temAjuda) && (
+        <div className="relative z-[1] mt-3 flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {q.audioUrl && (
+              <button
+                type="button"
+                onClick={toggleAudio}
+                aria-label={playing ? "Parar leitura da pergunta" : "Ouvir a pergunta"}
+                className="leva-action inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider"
+              >
+                {playing ? <Square className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                {playing ? "Parar" : "Ouvir"}
+              </button>
+            )}
+            {q.videoUrl && (
+              <button
+                type="button"
+                onClick={() => setShowVideo((v) => !v)}
+                aria-label={showVideo ? "Ocultar vídeo explicativo" : "Ver vídeo explicativo"}
+                className="leva-action inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider"
+              >
+                <Play className="h-3.5 w-3.5" /> Vídeo
+              </button>
+            )}
+          </div>
+          {temAjuda && (
             <button
               type="button"
-              onClick={toggleAudio}
-              aria-label={playing ? "Parar leitura da pergunta" : "Ouvir a pergunta"}
-              className="leva-action inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider"
+              onClick={() => setAjudaAberta((v) => !v)}
+              aria-expanded={ajudaAberta}
+              aria-label="Entender melhor esta pergunta"
+              data-testid="pergunta-ajuda"
+              className="btn-3d-soft ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+              style={{ color: GOLD }}
             >
-              {playing ? <Square className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-              {playing ? "Parar" : "Ouvir"}
+              <HelpCircle className="h-4 w-4" />
             </button>
           )}
-          {q.videoUrl && (
-            <button
-              type="button"
-              onClick={() => setShowVideo((v) => !v)}
-              aria-label={showVideo ? "Ocultar vídeo explicativo" : "Ver vídeo explicativo"}
-              className="leva-action inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider"
-            >
-              <Play className="h-3.5 w-3.5" /> Vídeo
-            </button>
+        </div>
+      )}
+      {temAjuda && ajudaAberta && (
+        <div className="relative z-[1] mt-2 flex flex-col gap-1.5 rounded-md bg-muted px-3 py-2 text-[12px] leading-snug text-muted-foreground" data-testid="pergunta-ajuda-painel">
+          {q.observacao && (
+            <p className="whitespace-pre-line"><span className="font-semibold text-foreground">O que significa: </span>{q.observacao}</p>
+          )}
+          {referencia?.motivo && (
+            <p><span className="font-semibold text-foreground">Por que perguntamos: </span>{referencia.motivo}</p>
+          )}
+          {referencia && (referencia.titulo || referencia.fonte) && (
+            <p>
+              <span className="font-semibold text-foreground">De onde vem: </span>
+              {[referencia.titulo, referencia.fonte].filter(Boolean).join(" — ")}
+              {referencia.url && (
+                <>
+                  {" "}
+                  <a href={referencia.url} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: GOLD }}>
+                    Abrir a fonte
+                  </a>
+                </>
+              )}
+            </p>
           )}
         </div>
       )}

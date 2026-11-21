@@ -135,3 +135,34 @@ export async function aplicarCatalogoIntegrado(cat: Catalogo): Promise<{ inserid
   }
   return { inseridas, jaExistiam: novas.length - inseridas, referenciasCarimbadas: carimbadas };
 }
+
+// ---- Seletores no lugar de texto digitado ----
+// Perguntas que o banco declara como lista/multipla escolha mas estavam SEM opcoes (a tela caia para
+// campo de texto) e perguntas de queixa que pedem resposta por toque. Proposta de opcoes: revisao clinica pendente.
+const SEL = (tipo: "LISTA" | "MULTISELECAO", opcoes: string[]) => ({ tipo, opcoes });
+export const SELETORES_FALTANTES: Record<string, { tipo: "LISTA" | "MULTISELECAO"; opcoes: string[] }> = {
+  Q012: SEL("MULTISELECAO", ["Cansaço ou falta de energia", "Sono ruim", "Aumento de peso ou gordura abdominal", "Dificuldade para ganhar ou manter massa muscular", "Redução do interesse sexual", "Alterações de humor ou irritabilidade", "Dificuldade de concentração ou memória", "Ondas de calor / suor noturno", "Outro sintoma", "Nenhum / avaliação preventiva"]),
+  Q013: SEL("MULTISELECAO", ["Pressão alta", "Diabetes ou pré-diabetes", "Colesterol ou triglicérides elevados", "Infarto, angina, arritmia ou outra doença do coração", "AVC / derrame", "Trombose ou embolia", "Apneia do sono", "Doença da tireoide", "Doença do fígado", "Doença dos rins", "Depressão ou ansiedade", "Outra condição", "Nenhuma dessas condições", "Não sei / prefiro conversar na consulta"]),
+  Q014: SEL("MULTISELECAO", ["Pressão alta", "Diabetes", "Colesterol alto", "Infarto ou doença do coração", "AVC / derrame", "Câncer", "Doença da tireoide", "Depressão ou ansiedade", "Osteoporose", "Nenhuma dessas", "Não sei"]),
+  A07: SEL("LISTA", ["Fundamental incompleto", "Fundamental completo", "Médio completo", "Superior incompleto", "Superior completo", "Pós-graduação", "Prefiro não informar"]),
+  Q020: SEL("LISTA", ["Via oral (cápsula ou comprimido)", "Injetável", "Implante", "Gel, creme ou adesivo", "Sem preferência"]),
+  Q040: SEL("LISTA", ["Pagamento por sessão", "Pacote mensal", "Pacote trimestral ou semestral", "Plano anual", "Ainda não sei"]),
+  Q041: SEL("LISTA", ["Confortável", "Moderado, com planejamento", "Apertado", "Prefiro não informar"]),
+  Q042: SEL("LISTA", ["Econômico", "Equilibrado", "Premium", "Prefiro conversar na consulta"]),
+  B03: SEL("LISTA", ["Há menos de 1 semana", "Entre 1 semana e 1 mês", "Entre 1 e 6 meses", "Entre 6 meses e 1 ano", "Há mais de 1 ano", "Não sei dizer"]),
+  B04: SEL("MULTISELECAO", ["Esforço físico", "Alimentação", "Estresse ou emoção", "Falta de sono", "Período do ciclo menstrual", "Calor ou frio", "Repouso alivia", "Medicamento alivia", "Nada que eu perceba"]),
+  B05: SEL("MULTISELECAO", ["Dor", "Queimação", "Pontada", "Pressão ou peso", "Cansaço", "Fraqueza", "Formigamento", "Coceira", "Inchaço", "Outro"]),
+  B06: SEL("MULTISELECAO", ["Cabeça", "Pescoço", "Peito", "Costas", "Abdômen", "Braços", "Pernas", "Pelve", "Corpo todo", "Outra região"]),
+};
+
+/** Aplica os seletores SOMENTE onde a pergunta ainda nao tem opcoes. Idempotente; respostas antigas ficam intactas. */
+export async function aplicarSeletoresFaltantes(): Promise<{ convertidas: string[] }> {
+  const convertidas: string[] = [];
+  for (const [pid, s] of Object.entries(SELETORES_FALTANTES)) {
+    const opcoes = s.opcoes.map(op);
+    const r = await db.execute(sql`UPDATE anamnese_questionario SET tipo_resposta=${s.tipo}, opcoes=${JSON.stringify(opcoes)}::jsonb
+      WHERE pergunta_id=${pid} AND id_ihe < 3000 AND (opcoes IS NULL OR jsonb_array_length(opcoes)=0)`);
+    if ((r.rowCount ?? 0) > 0) convertidas.push(pid);
+  }
+  return { convertidas };
+}

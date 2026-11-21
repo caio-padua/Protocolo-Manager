@@ -16,6 +16,7 @@ import { AbasRolaveis } from "@/components/AbasRolaveis";
 import CategoriaCliente from "@/components/clients/categoria-cliente";
 import { ClientPhotoCard } from "@/components/clients/photo-card";
 import { ClientRubricaCard } from "@/components/clients/rubrica-card";
+import { SexoRegistradoField } from "@/components/clients/sexo-registrado-field";
 import { ClinicaOrigemField } from "@/components/clients/clinica-origem-field";
 import { ClientAgendaDefaults } from "@/components/clients/client-agenda-defaults";
 import { PreferredAgendasField } from "@/components/clients/preferred-agendas-field";
@@ -527,6 +528,8 @@ export default function EditClient() {
                       </FormItem>
                     )}
                   />
+
+                  <SexoRegistradoField clientId={id} />
 
                   <FormField
                     control={form.control}

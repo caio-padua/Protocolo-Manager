@@ -14,7 +14,7 @@ import { requireCollaborator } from "./collaborator";
 import { requireMessageClinic } from "../middleware/messageClinic";
 import { volatilidadeDa } from "../lib/anamnese-volatilidade.js";
 import { avaliarSessaoNoMotor } from "../lib/anamnese-motor-ponte";
-import { ehIdentidade, identidadeDoCadastro } from "../lib/anamnese-retorno";
+import { ehIdentidade, identidadeDoCadastro, historicoSexo, registrarSexoCadastro } from "../lib/anamnese-retorno";
 
 const router: IRouter = Router();
 
@@ -261,5 +261,30 @@ router.get(
     });
   },
 );
+
+// Sexo registrado ao nascimento (cadastro): leitura e correcao rastreavel, isoladas por clinica.
+async function clienteDaClinica(id: number, empresaId: number): Promise<boolean> {
+  const r = await db.execute(sql`SELECT 1 FROM clients WHERE id=${id} AND empresa_id=${empresaId}`);
+  return r.rows.length > 0;
+}
+router.get("/collaborator/clients/:id/sexo-biologico", requireCollaborator, requireMessageClinic, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "id invalido" }); return; }
+  if (!(await clienteDaClinica(id, req.messageEmpresaId!))) { res.status(404).json({ error: "Cliente nao encontrado" }); return; }
+  const ident = await identidadeDoCadastro(id);
+  res.json({ sexo: ident?.sexoBiologico ?? null, historico: await historicoSexo(id) });
+});
+router.put("/collaborator/clients/:id/sexo-biologico", requireCollaborator, requireMessageClinic, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const sexo = (req.body as { sexo?: unknown })?.sexo;
+  const motivo = String((req.body as { motivo?: unknown })?.motivo ?? "").trim();
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "id invalido" }); return; }
+  if (sexo !== "M" && sexo !== "F") { res.status(400).json({ error: "Informe Masculino (M) ou Feminino (F)" }); return; }
+  if (motivo.length < 5 || motivo.length > 500) { res.status(400).json({ error: "Informe o motivo (de 5 a 500 caracteres)" }); return; }
+  const prof = (req as unknown as { collaborator?: { professionalId?: number } }).collaborator?.professionalId ?? null;
+  const r = await registrarSexoCadastro(id, req.messageEmpresaId!, sexo, motivo, prof);
+  if (!r.ok) { res.status(404).json({ error: "Cliente nao encontrado" }); return; }
+  res.json({ sexo, mudou: r.mudou, historico: await historicoSexo(id) });
+});
 
 export default router;

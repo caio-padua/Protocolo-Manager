@@ -163,3 +163,50 @@ export async function marcarSessoesOrfas(dias = 7): Promise<number> {
     RETURNING s.id`);
   return r.rows.length;
 }
+
+// ---- Sexo registrado ao nascimento: correcao rastreavel ----
+let tabelaSexoHistPronta: Promise<void> | null = null;
+export function garantirTabelaHistoricoSexo(): Promise<void> {
+  tabelaSexoHistPronta ??= (async () => {
+    await garantirColunasSexoReferencia();
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS clients_sexo_historico (
+      id SERIAL PRIMARY KEY,
+      client_id integer NOT NULL,
+      valor_anterior text,
+      valor_novo text NOT NULL CHECK (valor_novo IN ('M','F')),
+      motivo text NOT NULL,
+      professional_id integer,
+      origem text NOT NULL DEFAULT 'correcao_equipe',
+      criado_em timestamptz NOT NULL DEFAULT now()
+    )`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS clients_sexo_historico_client_idx ON clients_sexo_historico (client_id, id DESC)`);
+  })().catch((e) => { tabelaSexoHistPronta = null; throw e; });
+  return tabelaSexoHistPronta;
+}
+
+export interface HistoricoSexo { id: number; valorAnterior: "M" | "F" | null; valorNovo: "M" | "F"; motivo: string; profissionalId: number | null; origem: string; criadoEm: string }
+
+export async function historicoSexo(clientId: number): Promise<HistoricoSexo[]> {
+  await garantirTabelaHistoricoSexo();
+  const r = await db.execute(sql`SELECT id, valor_anterior, valor_novo, motivo, professional_id, origem, criado_em FROM clients_sexo_historico WHERE client_id=${clientId} ORDER BY id DESC LIMIT 50`);
+  return (r.rows as Array<Record<string, unknown>>).map((x) => ({
+    id: Number(x.id), valorAnterior: x.valor_anterior === "M" || x.valor_anterior === "F" ? x.valor_anterior : null,
+    valorNovo: x.valor_novo as "M" | "F", motivo: String(x.motivo), profissionalId: x.professional_id == null ? null : Number(x.professional_id),
+    origem: String(x.origem), criadoEm: new Date(x.criado_em as string).toISOString(),
+  }));
+}
+
+/** Define ou corrige o sexo do cadastro com motivo obrigatorio; grava o antes/depois na mesma transacao. */
+export async function registrarSexoCadastro(
+  clientId: number, empresaId: number, novo: "M" | "F", motivo: string, profissionalId: number | null,
+): Promise<{ ok: true; mudou: boolean } | { ok: false; erro: "CLIENTE_NAO_ENCONTRADO" }> {
+  await garantirTabelaHistoricoSexo();
+  return db.transaction(async (tx) => {
+    const r = (await tx.execute(sql`SELECT sexo_biologico FROM clients WHERE id=${clientId} AND empresa_id=${empresaId} FOR UPDATE`)).rows[0] as { sexo_biologico: string | null } | undefined;
+    if (!r) return { ok: false as const, erro: "CLIENTE_NAO_ENCONTRADO" as const };
+    if (r.sexo_biologico === novo) return { ok: true as const, mudou: false };
+    await tx.execute(sql`UPDATE clients SET sexo_biologico=${novo} WHERE id=${clientId}`);
+    await tx.execute(sql`INSERT INTO clients_sexo_historico (client_id, valor_anterior, valor_novo, motivo, professional_id) VALUES (${clientId}, ${r.sexo_biologico}, ${novo}, ${motivo}, ${profissionalId})`);
+    return { ok: true as const, mudou: true };
+  });
+}

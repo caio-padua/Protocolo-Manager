@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Mic, MicOff, Check, Minus, Plus, Square, RotateCcw } from "lucide-react";
 import type { AnamneseQuestion } from "@workspace/api-client-react";
+import { SearchableSelect } from "./combobox";
 import { controlKind, parseOpcoes, type Valor, type Opcao } from "./types";
 
 const GOLD = "#c9a24e";
+const LIMITE_SELECAO_UNICA = 7;
+const LIMITE_MULTIPLA = 9;
 
 interface ControlProps {
   question: AnamneseQuestion;
@@ -83,6 +86,21 @@ function SingleControl({
   onChange: ControlProps["onChange"];
 }) {
   const cur = value?.tipo === "single" ? value.opcao : undefined;
+  // Muitas opcoes: seletor pesquisavel (ancorado, sem corte); poucas: botoes de toque.
+  if (opcoes.length > LIMITE_SELECAO_UNICA) {
+    return (
+      <SearchableSelect
+        opcoes={opcoes}
+        selecionados={cur ? [cur] : []}
+        multiplo={false}
+        ariaLabel="Escolha uma opção"
+        onToggle={(label) => {
+          const o = opcoes.find((x) => x.label === label);
+          if (o) onChange({ tipo: "single", opcao: o.label, valor: o.valor }, { commit: true });
+        }}
+      />
+    );
+  }
   return (
     <div className="flex flex-col gap-2.5">
       {opcoes.map((o) => {
@@ -128,6 +146,11 @@ function MultiControl({
     }
     onChange({ tipo: "multi", selecionados: next });
   };
+  if (opcoes.length > LIMITE_MULTIPLA) {
+    return (
+      <SearchableSelect opcoes={opcoes} selecionados={sel} multiplo ariaLabel="Escolha uma ou mais opções" onToggle={toggle} />
+    );
+  }
   return (
     <div className="grid grid-cols-2 gap-2.5">
       {opcoes.map((o) => {

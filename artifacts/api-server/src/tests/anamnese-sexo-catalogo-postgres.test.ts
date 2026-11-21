@@ -126,3 +126,38 @@ describe("sexo biologico (cadastro, nao editavel) x identidade de genero + catal
     expect(nomes.codigo).toBe("ADM");
   });
 });
+
+import { aplicarSeletoresFaltantes } from "../lib/catalogo-integrado-anamnese";
+import { historicoSexo } from "../lib/anamnese-retorno";
+
+describe("seletores faltantes e correcao rastreavel do sexo registrado", () => {
+  it("seletores: converte so onde opcoes esta vazio e e idempotente", async () => {
+    await q("UPDATE anamnese_questionario SET opcoes=NULL WHERE pergunta_id='Q013'");
+    await q("INSERT INTO anamnese_questionario (id,id_ihe,pergunta_id,pergunta,tipo_resposta,bloco,ordem,opcoes) VALUES (2001,2001,'Q014','HISTORICO','TEXTO','D',9,'[{\"label\":\"Manter\",\"valor\":\"Manter\",\"peso\":0}]'::jsonb) ON CONFLICT DO NOTHING");
+    const a = await aplicarSeletoresFaltantes();
+    expect(a.convertidas).toContain("Q013");
+    expect(a.convertidas).not.toContain("Q014");
+    const keep = (await q("SELECT opcoes FROM anamnese_questionario WHERE pergunta_id='Q014'")).rows[0].opcoes;
+    expect(keep).toHaveLength(1);
+    expect((await aplicarSeletoresFaltantes()).convertidas).not.toContain("Q013");
+  });
+  it("correcao exige motivo, grava antes/depois, respeita a clinica e exige autenticacao", async () => {
+    const put = (id: number, body: any, emp = 5, auth = true) => { const r = request(app).put(`/collaborator/clients/${id}/sexo-biologico`).set({ "x-empresa": String(emp), ...(auth ? { "x-collab": "1" } : {}) }); return r.send(body); };
+    expect((await put(C1, { sexo: "F", motivo: "ok" }, 5, false)).status).toBe(401);
+    expect((await put(C1, { sexo: "F", motivo: "" })).status).toBe(400);
+    expect((await put(C1, { sexo: "X", motivo: "motivo valido" })).status).toBe(400);
+    expect((await put(C3, { sexo: "F", motivo: "motivo valido" }, 5)).status).toBe(404); // outra clinica
+    const antes = await sexoDoCadastro(C1);
+    const r = await put(C1, { sexo: antes === "M" ? "F" : "M", motivo: "Conferido no documento" });
+    expect(r.status).toBe(200);
+    expect(r.body.mudou).toBe(true);
+    const h = await historicoSexo(C1);
+    expect(h[0].valorAnterior).toBe(antes);
+    expect(h[0].motivo).toBe("Conferido no documento");
+    expect(h[0].profissionalId).toBe(101);
+    expect((await put(C1, { sexo: r.body.sexo, motivo: "mesmo valor" })).body.mudou).toBe(false);
+    expect((await historicoSexo(C1)).length).toBe(h.length);
+    expect((await get(`/collaborator/clients/${C1}/sexo-biologico`)).body.sexo).toBe(r.body.sexo);
+    expect((await get(`/collaborator/clients/${C3}/sexo-biologico`, 5)).status).toBe(404);
+  });
+});
