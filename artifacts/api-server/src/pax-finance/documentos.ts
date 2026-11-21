@@ -103,6 +103,8 @@ export async function enviarDocumento(ctx: FinContext, slot: Slot, arq: { nome: 
   if (reconhecido && reconhecido !== slot)
     throw new FinError(422, `Este arquivo parece ser: ${SLOT_ROTULO[reconhecido]}. Envie-o no campo correto.`);
   const ex: Extraido = extrair(slot, texto);
+  // Ambiente de testes (decisao do CEO): nenhum CPF/dado pessoal cifrado ou mascarado; tudo em claro nos campos.
+  Object.assign(ex.publicos, ex.sensiveis); ex.sensiveis = {};
   if (!Object.keys(ex.publicos).length) throw new FinError(422, "Nenhum dado reconhecido neste documento.");
   const avisos = [...ex.avisos];
   if (metodo === "visao_ia") avisos.push("Documento digitalizado: o texto foi transcrito por inteligencia artificial de visao. Confira cada campo contra a imagem.");
@@ -142,7 +144,7 @@ export async function listarDocumentos(ctx: FinContext, ehCeo: boolean) {
       const r = porSlot[s];
       return { slot: s, rotulo: SLOT_ROTULO[s], documento: r ? {
         id: Number(r.id), arquivo: r.file_name, bytes: Number(r.file_size), sha256: r.sha256, metodo: r.metodo, status: r.status, enviadoEm: r.created_at, aplicadoEm: r.applied_at,
-        campos: Object.entries(r.campos as Record<string, Valor>).map(([k, v]) => ({ chave: k, rotulo: ROTULOS[k]?.rotulo ?? k, grupo: ROTULOS[k]?.grupo ?? "Outros", valor: v })),
+        campos: Object.entries(r.campos as Record<string, Valor>).map(([k, v]) => ({ chave: k, rotulo: ROTULOS[k]?.rotulo ?? ROTULOS_SENSIVEIS[k] ?? k, grupo: ROTULOS[k]?.grupo ?? (ROTULOS_SENSIVEIS[k] ? "Dados pessoais" : "Outros"), valor: v })),
         sensiveis: Object.entries(mascaras(r.sensiveis as Record<string, Cifrado>)).map(([k, v]) => ({ chave: k, ...v })),
         conferenciaIa: r.conferencia, avisos: r.avisos,
       } : null };
@@ -175,7 +177,7 @@ export async function lerRegistro(ctx: FinContext) {
   const d = r.dados as Record<string, Valor>, o = r.origem as Record<string, string>;
   return {
     existe: true, atualizadoEm: r.updated_at,
-    campos: Object.entries(d).map(([k, v]) => ({ chave: k, rotulo: ROTULOS[k]?.rotulo ?? k, grupo: ROTULOS[k]?.grupo ?? "Outros", valor: v, origem: o[k] ?? null })),
+    campos: Object.entries(d).map(([k, v]) => ({ chave: k, rotulo: ROTULOS[k]?.rotulo ?? ROTULOS_SENSIVEIS[k] ?? k, grupo: ROTULOS[k]?.grupo ?? (ROTULOS_SENSIVEIS[k] ? "Dados pessoais" : "Outros"), valor: v, origem: o[k] ?? null })),
     sensiveis: Object.entries(mascaras(r.sensiveis as Record<string, Cifrado>)).map(([k, v]) => ({ chave: k, ...v })),
   };
 }
@@ -223,6 +225,8 @@ export async function aplicarDocumentos(ctx: FinContext) {
       for (const [k, v] of Object.entries(r.campos as Record<string, Valor>)) { merged[k] = v; origem[k] = s; }
       Object.assign(sens, r.sensiveis as Record<string, Cifrado>);
     }
+    // Ambiente de testes (decisao do CEO): documentos pessoais ficam em claro no cadastro, sem cifra.
+    for (const [k, c] of Object.entries(sens)) { merged[k] = abrir(c); origem[k] = origem[k] ?? "documento"; delete sens[k]; }
     const socios = (merged.socios as Socio[] | undefined) ?? [];
     const principal = socios.slice().sort((a, b) => (b.bp ?? 0) - (a.bp ?? 0))[0]?.nome;
     const adm = typeof merged.administradorNome === "string" ? merged.administradorNome : undefined;

@@ -88,19 +88,16 @@ describe("PAX FINANCE documentos oficiais", () => {
     const l = (await request(app).get("/pax-finance/documents").set(H(7))).body;
     const rfb = l.slots.find((s: any) => s.slot === "cnpj_rfb").documento; const ct = l.slots.find((s: any) => s.slot === "contrato_social").documento;
     expect(rfb.campos.find((c: any) => c.chave === "cnpj").valor).toBe("11.222.333/0001-81");
-    expect(ct.sensiveis.map((s: any) => s.chave).sort()).toEqual(["socio1_cpf", "socio1_endereco", "socio1_nascimento", "socio1_rg"]);
-    expect(JSON.stringify(l)).not.toMatch(/111\.?444\.?777|12\.?345\.?678|Ficticia|01\/02\/1990|1990-02-01/);
+    expect(ct.sensiveis).toEqual([]); expect(ct.campos.find((c: any) => c.chave === "socio1_cpf").valor).toBe("11144477735"); // CPF em claro (decisão do CEO)
+    expect(JSON.stringify(l)).toMatch(/11144477735/); // dados pessoais em claro (decisão do CEO, ambiente de testes)
     expect(ct.conferenciaIa.status).toBe("indisponivel");
     const bruto = JSON.stringify((await q("SELECT sensiveis FROM fin_doc_import WHERE slot='contrato_social'")).rows);
-    expect(bruto).not.toMatch(/11144477735|Ficticia/);
+    expect(bruto).not.toMatch(/11144477735/); // nada cifrado: o CPF está em campos, em claro
     expect(l.podeAplicar).toBe(true);
   });
-  it("revelar: só CEO, e fica auditado; não-CEO leva 403", async () => {
-    const id = (await q("SELECT id FROM fin_doc_import WHERE slot='contrato_social'")).rows[0].id;
-    expect((await request(app).post(`/pax-finance/documents/${id}/reveal`).set(H(7)).send({ chave: "socio1_cpf" })).status).toBe(403);
-    const r = await request(app).post(`/pax-finance/documents/${id}/reveal`).set(H(7, { "x-ceo": "1" })).send({ chave: "socio1_cpf" });
-    expect(r.status).toBe(200); expect(r.body.valor).toBe("11144477735");
-    expect(Number((await q("SELECT count(*) c FROM fin_audit_log WHERE action='documento.revelar_sensivel'")).rows[0].c)).toBe(1);
+  it("CPF aparece em claro para o colaborador, sem etapa de revelar", async () => {
+    const l = (await request(app).get("/pax-finance/documents").set(H(7))).body;
+    expect(JSON.stringify(l)).toMatch(/11144477735/);
   });
   it("outra empresa não vê os documentos nem os revela", async () => {
     const o = H(7, { "x-fin-company": "8", "x-ceo": "1" });
@@ -123,8 +120,8 @@ describe("PAX FINANCE documentos oficiais", () => {
     const e = (await q("SELECT * FROM empresas WHERE id=7")).rows[0];
     expect(e.dono_nome).toBe("Maria Sintetica da Silva"); expect(e.cnae).toBe("86.30-5-03"); expect(Number(e.capital_social)).toBe(100000); expect(e.cep).toBeTruthy();
     const reg = (await request(app).get("/pax-finance/documents/registry").set(H(7))).body;
-    expect(reg.existe).toBe(true); expect(reg.campos.find((c: any) => c.chave === "foro").valor).toBe("São Paulo"); expect(reg.sensiveis).toHaveLength(4);
-    expect(JSON.stringify(reg)).not.toMatch(/11144477735|Ficticia/);
+    expect(reg.existe).toBe(true); expect(reg.campos.find((c: any) => c.chave === "foro").valor).toBe("São Paulo"); expect(reg.sensiveis).toHaveLength(0); expect(reg.campos.some((c: any) => c.chave === "socio1_cpf")).toBe(true); // ambiente de testes: CPF em claro por decisão do CEO
+    expect(JSON.stringify(reg)).toMatch(/11144477735/); // CPF em claro no cadastro (ambiente de testes)
     const n1 = Number((await q("SELECT count(*) c FROM fin_partner WHERE company_id=7")).rows[0].c);
     expect(n1).toBe(1);
     // medico responsavel tecnico: so informativo, nunca socio nem responsavel da empresa

@@ -39,7 +39,8 @@ const pctDe = (v: unknown): number | null => { if (typeof v === "number") return
 async function dadosEmpresa(ctx: FinContext) {
   const ent = (await db.execute(sql`SELECT data_constituicao, capital_social_cents, capital_integralizado FROM fin_entity WHERE company_id=${ctx.companyId} ORDER BY id LIMIT 1`)).rows[0] as Row | undefined;
   const pag = (await db.execute(sql`SELECT amount, COALESCE(paid_at::text, created_at::text) AS d FROM payments WHERE empresa_id=${ctx.companyId} AND status='paid'`)).rows as Row[];
-  return { ent, pag };
+  const demo = (await db.execute(sql`SELECT ano, mes, valor_cents FROM fin_scenario_month WHERE company_id=${ctx.companyId} AND scenario_type='DEMO'`)).rows as Row[];
+  return { ent, pag, demo };
 }
 
 async function simularLinha(ctx: FinContext, i: In, key: string, emp: Awaited<ReturnType<typeof dadosEmpresa>>) {
@@ -53,7 +54,9 @@ async function simularLinha(ctx: FinContext, i: In, key: string, emp: Awaited<Re
   const pct = pctRegra ?? i.tetoIlustrativoPct;
   const hoje = brtISODate(), atual = hoje.slice(0, 7), inicio12 = proximoMes(atual, -12);
   const janela = emp.pag.filter((p) => { const m = String(p.d).slice(0, 7); return m >= inicio12 && m < atual; });
-  const comprovado = emp.pag.length ? Math.round(janela.reduce((a, p) => a + Number(p.amount ?? 0), 0) * 100) : null;
+  const janelaDemo = emp.demo.filter((d) => { const m = `${d.ano}-${String(d.mes).padStart(2, "0")}`; return m >= inicio12 && m < atual; });
+  const usaDemo = !emp.pag.length && janelaDemo.length > 0;
+  const comprovado = emp.pag.length ? Math.round(janela.reduce((a, p) => a + Number(p.amount ?? 0), 0) * 100) : usaDemo ? janelaDemo.reduce((a, d) => a + Number(d.valor_cents), 0) : null;
   const receitaAnual = Math.ceil((i.valorDesejadoCents * 100) / pct);
   const metaMensal = Math.ceil(receitaAnual / 12);
   const falta = comprovado === null ? receitaAnual : Math.max(0, receitaAnual - comprovado);
@@ -87,7 +90,7 @@ async function simularLinha(ctx: FinContext, i: In, key: string, emp: Awaited<Re
     limiteCalculadoPreliminarCents: comprovado === null ? null : Math.floor((comprovado * pct) / 100),
     valorDesejadoCents: i.valorDesejadoCents, percentualUsado: pct, percentualOrigem: confirmada ? "regra verificada do programa" : "premissa ilustrativa editável (não é regra do programa)",
     receitaAnualNecessariaCents: receitaAnual, metaMensalCents: metaMensal, receitaMediaNecessariaCents: metaMensal,
-    comprovadoUltimos12mCents: comprovado, comprovadoRotulo: comprovado === null ? "Não importado" : "Recebido comprovado (pagamentos da empresa)",
+    comprovadoUltimos12mCents: comprovado, comprovadoRotulo: comprovado === null ? "Não importado" : usaDemo ? "DADOS FICTÍCIOS (cenário de simulação) — não é faturamento real" : "Recebido comprovado (pagamentos da empresa)",
     faltaCents: falta, cenarioMensalCents: cenario, mesesParaMeta, plano, marcos, requisitos,
     memoria: [
       `Valor desejado: ${brl(i.valorDesejadoCents)}`, `Percentual do faturamento anual usado: ${pct}% (${confirmada ? "regra verificada" : "premissa ilustrativa"})`,
