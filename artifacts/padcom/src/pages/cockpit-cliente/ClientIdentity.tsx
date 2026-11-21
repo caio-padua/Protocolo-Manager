@@ -16,6 +16,7 @@ import { BASE } from "@/pages/comunicacao/_shared";
 import { tituloProprio } from "@/lib/utils";
 import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 import { ehNivelCliente, nivelLegado, rotuloNivel } from "@/lib/nivel-cliente";
+import PulsoDiarioCompacto from "./PulsoDiarioCompacto";
 import { NomeClienteResponsivo } from "./NomeClienteResponsivo";
 import { formatarNascimento, idadeCompleta } from "./idadeCliente";
 
@@ -190,6 +191,7 @@ export default function ClientIdentity({ client, onMensagens }: ClientIdentityPr
             );
           })}
         </div>
+        <PulsoDiarioCompacto clientId={client.id} />
         {aberto === "resumo" && (
           <div id="cc-resumo-cliente" className="cc-context-content">
             <ResumoRegistrado clientId={client.id} />

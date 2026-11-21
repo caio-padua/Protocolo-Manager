@@ -21,7 +21,6 @@ import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import CockpitHeader from "./CockpitHeader";
 import CockpitTabs, { type AbaId } from "./CockpitTabs";
 import CockpitViews, { type ModoCockpit } from "./CockpitViews";
-import AcompanhamentoDiarioPanel from "./panels/AcompanhamentoDiarioPanel";
 import { useProtocoloNavigationGuard } from "./useProtocoloNavigationGuard";
 import "./cockpit-identidade.css";
 
@@ -304,8 +303,7 @@ export default function CockpitShell({
             )}
           </div>}
           {clientParaConteudo && <div key={escopoDoConteudo} className="space-y-4" hidden={!clientReady}>
-            {/* Acompanhamento diário sempre visível acima do conteúdo da aba */}
-            <AcompanhamentoDiarioPanel clientId={clientId} />
+            {/* O Pulso Diário agora mora na faixa de identidade (PulsoDiarioCompacto). */}
             {/* Conteúdo da aba ativa — lazy loaded */}
             <CockpitViews
               clientId={clientId}

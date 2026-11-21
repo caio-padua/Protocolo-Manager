@@ -260,3 +260,29 @@
     linear-gradient(180deg, rgba(255,255,255,0) 62%, rgba(255,255,255,.16) 100%);
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.28), inset 0 1px 0 rgba(255,255,255,.85);
 }
+
+/* ── Pulso Diario compacto: dentro da coluna de informacoes, abaixo dos botoes ───────────────────
+   Painel unico, tabela periodo x medida. Numeros pelo Numeral (Lei do Numeral). Tom claro e escuro. */
+.cc-pulso { --p-fundo: linear-gradient(180deg,#f9f3e3,#f1e8d3); --p-borda: rgba(184,146,77,.5); --p-tinta: #16294a; --p-rotulo: #8a6d2f; --p-mudo: #6b7a90; --p-fio: rgba(184,146,77,.28);
+  --p-ok: #2f7a45; --p-atencao: #a5702f; --p-alto: #b4413c;
+  margin-top: 8px; padding: 7px 9px 6px; border: 1px solid var(--p-borda); border-radius: 4px; background: var(--p-fundo); color: var(--p-tinta);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.9), inset 0 -3px 6px rgba(120,90,30,.12), 0 6px 10px -6px rgba(60,40,10,.35); }
+.cc-shell.dark .cc-pulso { --p-fundo: linear-gradient(180deg,#1f3652,#142a44); --p-borda: #6c604a; --p-tinta: #f3ead5; --p-rotulo: #e0c47a; --p-mudo: #aebbd0; --p-fio: rgba(224,196,122,.22);
+  --p-ok: #6fcf8f; --p-atencao: #e6b072; --p-alto: #f0877f;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), inset 0 -3px 6px rgba(0,0,0,.28), 0 6px 10px -6px rgba(0,0,0,.5); }
+.cc-pulso-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.cc-pulso-titulo { display: inline-flex; align-items: center; gap: 5px; font: 800 9px/1 Inter,sans-serif; letter-spacing: .14em; color: var(--p-rotulo); }
+.cc-pulso-estado { display: inline-flex; align-items: center; gap: 6px; font: 700 9px/1 Inter,sans-serif; letter-spacing: .06em; color: var(--p-mudo); }
+.cc-pulso-estado em { font-style: normal; font-size: 7.5px; letter-spacing: .12em; padding: 2px 5px; border: 1px solid var(--p-borda); border-radius: 2px; color: var(--p-rotulo); }
+.cc-pulso-grade { display: grid; }
+.cc-pulso-linha { display: grid; grid-template-columns: 52px repeat(5,minmax(0,1fr)); align-items: center; text-align: center; min-height: 20px; border-top: 1px solid var(--p-fio); }
+.cc-pulso-cab { border-top: 0; min-height: 14px; font: 700 7.5px/1 Inter,sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--p-rotulo); }
+.cc-pulso-per { text-align: left; font: 700 9px/1 Inter,sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--p-tinta); }
+.cc-pulso-cel { font-size: 13px; line-height: 1; color: var(--p-tinta); }
+.cc-pulso-cel[data-tom="ok"] { color: var(--p-ok); }
+.cc-pulso-cel[data-tom="atencao"] { color: var(--p-atencao); }
+.cc-pulso-cel[data-tom="alto"] { color: var(--p-alto); }
+.cc-pulso-vazio { color: var(--p-mudo); opacity: .7; }
+.cc-pulso-nota { margin: 4px 0 0; font: 500 7.5px/1.2 Inter,sans-serif; color: var(--p-mudo); text-align: center; }
+.cc-pulso-msg { margin: 6px 0; text-align: center; font: 600 10px/1.3 Inter,sans-serif; color: var(--p-mudo); }
+.cc-pulso-msg button { text-decoration: underline; color: var(--p-tinta); }
