@@ -11,6 +11,7 @@ import { finApi, type FinAgente, type FinEntidade, type FinResumoGoals } from "@
 import { Ajuda, Campo, Dado, Indicador, btnCls, btnSoftCls, campoCls, reaisParaCentavos } from "../pax-finance-ui";
 import { Regras } from "./Regras";
 import { Simulador } from "./Simulador";
+import { PainelTributario } from "./PainelTributario";
 import { LedgerAba } from "./Ledger";
 
 const PAPEL: Record<string, string> = { socio: "Sócio", administrador: "Administrador", socio_administrador: "Sócio administrador", responsavel_tecnico: "Responsável técnico (não é sócio)", procurador: "Procurador" };
@@ -167,7 +168,10 @@ function PaxTaxCorpo() {
         </TabsContent>
 
         <TabsContent value="parametros" className="mt-3"><Regras agir={agir} /></TabsContent>
-        <TabsContent value="simuladores" className="mt-3"><Simulador /></TabsContent>
+        <TabsContent value="simuladores" className="mt-3 space-y-4">
+          <PainelTributario />
+          <details className="panel-3d-sub p-3" data-testid="sim-por-regras"><summary className="min-h-[44px] cursor-pointer text-[12px] font-bold uppercase leading-[44px] md:min-h-0 md:leading-normal">Simulador antigo por regras cadastradas (aba Parâmetros)</summary><div className="mt-3"><Simulador /></div></details>
+        </TabsContent>
 
         <TabsContent value="documentos" className="mt-3">
           <section className="panel-3d p-4" data-testid="tax-documentos">

@@ -10,6 +10,8 @@ import { LancInput, cancelarLancamento, criarLancamento, livroCaixa } from "./le
 import { listarEmpresasSeletor } from "./empresas";
 import { CenarioMesInput, apagarDemo, lerCenario, salvarMesDemo, semearDemo } from "./cenario";
 import { SimCreditoInput, CATALOGO, compararCredito, simularCredito } from "./credito";
+import { PainelInput, calcularPainel } from "./painel-tributario";
+import { CreditoPainelInput, painelCredito } from "./credito-pesquisa";
 import { FlagsInput, estadoAgentes, lerConfig, salvarFlags } from "./produto";
 import { PerfilInput, SocioInput, criarSocio, editarSocio, encerrarSocio, listarAuditoria, listarSocios, obterEmpresa, salvarPerfil, validarPerfil, validarSocio } from "./cadastro";
 
@@ -103,6 +105,9 @@ router.delete("/pax-finance/scenario", ...finGuards, wrap(async (req, res) => { 
 router.get("/pax-finance/credit/catalog", ...finGuards, wrap(async (_req, res) => { res.json(CATALOGO); }));
 router.post("/pax-finance/credit/simulate", ...finGuards, wrap(async (req, res) => { res.json(await simularCredito(finContext(req), SimCreditoInput.parse(req.body))); }));
 router.post("/pax-finance/credit/compare", ...finGuards, wrap(async (req, res) => { res.json(await compararCredito(finContext(req), SimCreditoInput.parse(req.body))); }));
+
+router.post("/pax-finance/tax/panel", ...finGuards, wrap(async (req, res) => { res.json(calcularPainel(PainelInput.parse(req.body))); }));
+router.post("/pax-finance/credit/panel", ...finGuards, wrap(async (req, res) => { res.json(painelCredito(CreditoPainelInput.parse(req.body))); }));
 
 router.get("/pax-finance/config", ...finGuards, wrap(async (req, res) => { res.json(await lerConfig(finContext(req))); }));
 router.put("/pax-finance/config/flags", ...finGuards, wrap(async (req, res) => { res.json(await salvarFlags(finContext(req), FlagsInput.parse(req.body).flags)); }));

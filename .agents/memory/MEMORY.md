@@ -1,80 +1,78 @@
 - [PaxCare planos B2C](paxcare-planos-b2c.md) — previa admin separada do token do paciente; plano nasce vazio; aceite com hash; franquia idempotente.
 - [PAX FINANCE domínio isolado](pax-finance-dominio.md) — fases 1-2 prontas; fronteira em src/pax-finance; tenant.ts único acoplamento; 3-8 pendentes.
+- [PAX FINANCE painel tributário e crédito](pax-finance-painel-tributario-credito.md) — fontes oficiais em código, validação do CEO dispensada, vazio com motivo.
 - [Prioridades pós-pausa do PAX FINANCE](pax-finance-pausa-e-prioridades.md) — anamnese→motor+IA→monetização; achados de segurança de sessões.
 - [PaxCare cofre e vínculos](paxcare-cofre-vinculos.md) — cofre do paciente; compartilhamento por clínica checado em toda leitura; revogação imediata.
 - [Anexos de mensagem + Curadoria Clínica](anexos-mensagem-curadoria-clinica.md) — biblioteca com interruptor; aviso de pedido + oferta do PAM (modo teste por padrão).
 - [Homologação com participantes presentes](homologacao-presenca-dr-caio.md) — Dr. Caio ao lado do participante = identidade validada; não repetir confirmação.
 - **Fotos** — [upload e histórico](foto-upload-historico.md) · [nome no Drive](drive-foto-nomenclatura.md) · [arquivo vazio](multer-zero-bytes.md).
 - [Previa de link — padrao Receituario](previa-link-padrao-receituario.md) — cartao aprovado; ler skill-layout-paxter/references/previa-de-link.md; nome novo + ?v=N; og:image URL absoluta.
-- [CORS auto REPLIT_DOMAINS + env doc por artefato](cors-replit-domains-env-doc.md) — CORS deve unir ALLOWED_ORIGINS+REPLIT_DOMAINS; cada artefato precisa de .env.railway.example próprio (não só na raiz) ou architect reprova.
+- [CORS auto REPLIT_DOMAINS + env doc por artefato](cors-replit-domains-env-doc.md) — CORS deve unir ALLOWED_ORIGINS+REPLIT_DOMAINS; cada artefato precisa de .env.railway.example próprio (não só na ra
 - **Drive watcher** — [guard global bloqueia rotas abaixo](drive-watcher-guard-global.md) · [empresa_id + vision multimodal](drive-watcher-empresa-id.md) · [PK e file_id, nao id](drive-watcher-files-pk.md) · [so DELETE reprocessa](drive-watcher-reprocessar.md) · [copia vai p/ pasta do paciente](drive-watcher-copia-pasta-paciente.md) · [import 4h + planilha comparativa](drive-watcher-analitos.md)
-- [Filtros nulos em SQL drizzle — fragmentos condicionais](sql-null-int-filter.md) — ${null}::int explode no Postgres; usar frag condicional: `faseMin !== null ? sql\`AND col >= ${faseMin}\` : sql\`\``.
-- [AI Central — guard de clone + CF AI Gateway](ai-central-guard.md) — PADAXOR_AI_BYPASS=true (CEO) ou PADAXOR_TENANT_TOKEN (clone); 11 call sites cobertos; CF_AI_GATEWAY_URL ativa headers cf-aig-metadata.
-- [Deploy 4 Ondas PADAXOR — Railway go-live](deploy-ondas-status.md) — basicAuth dev=bypass/prod=fail-closed; api-worker separado (4 jobs); moduleGuard em 15 rotas; menu dinâmico Layout.tsx; .env.railway.example completo.
+- [Filtros nulos em SQL drizzle — fragmentos condicionais](sql-null-int-filter.md) — ${null}::int explode no Postgres; usar frag condicional: `faseMin !== null ? sql\`AND col >= ${faseMin}\` : sql\`\`
+- [AI Central — guard de clone + CF AI Gateway](ai-central-guard.md) — PADAXOR_AI_BYPASS=true (CEO) ou PADAXOR_TENANT_TOKEN (clone); 11 call sites cobertos; CF_AI_GATEWAY_URL ativa headers cf-aig-meta
+- [Deploy 4 Ondas PADAXOR — Railway go-live](deploy-ondas-status.md) — basicAuth dev=bypass/prod=fail-closed; api-worker separado (4 jobs); moduleGuard em 15 rotas; menu dinâmico Layout.tsx; .env.rail
 - [Identidade: PaxMed=sistema, clínica=nome próprio](identidade-paxmed-sistema-clinica.md) — Paxter extinto; assistente usa empresas.nome; histórico em rebrand-padaxor.md.
-- [Multi-IA pipeline + reprocessar — padrão de colunas ALTER TABLE](multi-ia-pipeline-reprocessar.md) — colunas reprocessamento_count/reprocessado_at/llm_pipeline adicionadas via ALTER TABLE (fora do schema Drizzle); auditoria faz 2ª query e mescla por id; processExamDocument lê settings de 3 LLMs e chama mergeExtractions.
-- [BRT centralizado — fonte única de data/hora](brt-centralizado.md) — lib/brt.ts é a ÚNICA fonte de data BRT; nunca usar new Date() nu para arquivo/exibição; GET /api/brt prova o fuso ao vivo (público, sem auth).
+- [Multi-IA pipeline + reprocessar — padrão de colunas ALTER TABLE](multi-ia-pipeline-reprocessar.md) — colunas reprocessamento_count/reprocessado_at/llm_pipeline adicionadas via ALTER TABLE (fora do
+- [BRT centralizado — fonte única de data/hora](brt-centralizado.md) — lib/brt.ts é a ÚNICA fonte de data BRT; nunca usar new Date() nu para arquivo/exibição; GET /api/brt prova o fuso ao vivo (públic
 - ProcedenciaDocumentosBloco — Kaizen-001 — ClassificationPanel bevel-3d 5 canais fixos; ZONA 1 sem LED/origem; Col 1 bi-line (canônico/extraído); Col 3 = leitura original quando convertido; watcher 5min+boot.
 - **Exames — catalogo, faixas e triagem** — [direcao mora em direcao_favoravel_exame](direcao-exame-fonte-verdade.md) · [synonyms ja ensina o scanner](aliases-unidades-exames.md) · [filtrar por zone.key, nunca zone.name](exames-faixa-filtro-por-key.md) · [hormonio sexo-dependente nao aceita faixa unica](curadoria-faixas-classe.md) · [chaveFaixa compara, slugInterno gera](exame-code-identidade-slug.md) · [active=false polissemico](exam-catalog-active-polissemico.md) · [resolver carimba o cluster inteiro](exames-triagem-resolucao.md) · [zerar fila nao zera exam_results](triagem-fila-vs-crus.md) · [2 fases C1/C2, maior-id-vence](conferencia-humana-exames.md) · [Gemini+pdf-parse, 70-106s, UI assincrona](exam-extraction-motor.md) · [isHistory + lab name so por vision](motor-extracao-v2-ishistory.md)
 - [Documentos clínicos e faixas do Instituto](indice-documentos-clinicos.md) — emissão, fontes, assinatura, entrega, segurança e apresentação da dose prescrita.
 - [Regra de Ouro — Nunca Destruir](regra-de-ouro-preservar.md) — preservar dados, arquivos e menus; desativar funções sem retirá-las do menu.
-- [Lei do Numeral — "O Mostrador"](lei-do-numeral-mostrador.md) — numero é expressão (símbolo+inteiro+centavos+unidade) e nasce de components/numeral/Numeral.tsx; a gaveta unicode-range NUNCA conserta "R$" porque o R é letra.
-- [Lei das 4 fontes do Paxter](fonte-unica-eb-garamond.md) — EB Garamond principal (max 800), Inter operacional, Lora PERMANENTE na anamnese, Cardo secundaria so em PDF; Cormorant aposentado 13/08/2026.
+- [Lei do Numeral — "O Mostrador"](lei-do-numeral-mostrador.md) — numero é expressão (símbolo+inteiro+centavos+unidade) e nasce de components/numeral/Numeral.tsx; a gaveta unicode-range NUNCA conserta
+- [Lei das 4 fontes do Paxter](fonte-unica-eb-garamond.md) — EB Garamond principal (max 800), Inter operacional, Lora PERMANENTE na anamnese, Cardo secundaria so em PDF; Cormorant aposentado 13/08/202
 - [SaaS multiclínica](saas-multitenant-onda-abc.md) — PAXTER é marca futura; vínculos empresariais atuais são simulações e a autoridade global pertence ao profissional.
-- [Restrição SQL do vínculo empresarial](empresa-check-relacionamento.md) — a restrição de valores pode existir no PostgreSQL sem estar declarada no esquema Drizzle; alinhar restrição, padrão e validação da aplicação.
-- [CEO Command Center + Pirâmide](ceo-command-center.md) — SSE /api/ceo/stream push 30s; moduleGuard fábrica fail-open; stockTable=stockItemsTable (nome real); scheduledDate é TEXT "YYYY-MM-DD" (eq, nunca range).
+- [Restrição SQL do vínculo empresarial](empresa-check-relacionamento.md) — a restrição de valores pode existir no PostgreSQL sem estar declarada no esquema Drizzle; alinhar restrição, padrão e valida
+- [CEO Command Center + Pirâmide](ceo-command-center.md) — SSE /api/ceo/stream push 30s; moduleGuard fábrica fail-open; stockTable=stockItemsTable (nome real); scheduledDate é TEXT "YYYY-MM-DD" (eq, n
 - [PADCOM global typecheck is pre-broken](padcom-typecheck.md) — repo typecheck fails on stale generated/codegen types; validate by runtime/curl + screenshots, not tsc.
 - [api-zod barrel TS2308](api-zod-barrel-ts2308.md) — index.ts exporta SÓ generated/api; reexportar generated/types colide const zod x type homônimo; export type * não resolve.
-- [Asaas integration quirks](asaas-integration-quirks.md) — header access_token (não Bearer); base prod /v3 vs sandbox /api/v3; criar customer antes do payment; saque bloqueado por padrão (insufficient_permission até liberar no painel).
+- [Asaas integration quirks](asaas-integration-quirks.md) — header access_token (não Bearer); base prod /v3 vs sandbox /api/v3; criar customer antes do payment; saque bloqueado por padrão (insufficien
 - [NULL nao colide em UNIQUE (Postgres)](postgres-null-unique-idempotencia.md) — onConflictDoNothing falha em coluna nullable do indice unico; idempotencia exige guarda de existencia manual.
-- [PUT/PATCH descarta campos fora do contrato](substancias-put-contrato.md) — campo editavel deve estar no OpenAPI body; zod.object faz strip, 200 nao prova persistencia; nao marcar nullable em coluna NOT NULL.
+- [PUT/PATCH descarta campos fora do contrato](substancias-put-contrato.md) — campo editavel deve estar no OpenAPI body; zod.object faz strip, 200 nao prova persistencia; nao marcar nullable em coluna
 - **PDF clínico** — [paginação](pdf-cursor-quebra-pagina.md) · [fontes](pdf-woff-subset-obrigatorio.md) · [sanitização](pdf-sanitizer-latin1.md) · [vetores](pdflib-drawsvgpath-y-flip.md) · [rodapés](rodape-html-multipagina.md).
 - [Testes de banco descartável](testes-banco-descartavel.md) — migração e escrita em banco próprio isolado, nunca na conexão configurada da aplicação.
-- [Multi-local do medico + endereco no lembrete](multi-local-agenda-endereco.md) — quadro de Clinicas NUNCA aposentar; agenda virtual por cidade espelha no Google e endereco do local entra automatico no lembrete.
+- [Multi-local do medico + endereco no lembrete](multi-local-agenda-endereco.md) — quadro de Clinicas NUNCA aposentar; agenda virtual por cidade espelha no Google e endereco do local entra automatico
 - [Governança multiclínica autorizada](governanca-multiclinica-parada.md) — isolamento completo autorizado em 30/10/2026; executar sequencialmente; sem alterar cobranças.
 - **Acesso profissional** — [transição de login](login-transicao-email-cpf.md) · [solicitação depende de aprovação](login-solicitacao-acesso-aprovacao.md).
-- [Separadores e verificação de conflitos](merge-marker-separators.md) — a integração automática pode interpretar sinais de igualdade em comentários como conflito; usar hífens decorativos.
 - [Autorização na fronteira de envio](envio-autorizacao-fronteira.md) — testes preservam a cadeia real de autenticação; vínculo administrativo não se infere de cargo ou agenda.
 - [Aprovação clínica delegada](aprovacao-clinica-delegada.md) — preparo por enfermagem não autoriza emissão; médico da mesma clínica aprova e assina sob concessões global e local.
-- [Seed runner mata servidor no boot](seed-runner-bundle-exit.md) — arquivo de seed com bloco `import.meta.url===argv[1]`+`process.exit` NÃO pode ser importado no entry (esbuild empacota e derruba o boot).
+- [Seed runner mata servidor no boot](seed-runner-bundle-exit.md) — arquivo de seed com bloco `import.meta.url===argv[1]`+`process.exit` NÃO pode ser importado no entry (esbuild empacota e derruba o b
 - [Profissionais estratificados + Entrada 4](profissionais-estratificacao.md) — Entrada 4 = "Corpo Clínico", inclui não-médicos agendáveis; catálogo só ativo p/ paciente; 4 entradas nunca se misturam.
 - [Marca navy/ouro nas telas (padcom)](paxter-navy-gold-marca-telas.md) — chrome=navy/ouro (mata teal/#3D7A7A); STATUS sobrevive (verde=done, emerald NAO trocar em massa); toggle tema useScreenTheme.
 - [Motor de Agenda — fuso e fonte](motor-agenda-fuso-fonte.md) — horario ancora no fuso da clinica (BRT UTC-3, sufixo -03:00); nao inventar fonte de ocupacao de fase futura, usar entrada explicita.
-- [Object Storage — servir exige prefixo](object-storage-serve-prefixo.md) — rota publica que serve PRIVATE_OBJECT_DIR deve limitar prefixo (uploads/); dir e compartilhado; upload presigned em 2 passos valida tipo so no presign.
+- [Object Storage — servir exige prefixo](object-storage-serve-prefixo.md) — rota publica que serve PRIVATE_OBJECT_DIR deve limitar prefixo (uploads/); dir e compartilhado; upload presigned em 2 passo
 - [Documentos clínicos no Drive por empresa](documentos-drive-tenant.md) — emissão clínica usa a raiz de clientes da empresa explicitamente; raiz ausente bloqueia a cópia, nunca cai na pasta global.
-- [Rebrand: marca x identificadores tecnicos](rebrand-marca-vs-identificadores.md) — trocar texto/marca visivel (wordmark, calName, SUMMARY, PRODID, filenames .ics); PRESERVAR UID .ics, colunas (codigoPadcom), package, tokens, CSS.
-- [Drive uploadFileToDrive apaga homonimos](drive-upload-homonimos.md) — deleta homonimos por padrao; arquivos que coexistem precisam de nome unico (id) + allowDuplicates=true; inserir-no-banco-primeiro p/ ter id no nome.
-- [Reagendamento e fuso da sessao](reagendamento-fuso-sessao.md) — scheduled_date/time sao BRT em texto; ancorar -03:00 ao comparar com now(); Google mover=delete+create (best-effort, zerar id em falha).
-- [Grade Imaginaria — modelo mental de card](grade-imaginaria-skill.md) — 5 zonas canonicas (top bar / titulo / identidade / meta grid / conteudo); badge de status ao lado do ID nunca do nome; LED proibido em contagem.
+- [Rebrand: marca x identificadores tecnicos](rebrand-marca-vs-identificadores.md) — trocar texto/marca visivel (wordmark, calName, SUMMARY, PRODID, filenames .ics); PRESERVAR UID .ics, colunas (codig
+- [Drive uploadFileToDrive apaga homonimos](drive-upload-homonimos.md) — deleta homonimos por padrao; arquivos que coexistem precisam de nome unico (id) + allowDuplicates=true; inserir-no-banco-primei
+- [Reagendamento e fuso da sessao](reagendamento-fuso-sessao.md) — scheduled_date/time sao BRT em texto; ancorar -03:00 ao comparar com now(); Google mover=delete+create (best-effort, zerar id em falh
+- [Grade Imaginaria — modelo mental de card](grade-imaginaria-skill.md) — 5 zonas canonicas (top bar / titulo / identidade / meta grid / conteudo); badge de status ao lado do ID nunca do nome; LED pro
 - **Anamnese** — [LINHA VERMELHA em 3 camadas + flush](anamnese-v2-linha-vermelha.md) · [client_id so por token verificado](anamnese-acesso-revisao.md) · [perguntaId REPETE, identidade e o id](anamnese-perguntaid-nao-unico.md) · [selecao OURO, foco ciano](anamnese-v2-pele-escura.md) · [.dark no MESMO no](anamnese-tema-seletor-mesmo-elemento.md)
 - [Orcamentos "Console Clinico" + relevo 3D](orcamentos-console-clinico.md) — dose exibida (catalogo) != dose salva (r.dose) e proposital; classes 3D UNLAYERED vencem utilitarios Tailwind/shadcn.
 - Painel de Domínios — padrões visuais — LED sempre à esquerda do card selecionado; bevel-3d badge flutuante para subtítulos de seção; painel comercial = KPIs+modelo+tabela de preços.
-- [LoginScreen: classes de tema (login-card-topbar/body/btn-3d-gold)](login-screen-classes-tema.md) — painel de login usa 3 classes próprias no index.css; sharp=true no PaxterSymbolGlass elimina curvatura do vidro.
-- [Webhook assinatura: idempotencia + invalido](webhook-assinatura-idempotencia.md) — eventId determinístico (nunca new Date()); assinatura inválida NÃO marca processado=true; só expor provedor cabeado (404 nos demais).
+- [LoginScreen: classes de tema (login-card-topbar/body/btn-3d-gold)](login-screen-classes-tema.md) — painel de login usa 3 classes próprias no index.css; sharp=true no PaxterSymbolGlass elimina curva
+- [Webhook assinatura: idempotencia + invalido](webhook-assinatura-idempotencia.md) — eventId determinístico (nunca new Date()); assinatura inválida NÃO marca processado=true; só expor provedor cabead
 - **Concierge** — [gate server-only + HMAC](concierge-pagamento-gate-servidor.md) · [trava de escassez por CPF](concierge-penalidade.md) · [peso por desfecho v2](concierge-penalidade-arquitetura.md) · [piso de 3 meses so na vaga da fila](concierge-janela-natural.md)
-- [Cockpit DTO burro + mensageria](onda-e-cockpit-mensageria.md) — cockpit re-deriva doenças com gatilhoBate (não toca motor); agendarLembretes apaga todo status=agendado do cliente (escopar por origem antes de abrir a outras fontes).
-- [Background bash não sobrevive entre chamadas](bash-background-nao-sobrevive.md) — nohup/& morrem ao retornar a tool; trabalho tem de caber em 1 chamada (~120s) ou virar workflow.
-- [Inicialização do preview e da API](api-preview-startup-race.md) — serviços independentes podem deixar o login sem API no primeiro instante; aguardar saúde antes de enviar credenciais, sem repetir o POST.
-- [Rede isolada para testes](rede-isolada-testes.md) — namespace de usuário e rede pode funcionar quando unshare -n falha; confirmar interfaces, capacidades e sockets Unix.
+- [Cockpit DTO burro + mensageria](onda-e-cockpit-mensageria.md) — cockpit re-deriva doenças com gatilhoBate (não toca motor); agendarLembretes apaga todo status=agendado do cliente (escopar por orige
+- [Inicialização do preview e da API](api-preview-startup-race.md) — serviços independentes podem deixar o login sem API no primeiro instante; aguardar saúde antes de enviar credenciais, sem repetir o
 - [Reinício seguro e importações](boot-servidor-efeitos-importacao.md) — inicialização também ocorre ao importar rotas; teste isolado da migração não comprova todo o reinício.
 - [Webhook vincula canal a paciente](webhook-vinculo-canal-paciente.md) — 3 camadas: segredo de origem fail-closed + prova de posse + match ÚNICO (colisão nunca vincula).
 - [Cadastro público por voz + CEP auto](cadastro-publico-voz-cep.md) — voz em campo mascarado normaliza fala→dígitos (pt-BR); auto-fill (ViaCEP) passa valor EXPLÍCITO, guarda corrida por seq.
-- [Painel de status honesto (erro != desligado)](comunicacao-status-honesto.md) — console de status real distingue 3 estados (pending/erro/on); status=null por fetch falho NÃO pode virar "não configurado".
+- [Painel de status honesto (erro != desligado)](comunicacao-status-honesto.md) — console de status real distingue 3 estados (pending/erro/on); status=null por fetch falho NÃO pode virar "não configur
 - **Envios Paxter** — [formato do e-mail](email-paxter-v2-terno-tabela.md) · [assets públicos](email-marca-assets-rota-publica.md) · [janela WhatsApp](twilio-whatsapp-janela-24h.md) · [limite de caracteres](whatsapp-limite-1600-paxmed.md).
-- [Movimentacao de dinheiro: travas antes do provedor](transferencia-travas-whitelist.md) — ordem confirm→whitelist→min→max ANTES do Asaas; confirm no backend (não só UI); auditoria com destino mascarado.
+- [Movimentacao de dinheiro: travas antes do provedor](transferencia-travas-whitelist.md) — ordem confirm→whitelist→min→max ANTES do Asaas; confirm no backend (não só UI); auditoria com destino mascar
 - [ZapSign token amarra ambiente (sandbox×prod)](zapsign-ambiente-sandbox-prod.md) — token de produção dá 403 no sandbox; prod publicada funciona auto; override ZAPSIGN_BASE_URL.
-- [Cofre de integracoes — contrato de chaves](cofre-integracoes-contrato-chaves.md) — motor declarativo /api/integrations; `key` do campo é contrato com libs (getSecret) — só ADICIONAR, nunca renomear.
-- [Tela autossuficiente p/ credenciais](config-tela-autossuficiente.md) — toda chave/token tem campo na própria tela; GET só metadado mascarado; rota que vaza máscara exige requireCollaborator + Bearer em toda leitura.
-- [Marcacao de consulta: pele por tema](marcacao-pele-por-tema.md) — travado 01/07/2026: CLARO=Editorial (marcacao-fusao), ESCURO=Carteira concierge (marcacao-concierge); detalhe em specs/marcacao-consulta.md.
+- [Cofre de integracoes — contrato de chaves](cofre-integracoes-contrato-chaves.md) — motor declarativo /api/integrations; `key` do campo é contrato com libs (getSecret) — só ADICIONAR, nunca renomear
+- [Tela autossuficiente p/ credenciais](config-tela-autossuficiente.md) — toda chave/token tem campo na própria tela; GET só metadado mascarado; rota que vaza máscara exige requireCollaborator + Beare
+- [Marcacao de consulta: pele por tema](marcacao-pele-por-tema.md) — travado 01/07/2026: CLARO=Editorial (marcacao-fusao), ESCURO=Carteira concierge (marcacao-concierge); detalhe em specs/marcacao-con
 - [Idempotencia doc clinico por paciente](idempotencia-documento-clinico-por-paciente.md) — hash global mistura prontuarios: chave e (cliente,hash); consumo clinico so le docs conferidos.
 - [Token de colaborador p/ curl](collab-token-curl-regen.md) — token = base64url("collab:id:role:exp:sig") com sig HMAC em HEX; some no restart, regerar; ler createCollaboratorToken antes.
-- [Senha profissional nunca é exibida](acesso-profissional-senha-nao-reversivel.md) — mostrar apenas usuário e existência de senha; qualquer redefinição exige fluxo próprio, autorizado e sem alvo escolhido pelo navegador.
+- [Senha profissional nunca é exibida](acesso-profissional-senha-nao-reversivel.md) — mostrar apenas usuário e existência de senha; qualquer redefinição exige fluxo próprio, autorizado e sem alvo esco
 - [Política global de senhas](politica-global-senhas.md) — credenciais próprias: 10–128 caracteres, maiúscula inicial, número e símbolo; validar em cada criação, troca e recuperação.
-- [Histórico de alterações de acesso](historico-acesso-profissional.md) — valores comuns anteriores ficam visíveis somente ao titular; CPF e e-mail são protegidos; credenciais nunca entram no histórico.
+- [Histórico de alterações de acesso](historico-acesso-profissional.md) — valores comuns anteriores ficam visíveis somente ao titular; CPF e e-mail são protegidos; credenciais nunca entram no históric
 - [Importacao em massa do Drive](drive-import-migracao-massa.md) — homonimo=mesma pessoa salvo CPF diferente; tirar CPF do nome antes de casar; porteiro fail-open.
-- [Emissão de documento substitui variáveis no servidor](emissao-documento-variaveis-servidor.md) — /emitir aplica {{...}} e grava corpo final no back (idempotente); rotas gêmeas com contrato idêntico.
+- [Emissão de documento substitui variáveis no servidor](emissao-documento-variaveis-servidor.md) — /emitir aplica {{...}} e grava corpo final no back (idempotente); rotas gêmeas com contrato idêntico
 - [Fusão mestre-detalhe (exames)](fusao-mestre-detalhe-exames.md) — detalhe async exige guard de corrida por reqId em useRef; lista por merge tem de ser UNIÃO (left-join esconde linhas).
-- [Postgres upper() não remove acento](postgres-upper-nao-remove-acento.md) — match por nome entre rotas gêmeas exige normalização igual dos 2 lados (removeDiacritics em JS); upper() cru vs valor sem acento = fallback silencioso.
+- [Postgres upper() não remove acento](postgres-upper-nao-remove-acento.md) — match por nome entre rotas gêmeas exige normalização igual dos 2 lados (removeDiacritics em JS); upper() cru vs valor sem
 - **Seeds** — [idempotência por completude](seed-idempotencia-por-completude.md) · [materializer não destrutivo](seed-materializer-nao-destrutivo.md).
 - [Governança por camada de tela](governanca-camada-de-tela.md) — matriz Ferramenta×Papel obedecida no front; item read-only NÃO entra no filtro de menu; rota legada fora do gate = brecha.
 - [Halo neon sem apagar relevo 3D](neon-halo-pseudoelemento.md) — box-shadow não é aditivo: brilho animado vai em ::after, nunca no elemento com bevel/btn-3d (Padrão 21).
@@ -84,54 +82,53 @@
 - [Cockpit lembrete deriva da anamnese, não do protocolo](cockpit-lembrete-deriva-anamnese.md) — /cockpit/:id/emitir monta períodos do motor de anamnese (item_doenca), não dos protocol_items.
 - [Lembrete de fórmula manipulada](lembrete-formula-manipulada.md) — nome canônico=TITL; parser+semAcento na lib @workspace/posologia; posologiaManual sobrevive a re-sync; 9 períodos JE..CE.
 - [Grade de horarios fabricados (slice de pool)](grade-horarios-fabricados.md) — pool que alimenta slice(0,2) e slice(0,3) precisa ter >=3 itens; fluxo Dr.Caio = horarios fabricados intencionais.
-- [Mensageria PAXMED (compositor editavel)](mensageria-paxmed-compositor.md) — composicao rica do WhatsApp existe DUAS vezes (montarMensagemPaxmed server + previa da tela): mexeu no blueprint, mexa nos dois.
+- [Mensageria PAXMED (compositor editavel)](mensageria-paxmed-compositor.md) — composicao rica do WhatsApp existe DUAS vezes (montarMensagemPaxmed server + previa da tela): mexeu no blueprint, mexa no
 - [paxter-alert é só glow ring (sem fill)](paxter-alert-sem-fill.md) — paxter-alert dá bevel+halo na cor, NAO pinta fundo; verde usa bevel-3d-ok que já preenche.
 - Padrão lista de clientes (A-Z + scroll) — barra A-Z+busca no panel-3d-sub; scroll infinito PAGE_SIZE=100; card = foto portrait 64×88 + 4 linhas alinhadas.
 - [Tabela nativa da transmutacao ja pode existir](transmutacao-periodos-dia-colisao.md) — antes de criar schema (ex.: periodos_dia), rg no schema/; duplicata = esbuild "Ambiguous import" derruba boot.
 - [recharts connectNulls não compacta o eixo](recharts-connectnulls-eixo-esticado.md) — gráfico de matriz esparsa estica com datas vazias; filtrar a série por curva ANTES do recharts.
 - [SVG id unico + eixos de variante](svg-id-e-eixos-variantes.md) — gradiente SVG repetido colide entre instancias (use useId()); eixo de variante so existe se TODO shell ramifica por ele.
-- [Botoes validados Paxter + armadilha text-gold](paxter-botoes-validados.md) — botao validado = bevel-3d/btn-3d-soft/btn-3d do skill-layout-paxter; .text-gold (clip) some sobre fundo 3D concorrente, use dourado solido ou span filho.
+- [Botoes validados Paxter + armadilha text-gold](paxter-botoes-validados.md) — botao validado = bevel-3d/btn-3d-soft/btn-3d do skill-layout-paxter; .text-gold (clip) some sobre fundo 3D concorrente,
 - **Marca PAXTER/PADAXOR** — [wordmark segue a logo aprovada](paxter-wordmark-logo-oficial.md) · [arte oficial PNG, nunca potrace](paxter-wordmark-png-vs-potrace.md) · [conjunto so por PaxterLockup](paxter-lockup-fonte-unica.md) · [um unico motor de luz](paxter-glint-motor-unico.md) · [zero filtro, header navy](padaxor-wordmark-regras.md) · [conferir DATA do arquivo antes de usar](brand-asset-versao-mais-recente.md) · [banner = compor PNG oficial](banner-marca-arte-oficial.md)
-- [Marca PADCON = desenho oficial recortado](padcon-marca-desenho-oficial.md) — PADCON e a ARTE oficial (PNG transparente, flutuante, sem placa), nunca texto digitado; no PDF a capa e a regua e as internas repetem a 50%, marca e peca unica.
+- [Marca PADCON = desenho oficial recortado](padcon-marca-desenho-oficial.md) — PADCON e a ARTE oficial (PNG transparente, flutuante, sem placa), nunca texto digitado; no PDF a capa e a regua e as int
 - [Workspace travando = peso do repo](workspace-lento-peso-repo.md) — medir antes de culpar codigo: anexos versionados, size-pack do git e servidores simultaneos; nunca apagar sem ordem escrita.
 - [Área do cliente](area-cliente.md) — telas e orientações usam “App do Cliente”; produto “PaxMed Members”; preservar identificadores internos.
 - [Nível do cliente: Prata/Ouro/Platinum/Diamond](classificacao-plano-cliente.md) — substitui Bronze/Platina/Noir; módulo único nivel-cliente.ts; codegen quebra o barrel api-zod; sem progressão.
 - [Radix Select onValueChange("") no mount](radix-select-onvaluechange-vazio.md) — Select controlado perde o valor do reset; guardar contra "" no onValueChange.
-- [Architect pode acusar código pré-existente](architect-falsopositivo-diff.md) — code_review com includeGitDiff confunde linhas antigas do arquivo com mudanças da onda; conferir o diff real antes de reverter.
+- [Architect pode acusar código pré-existente](architect-falsopositivo-diff.md) — code_review com includeGitDiff confunde linhas antigas do arquivo com mudanças da onda; conferir o diff real antes de
 - [Lembrete por período do IHE (portar ao Manager)](ihe-mensageria-periodo.md) — motor cronobiológico: 1 msg POR JANELA (não por fórmula), 9 períodos canônicos, tolerância 5min, madrugada vazia.
 - [Cockpit — identidade, modos e arquitetura](cockpit-identidade-modos.md) — seleção única, nomes e vínculos às regras de painéis e agendamento.
 - [Base única de clientes — regra de ouro](base-unica-clientes.md) — empresa_id=5, location_id=8, status='active' são OBRIGATÓRIOS; DB DEFAULT aplicado; createClientSafe() para novas rotas.
-- [PaxterClientSelector — seletor universal canônico](paxter-client-selector.md) — substitui ClientPicker/ClientCombobox/CockpitSearch/Select nativo; state=number|null; placeholder canônico="Selecionar cliente…"; cpf+phone+photoUrl obrigatórios no map; skill em .agents/skills/skill-paxter-client-selector/SKILL.md.
-- [Protocolo da Planilha — colunas A-J + "Para que serve"](planilha-protocolo.md) — col I obrigatória em todo item novo (1 frase CEO); col J=Módulo; 4 requisitos p/ CONCLUÍDO; doc normativo em docs/PROTOCOLO-PLANILHA.md.
+- [PaxterClientSelector — seletor universal canônico](paxter-client-selector.md) — substitui ClientPicker/ClientCombobox/CockpitSearch/Select nativo; state=number|null; placeholder canônico="Seleciona
+- [Protocolo da Planilha — colunas A-J + "Para que serve"](planilha-protocolo.md) — col I obrigatória em todo item novo (1 frase CEO); col J=Módulo; 4 requisitos p/ CONCLUÍDO; doc normativo em docs/PR
 - [Procedimento — produto e dose](seletor-produto-procedimento.md) — nome limpo, detalhes para homônimos, dose segura separada e nome do procedimento no RASP.
 - [Substâncias e ofertas](substancia-mestre-apresentacoes-ofertas.md) — dose e forma definem cadastro; concentrações podem variar em apresentações separadas.
 - [Portao-captacao das vitrines + push GitHub](vitrine-gate-leads.md) — login do gate E o lead (contrato só adiciona campo); push git falha sem credencial: usar painel Git do Replit.
 - [Dicionário — fonte única e sync automático](dicionario-fonte-unica.md) — GLOSSARIO em slack-glossario.ts é a lei; boot + rota sync propagam para Sheets sem tocar CEO edits.
-- [Telegram — arquitetura do canal com pacientes](telegram-arquitetura.md) — @Paduaclinica_bot; vinculação por validationPassword; espelho WhatsApp→Telegram; e-mail onboarding; webhook encaminha ao CEO.
-- [Slack Monitor de LLMs — canal padaxor-projeto](slack-monitor-llms.md) — canal #padaxor-projeto ID=C0BLW5S7GQL; PADAXOR_SLACK_CHANNEL_ID=env var shared; googledrive.files.create exige Readable stream (não Buffer) para body.
-- [Slack Report Formato V2 — cabeçalho + tabela + handoff](slack-report-formato-v2.md) — 3 blocos novos: contexto com quem preencheu; tabela emoldurada de CONCLUÍDOS (cols A:I); handoffs inter-LLM via coluna I da planilha.
-- [LLM Monitor dispatch — padrão de histórico dual-canal](llm-monitor-dispatch-padrao.md) — telegramSkipped NÃO é ambosOk; early return removido para step 4 sempre rodar; chatId TEST_FORCE_FAIL testa fallback sem API real.
-- [Carga Railway via tunel SSH](railway-carga-tunel.md) — BEGIN/COMMIT embutidos no dump ANULAM --single-transaction; tunel+psql na MESMA chamada bash; RAILWAY_API_TOKEN (conta), nunca project token p/ SSH.
+- [Telegram — arquitetura do canal com pacientes](telegram-arquitetura.md) — @Paduaclinica_bot; vinculação por validationPassword; espelho WhatsApp→Telegram; e-mail onboarding; webhook encaminha ao CE
+- [Slack Monitor de LLMs — canal padaxor-projeto](slack-monitor-llms.md) — canal #padaxor-projeto ID=C0BLW5S7GQL; PADAXOR_SLACK_CHANNEL_ID=env var shared; googledrive.files.create exige Readable strea
+- [Slack Report Formato V2 — cabeçalho + tabela + handoff](slack-report-formato-v2.md) — 3 blocos novos: contexto com quem preencheu; tabela emoldurada de CONCLUÍDOS (cols A:I); handoffs inter-LLM via
+- [LLM Monitor dispatch — padrão de histórico dual-canal](llm-monitor-dispatch-padrao.md) — telegramSkipped NÃO é ambosOk; early return removido para step 4 sempre rodar; chatId TEST_FORCE_FAIL testa
+- [Carga Railway via tunel SSH](railway-carga-tunel.md) — BEGIN/COMMIT embutidos no dump ANULAM --single-transaction; tunel+psql na MESMA chamada bash; RAILWAY_API_TOKEN (conta), nunca project token p
 - [Entrada do Licenciado — regras comerciais](entrada-licenciado-regras.md) — 2 logins (CEO x licenciado); adesao promo 48h, 10% so na adesao por indicacao, mensalidade fixa; valores placeholders.
 - [Motor de Avatar — Tier system + metering](avatar-motor-tiers.md) — 3 tiers (texto/voz/video) com módulos contratados; avatar_uso_log mede chars+segundos; audio-temp cache serve MP3 p/ Twilio.
 - [Órgão Dieta — 2 motores + gaps](dieta-dois-motores-e-gaps.md) — manual=TS determinístico, PDF=IA/Claude; Cockpit/Prontuário NÃO mostram Dieta/Treino; sem receitas/lista de compras.
 - [Prévia e emissão clínica](protocolo-document-pdf-envia-email.md) — conferir aparência não autoriza envio; verificar efeitos atuais, sem confiar no verbo da rota ou em descrições históricas.
 - **Git e sincronização** — [transporte gerenciado](git-http-auth-fallback.md) · [rebase travada](git-panel-rebase-travada.md) · [conflito semântico](rebase-limpo-conflito-semantico.md).
-- [Log do Vite pode mostrar erro já resolvido](vite-hmr-log-durante-merge.md) — burst de escrita (merge de task agent) gera "Failed to reload" transitório; conferir arquivo/tela atual antes de "corrigir" bug fantasma.
-- [Cache Vite após alinhar React](vite-cache-react-peer.md) — após atualizar React/React DOM, erro de versão pode persistir no otimizador Vite; confirmar a origem resolvida e limpar apenas o cache do artefato.
-- ["Tipo de dieta" reaproveita protocolo existente](tipo-dieta-reutiliza-protocolo.md) — antes de criar tabela nova p/ conceito de negócio, checar se uma tabela existente já É esse conceito com outro nome.
-- [unidadeCompraEquivalenteG — dual propósito](unidade-compra-equivalente-g.md) — 1 campo cobre conversão de embalagem E rendimento de cocção, na mesma base que kcal100g já usa; robô de preços deve preencher assim.
-- [tsc --build ignora .ts editado sem rebuild da lib](tsc-build-dist-projeto-referencias.md) — project references resolvem contra dist/ compilado; rodar `typecheck:libs` após mudar lib/db/src/schema antes de typecheckar consumidores.
-- [Select controlado nasce com "", nunca undefined](radix-select-value-undefined-controlled.md) — `value={id?String(id):undefined}` dispara warning uncontrolled→controlled; usar "" como sentinela desde o primeiro render.
+- [Cache Vite após alinhar React](vite-cache-react-peer.md) — após atualizar React/React DOM, erro de versão pode persistir no otimizador Vite; confirmar a origem resolvida e limpar apenas o cache do
+- ["Tipo de dieta" reaproveita protocolo existente](tipo-dieta-reutiliza-protocolo.md) — antes de criar tabela nova p/ conceito de negócio, checar se uma tabela existente já É esse conceito com outro
+- [unidadeCompraEquivalenteG — dual propósito](unidade-compra-equivalente-g.md) — 1 campo cobre conversão de embalagem E rendimento de cocção, na mesma base que kcal100g já usa; robô de preços deve pr
+- [tsc --build ignora .ts editado sem rebuild da lib](tsc-build-dist-projeto-referencias.md) — project references resolvem contra dist/ compilado; rodar `typecheck:libs` após mudar lib/db/src/schema a
+- [Select controlado nasce com "", nunca undefined](radix-select-value-undefined-controlled.md) — `value={id?String(id):undefined}` dispara warning uncontrolled→controlled; usar "" como sentinela desd
 - [Apify — contrato REST assíncrono (run/poll/dataset)](apify-async-run-contract.md) — nunca usar run-sync (bloqueia até 300s); runs/actor-runs embrulham em {data}, dataset/items não.
-- [Extração genérica de preço em JSON de schema incerto](extracao-preco-json-generica.md) — regex recursiva de moeda BR em qualquer profundidade do JSON; sem match = null explícito, nunca inventa resultado.
+- [Extração genérica de preço em JSON de schema incerto](extracao-preco-json-generica.md) — regex recursiva de moeda BR em qualquer profundidade do JSON; sem match = null explícito, nunca inventa resu
 - [Unicidade em substance_applications](substance-applications-unicidade.md) — chave única é o trio com session_number; consolidação semanal repete substância na mesma sessão quando intervalDays<7.
 - [Carta de Tratamento Premium PDF](carta-tratamento-premium-pdf.md) — reusar embedPadesSignature/getCertInfo exportados; fontkit+woff latin p/ fonte custom; arcos via drawLine.
-- [O ELO — ordem do veredito e honestidade causal](elo-veredito-honestidade.md) — cruzar faixa de referência vence o limiar de ruído; faixa ausente = SEM VEREDITO; nenhuma tela afirma causa a partir de 2 coletas.
+- [O ELO — ordem do veredito e honestidade causal](elo-veredito-honestidade.md) — cruzar faixa de referência vence o limiar de ruído; faixa ausente = SEM VEREDITO; nenhuma tela afirma causa a partir d
 - **Migrações de banco** — [drift destrutivo](drizzle-push-drift-destrutivo.md) · [post-merge que falha em silêncio](post-merge-migracao-pg.md).
 - [Deriva de esquema em protocol_items](protocol-items-schema-drift.md) — preserve empresa_id fora do Drizzle; confira antes de aceitar sugestão de renomeação.
-- [Sheets :append desloca colunas](sheets-append-desloca-colunas.md) — célula solta fora da col A ancora a tabela e a linha sai em F:O com 200 OK; usar PUT em faixa explícita (scripts/planilha-adicionar-item.mjs); token do Sheets vem do conector google-drive.
-- [Canvas — suggestedActions só no update](canvas-suggestedactions-so-no-update.md) — "procedure init failed validation" não diz o campo; suggestedActions reprova no create, fontSize não existe, color é enum de nomes.
+- [Sheets :append desloca colunas](sheets-append-desloca-colunas.md) — célula solta fora da col A ancora a tabela e a linha sai em F:O com 200 OK; usar PUT em faixa explícita (scripts/planilha-adicion
+- [Canvas — suggestedActions só no update](canvas-suggestedactions-so-no-update.md) — "procedure init failed validation" não diz o campo; suggestedActions reprova no create, fontSize não existe, color
 - [Bundle ESM no Node 24](api-worker-esm-node24.md) — build verde não detecta incompatibilidade CommonJS; sempre executar um smoke test do artefato gerado.
 - [JPEG enviado — decodificar e regravar sem EXIF](jpeg-upload-decode-reencode.md) — validar pixels com decoder JavaScript puro; regravar remove EXIF/GPS; decoder nativo pode derrubar o Node 24.
 - [Prescrição — vínculo seguro](prescricao-vinculo-seguro.md) — nunca inferir por nome; conflito CPF/e-mail exige seleção humana, não primeiro resultado.
@@ -145,7 +142,7 @@
 - [Pedido médico do cliente](pedido-medico-cliente.md) — cliente pede e paga; destino = médico habitual com certificado vigente, senão responsável técnico; sem preço = 503; reembolso é humano.
 - [Receituário V2 pagina em vez de recusar](receituario-pdf-paginacao.md) — limite de 1 página causava 500 genérico na emissão; usar ensureSpace/newPage; erro real só no log.
 - [Modelo clínico PAXMED padrão](modelo-clinico-paxmed-padrao.md) — decisão: cabeçalho azul e rodapé PAXMED sem ativação; faixa do certificado na parte inferior.
-- [Central de Erros + protocolos salvos](central-erros-protocolos-salvos.md) — erros 5xx em system_error_log (tela do CEO); protocolo de prescricao = conjunto de formulas salvo por medico, remover=ativo false.
+- [Central de Erros + protocolos salvos](central-erros-protocolos-salvos.md) — erros 5xx em system_error_log (tela do CEO); protocolo de prescricao = conjunto de formulas salvo por medico, remover=ati
 - [Diagnóstico da conexão Gmail](gmail-conector-desconectado-401.md) — conferir perfil e autorização; conexão ativa não prova envio nem entrega.
 - [Locais: modalidade e sede](locais-modalidade-sede.md) — LOCAL=endereco da empresa, REMOTO=a definir (nao presumir); sede sobrepoe endereco na leitura; Padrao 27.
 - [PQQ: via do consultório](pqq-via-intramuscular.md) — médico confirmou via intramuscular, nunca endovenosa; corrigir divergências do cadastro na fonte.
@@ -155,33 +152,33 @@
 - [Informações clínicas no Google](agenda-evento-google-padrao.md) — conectar o formato existente às duas agendas, sem inventar dados ou estados.
 - [Planejador de protocolo + participação médica](protocolo-planejador-dimensionamento.md) — IV/IM/SC sem médico, implante com; planejador puro existe mas sem rota; lacuna = vagas + reserva conjunta.
 - [Google Agenda — resultado incerto](google-evento-resultado-incerto-conferencia.md) — conferência reaproveita o id reservado; id novo duplica; só 404 é "não existe".
-- [Remarcar e cancelar visita de protocolo](remarcar-cancelar-visita-protocolo.md) — duração reservada nunca encolhe; Google só fora da transação; cancelar mantém ponteiro se falhar; n/total pela posição.
+- [Remarcar e cancelar visita de protocolo](remarcar-cancelar-visita-protocolo.md) — duração reservada nunca encolhe; Google só fora da transação; cancelar mantém ponteiro se falhar; n/total pela posi
 - [Vínculo empresarial do profissional](vinculo-empresarial-profissional.md) — originária + até 5 empresas; agenda só nas vinculadas; 409 em vez de desligar sozinho; fixtures precisam da tabela nova.
 - [Evento Google — comparação com o IHE](google-evento-ihe-comparacao.md) — IHE atualizava o evento ao aplicar (Manager perdeu); cor do print é renderização do Google, não divergência de código.
 - [Ação clínica que atualiza o Google — reserva e prazo](google-evento-acao-clinica-reserva.md) — nunca reivindicar reserva alheia; prazo próprio na chamada; teste sem timer curto.
 - [Linha do Tempo Viva — pedidos do CEO](linha-do-tempo-viva-regras-ceo.md) — K1–K6 aprovadas; aguda/crônica; substâncias constantes, chave de 6 dígitos como rubrica, RAS FAP vivo.
-- [Protocolo completo constante](protocolo-completo-constante.md) — constantes calculadas na leitura; evento do Google montado em 3 caminhos (mexer nos 3); guarda de empresa; rodar suíte com --maxWorkers=2.
+- [Protocolo completo constante](protocolo-completo-constante.md) — constantes calculadas na leitura; evento do Google montado em 3 caminhos (mexer nos 3); guarda de empresa; rodar suíte com --maxWork
 - [Confirmação do cliente por visita (K8/K10)](confirmacao-visita-k8-licoes.md) — jobs no api-worker; guard explícito; blocos clínicos HTML só no e-mail; envio nunca bloqueia registro.
 - [Chat do CEO no Telegram — cofre x Secret](telegram-ceo-chatid-cofre-vs-secret.md) — Secret PADAXOR_TELEGRAM_CHAT_ID está errado; só a API hidrata o cofre; worker e scripts não.
-- [IHE já desenhou PIN, rubrica e app da enfermagem](ihe-app-enfermagem-pin-rubrica.md) — formatos de rubrica já decididos em 12/06/2026 no IHE; ler IHE antes de construir; como ler via PAT; K8 sem Hermes.
-- [Rubrica do cliente em imagem](rubrica-cliente-imagem.md) — tabela com histórico + arquivo privado; RAS troca iniciais por imagem só em plena/cadastro; pngjs aceita PNG cortado e entrelaçado sem teto.
-- [Agenda por categoria, local polimórfico, equipe](agenda-categoria-local-equipe.md) — categoria pendente≠inferida; locations mistura espaço físico e agenda Google (não fundir); tabelas de equipe por migração explícita.
-- [Clínica x unidade da agenda nos documentos](clinica-vs-unidade-agenda-documentos.md) — unit é local de agenda; documentos usam empresas.nome; lançador escolhe procedimentos (217 gerados das substâncias).
+- [IHE já desenhou PIN, rubrica e app da enfermagem](ihe-app-enfermagem-pin-rubrica.md) — formatos de rubrica já decididos em 12/06/2026 no IHE; ler IHE antes de construir; como ler via PAT; K8 sem He
+- [Rubrica do cliente em imagem](rubrica-cliente-imagem.md) — tabela com histórico + arquivo privado; RAS troca iniciais por imagem só em plena/cadastro; pngjs aceita PNG cortado e entrelaçado sem tet
+- [Agenda por categoria, local polimórfico, equipe](agenda-categoria-local-equipe.md) — categoria pendente≠inferida; locations mistura espaço físico e agenda Google (não fundir); tabelas de equipe por
+- [Clínica x unidade da agenda nos documentos](clinica-vs-unidade-agenda-documentos.md) — unit é local de agenda; documentos usam empresas.nome; lançador escolhe procedimentos (217 gerados das substân
 - [Campo ligado + legenda de origem](campo-ligado-legenda-origem.md) — dado não digitado = título Saliente + resposta Côncava + chip C/M/E; horário padrão lido de agenda_windows.
 - [Agenda Configuração — códigos de repetição](agenda-repeticao-codigos.md) — repeat_weeks: 1, 2/3/4/6/8 semanas, 101–105 mensal; "recurso" vira "agenda de atendimento"; tela = Agenda Configuração.
-- [Locais externos da clínica](locais-externos-cadastro.md) — aba dentro do cadastro da empresa, tabela própria com campos da empresa (CNPJ fictício, sem integrações); agenda EXTERNA copia o endereço; sonner sem Toaster.
+- [Locais externos da clínica](locais-externos-cadastro.md) — aba dentro do cadastro da empresa, tabela própria com campos da empresa (CNPJ fictício, sem integrações); agenda EXTERNA copia o endereço;
 - [Agenda e cadastro profissional — formas de atendimento](agenda-forma-vocabulario.md) — Sede, Local externo, Online e Home Care; disponibilidade do profissional no mesmo bloco, sem ativar a empresa.
 - [Protocolo: dois fluxos de agenda e local sobrecarregado](protocolo-dois-fluxos-agenda-local.md) — location_id do procedimento aponta para agenda; fluxo por períodos só enfermagem Sede.
 - [Pit Stop + referência agenda/profissional/local](pit-stop-agendamento.md) — plano compartilhado (Caminho B); ler docs/REFERENCIA-AGENDA-PROFISSIONAL-LOCAL.md antes de mexer em agenda/equipe/local.
 - [Vínculo profissional×agenda: três origens](agenda-vinculo-tres-origens.md) — titular + location_professionals + preferidos; tela que lê uma só mente; auditoria em /agenda/auditoria-vinculos.
 - [Conflito Google: marca + decisão humana](google-conflito-marca-fingerprint.md) — marca paxterFp bloqueia sobrescrita (409); UI sem window.confirm (iframe bloqueia).
 - [Filtro único de agendas](agenda-filtro-unico-chaves.md) — chave r{id} compartilhada entre sessão e Google; estado vive no index.tsx, views só recebem `ocultas`.
-- [Marcação → evento Google completo](marcacao-agenda-evento-google-completo.md) — marcar/remarcar usa syncBookedSession (fora da transação); nunca montar evento em agenda-booking; Home Care sem endereço não envia.
-- [Consulta avulsa (sem protocolo)](consulta-avulsa-sem-protocolo.md) — protocol_id NULL só por caminho explícito; consumidores recusam/toleram NULL; nova rota de marcação precisa entrar no agendaWriteGuard.
-- [Travas de agenda por profissional e cliente](agenda-travas-profissional-cliente.md) — trava 19872026 é por clínica; ordem clínica→profissional(asc)→cliente; conflito por intervalo; irmãs de equipe conjunta não conflitam.
-- [Agenda — tela da consulta avulsa](agenda-consulta-avulsa-tela.md) — período do motor, resultado incerto nunca repete, campos separados; armadilhas do e2e (viewport, CDP) e do codegen (barrel api-zod).
-- [Encaixe rápido interno (Quick Book)](agenda-encaixe-interno.md) — canal decidido no servidor (rota+Governança), antecedência em minutos no app_settings, mesma decisão no seletor e na confirmação, sem cadeia.
-- [Agenda — barra congelada e cartão rápido](agenda-barra-congelada.md) — sticky precisa de top negativo = padding do Layout; sem scroll-snap na faixa; e2e do filtro clica o + antes; goto lento no dev.
+- [Marcação → evento Google completo](marcacao-agenda-evento-google-completo.md) — marcar/remarcar usa syncBookedSession (fora da transação); nunca montar evento em agenda-booking; Home Care sem ender
+- [Consulta avulsa (sem protocolo)](consulta-avulsa-sem-protocolo.md) — protocol_id NULL só por caminho explícito; consumidores recusam/toleram NULL; nova rota de marcação precisa entrar no agendaWrit
+- [Travas de agenda por profissional e cliente](agenda-travas-profissional-cliente.md) — trava 19872026 é por clínica; ordem clínica→profissional(asc)→cliente; conflito por intervalo; irmãs de equipe
+- [Agenda — tela da consulta avulsa](agenda-consulta-avulsa-tela.md) — período do motor, resultado incerto nunca repete, campos separados; armadilhas do e2e (viewport, CDP) e do codegen (barrel api-zo
+- [Encaixe rápido interno (Quick Book)](agenda-encaixe-interno.md) — canal decidido no servidor (rota+Governança), antecedência em minutos no app_settings, mesma decisão no seletor e na confirmação, s
+- [Agenda — barra congelada e cartão rápido](agenda-barra-congelada.md) — sticky precisa de top negativo = padding do Layout; sem scroll-snap na faixa; e2e do filtro clica o + antes; goto lento no dev
 - [Telegram — chat do CEO, repasse e status](telegram-diagnostico-repasse-ceo.md) — webhook único aponta para um ambiente; repasse ao CEO sem eco; status honesto na Central de Auditoria.
 - **Telegram — webhook** — [dedupe por update_id](telegram-dedupe-update-id.md) · [claim, outbox, config única](telegram-webhook-claim-outbox.md) — chave (chat,update); gravar antes de repassar.
 - [Testes de auth x tenantContext](telegram-testes-mocks-tenantcontext.md) — falhas vieram de mocks defasados; nunca afrouxar a auth para passar teste.
@@ -193,12 +190,12 @@
 - [Crédito pré-pago da mensageria](mensageria-credito-pay-per-use.md) — pay per use por clínica, isenção do Instituto, custo de IA à parte; falta tela, pagamento real e tarifas.
 - [Cobrança de teste Asaas — guard de identidade](asaas-guard-identidade-teste.md) — teto R$5/10/R$50; divergência local×Asaas bloqueia; webhook de produção só por diagnóstico de leitura.
 - [Exames avulsos — entrada separada](exames-avulsos-entrada.md) — escolha não é prescrição; preço só do titular, editável até o aceite; cobrança/emissão pendentes.
-- [Meus Bolões — base mínima + automação de recibos](meus-boloes-base-minima.md) — quarentena + casamento determinístico + aprovação humana; auto-aprovar desligado; 3 estados distintos; sem API/login CAIXA.
-- [Conciliação Asaas por leitura + extrato real](asaas-conciliacao-leitura-extrato.md) — webhook interrompido; job só lê; líquido real vem do extrato (taxa de mensageria fora do netValue); legado só por ID.
+- [Meus Bolões — base mínima + automação de recibos](meus-boloes-base-minima.md) — quarentena + casamento determinístico + aprovação humana; auto-aprovar desligado; 3 estados distintos; sem API/login
+- [Conciliação Asaas por leitura + extrato real](asaas-conciliacao-leitura-extrato.md) — webhook interrompido; job só lê; líquido real vem do extrato (taxa de mensageria fora do netValue); legado só p
 - [Club VIP x Minha Categoria](club-vip-minha-categoria-separacao.md) — categoria comercial NUNCA no Club VIP; Conexão Milionária = convite de bolões que só navega para Meus Bolões.
 - [Grupo VIP e Conexão Milionária](grupo-vip-conexao-milionaria.md) — independente da categoria; convite só registro; efetivado só com comprovante; cobrança Asaas só leitura; CAIXA pendente.
-- [Webhook órfão ZapSign + vínculo cobrança×bolão por titular](assinatura-webhook-orfao-e-cobranca-bolao-titular.md) — órfão fica pendente (200); cobrança só vincula a bolão se o titular for o mesmo cliente.
-- [Meus Jogos individuais](meus-jogos-individuais.md) — separado dos bolões; sem aposta/pagamento real automático; Caixa só com canal oficial autorizado; calendário por concurso e margem de quatro horas.
+- [Webhook órfão ZapSign + vínculo cobrança×bolão por titular](assinatura-webhook-orfao-e-cobranca-bolao-titular.md) — órfão fica pendente (200); cobrança só vincula a bolão se o titular for o mesmo c
+- [Meus Jogos individuais](meus-jogos-individuais.md) — separado dos bolões; sem aposta/pagamento real automático; Caixa só com canal oficial autorizado; calendário por concurso e margem de quatro hor
 - **Depuração e identidade de Exames** — [porteiro](depuracao-exames-identidade-tenant.md) · [regras por clínica](depuracao-exames-regras-identidade.md) · [marcos](envios-marcos-explicitos.md) · [exibição segura no portal](identidade-divergente-portal.md) — quarentena sem identidade confirmada; clínica vem do cliente; sem CPF só preliminar.
 - [Código de Renomeação de Exames](codigo-renomeacao-exames.md) — regra única aprovada: `LABOR`, siglas históricas, cintilografia por extenso e preservação contra homônimos.
 - [Segunda via de documentos](segunda-via-documentos-politica.md) — Members só verificado; webhook confere no provedor; recusa bloqueada com cobrança; um só caminho de entrega.

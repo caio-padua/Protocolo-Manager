@@ -12,6 +12,7 @@ import { Touro } from "./Touro";
 import { PaginaComEmpresa } from "../SeletorEmpresa";
 import { Cenario } from "./Cenario";
 import { SimuladorCredito } from "./SimuladorCredito";
+import { PainelCredito } from "./PainelCredito";
 
 const PERIODOS: { v: PeriodoTipo; r: string; ph: string }[] = [
   { v: "month", r: "Mês", ph: "AAAA-MM" }, { v: "quarter", r: "Trimestre", ph: "AAAA-Q1" }, { v: "semester", r: "Semestre", ph: "AAAA-S1" },
@@ -184,12 +185,15 @@ function PaxGoalsCorpo() {
         </TabsContent>
 
         <TabsContent value="cenario" className="mt-3"><Cenario /></TabsContent>
-        <TabsContent value="simulador" className="mt-3"><SimuladorCredito /></TabsContent>
+        <TabsContent value="simulador" className="mt-3 space-y-4">
+          <PainelCredito />
+          <details className="panel-3d-sub p-3" data-testid="sim-meta-credito"><summary className="min-h-[44px] cursor-pointer text-[12px] font-bold uppercase leading-[44px] md:min-h-0 md:leading-normal">Simulador de meta de faturamento para um valor de crédito desejado</summary><div className="mt-3"><SimuladorCredito /></div></details>
+        </TabsContent>
 
         <TabsContent value="credito" className="mt-3 space-y-4">
           <section className="panel-3d p-4" data-testid="goals-credito-aviso">
             <BlockTitle icon={CreditCard}>Crédito: o que está comprovado e o que não está</BlockTitle>
-            <p className="text-[12px]">Faturamento alto <b>não garante</b> crédito. Cada banco analisa o caso. Os cartões abaixo separam cinco etapas: meta interna, requisito preliminar, simulação, pré-análise bancária e aprovação formal. Nenhuma condição vem pronta: só vale depois de registrar fonte oficial, endereço e data de verificação.</p>
+            <p className="text-[12px]">Faturamento alto <b>não garante</b> crédito. Cada banco analisa o caso. Os cartões abaixo separam cinco etapas: meta interna, requisito preliminar, simulação, pré-análise bancária e aprovação formal. As condições lidas nas fontes oficiais em 21/11/2026 estão na aba Simulador de crédito (conferência humana pendente). Os cartões abaixo servem para registrar uma versão verificada por você, com fonte, endereço e data.</p>
           </section>
           {(credito.data ?? []).length === 0 && (
             <div className="panel-3d-sub p-3 text-[12px]">Nenhuma linha cadastrada. <button type="button" className={btnCls} data-testid="credito-semear" onClick={() => agir.mutate({ path: "/credit-lines/seed" })}>Criar cartões das 8 linhas (vazios)</button></div>
