@@ -203,7 +203,7 @@ export function Laboratorio24m() {
               <th className="p-1">Mês</th><th className="p-1">Origem</th><th className="p-1 text-right">Faturamento (digite o valor de cada mês)</th><th className="p-1 text-right">Pró-labore</th><th className="p-1 text-center">Fator R / Anexo</th><th className="p-1 text-center">Anexo sem/com</th><th className="p-1 text-right">Carga sem</th><th className="p-1 text-right">Carga com</th><th className="p-1 text-right">Caixa (com)</th>
             </tr></thead>
             <tbody>
-              {d.meses.map((m) => (
+              {[...d.meses].reverse().map((m) => (
                 <tr key={m.mes} className={`cursor-pointer border-t hover:bg-muted ${sel === m.mes ? "bg-muted" : ""}`} onClick={() => setSel(m.mes)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && setSel(m.mes)} data-testid={`lab-mes-${m.mes}`}>
                   <td className="p-1 font-bold">{rotuloMes(m.mes)}</td>
                   <td className="p-1 text-[10px]">{m.fase.fase === "anterior_abertura" ? "Clínica-modelo (sem CNPJ)" : m.fase.fase === "mes_abertura" ? "Mês da abertura" : "Simulação pós-abertura"}</td>
