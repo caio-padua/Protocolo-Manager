@@ -4,6 +4,7 @@ import { getCollabToken } from "@/lib/collab-auth";
 import NovaConsulta from "./anamnese/NovaConsulta";
 import Evolucao from "./anamnese/Evolucao";
 import ResumoRetorno from "./anamnese/ResumoRetorno";
+import MotorPanel from "./anamnese/MotorPanel";
 import {
   agruparPorBloco, api, blocoDe, compararSessoes, podeComparar, IDENTIDADE_IDS, concluida, dataBR, formatarValor, haQuanto, horaBR, MUDO, NAVY, OURO, quando,
   VOL_AJUDA, VOL_COR, VOL_ROTULO, type SessaoDetalhe, type SessaoResumo, type Volatilidade,
@@ -106,7 +107,7 @@ export default function AnamnesePreviaPanel({ clientId }: { clientId: number }) 
             ["Última concluída", ultima ? `${dataBR(quando(ultima))} · ${horaBR(quando(ultima))}` : "Nenhuma", ultima ? haQuanto(quando(ultima)) : "O cliente ainda não concluiu"],
             ["Anamneses concluídas", String(sessoes.filter(concluida).length), sessoes.some((s) => !concluida(s)) ? "e uma em andamento" : "nenhuma em andamento"],
             ["Respostas na última", ultima ? String(ultima.respondidas) : "—", "perguntas respondidas"],
-            ["Achados do motor", ultima ? `${ultima.diagnosticado} diag · ${ultima.suspeito} susp` : "—", ultima?.temAlarme ? "com sinal de alarme" : "sem sinal de alarme"],
+            ["Achados da anamnese", ultima ? `${ultima.diagnosticado} diag · ${ultima.suspeito} susp` : "—", ultima?.temAlarme ? "com sinal de alarme" : "sem sinal de alarme"],
           ].map(([t, v, s]) => (
             <div key={t} className="concave-3d px-3 py-2">
               <div className="text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: MUDO }}>{t}</div>
@@ -220,8 +221,10 @@ export default function AnamnesePreviaPanel({ clientId }: { clientId: number }) 
 
           {aba === "achados" && detail && (
             <div className="grid gap-4 lg:grid-cols-3">
+              <div className="lg:col-span-3"><MotorPanel sessaoId={detail.id} /></div>
               <div className="panel-3d-sub p-4">
-                <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: NAVY }}>Achados do motor</div>
+                <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: NAVY }}>Achados da anamnese (relato do paciente)</div>
+                <p className="mb-2 text-[11px]" style={{ color: MUDO }}>Leitura ilustrativa das respostas. Não é diagnóstico e não vem do motor de regras.</p>
                 {detail.findings.length === 0 ? <p className="text-[12px]" style={{ color: MUDO }}>Nenhum achado.</p> : (
                   <ul className="space-y-1.5">{detail.findings.map((f) => (
                     <li key={f.id} className="flex items-center gap-2 text-[12px]">

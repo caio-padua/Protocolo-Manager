@@ -13,6 +13,7 @@ import {
 import { requireCollaborator } from "./collaborator";
 import { requireMessageClinic } from "../middleware/messageClinic";
 import { volatilidadeDa } from "../lib/anamnese-volatilidade.js";
+import { avaliarSessaoNoMotor } from "../lib/anamnese-motor-ponte";
 import { ehIdentidade, identidadeDoCadastro } from "../lib/anamnese-retorno";
 
 const router: IRouter = Router();
@@ -219,6 +220,44 @@ router.get(
         valor: r.valor,
         respondidoEm: r.respondidoEm.toISOString(),
       })),
+    });
+  },
+);
+
+// GET /collaborator/anamnese/sessions/:id/motor — resultado do motor deterministico sobre as respostas da V2.
+// Somente leitura, mesmo isolamento por clinica do detalhe. Nao e diagnostico: e o rastro das regras cadastradas.
+router.get(
+  "/collaborator/anamnese/sessions/:id/motor",
+  requireCollaborator,
+  requireMessageClinic,
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) { res.status(400).json({ error: "id invalido" }); return; }
+    const [session] = await db
+      .select({ id: anamneseSessionsTable.id, status: anamneseSessionsTable.status })
+      .from(anamneseSessionsTable)
+      .leftJoin(clientsTable, eq(clientsTable.id, anamneseSessionsTable.clientId))
+      .where(and(
+        eq(anamneseSessionsTable.id, id),
+        sql`(${clientsTable.empresaId} = ${req.messageEmpresaId!} OR (${anamneseSessionsTable.clientId} IS NULL AND (anamnese_sessions.empresa_id = ${req.messageEmpresaId!})))`,
+      ))
+      .limit(1);
+    if (!session) { res.status(404).json({ error: "Sessao nao encontrada" }); return; }
+    const [perguntas, respostas] = await Promise.all([
+      db.select({
+        id: anamneseQuestionarioTable.id, perguntaId: anamneseQuestionarioTable.perguntaId, pergunta: anamneseQuestionarioTable.pergunta,
+        tipoResposta: anamneseQuestionarioTable.tipoResposta, opcoes: anamneseQuestionarioTable.opcoes,
+      }).from(anamneseQuestionarioTable),
+      db.select({ questionRowId: anamneseSessionAnswersTable.questionRowId, valor: anamneseSessionAnswersTable.valor, respondidoEm: anamneseSessionAnswersTable.respondidoEm })
+        .from(anamneseSessionAnswersTable).where(eq(anamneseSessionAnswersTable.sessionId, id)),
+    ]);
+    const r = await avaliarSessaoNoMotor(perguntas, respostas);
+    res.json({
+      natureza: "Resultado do motor deterministico (regras cadastradas). Nao e diagnostico; exige avaliacao profissional.",
+      sessaoConcluida: session.status === "concluida",
+      escoreTotal: r.resultado.escoreTotal, gradeGlobal: r.resultado.gradeGlobal, redFlag: r.resultado.redFlag,
+      blocos: r.resultado.blocos, alarmes: r.resultado.alarmes, examesSugeridos: r.resultado.exames,
+      regrasDisparadas: r.disparadas, regrasSemResposta: r.semResposta, naoAvaliadas: r.naoAvaliadas, conflitos: r.conflitos,
     });
   },
 );

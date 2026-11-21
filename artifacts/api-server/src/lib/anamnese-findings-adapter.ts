@@ -49,6 +49,8 @@ function normalizar(s: string): string {
     .toLowerCase();
 }
 
+const ehNegativo = (op: string) => NEGATIVOS.has(op) || /^(nao|nenhum|nenhuma|nunca|negativo|ausente)\b/.test(op);
+
 // Uma resposta "positiva" = sinal de presenca (sim, escala alta, texto, etc.).
 function respostaPositiva(valor: unknown): boolean {
   if (valor == null || typeof valor !== "object") return false;
@@ -59,10 +61,11 @@ function respostaPositiva(valor: unknown): boolean {
       return v.bool === true;
     case "single": {
       const op = typeof v.opcao === "string" ? normalizar(v.opcao) : "";
-      return op.length > 0 && !NEGATIVOS.has(op);
+      return op.length > 0 && !ehNegativo(op);
     }
     case "multi":
-      return Array.isArray(v.selecionados) && v.selecionados.length > 0;
+      // "Nenhuma", "Nao tenho" etc. sozinhos NAO sao presenca de nada.
+      return Array.isArray(v.selecionados) && v.selecionados.some((x) => typeof x === "string" && !ehNegativo(normalizar(x)));
     case "escala": {
       const escala = typeof v.escala === "number" ? v.escala : NaN;
       const max = typeof v.max === "number" && v.max > 0 ? v.max : 5;

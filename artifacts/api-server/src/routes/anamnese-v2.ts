@@ -344,7 +344,7 @@ router.post("/anamnese-v2/sessions/:token/complete", async (req, res) => {
       const idade = idadeDe(c?.birth_date);
       if (idade !== null) {
         const valor = { tipo: "number", numero: idade };
-        await tx.execute(sql`INSERT INTO anamnese_session_answers (session_id, question_row_id, pergunta_id, valor, tempo_seg) VALUES (${session.id}, 41, 'A03', ${JSON.stringify(valor)}::jsonb, 0) ON CONFLICT (session_id, question_row_id) DO UPDATE SET valor=EXCLUDED.valor, updated_at=now()`);
+        await tx.execute(sql`INSERT INTO anamnese_session_answers (session_id, question_row_id, pergunta_id, valor, tempo_seg) SELECT ${session.id}, 41, 'A03', ${JSON.stringify(valor)}::jsonb, 0 WHERE EXISTS (SELECT 1 FROM anamnese_questionario WHERE id=41) ON CONFLICT (session_id, question_row_id) DO UPDATE SET valor=EXCLUDED.valor, updated_at=now()`);
         const i = answers.findIndex((a) => a.questionRowId === 41);
         if (i >= 0) answers[i] = { questionRowId: 41, valor }; else answers.push({ questionRowId: 41, valor });
       }
