@@ -517,13 +517,13 @@ export default function AnamneseV2() {
           {(() => {
             // Os 3 botoes: MESMO tamanho, MESMO alinhamento, relevo saliente (bevel-3d).
             const cls = minimizado
-              ? "bevel-3d relative flex h-7 w-9 items-center justify-center rounded-[4px]"
+              ? "bevel-3d relative flex h-[46px] w-6 items-center justify-center rounded-[3px]"
               : "bevel-3d relative flex h-6 w-[96px] items-center justify-center gap-1.5 whitespace-nowrap rounded-[4px] px-2";
             const lbl = "text-[9.5px] font-bold uppercase tracking-wide";
             const ic = "h-3.5 w-3.5 shrink-0";
             return (
               <div
-                className={`absolute right-0 z-30 flex ${minimizado ? "top-0 flex-row items-center gap-1.5" : "-top-2.5 flex-col items-stretch gap-3"}`}
+                className={`absolute right-0 z-30 flex ${minimizado ? "top-0 flex-row items-stretch gap-1" : "-top-2.5 flex-col items-stretch gap-3"}`}
               >
                 <TipButton
                   onClick={() => setFocusMode((f) => !f)}
@@ -562,11 +562,11 @@ export default function AnamneseV2() {
 
           {minimizado ? (
             <div className="flex flex-col gap-2">
-              <div className="flex min-h-[34px] items-center gap-2 pr-[7.5rem]">
-                <div className="shrink-0"><PaxterSymbolGlass size={30} tone={theme === "dark" ? "dark" : "light"} /></div>
-                <div className="flex min-w-0 flex-1 justify-center" aria-live="polite">
-                  <div className="bevel-3d flex flex-col items-center rounded-[4px] px-4 py-1 leading-tight">
-                    <span className="text-[20px] font-black tabular-nums tracking-tight" style={{ color: GOLD }}>{pct}% <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-foreground">concluído</span></span>
+              <div className="flex h-[46px] items-stretch gap-2 pr-[5.6rem]">
+                <div className="flex shrink-0 items-start"><PaxterSymbolGlass size={46} tone={theme === "dark" ? "dark" : "light"} /></div>
+                <div className="flex min-w-0 flex-1" aria-live="polite">
+                  <div className="bevel-3d flex h-full w-full flex-col items-center justify-center rounded-[3px] px-2 leading-tight">
+                    <span className="text-[18px] font-black tabular-nums tracking-tight" style={{ color: GOLD }}>{pct}% <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-foreground">concluído</span></span>
                     <span className="text-[10.5px] font-bold uppercase tracking-wide text-foreground">Falta aprox. {restanteMin} min</span>
                   </div>
                 </div>
@@ -694,7 +694,7 @@ export default function AnamneseV2() {
               onClick={() => setGroupIdx((i) => Math.max(0, i - 1))}
               className="btn-3d-soft flex h-12 items-center gap-1.5 rounded-md px-5 text-sm font-bold disabled:opacity-40"
             >
-              <ChevronLeft className="h-4 w-4" /> Anterior
+              <ChevronLeft className="h-3 w-3" /> Anterior
             </button>
             {isLastGroup ? (
               <button
@@ -712,7 +712,7 @@ export default function AnamneseV2() {
                 onClick={() => setGroupIdx((i) => Math.min(groups.length - 1, i + 1))}
                 className="btn-3d flex h-12 items-center gap-2 rounded-md px-6 text-sm font-bold uppercase tracking-wide text-white"
               >
-                Próximo <ChevronRight className="h-4 w-4" />
+                Próximo <ChevronRight className="h-3 w-3" />
               </button>
             )}
           </div>
@@ -793,7 +793,7 @@ export default function AnamneseV2() {
             aria-label="Você parou aqui"
             data-testid="anamnese-retomada"
           >
-            <div className="leva-card w-full max-w-sm rounded-xl p-5 text-center">
+            <div className="bevel-3d w-full max-w-sm rounded-[4px] p-5 text-center">
               <div className="relative z-[1] flex flex-col items-center gap-3">
                 <PaxterSymbolGlass size={44} tone={theme === "dark" ? "dark" : "light"} />
                 <h2 className="text-base font-extrabold uppercase tracking-wide" style={{ color: GOLD }}>Você parou aqui</h2>
@@ -884,15 +884,15 @@ function GrupoChip({
       aria-label={`${title}: ${pct}% concluído`}
       aria-current={active ? "true" : undefined}
       data-grupo-ativo={active ? "true" : undefined}
-      className={`bevel-3d flex min-w-0 flex-col justify-center gap-1 rounded-[3px] px-1.5 text-foreground ${compact ? "h-[42px] w-[88px] shrink-0" : "h-[54px]"} ${refused ? "opacity-60" : ""}`}
+      className={`bevel-3d flex min-w-0 flex-col justify-center gap-1 rounded-[3px] px-1.5 text-foreground ${compact ? "h-[32px] w-[84px] shrink-0 !gap-0.5" : "h-[54px]"} ${refused ? "opacity-60" : ""}`}
       style={active ? { outline: `2.5px solid ${GOLD}`, outlineOffset: "2px" } : undefined}
     >
-      <span className={`flex items-center justify-center gap-1 font-bold tracking-tight ${compact ? "text-[10px]" : "text-[11px]"}`}>
+      <span className={`flex items-center justify-center gap-1 font-bold tracking-tight ${compact ? "text-[9.5px] leading-none" : "text-[11px]"}`}>
         {done ? <Check className="h-3 w-3 shrink-0" aria-hidden /> : null}
         <span className="truncate">{label}</span>
       </span>
       <span className="flex items-center gap-1">
-        <span className="paxter-bar-track !rounded-[2px] h-[9px] flex-1" style={{ boxShadow: "inset 0 2px 4px rgba(0,0,0,.45), inset 0 -1px 0 rgba(255,255,255,.35)" }}>
+        <span className={`paxter-bar-track !rounded-[2px] ${compact ? "h-[7px]" : "h-[9px]"} flex-1`} style={{ boxShadow: "inset 0 2px 4px rgba(0,0,0,.45), inset 0 -1px 0 rgba(255,255,255,.35)" }}>
           {pct > 0 && <span className="paxter-bar-fill !rounded-[1px] block h-full" style={{ width: `${pct}%` }} />}
         </span>
         <span className="w-8 shrink-0 text-right text-[10.5px] font-extrabold leading-none tabular-nums">{pct}%</span>
@@ -918,14 +918,14 @@ function Trilho({ children, ativoKey }: { children: ReactNode; ativoKey: number 
     el?.querySelector<HTMLElement>('[data-grupo-ativo="true"]')?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   }, [ativoKey, medir]);
   const rolar = (d: number) => ref.current?.scrollBy({ left: d * 180, behavior: "smooth" });
-  const seta = "absolute top-1/2 z-10 flex h-8 w-6 -translate-y-1/2 items-center justify-center rounded-[3px] bevel-3d text-foreground";
+  const seta = "absolute top-1/2 z-10 flex h-6 w-3 -translate-y-1/2 items-center justify-center rounded-[2px] bevel-3d text-foreground";
   return (
-    <div className="relative rounded-[4px] px-7 py-1.5" style={{ background: "rgba(0,0,0,0.10)", boxShadow: "inset 0 2px 5px rgba(0,0,0,.35), inset 0 -1px 0 rgba(255,255,255,.25)" }} role="group" aria-label="Grupos de perguntas (deslize para os lados)">
-      {esq && <button type="button" onClick={() => rolar(-1)} aria-label="Ver grupos anteriores" className={`${seta} left-0.5`}><ChevronLeft className="h-4 w-4" /></button>}
-      <div ref={ref} onScroll={medir} className="flex gap-2.5 overflow-x-auto px-1 py-1 [scrollbar-width:none]" style={{ scrollSnapType: "x proximity" }}>
+    <div className="relative rounded-[3px] px-4 py-0.5" style={{ background: "rgba(0,0,0,0.10)", boxShadow: "inset 0 2px 5px rgba(0,0,0,.35), inset 0 -1px 0 rgba(255,255,255,.25)" }} role="group" aria-label="Grupos de perguntas (deslize para os lados)">
+      {esq && <button type="button" onClick={() => rolar(-1)} aria-label="Ver grupos anteriores" className={`${seta} left-0.5`}><ChevronLeft className="h-3 w-3" /></button>}
+      <div ref={ref} onScroll={medir} className="flex gap-2 overflow-x-auto px-1 py-0.5 [scrollbar-width:none]" style={{ scrollSnapType: "x proximity" }}>
         {children}
       </div>
-      {dir && <button type="button" onClick={() => rolar(1)} aria-label="Ver próximos grupos" className={`${seta} right-0.5`}><ChevronRight className="h-4 w-4" /></button>}
+      {dir && <button type="button" onClick={() => rolar(1)} aria-label="Ver próximos grupos" className={`${seta} right-0.5`}><ChevronRight className="h-3 w-3" /></button>}
     </div>
   );
 }
@@ -1345,7 +1345,7 @@ function FocusView({
           onClick={onPrev}
           className="btn-3d-soft flex h-12 items-center gap-1.5 rounded-md px-5 text-sm font-bold disabled:opacity-40"
         >
-          <ChevronLeft className="h-4 w-4" /> Voltar
+          <ChevronLeft className="h-3 w-3" /> Voltar
         </button>
         {last ? (
           <button
@@ -1363,7 +1363,7 @@ function FocusView({
             onClick={onNext}
             className="btn-3d flex h-12 items-center gap-2 rounded-md px-6 text-sm font-bold uppercase tracking-wide text-white"
           >
-            Próxima <ChevronRight className="h-4 w-4" />
+            Próxima <ChevronRight className="h-3 w-3" />
           </button>
         )}
       </div>
@@ -1678,7 +1678,7 @@ function IdentifyGate({
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
                   <>
-                    Começar <ChevronRight className="h-4 w-4" />
+                    Começar <ChevronRight className="h-3 w-3" />
                   </>
                 )}
               </button>
