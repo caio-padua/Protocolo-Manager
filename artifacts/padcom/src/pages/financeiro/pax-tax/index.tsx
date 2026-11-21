@@ -13,6 +13,7 @@ import { Regras } from "./Regras";
 import { Simulador } from "./Simulador";
 import { PainelTributario } from "./PainelTributario";
 import { LedgerAba } from "./Ledger";
+import { Laboratorio24m } from "./Laboratorio24m";
 
 const PAPEL: Record<string, string> = { socio: "Sócio", administrador: "Administrador", socio_administrador: "Sócio administrador", responsavel_tecnico: "Responsável técnico (não é sócio)", procurador: "Procurador" };
 const SIMPLES: Record<string, string> = { nao_verificada: "Não verificada", confirmada: "Confirmada", nao_optante: "Não optante" };
@@ -110,7 +111,7 @@ function PaxTaxCorpo() {
         <TrilhoAbas rotulo="Seções de Impostos & CNPJs" testidPrefixo="tax-aba" itens={[
           { value: "perfil", label: "Perfil da empresa", grupo: "a" }, { value: "socios", label: "Sócios e responsáveis", grupo: "a" },
           { value: "parametros", label: "Parâmetros e alíquotas", grupo: "b" }, { value: "simuladores", label: "Simuladores", grupo: "b" },
-          { value: "documentos", label: "Documentos e inteligências", grupo: "c" }, { value: "ledger", label: "Fechamento do Mês", grupo: "c" }, { value: "auditoria", label: "Auditoria e histórico", grupo: "d" },
+          { value: "documentos", label: "Documentos e inteligências", grupo: "c" }, { value: "lab", label: "Simulação 24 meses", grupo: "c" }, { value: "ledger", label: "Fechamento do Mês", grupo: "c" }, { value: "auditoria", label: "Auditoria e histórico", grupo: "d" },
         ]} />
 
         <TabsContent value="perfil" className="mt-3 space-y-4">
@@ -187,6 +188,8 @@ function PaxTaxCorpo() {
             </div>
           </section>
         </TabsContent>
+
+        <TabsContent value="lab" className="mt-3"><Laboratorio24m /></TabsContent>
 
         <TabsContent value="ledger" className="mt-3"><LedgerAba /></TabsContent>
 

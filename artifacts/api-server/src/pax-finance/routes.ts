@@ -13,6 +13,7 @@ import { SimCreditoInput, CATALOGO, compararCredito, simularCredito } from "./cr
 import { PainelInput, calcularPainel } from "./painel-tributario";
 import { CreditoPainelInput, painelCredito } from "./credito-pesquisa";
 import { FlagsInput, estadoAgentes, lerConfig, salvarFlags } from "./produto";
+import { LabSalvarInput, lerLab, limparLab, salvarLab } from "./laboratorio";
 import { PerfilInput, SocioInput, criarSocio, editarSocio, encerrarSocio, listarAuditoria, listarSocios, obterEmpresa, salvarPerfil, validarPerfil, validarSocio } from "./cadastro";
 
 /** PAX FINANCE — rotas. Toda rota: colaborador + clínica da sessão + módulo financeiro. */
@@ -117,6 +118,13 @@ router.post("/pax-finance/agents/:id/toggle", ...finGuards, wrap(async (req, res
   if (!a) throw new FinError(404, "Agente desconhecido");
   res.status(409).json({ error: `${a.nome}: ${a.motivo} Nenhuma execução foi iniciada.` });
 }));
+
+router.get("/pax-finance/lab", ...finGuards, wrap(async (req, res) => {
+  const inicio = typeof req.query.inicio === "string" ? z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).parse(req.query.inicio) : undefined;
+  res.json(await lerLab(finContext(req), inicio));
+}));
+router.put("/pax-finance/lab", ...finGuards, wrap(async (req, res) => { res.json(await salvarLab(finContext(req), LabSalvarInput.parse(req.body))); }));
+router.delete("/pax-finance/lab", ...finGuards, wrap(async (req, res) => { res.json(await limparLab(finContext(req))); }));
 
 router.get("/pax-finance/audit", ...finGuards, wrap(async (req, res) => { res.json(await listarAuditoria(finContext(req))); }));
 

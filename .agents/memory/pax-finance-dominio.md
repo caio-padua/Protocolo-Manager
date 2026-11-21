@@ -17,3 +17,7 @@ Liberado pelo CEO em 21/11/2026 (saiu do standby). Fases 1 e 2 prontas; 3 a 8 pe
 - Cenário DEMO vive em `fin_scenario_month` (rótulo fixo, nunca em payments/ledger); totais sempre somados no backend.
 - Crédito sem regra verificada = "REGRA DO PROGRAMA A VALIDAR", sem recomendação firme; as 3 IAs ficam "não configurado" e o toggle devolve 409.
 **Why:** pedido expresso do CEO; ambiente de laboratório. **How to apply:** ao mexer em agenda/financeiro multiempresa ou nos toggles de IA.
+
+## Laboratório de 24 meses (21/11/2026)
+Simulação pura em laboratorio-calc.ts reusa calcularPainel (faixas do Simples); só premissas+ajustes por mês são gravados (fin_sim_scenario, is_simulation sempre true). Meses antes de 13/08/2026 = clínica-modelo sem CNPJ; Carlúcia nunca recebe receita. Planejamento = manter folha elegível em 28% mês a mês (Fator R usa 12 meses anteriores); pode piorar mês isolado. Lucro contábil/distribuível sempre nulo. Anexo do pedido propunha titularidade nominal/pulverização para crédito: NÃO implementar. Pendente: Roteador de Serviços, beneficiário final, equiparação hospitalar, Maia/upload real.
+**Why:** pedido do CEO com exclusão ética explícita. **How to apply:** ao continuar o Pax Finance.
