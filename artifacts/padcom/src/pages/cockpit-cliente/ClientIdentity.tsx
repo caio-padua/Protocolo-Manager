@@ -16,7 +16,7 @@ import { BASE } from "@/pages/comunicacao/_shared";
 import { tituloProprio } from "@/lib/utils";
 import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 import { ehNivelCliente, nivelLegado, rotuloNivel } from "@/lib/nivel-cliente";
-import { PulsoDiarioBotao, PulsoDiarioHistorico } from "./PulsoDiarioCompacto";
+import { PulsoDiarioBotao, PulsoDiarioHistorico, type Janela } from "./PulsoDiarioCompacto";
 import { NomeClienteResponsivo } from "./NomeClienteResponsivo";
 import { formatarNascimento, idadeCompleta } from "./idadeCliente";
 
@@ -85,6 +85,7 @@ interface ClientIdentityProps {
 }
 
 export default function ClientIdentity({ client, onMensagens }: ClientIdentityProps) {
+  const [janelaPulso, setJanelaPulso] = useState<Janela>("diretriz");
   const [aberto, setAberto] = useState<"resumo" | "imagem" | "pulso" | null>(null);
   const idade = idadeCompleta(client.birthDate);
   // Dado ausente (resposta sem o campo) aparece como traco, nunca como valor inventado
@@ -191,9 +192,10 @@ export default function ClientIdentity({ client, onMensagens }: ClientIdentityPr
             );
           })}
           <PulsoDiarioBotao clientId={client.id} aberto={aberto === "pulso"}
-            onToggle={() => setAberto((atual) => atual === "pulso" ? null : "pulso")} />
+            onToggle={() => setAberto((atual) => atual === "pulso" ? null : "pulso")}
+            janela={janelaPulso} onJanela={setJanelaPulso} />
         </div>
-        {aberto === "pulso" && <PulsoDiarioHistorico clientId={client.id} />}
+        {aberto === "pulso" && <PulsoDiarioHistorico clientId={client.id} janela={janelaPulso} />}
         {aberto === "resumo" && (
           <div id="cc-resumo-cliente" className="cc-context-content">
             <ResumoRegistrado clientId={client.id} />

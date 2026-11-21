@@ -263,7 +263,9 @@
 
 /* ── Pulso Diario: botao da mesma altura dos demais (medias) + tabela de historico ─────────────────
    Numeros pelo Numeral (Lei do Numeral). Tabela em claro e escuro. */
-.cc-pulso-botao { grid-column: 1/-1; }
+.cc-pulso-wrap { grid-column: 1/-1; position: relative; display: grid; grid-template-columns: minmax(0,1fr) 88px; gap: 7px; }
+.cc-pulso-chip { justify-content: space-between; }
+.cc-pulso-chip strong { font-size: 9px; }
 .cc-pulso-botao-rotulo { flex: 0 0 auto; }
 .cc-pulso-medias { display: grid; flex: 1 1 auto; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 4px; min-width: 0; margin-left: 6px; padding-left: 8px; border-left: 1px solid #d3bd8855; }
 .cc-pulso-media { display: grid !important; gap: 1px !important; text-align: center; }
@@ -308,3 +310,11 @@
 .cc-pulso-janelas button[aria-pressed="true"] { background: var(--p-rotulo); color: var(--p-fundo); border-color: var(--p-rotulo); }
 .cc-pulso-tabela tbody tr.cc-pulso-mediaLinha { background: var(--p-cab); }
 .cc-pulso-tabela tbody tr.cc-pulso-mediaLinha th { font: 800 8.5px/1 Inter,sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--p-rotulo); }
+.cc-pulso-menu { position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; width: min(300px,92vw); margin: 0; padding: 8px; display: grid; gap: 4px; box-shadow: 0 10px 22px -6px rgba(0,0,0,.45); }
+.cc-pulso-menu-titulo { margin: 0 0 2px; font: 800 8px/1 Inter,sans-serif; letter-spacing: .16em; color: var(--p-rotulo); }
+.cc-pulso-opcao { display: grid; gap: 3px; padding: 7px 9px; text-align: left; border: 1px solid var(--p-fio); border-radius: 3px; background: transparent; color: var(--p-tinta); font: 700 11px/1.2 Inter,sans-serif; }
+.cc-pulso-opcao:hover, .cc-pulso-opcao:focus-visible { border-color: var(--p-borda); background: var(--p-dia); }
+.cc-pulso-opcao[aria-checked="true"] { border-color: var(--p-rotulo); box-shadow: inset 3px 0 0 var(--p-rotulo); }
+.cc-pulso-opcao-desc { display: none; font: 500 9.5px/1.35 Inter,sans-serif; color: var(--p-mudo); }
+.cc-pulso-opcao:hover .cc-pulso-opcao-desc, .cc-pulso-opcao:focus-visible .cc-pulso-opcao-desc { display: block; }
+@media(max-width:700px) { .cc-pulso-wrap { grid-template-columns: minmax(0,1fr) 78px; } }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, ChevronDown } from "lucide-react";
 import { Numeral } from "@/components/numeral/Numeral";
@@ -54,7 +54,16 @@ function resumo(l: Pulso[]) {
     pa: sis && dia ? `${sis}/${dia}` : null, fc: media(l.map((x) => x.frequenciaCardiaca), 0), glicemia: media(l.map((x) => x.glicemia), 0), n: l.length,
   };
 }
-const JANELAS = [7, 15, 30] as const;
+export type Janela = "diretriz" | 7 | 15 | 30;
+export const DIAS_DIRETRIZ = 7;
+const diasDa = (j: Janela) => (j === "diretriz" ? DIAS_DIRETRIZ : j);
+const rotuloJanela = (j: Janela) => (j === "diretriz" ? "Diretriz" : `${j} dias`);
+const OPCOES: Array<{ valor: Janela; nome: string; desc?: string }> = [
+  { valor: "diretriz", nome: "Diretriz · 7 dias", desc: "Padrão das diretrizes médicas para pressão medida em casa: média de 7 dias. Aplicada a todos os indicadores do painel." },
+  { valor: 7, nome: "7 dias" },
+  { valor: 15, nome: "15 dias" },
+  { valor: 30, nome: "30 dias" },
+];
 
 export function usePulso30(clientId: number) {
   return useQuery<Pulso[]>({
@@ -73,50 +82,78 @@ function Valor({ v, tom = "neutro" }: { v: string | null; tom?: Tom }) {
   return <span className="cc-pulso-cel" data-tom={tom}><Numeral peso={700}>{v}</Numeral></span>;
 }
 
-/** Botão do Pulso Diário: mesma altura dos outros botões, mostra só as médias. */
-export function PulsoDiarioBotao({ clientId, aberto, onToggle }: { clientId: number; aberto: boolean; onToggle: () => void }) {
+/** Botão do Pulso Diário (médias) + mini menu da janela, lado a lado e da mesma altura dos demais. */
+export function PulsoDiarioBotao({ clientId, aberto, onToggle, janela, onJanela }: {
+  clientId: number; aberto: boolean; onToggle: () => void; janela: Janela; onJanela: (j: Janela) => void;
+}) {
   const { data, isLoading, isError } = usePulso30(clientId);
-  const m = useMemo(() => resumo(noPeriodo(data ?? [], 7)), [data]);
+  const dias = diasDa(janela);
+  const m = useMemo(() => resumo(noPeriodo(data ?? [], dias)), [data, dias]);
+  const [menu, setMenu] = useState(false);
+  const caixa = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const fora = (e: MouseEvent) => { if (!caixa.current?.contains(e.target as Node)) setMenu(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(false); };
+    document.addEventListener("mousedown", fora);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", fora); document.removeEventListener("keydown", esc); };
+  }, [menu]);
   const itens: Array<[string, string | null]> = [
     ["Energia", m.energia], ["Disposição", m.disposicao], ["Sono", m.sono], ["Pressão", m.pa], ["Freq.", m.fc], ["Glicemia", m.glicemia],
   ];
   return (
-    <button type="button" className="cc-context-button cc-pulso-botao" data-active={aberto}
-      aria-expanded={aberto} aria-controls="cc-pulso-historico" onClick={onToggle}>
-      <Activity size={15} aria-hidden="true" />
-      <span className="cc-pulso-botao-rotulo"><strong>PULSO DIÁRIO</strong>
-        <small>{isError ? "Indisponível" : isLoading ? "Carregando" : m.n ? `7 dias · ${m.n} ${m.n === 1 ? "registro" : "registros"}` : "Sem registros nos 7 dias"}</small></span>
-      {!isError && !isLoading && m.n > 0 && (
-        <span className="cc-pulso-medias" aria-label="Médias dos últimos 7 dias">
-          {itens.map(([rot, val]) => (
-            <span key={rot} className="cc-pulso-media"><small>{rot}</small><b>{val == null ? "—" : <Numeral peso={700}>{val}</Numeral>}</b></span>
+    <div className="cc-pulso-wrap" ref={caixa}>
+      <button type="button" className="cc-context-button cc-pulso-botao" data-active={aberto}
+        aria-expanded={aberto} aria-controls="cc-pulso-historico" onClick={onToggle}>
+        <Activity size={15} aria-hidden="true" />
+        <span className="cc-pulso-botao-rotulo"><strong>PULSO DIÁRIO</strong>
+          <small>{isError ? "Indisponível" : isLoading ? "Carregando" : m.n ? `${dias} dias · ${m.n} ${m.n === 1 ? "registro" : "registros"}` : `Sem registros nos ${dias} dias`}</small></span>
+        {!isError && !isLoading && m.n > 0 && (
+          <span className="cc-pulso-medias" aria-label={`Médias dos últimos ${dias} dias`}>
+            {itens.map(([rot, val]) => (
+              <span key={rot} className="cc-pulso-media"><small>{rot}</small><b>{val == null ? "—" : <Numeral peso={700}>{val}</Numeral>}</b></span>
+            ))}
+          </span>
+        )}
+        <ChevronDown size={13} aria-hidden="true" />
+      </button>
+      <button type="button" className="cc-context-button cc-pulso-chip" aria-haspopup="menu" aria-expanded={menu}
+        aria-label={`Janela da média: ${rotuloJanela(janela)}`} onClick={() => setMenu((x) => !x)}>
+        <span><strong>{rotuloJanela(janela).toUpperCase()}</strong><small>Janela</small></span>
+        <ChevronDown size={13} aria-hidden="true" />
+      </button>
+      {menu && (
+        <div className="cc-pulso cc-pulso-menu" role="menu" aria-label="Janela da média">
+          <p className="cc-pulso-menu-titulo">JANELA DA MÉDIA</p>
+          {OPCOES.map((o) => (
+            <button key={String(o.valor)} type="button" role="menuitemradio" aria-checked={janela === o.valor}
+              className="cc-pulso-opcao" title={o.desc}
+              onClick={() => { onJanela(o.valor); setMenu(false); }}>
+              <span>{o.nome}</span>
+              {o.desc && <small className="cc-pulso-opcao-desc">{o.desc}</small>}
+            </button>
           ))}
-        </span>
+        </div>
       )}
-      <ChevronDown size={13} aria-hidden="true" />
-    </button>
+    </div>
   );
 }
 
 /** Tabela do histórico: um dia por bloco, uma linha por período registrado. */
-export function PulsoDiarioHistorico({ clientId }: { clientId: number }) {
+export function PulsoDiarioHistorico({ clientId, janela }: { clientId: number; janela: Janela }) {
   const { data, isLoading, isError, refetch } = usePulso30(clientId);
-  const [janela, setJanela] = useState<(typeof JANELAS)[number]>(30);
+  const dias = diasDa(janela);
   const linhas = useMemo(
-    () => noPeriodo(data ?? [], janela).sort((a, b) => (a.data === b.data ? ORDEM_PERIODO[a.periodo] - ORDEM_PERIODO[b.periodo] : a.data < b.data ? 1 : -1)),
-    [data, janela],
+    () => noPeriodo(data ?? [], dias).sort((a, b) => (a.data === b.data ? ORDEM_PERIODO[a.periodo] - ORDEM_PERIODO[b.periodo] : a.data < b.data ? 1 : -1)),
+    [data, dias],
   );
   const r = useMemo(() => resumo(linhas), [linhas]);
   const demo = linhas.some((l) => l.origem === "demo");
   return (
     <section id="cc-pulso-historico" className="cc-pulso" aria-label="Histórico do pulso diário">
       <header className="cc-pulso-topo">
-        <span className="cc-pulso-titulo"><Activity size={12} aria-hidden="true" /> HISTÓRICO</span>
-        <span className="cc-pulso-janelas" role="group" aria-label="Janela da média">
-          {JANELAS.map((j) => (
-            <button key={j} type="button" aria-pressed={janela === j} onClick={() => setJanela(j)}>{j} dias</button>
-          ))}
-        </span>
+        <span className="cc-pulso-titulo"><Activity size={12} aria-hidden="true" /> HISTÓRICO · {rotuloJanela(janela).toUpperCase()} ({dias} DIAS)</span>
         <span className="cc-pulso-estado">{demo && <em title="Parte dos dados é fictícia">DEMONSTRAÇÃO</em>}{linhas.length} registros</span>
       </header>
       {isError ? (
@@ -124,7 +161,7 @@ export function PulsoDiarioHistorico({ clientId }: { clientId: number }) {
       ) : isLoading ? (
         <p className="cc-pulso-msg" role="status">Carregando…</p>
       ) : !linhas.length ? (
-        <p className="cc-pulso-msg">Sem registros nos últimos {janela} dias.</p>
+        <p className="cc-pulso-msg">Sem registros nos últimos {dias} dias.</p>
       ) : (
         <div className="cc-pulso-rolagem">
           <table className="cc-pulso-tabela">
@@ -134,7 +171,7 @@ export function PulsoDiarioHistorico({ clientId }: { clientId: number }) {
             </tr></thead>
             <tbody>
               <tr className="cc-pulso-mediaLinha">
-                <th scope="row">Média</th><td className="cc-pulso-per">{janela} dias</td>
+                <th scope="row">Média</th><td className="cc-pulso-per">{dias} dias</td>
                 <td><Valor v={r.energia} /></td><td><Valor v={r.disposicao} /></td><td><Valor v={r.sono} /></td>
                 <td><Valor v={r.pa} /></td><td><Valor v={r.fc} /></td><td><Valor v={r.glicemia} /></td>
               </tr>
