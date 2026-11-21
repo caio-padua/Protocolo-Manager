@@ -269,8 +269,12 @@
 .cc-pulso-media { display: grid !important; gap: 1px !important; text-align: center; }
 .cc-pulso-media small { font-size: 7.5px !important; letter-spacing: .06em; text-transform: uppercase; }
 .cc-pulso-media b { font-size: 13px; line-height: 1; color: #fff3d4; }
-.cc-context-button[data-active="true"] .cc-pulso-media b { color: #16294a; }
-.cc-context-button[data-active="true"] .cc-pulso-medias { border-left-color: #16294a44; }
+.cc-shell.dark .cc-context-button[data-active="true"] .cc-pulso-media b { color: #16294a; }
+.cc-shell.dark .cc-context-button[data-active="true"] .cc-pulso-medias { border-left-color: #16294a44; }
+.cc-shell:not(.dark) .cc-pulso-medias { border-left-color: rgba(184,146,77,.5); }
+.cc-shell:not(.dark) .cc-pulso-media b { color: #16294a; }
+.cc-shell:not(.dark) .cc-context-button[data-active="true"] .cc-pulso-media b { color: #f6e7bd; }
+.cc-shell:not(.dark) .cc-context-button[data-active="true"] .cc-pulso-medias { border-left-color: #f6e7bd55; }
 .cc-pulso { --p-fundo: #f7f0df; --p-borda: rgba(184,146,77,.5); --p-tinta: #16294a; --p-rotulo: #8a6d2f; --p-mudo: #6b7a90; --p-fio: rgba(184,146,77,.28); --p-cab: #efe4c8; --p-dia: rgba(184,146,77,.12);
   --p-ok: #2f7a45; --p-atencao: #a5702f; --p-alto: #b4413c;
   margin-top: 8px; padding: 8px 10px 7px; border: 1px solid var(--p-borda); border-radius: 4px; background: var(--p-fundo); color: var(--p-tinta);
