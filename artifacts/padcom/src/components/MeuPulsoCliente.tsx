@@ -222,7 +222,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
         <div role="radiogroup" aria-label="Período da média" className="mb-3 flex gap-1.5">
           {JANELAS.map((j) => (
             <button key={j} type="button" role="radio" aria-checked={dias === j} onClick={() => setDias(j)}
-              className={`pn-sel ${dias === j ? "concave-3d text-primary" : "bevel-3d text-muted-foreground/70"} h-[26px] flex-1 text-[10px] font-black uppercase tracking-widest`}>{j} dias</button>
+              className={`pn-sel ${dias === j ? "concave-3d text-primary" : "bevel-3d text-muted-foreground/95"} h-[26px] flex-1 text-[10px] font-black uppercase tracking-widest`}>{j} dias</button>
           ))}
         </div>
         <div className="grid grid-cols-3 gap-x-2 gap-y-3 sm:grid-cols-6">
@@ -241,7 +241,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
         <div role="radiogroup" aria-label="Período do dia" className="mb-3 flex gap-2">
           {PERIODOS.map(({ id, nome, Icone }) => (
             <button key={id} type="button" role="radio" aria-checked={periodo === id} onClick={() => setPeriodo(id)}
-              className={`pn-sel ${periodo === id ? "concave-3d text-primary" : "bevel-3d text-muted-foreground/70"} inline-flex h-[34px] flex-1 items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest`}>
+              className={`pn-sel ${periodo === id ? "concave-3d text-primary" : "bevel-3d text-muted-foreground/95"} inline-flex h-[34px] flex-1 items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest`}>
               <Icone className="h-3.5 w-3.5" aria-hidden="true" />{nome}
             </button>
           ))}
