@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import PainelEncaminhamento from "@/components/encaminhamento/PainelEncaminhamento";
+import DestinosEmissao, { NOME_DESTINO, type DestinoEmissao } from "@/components/encaminhamento/DestinosEmissao";
 import { tituloProprio } from "@/lib/utils";
 import {
   Search,
@@ -143,6 +144,10 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
 
   const [previewPlans, setPreviewPlans] = useState<RecipePlan[] | null>(null);
   const [emitResult, setEmitResult] = useState<EmitResult | null>(null);
+  // Destinos escolhidos ANTES de emitir. Escolher não envia; só "Emitir e enviar" envia, com a confirmação marcada.
+  const [destinos, setDestinos] = useState<DestinoEmissao[]>([]);
+  const [autorizoEnvio, setAutorizoEnvio] = useState(false);
+  const [envioAuto, setEnvioAuto] = useState<{ enviando: boolean; itens: Array<{ titulo: string; linhas: Array<{ ok: boolean; texto: string }> }> } | null>(null);
   // ── Motor Único (emite PDF com o modelo ativo do banco) ───────────────────
   const [emitirMotorUnicoLoading, setEmitirMotorUnicoLoading] = useState(false);
   // ── PDF Visual (Puppeteer server-side — fiel ao template HTML) ────────────
@@ -431,7 +436,56 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
     previewMutation.mutate({ data: { items: buildItems() } });
   };
 
-  const handleEmit = (signatureMode: "signed" | "unsigned_expired" = "signed") => {
+  /** Depois de emitir: envia o PDF já emitido aos destinos marcados. Falha ou incerteza nunca repete sozinha. */
+  const encaminharAposEmitir = async (res: EmitResult, alvos: DestinoEmissao[]) => {
+    const token = getCollabToken();
+    const itens: Array<{ titulo: string; linhas: Array<{ ok: boolean; texto: string }> }> = [];
+    setEnvioAuto({ enviando: true, itens });
+    if (res.signatureStatus === "unsigned_expired") {
+      setEnvioAuto({ enviando: false, itens: [{ titulo: "Envio não realizado", linhas: [{ ok: false, texto: "A prescrição foi gerada sem assinatura digital. Nada foi enviado; exige assinatura manual." }] }] });
+      return;
+    }
+    const canais = alvos.filter((d) => d !== "DRIVE");
+    const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` };
+    for (const rec of res.recipes) {
+      const linhas: Array<{ ok: boolean; texto: string }> = [];
+      if (canais.length) {
+        try {
+          const r = await fetch(`${BASE}/api/clinical-documents/resend`, {
+            method: "POST", headers,
+            body: JSON.stringify({ clientId, documentType: "prescricao", documentId: rec.id, channels: canais, confirmed: true, operationKey: crypto.randomUUID() }),
+          });
+          const d = await r.json().catch(() => null);
+          if (!r.ok) throw new Error(d?.error || "O servidor não confirmou o envio.");
+          for (const x of (d?.results ?? []) as Array<{ channel: DestinoEmissao; state: string; error?: string }>) {
+            linhas.push({
+              ok: x.state === "provider_accepted",
+              texto: `${NOME_DESTINO[x.channel] ?? x.channel}: ${x.state === "provider_accepted" ? "aceito pelo provedor; entrega não confirmada" : x.error || (x.state === "unknown" ? "resultado incerto; confira o histórico antes de repetir" : x.state)}`,
+            });
+          }
+        } catch (e) {
+          linhas.push({ ok: false, texto: `Envio: ${e instanceof Error ? e.message : "falha"}. Confira o histórico antes de repetir.` });
+        }
+      }
+      if (alvos.includes("DRIVE")) {
+        try {
+          const r = await fetch(`${BASE}/api/clinical-documents/archive-folder`, {
+            method: "POST", headers, body: JSON.stringify({ clientId, documentType: "prescricao", documentId: rec.id, confirmed: true }),
+          });
+          const d = await r.json().catch(() => null);
+          if (!r.ok) throw new Error(d?.error || "O servidor não confirmou o arquivamento.");
+          linhas.push({ ok: true, texto: `Drive: ${d.estado === "ja_estava" ? "já estava na pasta" : "exportado para a pasta"} ${d.pasta ?? ""}`.trim() });
+        } catch (e) {
+          linhas.push({ ok: false, texto: `Drive: ${e instanceof Error ? e.message : "falha"}` });
+        }
+      }
+      itens.push({ titulo: rec.title, linhas });
+      setEnvioAuto({ enviando: true, itens: [...itens] });
+    }
+    setEnvioAuto({ enviando: false, itens: [...itens] });
+  };
+
+  const handleEmit = (signatureMode: "signed" | "unsigned_expired" = "signed", enviarPara: DestinoEmissao[] = []) => {
     if (draft.pending || emitMutation.isPending) return;
     if (!identity.data?.canPrescribe || identity.isFetching || identity.isError) {
       toast({ title: "Identidade clínica pendente", description: identity.data?.issue ?? identity.error?.message, variant: "destructive" });
@@ -461,7 +515,11 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
         items: buildItems(),
       },
     }, { onSuccess: res => {
-      if (Array.isArray(res.recipes) && res.recipes.length) draft.complete(snapshot);
+      if (Array.isArray(res.recipes) && res.recipes.length) {
+        draft.complete(snapshot);
+        if (enviarPara.length) { void encaminharAposEmitir(res as EmitResult, enviarPara); setAutorizoEnvio(false); }
+        else setEnvioAuto(null);
+      }
     } });
   };
 
@@ -1045,6 +1103,17 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
             <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest" style={{ color: GOLD }}>
               <Send className="h-4 w-4" /> Emissão
             </h3>
+                  {identity.data?.canPrescribe && selected.length > 0 && (
+                    <DestinosEmissao clientId={clientId} marcados={destinos} onChange={(v) => { setDestinos(v); setAutorizoEnvio(false); }} disabled={emitMutation.isPending} />
+                  )}
+                  {/* Barra de ações acompanha a rolagem: fica sempre ao alcance, no fim da área visível. */}
+                  <div className="sticky bottom-0 z-20 -mx-1 space-y-2 rounded-md bg-[#f1ead9]/95 p-2 shadow-[0_-6px_12px_-8px_rgba(0,0,0,0.35)] backdrop-blur dark:bg-[#10151f]/95" data-testid="barra-emissao">
+                  {identity.data?.canPrescribe && destinos.length > 0 && (
+                    <label className="concave-3d flex items-start gap-2 px-3 py-2 text-[12px]">
+                      <input type="checkbox" className="mt-1" checked={autorizoEnvio} disabled={emitMutation.isPending} onChange={(e) => setAutorizoEnvio(e.target.checked)} />
+                      <span>Autorizo emitir e enviar o PDF assinado ao contato cadastrado da cliente por: <strong>{destinos.map((d) => NOME_DESTINO[d]).join(", ")}</strong>.</span>
+                    </label>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={handlePreview}
@@ -1056,16 +1125,29 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       {previewMutation.isPending ? "Gerando…" : "Prévia do desmembramento"}
                     </button>
                     {identity.data?.canPrescribe ? (
+                      <>
                       <button
                         onClick={() => handleEmit()}
                         disabled={emitMutation.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
                         data-testid="button-emit-prescriptions"
+                        title="Gera e guarda a receita. Não envia nada."
                         className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
                         style={{ color: GOLD }}
                       >
-                        {emitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        {emitMutation.isPending ? "Emitindo…" : "Emitir receitas"}
+                        {emitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                        {emitMutation.isPending ? "Emitindo…" : "Emitir receita"}
                       </button>
+                      <button
+                        onClick={() => handleEmit("signed", destinos)}
+                        disabled={emitMutation.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length || destinos.length === 0 || !autorizoEnvio}
+                        data-testid="button-emit-and-send"
+                        title={destinos.length === 0 ? "Escolha ao menos um destino acima." : !autorizoEnvio ? "Marque a autorização de envio." : "Gera a receita e envia aos destinos marcados."}
+                        className="btn-3d flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-bold disabled:opacity-40"
+                      >
+                        {emitMutation.isPending || envioAuto?.enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        {emitMutation.isPending ? "Emitindo…" : envioAuto?.enviando ? "Enviando…" : "Emitir e enviar"}
+                      </button>
+                      </>
                     ) : identity.data?.canPreparePrescription ? (
                       <button
                         onClick={handleSubmitForReview}
@@ -1098,6 +1180,23 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       Gerar PDF Visual
                     </button>}
                   </div>
+                  </div>
+
+                  {envioAuto && (
+                    <div className="concave-3d space-y-2 rounded-md p-3 text-xs" role="status" data-testid="resultado-envio-emissao">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                        {envioAuto.enviando ? "Enviando…" : "Resultado do envio (a entrega só é confirmada depois pelo provedor)"}
+                      </p>
+                      {envioAuto.itens.map((it, i) => (
+                        <div key={i}>
+                          <p className="font-semibold">{it.titulo}</p>
+                          <ul className="space-y-0.5">
+                            {it.linhas.map((l, j) => <li key={j} className={l.ok ? "text-emerald-700" : "text-destructive font-bold"}>{l.texto}</li>)}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Prévia */}
                   {previewPlans && !emitResult && (
