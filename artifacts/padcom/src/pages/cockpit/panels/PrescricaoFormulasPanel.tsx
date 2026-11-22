@@ -1036,10 +1036,19 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                     })}
                   </div>
 
+                </>
+              )}
+            </div>
+          )}
+          {/* Painel fixo de emissão: botões e resultado ficam sempre juntos, visíveis. */}
+          <section className="panel-3d-sub space-y-3 rounded-md p-3" data-testid="painel-emissao">
+            <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest" style={{ color: GOLD }}>
+              <Send className="h-4 w-4" /> Emissão
+            </h3>
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={handlePreview}
-                      disabled={previewMutation.isPending}
+                      disabled={previewMutation.isPending || selected.length === 0 || !pharmacies?.length}
                       className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
                       style={{ color: GOLD }}
                     >
@@ -1049,7 +1058,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                     {identity.data?.canPrescribe ? (
                       <button
                         onClick={() => handleEmit()}
-                        disabled={emitMutation.isPending || identity.isFetching || identity.isError}
+                        disabled={emitMutation.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
                         data-testid="button-emit-prescriptions"
                         className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
                         style={{ color: GOLD }}
@@ -1060,7 +1069,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                     ) : identity.data?.canPreparePrescription ? (
                       <button
                         onClick={handleSubmitForReview}
-                        disabled={createApproval.isPending || identity.isFetching || identity.isError}
+                        disabled={createApproval.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
                         data-testid="button-submit-prescription-review"
                         className="btn-3d flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-bold disabled:opacity-40"
                       >
@@ -1112,19 +1121,13 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                               {plan.items.length} fórmula(s)
                               {plan.anvisaColorName ? ` · Receituário ${plan.anvisaColorName}` : ""}
                               {plan.needsSncr ? " · exige nº SNCR" : ""}
-                              {plan.pharmacyId ? ` · ${pharmacies.find((p) => p.id === plan.pharmacyId)?.name ?? "Farmácia"}` : ""}
+                              {plan.pharmacyId ? ` · ${pharmacies?.find((p) => p.id === plan.pharmacyId)?.name ?? "Farmácia"}` : ""}
                             </p>
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
-
-                </>
-              )}
-            </div>
-          )}
-
                   {/* Resultado independe do formulário, que fica vazio após o sucesso. */}
                   {emitResult && (
                     <div className="space-y-3">
@@ -1215,6 +1218,16 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       )}
                     </div>
                   )}
+                  {!emitResult && (
+                    <div className="concave-3d rounded-md px-3 py-3 text-xs text-muted-foreground" data-testid="emissao-vazia" role="status">
+                      {selected.length === 0
+                        ? "Selecione fórmulas para a receita. Depois de emitir, as receitas, o PDF e o encaminhamento aparecem aqui."
+                        : !pharmacies?.length
+                          ? "Cadastre uma farmácia para liberar a emissão."
+                          : "Nada emitido ainda. Use o botão Emitir receitas acima; o resultado aparece aqui."}
+                    </div>
+                  )}
+          </section>
         <PrescricoesEmitidas embutido clientId={clientId} emissionId={emitResult?.prescriptionId} />
         </div>
       </div>
