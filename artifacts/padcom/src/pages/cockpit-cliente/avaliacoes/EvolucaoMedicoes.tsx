@@ -90,7 +90,21 @@ export function EvolucaoMedicoes({ clientId, tipo, medicoes, maximizado, nascime
   const primeiro = pontos[0], ultimo = pontos[pontos.length - 1];
   const totalAbs = ultimo.valor - primeiro.valor;
   const ehImc = tipo === "antropometria" && ativa.key === "imc";
-  const faixasPermitidas = ehImc && pontos.every((p) => idadeAdultaNaMedicao(nascimento, p.data));
+  const adultoEmTodas = pontos.every((p) => idadeAdultaNaMedicao(nascimento, p.data));
+  const faixasPermitidas = ehImc && adultoEmTodas;
+  // Peso: faixas obtidas das faixas do IMC aplicadas à altura (peso = IMC x altura²). Só com altura única e adulto.
+  const ehPeso = tipo === "antropometria" && ativa.key === "peso";
+  const alturas = new Set(valoresPorMedicao.map(({ v }) => v.altura).filter((a): a is number => typeof a === "number" && a > 0));
+  const alturaM = alturas.size === 1 ? [...alturas][0] / 100 : null;
+  const faixasPeso = ehPeso && adultoEmTodas && alturaM
+    ? FAIXAS_IMC.map((f) => {
+        const low = f.low === null ? null : f.low * alturaM * alturaM;
+        const high = f.high === null ? null : f.high * alturaM * alturaM;
+        const kg = (x: number) => x.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        const texto = low === null ? `Abaixo de ${kg(high!)} kg` : high === null ? `${kg(low)} kg ou mais` : `De ${kg(low)} até menos de ${kg(high)} kg`;
+        return { ...f, low, high, texto };
+      })
+    : null;
 
   return (
     <div className="space-y-5">
@@ -102,9 +116,9 @@ export function EvolucaoMedicoes({ clientId, tipo, medicoes, maximizado, nascime
             padraoExames
             titulo={ativa.label}
             unidade={ativa.unit}
-            referencia={faixasPermitidas ? "referência geral para adultos" : undefined}
+            referencia={faixasPermitidas || faixasPeso ? "referência geral para adultos" : undefined}
             pontos={pontos.map((p) => ({ iso: p.data, data: p.rotulo, valor: p.valor }))}
-            zonas={faixasPermitidas ? [...FAIXAS_IMC] : null}
+            zonas={faixasPermitidas ? [...FAIXAS_IMC] : faixasPeso}
             cantoExtra={<AjudaAntropometria nome={ativa.label} imc={ehImc} escuro={escuro} />}
             formatarValor={ehImc ? formatarImc : (valor) => fmt(ativa, valor)}
             rotuloContagem="medições"
@@ -114,6 +128,10 @@ export function EvolucaoMedicoes({ clientId, tipo, medicoes, maximizado, nascime
                 {faixasPermitidas
                   ? "Referência geral, não diagnóstico. Não se aplica à gestação ou amamentação; confirme o contexto clínico."
                   : "Faixas para adultos indisponíveis: verifique o nascimento e a idade em cada medição."}
+              </p>
+            ) : faixasPeso ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Faixas de peso calculadas pelas faixas do IMC para a altura de {(alturaM! * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} cm. Referência geral, não diagnóstico.
               </p>
             ) : (
               <p className="mt-3 text-xs text-muted-foreground">Sem faixa universal configurada. A interpretação depende do contexto clínico.</p>
