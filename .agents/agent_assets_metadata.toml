@@ -1474,3 +1474,17 @@ mtime_ms = 1795273870076
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/946a7e8d-1bdd-4afe-94e9-84fdf561c0b8/469a891f-f013-48de-ae6c-475401d3038b"
 storage_version_token = "1795273871837772"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "iWdzbtEbltDrE2FKTKLtW"
+uri = "file://tmp_shots/painel2.png"
+type = "image"
+title = "Painel de encaminhamento (receita da Carlúcia, celular)"
+description = "Canais, abrir PDF e guardar no Drive"
+logical_id = "c51472e1-d5df-4743-90f6-45012d40512d"
+content_hash = "sha256:0c7a629d6053e66cd38ed883e7fdf61f54abc0c232cca94b96b02e4308a63401"
+size = 101951
+mtime_ms = 1795354190289
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/c51472e1-d5df-4743-90f6-45012d40512d/9e646d05-3792-4716-9e28-51fc0d2b24de"
+storage_version_token = "1795354198510862"
+content_type = "image/png"
