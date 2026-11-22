@@ -1,3 +1,4 @@
+import { PressaoTexto } from "@/components/PressaoTexto";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, Sun, CloudSun, Moon, Battery, Smile, HeartPulse, Droplet, BedDouble } from "lucide-react";
@@ -96,7 +97,7 @@ function Metrica({
       </div>
       <div className="flex items-baseline gap-0.5">
         <span className="text-[15px] font-bold leading-none" style={{ color: cor }}>
-          {valor}
+          {valor.includes(" / ") ? <PressaoTexto texto={valor} numeral={false} /> : valor}
         </span>
         {sufixo && valor !== "—" && (
           <span className="text-[9px] font-semibold" style={{ color: MUTE }}>

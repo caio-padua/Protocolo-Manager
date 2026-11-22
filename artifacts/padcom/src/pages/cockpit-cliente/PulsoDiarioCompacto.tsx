@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, ChevronDown, Gauge, Moon, Sun, Sunrise } from "lucide-react";
+import { PressaoTexto } from "@/components/PressaoTexto";
 import { Numeral } from "@/components/numeral/Numeral";
 import { nivelFrequencia, nivelGlicemia, nivelPressao, type Nivel } from "./pulso-faixas";
 import { BASE } from "@/pages/comunicacao/_shared";
@@ -92,7 +93,7 @@ const DICA_TOM: Record<Tom, string | undefined> = { ok: undefined, muitobaixo: "
 
 function Valor({ v, tom = "neutro" }: { v: string | null; tom?: Tom }) {
   if (v == null) return <span className="cc-pulso-cel cc-pulso-vazio" aria-label="sem registro">—</span>;
-  return <span className="cc-pulso-cel" data-tom={tom} title={DICA_TOM[tom]}><Numeral peso={700}>{v}</Numeral></span>;
+  return <span className="cc-pulso-cel" data-tom={tom} title={DICA_TOM[tom]}>{v.includes(" / ") ? <PressaoTexto texto={v} /> : <Numeral peso={700}>{v}</Numeral>}</span>;
 }
 
 /** Botão do Pulso Diário (médias) + mini menu da janela, lado a lado e da mesma altura dos demais. */
@@ -146,7 +147,7 @@ export function PulsoDiarioBotao({ clientId, aberto, onToggle, janela, onJanela 
         {!isError && !isLoading && m.n > 0 && (
           <span className="cc-pulso-medias" aria-label={`Médias dos últimos ${dias} dias`}>
             {itens.map(([rot, val, tom]) => (
-              <span key={rot} className="cc-pulso-media"><small>{rot}</small><b data-tom={val == null || tom === "ok" || tom === "neutro" ? undefined : tom} title={DICA_TOM[tom]}>{val == null ? "—" : <Numeral peso={700}>{val}</Numeral>}</b></span>
+              <span key={rot} className="cc-pulso-media"><small>{rot}</small><b data-tom={val == null || tom === "ok" || tom === "neutro" ? undefined : tom} title={DICA_TOM[tom]}>{val == null ? "—" : val.includes(" / ") ? <PressaoTexto texto={val} /> : <Numeral peso={700}>{val}</Numeral>}</b></span>
             ))}
           </span>
         )}

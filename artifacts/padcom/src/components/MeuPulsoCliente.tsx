@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, AlertCircle, CheckCircle, Loader2, Moon, Sun, Sunrise } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { PainelPulso } from "@/pages/cockpit-cliente/PainelPulso";
+import { PressaoTexto } from "@/components/PressaoTexto";
 import { Numeral } from "@/components/numeral/Numeral";
 import { ReguasNiveis } from "@/pages/cockpit-cliente/ReguasNiveis";
 import { BotaoAjuda, BotaoAjudaComJanela } from "@/pages/cockpit-cliente/BotaoAjuda";
@@ -38,7 +39,7 @@ const diaSemana = (iso: string) => { const [a, m, d] = iso.split("-").map(Number
 
 function Medida({ v, nivel }: { v: string | null; nivel: Nivel | null }) {
   if (v == null) return <span className="text-muted-foreground/60" aria-label="sem registro">—</span>;
-  return <span className="pn-medida" data-nivel={nivel && nivel !== "normal" ? nivel : undefined} title={nivel ? NOME_NIVEL[nivel] : undefined}><Numeral peso={700}>{v}</Numeral></span>;
+  return <span className="pn-medida" data-nivel={nivel && nivel !== "normal" ? nivel : undefined} title={nivel ? NOME_NIVEL[nivel] : undefined}>{v.includes(" / ") ? <PressaoTexto texto={v} /> : <Numeral peso={700}>{v}</Numeral>}</span>;
 }
 
 const COR_NIVEL = { muitobaixo: "#1e40af", baixo: "#0891b2", normal: "#15803d", alto: "#d97706", muitoalto: "#dc2626" } as const;
@@ -203,7 +204,7 @@ export default function MeuPulsoCliente({ token = "", clienteId, escuro = false 
             <div key={rot} className="text-center">
               <p className="whitespace-nowrap text-[9px] font-extrabold uppercase tracking-[.08em]">{rot}</p>
               <p className="mb-1 text-[8px] font-semibold uppercase tracking-wider" style={{ color: "var(--pn-mudo)" }}>{un}</p>
-              <p className="pn-medida !block w-full py-1 text-base font-bold">{val == null ? "—" : <Numeral peso={700}>{val}</Numeral>}</p>
+              <p className="pn-medida !block w-full py-1 text-base font-bold">{val == null ? "—" : val.includes(" / ") ? <PressaoTexto texto={val} /> : <Numeral peso={700}>{val}</Numeral>}</p>
               <p className="mt-1.5 min-h-[26px]">{nivel ? <span className="bevel-3d pn-chip" data-nivel={nivel}>{NOME_NIVEL[nivel]}</span> : null}</p>
             </div>
           ))}

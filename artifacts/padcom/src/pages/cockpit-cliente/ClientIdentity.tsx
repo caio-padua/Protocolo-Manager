@@ -1,3 +1,4 @@
+import { PressaoTexto } from "@/components/PressaoTexto";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Client } from "@workspace/api-client-react";
@@ -74,7 +75,7 @@ function ResumoRegistrado({ clientId }: { clientId: number }) {
     <div className="cc-summary-data">
       <div><span>Último registro</span><strong>{formatarNascimento(ultimo.data) ?? ultimo.data}</strong></div>
       <div><span>Período</span><strong>{({ manha: "Manhã", tarde: "Tarde", noite: "Noite" } as Record<string, string>)[ultimo.periodo] ?? ultimo.periodo}</strong></div>
-      <div><span>Pressão registrada</span><strong>{pressao}</strong></div>
+      <div><span>Pressão registrada</span><strong>{pressao.includes(" / ") ? <PressaoTexto texto={pressao} numeral={false} /> : pressao}</strong></div>
       <div><span>Energia registrada</span><strong>{ultimo.energia == null ? "Não informada" : `${ultimo.energia}/10`}</strong></div>
     </div>
   );
