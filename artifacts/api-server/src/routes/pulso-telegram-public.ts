@@ -6,6 +6,7 @@ import { getSecret } from "../lib/secure-settings";
 import { validarInitData } from "../lib/telegram-webapp-auth";
 import { parseBrtParts } from "../lib/brt";
 import { logger } from "../lib/logger";
+import { perguntasDoPeriodo } from "../lib/pulso-perguntas";
 
 // ============================================================================
 // PULSO DIÁRIO pelo Telegram — mini aplicativo (web_app). PÚBLICO (antes do portão):
@@ -63,7 +64,9 @@ router.post("/pulso-telegram/sessao", async (req, res): Promise<void> => {
     eq(pulsoDiarioTable.clienteId, quem.id), eq(pulsoDiarioTable.data, data), eq(pulsoDiarioTable.periodo, periodo),
   ));
   const primeiro = quem.nome.trim().split(/\s+/)[0] ?? "";
+  const perguntas = await perguntasDoPeriodo(quem.id, data, periodo);
   res.json({
+    perguntas,
     nome: primeiro ? primeiro.charAt(0).toUpperCase() + primeiro.slice(1).toLowerCase() : "",
     data, periodo,
     atual: atual ? {
@@ -93,11 +96,15 @@ router.post("/pulso-telegram/registrar", async (req, res): Promise<void> => {
   };
   if (Object.values(valores).every((x) => x === null)) { res.status(400).json({ error: "Preencha ao menos um campo." }); return; }
 
+  // Só entram os campos enviados; o que já estava registrado no período é preservado.
+  const [atual] = await db.select().from(pulsoDiarioTable).where(and(
+    eq(pulsoDiarioTable.clienteId, quem.id), eq(pulsoDiarioTable.data, data), eq(pulsoDiarioTable.periodo, periodo)));
+  const juntos = Object.fromEntries((Object.keys(valores) as Array<keyof typeof valores>).map((k) => [k, valores[k] ?? atual?.[k] ?? null])) as typeof valores;
   await db.insert(pulsoDiarioTable)
-    .values({ clienteId: quem.id, data, periodo, ...valores, origem: "telegram" })
+    .values({ clienteId: quem.id, data, periodo, ...juntos, origem: "telegram" })
     .onConflictDoUpdate({
       target: [pulsoDiarioTable.clienteId, pulsoDiarioTable.data, pulsoDiarioTable.periodo],
-      set: { ...valores, origem: "telegram", updatedAt: new Date() },
+      set: { ...juntos, origem: "telegram", updatedAt: new Date() },
     });
   logger.info({ clienteId: quem.id, periodo }, "[pulso-telegram] registro gravado");
   res.status(201).json({ ok: true, data, periodo });

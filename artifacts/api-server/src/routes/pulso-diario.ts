@@ -149,7 +149,7 @@ router.post("/pulso-diario/:clientId/enviar-telegram", async (req, res): Promise
   const nome = primeiro ? primeiro.charAt(0).toUpperCase() + primeiro.slice(1).toLowerCase() : "";
   const r = await sendTelegramBotaoWebApp(
     c.chat,
-    `Olá${nome ? `, ${nome}` : ""}. Toque no botão abaixo para registrar como você está agora: energia, disposição, pressão e frequência. Leva menos de um minuto.`,
+    `Olá${nome ? `, ${nome}` : ""}. Toque no botão abaixo para registrar como você está agora. Leva menos de um minuto.`,
     { texto: "Registrar meu pulso", url: `https://${dominio}/pulso-telegram` },
   );
   if (!r.sent) { res.status(502).json({ error: r.error ?? "falha no envio" }); return; }

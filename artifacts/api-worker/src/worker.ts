@@ -162,6 +162,11 @@ export function iniciarJobLembretes(logger: pino.Logger): void {
         const { executarLembretesPeriodo } = await import(
           "../../api-server/src/lib/lembrete-periodo.js" as string
         );
+        const { executarLembretesPulso } = await import(
+          "../../api-server/src/lib/lembrete-pulso.js" as string
+        );
+        const rp = await executarLembretesPulso();
+        if (rp.enviados > 0 || rp.falhas > 0) logger.info(rp, "Worker: tick de lembrete do Pulso Diário");
         const r = await executarLembretesPeriodo();
         if (r.enviados > 0 || r.falhas > 0) {
           logger.info(

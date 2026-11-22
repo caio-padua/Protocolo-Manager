@@ -15,18 +15,21 @@ declare global { interface Window { Telegram?: { WebApp?: TelegramWebApp } } }
 type Sessao = {
   nome: string; data: string; periodo: "manha" | "tarde" | "noite";
   atual: Record<string, number | null> | null;
+  perguntas: Array<{ campo: "sono" | "energia" | "libido"; pendente: string | null }>;
 };
 type Valores = Record<"energia" | "libido" | "sono" | "pressaoSistolica" | "pressaoDiastolica" | "frequenciaCardiaca" | "glicemia", string>;
 
 const VAZIO: Valores = { energia: "", libido: "", sono: "", pressaoSistolica: "", pressaoDiastolica: "", frequenciaCardiaca: "", glicemia: "" };
 const NOME_PERIODO = { manha: "da manhã", tarde: "da tarde", noite: "da noite" } as const;
+const ROTULO = { sono: "Sono", energia: "Energia", libido: "Libido (opcional, toque de novo para limpar)" } as const;
 const dataBr = (iso: string) => iso.split("-").reverse().join("/");
 const api = (caminho: string) => `${import.meta.env.BASE_URL}api/pulso-telegram/${caminho}`;
 
-function Escala({ rotulo, valor, onChange }: { rotulo: string; valor: string; onChange: (v: string) => void }) {
+function Escala({ rotulo, valor, onChange, aviso }: { rotulo: string; valor: string; onChange: (v: string) => void; aviso?: string | null }) {
   return (
     <div className="pt-bloco">
       <div className="pt-rotulo">{rotulo}<span>de 0 a 10</span></div>
+      {aviso && <p className="pt-msg">{aviso}</p>}
       <div className="pt-fileira pt-fileira-11" role="group" aria-label={rotulo}>
         {Array.from({ length: 11 }, (_, n) => (
           <button key={n} type="button" className="pt-q" aria-pressed={valor === String(n)}
@@ -113,7 +116,7 @@ export default function PulsoTelegram() {
     try {
       const r = await fetch(api("registrar"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         initData: app.initData,
-        valores: { energia: n(v.energia), libido: sessao.periodo === "noite" ? n(v.libido) : null, sono: manha ? n(v.sono) : null,
+        valores: { ...Object.fromEntries(sessao.perguntas.map((q) => [q.campo, n(v[q.campo])])),
           pressaoSistolica: sis, pressaoDiastolica: dia, frequenciaCardiaca: n(v.frequenciaCardiaca), glicemia: manha ? n(v.glicemia) : null },
       }) });
       const corpo = await r.json().catch(() => ({}));
@@ -139,9 +142,9 @@ export default function PulsoTelegram() {
           <h1>Olá, {sessao.nome}</h1>
           <p>Registro {NOME_PERIODO[sessao.periodo]} · {dataBr(sessao.data)}</p>
         </header>
-        <Escala rotulo="Energia" valor={v.energia} onChange={set("energia")} />
-        {sessao.periodo === "noite" && <Escala rotulo="Libido (opcional, toque de novo para limpar)" valor={v.libido} onChange={set("libido")} />}
-        {manha && <Escala rotulo="Sono" valor={v.sono} onChange={set("sono")} />}
+        {sessao.perguntas.map((q) => (
+          <Escala key={q.campo} rotulo={ROTULO[q.campo]} valor={v[q.campo]} onChange={set(q.campo)} aviso={q.pendente} />
+        ))}
         <Medida rotulo="Sístole (máxima)" unidade="mmHg" rapidos={[100, 110, 120, 130, 140]} valor={v.pressaoSistolica} onChange={set("pressaoSistolica")} max={260} />
         <Medida rotulo="Diástole (mínima)" unidade="mmHg" rapidos={[60, 70, 80, 90, 100]} valor={v.pressaoDiastolica} onChange={set("pressaoDiastolica")} max={160} />
         <Medida rotulo="Frequência cardíaca" unidade="bpm" rapidos={[60, 70, 80, 90, 100]} valor={v.frequenciaCardiaca} onChange={set("frequenciaCardiaca")} max={220} />
