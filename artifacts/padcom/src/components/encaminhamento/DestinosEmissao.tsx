@@ -60,7 +60,7 @@ export default function DestinosEmissao({ clientId, marcados, onChange, disabled
 
   return (
     <div className="space-y-2" aria-label="Para onde enviar a receita">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         {ITENS.map(({ id, Icone, funcao }) => {
           const valor = contato(id);
           const ligado = marcados.includes(id);
@@ -71,8 +71,8 @@ export default function DestinosEmissao({ clientId, marcados, onChange, disabled
               aria-label={`${NOME_DESTINO[id]}: ${funcao}${valor ? `. Contato: ${valor}` : ". Sem contato cadastrado"}`}
               title={valor ? `${funcao} (${valor})` : "Sem contato cadastrado"}
               data-testid={`destino-${id.toLowerCase()}`}
-              className={`flex w-full min-w-0 items-center gap-2.5 !rounded-[2px] px-3 py-2.5 text-left transition
-                ${ligado ? "btn-3d-apertado" : off ? "concave-3d" : "btn-3d-soft"} ${off ? "cursor-not-allowed opacity-55" : "cursor-pointer"}`}
+              className={`flex w-full min-w-0 items-center gap-2.5 !rounded-[2px] px-2.5 py-2 text-left transition
+                ${ligado ? "btn-3d-apertado ring-1 ring-[#c2a05a]" : off ? "concave-3d" : "btn-3d-soft opacity-70"} ${off ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
             >
               <Icone className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span className="min-w-0 flex-1">

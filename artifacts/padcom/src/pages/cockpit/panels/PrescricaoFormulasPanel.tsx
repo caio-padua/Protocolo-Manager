@@ -150,6 +150,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
   // Destinos escolhidos ANTES de emitir. Escolher não envia; só "Emitir e enviar" envia, com a confirmação marcada.
   const [destinos, setDestinos] = useState<DestinoEmissao[]>([]);
   const [previaLoading, setPreviaLoading] = useState(false);
+  const [farmaciaAberta, setFarmaciaAberta] = useState<Array<string | number>>([]);
   const [abaHistorico, setAbaHistorico] = useState<"emitidas" | "comparar">("emitidas");
   const [contatos, setContatos] = useState<Partial<Record<CanalEnvio, string>>>({});
   const [envioAuto, setEnvioAuto] = useState<{ enviando: boolean; itens: Array<{ titulo: string; linhas: Array<{ ok: boolean; texto: string }> }> } | null>(null);
@@ -994,7 +995,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
           {/* Camadas horizontais abaixo das fórmulas: nada fica ao lado nem cruza outro painel. */}
         </div>
       </div>
-      <PainelRecolhivel titulo="Prescrição, emissão e encaminhamento" testId="painel-emissao">
+      <PainelRecolhivel titulo="Prescrição e Envio" testId="painel-emissao">
         {selected.length === 0 && !emitResult && !envioAuto && (
           <p className="concave-3d !rounded-[3px] px-3 py-3 text-sm text-muted-foreground" role="status">Adicione fórmulas acima.</p>
         )}
@@ -1035,95 +1036,76 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       const r = getRoute(f.id);
                       const recipe = r.isControlled ? recipeTypeForControlledClass(r.anvisaType) : null;
                       const sncrFlag = r.isControlled && r.anvisaType ? sncrFlags.get(r.anvisaType) : undefined;
+                      const trocando = farmaciaAberta.includes(f.id) || r.pharmacyId != null;
                       return (
-                        <div key={f.id} className="panel-3d-sub rounded-md p-3">
-                          <div className="mb-2 flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-muted-foreground">#{idx + 1}</span>
-                            <span className="truncate text-sm font-semibold text-foreground">{f.name}</span>
-                            {sncrFlag && (
-                              <span className="ml-auto flex shrink-0 items-center gap-1 rounded-sm border border-amber-400/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
-                                <AlertTriangle className="h-3 w-3" />
-                                {sncrFlag === "low" ? "SNCR ACABANDO" : sncrFlag === "exhausted" ? "SNCR ESGOTADO" : "SEM INTERVALO SNCR"}
-                              </span>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-1 items-center gap-2 md:grid-cols-12">
-                            <div className="md:col-span-5">
+                        <div key={f.id} className="panel-3d-sub !rounded-[3px] px-3 py-2" data-testid={`rota-${f.id}`}>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                            <span className="flex min-w-0 basis-full items-center gap-2 sm:basis-auto sm:flex-1">
+                              <span className="font-mono text-xs font-bold text-muted-foreground">#{idx + 1}</span>
+                              <span className="truncate text-sm font-semibold text-foreground">{f.name}</span>
+                            </span>
+                            {trocando ? (
                               <select
-                                className="concave-3d w-full rounded-md bg-transparent px-2 py-2 text-xs text-foreground"
+                                aria-label="Farmácia desta fórmula"
+                                className="concave-3d max-w-[200px] !rounded-[2px] bg-transparent px-2 py-1.5 text-xs text-foreground"
                                 value={r.pharmacyId ?? ""}
                                 onChange={(e) => setRoute(f.id, { pharmacyId: e.target.value ? Number(e.target.value) : null })}
                               >
-                                <option value="" className="bg-background text-foreground">
-                                  Usar farmácia padrão
-                                </option>
+                                <option value="" className="bg-background text-foreground">Farmácia padrão</option>
                                 {(r.isControlled && r.anvisaType ? pharmaciesForType(r.anvisaType) : pharmacies).map((p) => (
-                                  <option key={p.id} value={p.id} className="bg-background text-foreground">
-                                    {p.name}
-                                  </option>
+                                  <option key={p.id} value={p.id} className="bg-background text-foreground">{p.name}</option>
                                 ))}
                               </select>
-                            </div>
-                            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-foreground md:col-span-3">
-                              <input
-                                type="checkbox"
-                                checked={r.isControlled}
-                                onChange={(e) => setRoute(f.id, { isControlled: e.target.checked })}
-                                className="h-4 w-4 accent-amber-500"
-                              />
+                            ) : (
+                              <button type="button" className="text-xs font-semibold underline underline-offset-2" style={{ color: GOLD }}
+                                onClick={() => setFarmaciaAberta((v) => [...v, f.id])}>Alterar farmácia</button>
+                            )}
+                            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-foreground">
+                              <input type="checkbox" checked={r.isControlled} onChange={(e) => setRoute(f.id, { isControlled: e.target.checked })} className="h-4 w-4 accent-amber-500" />
                               <ShieldAlert className="h-3.5 w-3.5 text-amber-700" />
                               Controlado
                             </label>
-                            {r.isControlled && (
-                              <div className="flex items-center gap-2 md:col-span-4">
-                                <select
-                                  className="field-engraved w-full rounded-md border border-amber-400/40 bg-transparent px-2 py-2 text-xs text-foreground"
-                                  value={r.anvisaType}
-                                  onChange={(e) => setRoute(f.id, { anvisaType: e.target.value })}
-                                >
-                                  <option value="" className="bg-background text-foreground">
-                                    Tipo Anvisa…
-                                  </option>
-                                  {ANVISA_CONTROLLED_CLASSES.map((c) => (
-                                    <option key={c.value} value={c.value} className="bg-background text-foreground">
-                                      {c.label}
-                                    </option>
-                                  ))}
-                                </select>
-                                {recipe && (
-                                  <span
-                                    className="shrink-0 rounded-sm border px-1.5 py-1 text-[10px] font-bold"
-                                    style={{ background: recipe.color, color: "#0f172a", borderColor: "#cbd5e1" }}
-                                  >
-                                    {recipe.colorName}
-                                  </span>
-                                )}
-                              </div>
-                            )}
+                            <span className="flex items-center gap-1.5">
+                              <Layers className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+                              <select
+                                aria-label="Cor interna"
+                                className="concave-3d !rounded-[2px] bg-transparent px-2 py-1.5 text-xs text-foreground"
+                                value={r.internalColor}
+                                onChange={(e) => setRoute(f.id, { internalColor: e.target.value })}
+                              >
+                                {INTERNAL_COLORS.map((c) => (
+                                  <option key={c.value} value={c.value} className="bg-background text-foreground">{c.value ? c.label : "Cor interna"}</option>
+                                ))}
+                              </select>
+                              {r.internalColor && (
+                                <span className="h-3.5 w-3.5 shrink-0 rounded-[2px] border border-input" style={{ background: INTERNAL_COLORS.find((c) => c.value === r.internalColor)?.hex }} />
+                              )}
+                            </span>
                           </div>
-                          <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-dashed border-border pt-2">
-                            <label className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                              <Layers className="h-3 w-3" />
-                              Cor interna
-                            </label>
-                            <select
-                              className="concave-3d rounded-md bg-transparent px-2 py-1.5 text-xs text-foreground"
-                              value={r.internalColor}
-                              onChange={(e) => setRoute(f.id, { internalColor: e.target.value })}
-                            >
-                              {INTERNAL_COLORS.map((c) => (
-                                <option key={c.value} value={c.value} className="bg-background text-foreground">
-                                  {c.label}
-                                </option>
-                              ))}
-                            </select>
-                            {r.internalColor && (
-                              <span
-                                className="h-3.5 w-3.5 shrink-0 rounded-[2px] border border-input"
-                                style={{ background: INTERNAL_COLORS.find((c) => c.value === r.internalColor)?.hex }}
-                              />
-                            )}
-                          </div>
+                          {r.isControlled && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <select
+                                aria-label="Tipo Anvisa"
+                                className="field-engraved min-w-[180px] !rounded-[2px] border border-amber-400/40 bg-transparent px-2 py-1.5 text-xs text-foreground"
+                                value={r.anvisaType}
+                                onChange={(e) => setRoute(f.id, { anvisaType: e.target.value })}
+                              >
+                                <option value="" className="bg-background text-foreground">Tipo Anvisa…</option>
+                                {ANVISA_CONTROLLED_CLASSES.map((c) => (
+                                  <option key={c.value} value={c.value} className="bg-background text-foreground">{c.label}</option>
+                                ))}
+                              </select>
+                              {recipe && (
+                                <span className="shrink-0 rounded-sm border px-1.5 py-1 text-[10px] font-bold" style={{ background: recipe.color, color: "#0f172a", borderColor: "#cbd5e1" }}>{recipe.colorName}</span>
+                              )}
+                              {sncrFlag && (
+                                <span className="flex shrink-0 items-center gap-1 rounded-sm border border-amber-400/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  {sncrFlag === "low" ? "SNCR ACABANDO" : sncrFlag === "exhausted" ? "SNCR ESGOTADO" : "SEM INTERVALO SNCR"}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -1136,48 +1118,47 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                   {identity.data?.canPrescribe && selected.length > 0 && (
                     <DestinosEmissao clientId={clientId} marcados={destinos} onChange={setDestinos} disabled={emitMutation.isPending} onContatos={setContatos} />
                   )}
-                  <div className="grid grid-cols-1 gap-2" data-testid="barra-emissao">
+                  <div className="panel-3d-sub sticky bottom-2 z-20 flex flex-wrap items-center gap-2 !rounded-[3px] p-2" data-testid="barra-emissao">
                     <button
                       onClick={() => void handlePreviewPdf()}
                       disabled={previaLoading || selected.length === 0 || !identity.data?.canPrescribe}
                       data-testid="button-previa-pdf"
-                      className="btn-3d-soft flex w-full items-center justify-center gap-2 !rounded-[2px] px-4 py-3 text-sm font-semibold disabled:opacity-40"
+                      className="mr-auto flex items-center gap-2 rounded-[2px] border border-current/30 px-3 py-2 text-xs font-semibold disabled:opacity-40"
                       style={{ color: GOLD }}
                     >
                       {previaLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-                      {previaLoading ? "Gerando prévia…" : "Prévia em PDF"}
+                      {previaLoading ? "Gerando…" : "Visualizar PDF"}
                     </button>
                     {identity.data?.canPrescribe ? (
                       <>
                       <button
-                        onClick={() => handleEmit()}
-                        disabled={emitMutation.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
-                        data-testid="button-emit-prescriptions"
-                        className="btn-3d-soft flex w-full items-center justify-center gap-2 !rounded-[2px] px-4 py-3 text-sm font-semibold disabled:opacity-40"
-                        style={{ color: GOLD }}
-                      >
-                        {emitMutation.isPending && !envioAuto ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                        Emitir receita
-                      </button>
-                      <button
                         onClick={() => handleEmit("unsigned_expired")}
                         disabled={emitMutation.isPending || envioAuto?.enviando || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
                         data-testid="button-emit-unsigned"
-                        className="btn-3d-soft flex w-full items-center justify-center gap-2 !rounded-[2px] px-4 py-3 text-sm font-semibold disabled:opacity-40"
-                        style={{ color: GOLD }}
+                        className="btn-3d-soft flex items-center justify-center gap-2 !rounded-[2px] px-4 py-2 text-xs font-semibold disabled:opacity-40"
                       >
                         <FileSignature className="h-4 w-4" />
-                        Emitir sem assinatura
+                        Gerar sem Assinar
+                      </button>
+                      <button
+                        onClick={() => handleEmit()}
+                        disabled={emitMutation.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
+                        data-testid="button-emit-prescriptions"
+                        className="btn-3d-soft flex items-center justify-center gap-2 !rounded-[2px] px-4 py-2 text-xs font-semibold disabled:opacity-40"
+                        style={{ color: GOLD }}
+                      >
+                        {emitMutation.isPending && !envioAuto ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                        Apenas Emitir
                       </button>
                       <button
                         onClick={() => handleEmit("signed", destinos)}
                         disabled={emitMutation.isPending || envioAuto?.enviando || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length || destinos.length === 0}
                         data-testid="button-emit-and-send"
                         title={destinos.length === 0 ? "Marque ao menos um destino." : undefined}
-                        className="btn-3d flex w-full items-center justify-center gap-2 !rounded-[2px] px-4 py-3 text-sm font-bold disabled:opacity-40"
+                        className="btn-3d flex items-center justify-center gap-2 !rounded-[2px] px-5 py-2 text-sm font-bold disabled:opacity-40"
                       >
                         {emitMutation.isPending || envioAuto?.enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        {emitMutation.isPending ? "Emitindo…" : envioAuto?.enviando ? "Encaminhando…" : "Emitir e encaminhar"}
+                        {emitMutation.isPending ? "Emitindo…" : envioAuto?.enviando ? "Enviando…" : "Assinar e Enviar"}
                       </button>
                       </>
                     ) : identity.data?.canPreparePrescription ? (
@@ -1185,7 +1166,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                         onClick={handleSubmitForReview}
                         disabled={createApproval.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
                         data-testid="button-submit-prescription-review"
-                        className="btn-3d flex w-full items-center justify-center gap-2 !rounded-[2px] px-4 py-3 text-sm font-bold disabled:opacity-40"
+                        className="btn-3d flex items-center justify-center gap-2 !rounded-[2px] px-5 py-2 text-sm font-bold disabled:opacity-40"
                       >
                         {createApproval.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
                         {createApproval.isPending ? "Enviando para revisão…" : "Enviar ao médico responsável"}
@@ -1194,7 +1175,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                   </div>
                   {envioAuto && (
                     <div className="bevel-3d space-y-2 !rounded-[3px] p-3 text-sm" role="status" data-testid="resultado-envio-emissao">
-                      {envioAuto.enviando && <p className="text-xs font-bold">Encaminhando…</p>}
+                      {envioAuto.enviando && <p className="text-xs font-bold">Enviando…</p>}
                       {envioAuto.itens.map((it, i) => (
                         <div key={i}>
                           <p className="font-semibold">{it.titulo}</p>
