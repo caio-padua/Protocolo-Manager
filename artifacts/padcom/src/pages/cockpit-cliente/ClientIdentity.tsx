@@ -68,7 +68,7 @@ function ResumoRegistrado({ clientId }: { clientId: number }) {
   )[0];
   if (!ultimo) return <p>Nenhum registro de acompanhamento encontrado.</p>;
   const pressao = ultimo.pressaoSistolica != null || ultimo.pressaoDiastolica != null
-    ? `${ultimo.pressaoSistolica ?? "—"}/${ultimo.pressaoDiastolica ?? "—"}`
+    ? `${ultimo.pressaoSistolica ?? "—"} / ${ultimo.pressaoDiastolica ?? "—"}`
     : "Não informada";
   return (
     <div className="cc-summary-data">

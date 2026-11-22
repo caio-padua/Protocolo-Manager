@@ -54,7 +54,7 @@ export function ReguasNiveis({ mediaPA, mediaGlicemia, nivelPA, nivelGlicemia, m
     <div className={grade ? "pn-escopo grid items-start gap-7 xl:grid-cols-3" : "pn-escopo space-y-7"}>
       <Regua titulo="Pressão arterial" unidade="mmHg" atual={nivelPA} rotuloAtual={mediaPA ? `${mediaPA} · ${janelaTexto}` : null}
         linhas={[{ nome: "Máxima (sistólica)", valores: col(0) }, { nome: "Mínima (diastólica)", valores: col(1) }]}
-        dica="Vale o pior dos dois números. Com 180/110 ou mais, procure atendimento." aberto={diretriz === "pressao"} onDiretriz={() => setDiretriz((d) => (d === "pressao" ? null : "pressao"))} />
+        dica="Vale o pior dos dois números. Com 180 / 110 ou mais, procure atendimento." aberto={diretriz === "pressao"} onDiretriz={() => setDiretriz((d) => (d === "pressao" ? null : "pressao"))} />
       <Regua titulo="Glicemia de jejum" unidade="mg/dL" atual={nivelGlicemia} rotuloAtual={mediaGlicemia ? `${mediaGlicemia} · ${janelaTexto}` : null}
         linhas={[{ nome: "Glicemia", valores: fg }]}
         dica="Valor alto ou muito alto precisa ser confirmado em outro dia, com exame de laboratório." aberto={diretriz === "glicemia"} onDiretriz={() => setDiretriz((d) => (d === "glicemia" ? null : "glicemia"))} />

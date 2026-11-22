@@ -11,7 +11,6 @@ import "./pulso-niveis.css";
 
 const NAVY = "#16294a";
 const MUTED = "#647c97";
-const GOLD = "#b8924d";
 
 export type ZonaGrafico = { key: string; name: string; color: string; low: number | null; high: number | null };
 export type PontoGrafico = { iso: string; data: string; valor: number };
@@ -140,13 +139,13 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
                 <YAxis tick={{ fill: MUTED, fontSize: 10 }} tickLine={false} axisLine={{ stroke: "rgba(22,41,74,0.15)" }}
                   width={larguraEixoY} tickSize={2} tickMargin={2} tickFormatter={fmtEixo} domain={[dominio.min, dominio.max]} />
                 <Tooltip content={() => null} cursor={{ stroke: "rgba(184,146,77,0.55)", strokeDasharray: "4 3" }} />
-                <Line type="linear" dataKey="ext" stroke={NAVY} strokeOpacity={0.35} strokeWidth={1.5} strokeDasharray="4 4" isAnimationActive={false} activeDot={false}
+                <Line type="linear" dataKey="ext" stroke={NAVY} strokeOpacity={0.35} strokeWidth={1} strokeDasharray="4 4" isAnimationActive={false} activeDot={false}
                   dot={(props: { cx?: number; cy?: number; payload?: Ponto; index?: number }) => {
                     const { cx, cy, payload, index } = props;
                     if (cx == null || cy == null || !payload?.fantasma) return <g key={`f-${index}`} />;
-                    return <circle key={`f-${index}`} cx={cx} cy={cy} r={4} fill="none" stroke={NAVY} strokeOpacity={0.45} strokeWidth={1.5} strokeDasharray="2 2" />;
+                    return <rect key={`f-${index}`} x={cx - 4} y={cy - 4} width={8} height={8} fill="none" stroke={NAVY} strokeOpacity={0.45} strokeWidth={1} strokeDasharray="2 2" />;
                   }} />
-                <Line type="linear" dataKey="valor" stroke={NAVY} strokeWidth={2.5} isAnimationActive={false}
+                <Line type="linear" dataKey="valor" stroke={NAVY} strokeWidth={1.25} strokeLinejoin="miter" strokeLinecap="butt" strokeMiterlimit={10} isAnimationActive={false}
                   dot={(props: { cx?: number; cy?: number; payload?: Ponto; index?: number }) => {
                     const { cx, cy, payload, index } = props;
                     if (cx == null || cy == null || !payload || payload.fantasma || payload.valor == null) return <g key={`d-${index}`} />;
@@ -154,16 +153,15 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
                     const acima = cy - h - 8 >= 0, ry = acima ? cy - h - 7 : cy + 7;
                     return (
                       <g key={`d-${index}`} pointerEvents="none">
-                        <rect x={cx - w / 2} y={ry} width={w} height={h} rx={3.5} fill={payload.cor} fillOpacity={0.95} stroke="#fff" strokeWidth={1} />
+                        <rect x={cx - w / 2} y={ry} width={w} height={h} fill={payload.cor} fillOpacity={0.95} stroke="#fff" strokeWidth={1} />
                         <text x={cx} y={ry + h / 2 + 3.2} textAnchor="middle" fontSize={9.5} fontWeight={700} fill={textoSobre(payload.cor)}>{txt}</text>
-                        <circle cx={cx} cy={cy} r={4} fill={NAVY} stroke="#fff" strokeWidth={1.5} />
-                      </g>
+                        </g>
                     );
                   }}
                   activeDot={(props: { cx?: number; cy?: number }) => {
                     const { cx, cy } = props;
                     if (cx == null || cy == null) return <g />;
-                    return <rect x={cx - 5} y={cy - 5} width={10} height={10} rx={2} fill={GOLD} stroke="#fff" strokeWidth={2} />;
+                    return <rect x={cx - 5} y={cy - 5} width={10} height={10} fill="none" stroke="#000" strokeWidth={1.5} />;
                   }} />
               </LineChart>
             </ResponsiveContainer>

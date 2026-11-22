@@ -57,7 +57,7 @@ export function resumo(l: Pulso[]) {
   const sis = media(l.map((x) => x.pressaoSistolica), 0), dia = media(l.map((x) => x.pressaoDiastolica), 0);
   return {
     energia: media(l.map((x) => x.energia), 1), disposicao: media(l.map((x) => x.disposicao), 1), sono: media(l.map((x) => x.sono), 1),
-    pa: sis && dia ? `${sis}/${dia}` : null, fc: media(l.map((x) => x.frequenciaCardiaca), 0), glicemia: media(l.map((x) => x.glicemia), 0), n: l.length,
+    pa: sis && dia ? `${sis} / ${dia}` : null, fc: media(l.map((x) => x.frequenciaCardiaca), 0), glicemia: media(l.map((x) => x.glicemia), 0), n: l.length,
   };
 }
 export type Janela = "diretriz" | 15 | 30 | 60;
@@ -234,7 +234,7 @@ export function PulsoDiarioHistorico({ clientId, janela, naModal = false, onNive
                     <span>{mes.nome}</span><em>{mes.dias.length} {mes.dias.length === 1 ? "dia" : "dias"} · {mes.dias.reduce((n, d) => n + d.itens.length, 0)} registros</em>
                   </th></tr>
                   {mes.dias.map((dia, di) => dia.itens.map((l, i) => {
-                    const pa = l.pressaoSistolica != null || l.pressaoDiastolica != null ? `${l.pressaoSistolica ?? "—"}/${l.pressaoDiastolica ?? "—"}` : null;
+                    const pa = l.pressaoSistolica != null || l.pressaoDiastolica != null ? `${l.pressaoSistolica ?? "—"} / ${l.pressaoDiastolica ?? "—"}` : null;
                     return (
                       <tr key={l.id} className="cc-pulso-linha" data-zebra={di % 2} data-inicio={i === 0}>
                         {i === 0 && (

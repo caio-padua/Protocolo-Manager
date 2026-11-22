@@ -121,7 +121,7 @@ function CardPeriodo({
   const num = (v: number | null) => (v == null ? "—" : String(v));
   const pa =
     reg && (reg.pressaoSistolica != null || reg.pressaoDiastolica != null)
-      ? `${reg.pressaoSistolica ?? "—"}/${reg.pressaoDiastolica ?? "—"}`
+      ? `${reg.pressaoSistolica ?? "—"} / ${reg.pressaoDiastolica ?? "—"}`
       : "—";
   return (
     <div className="screen-3d flex-1 p-3">

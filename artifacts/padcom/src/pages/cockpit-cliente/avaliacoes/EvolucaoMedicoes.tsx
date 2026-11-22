@@ -106,8 +106,9 @@ export function EvolucaoMedicoes({ clientId, tipo, medicoes, maximizado }: {
                 tickFormatter={(x: number) => numeroBr(x, ativa.casas)} />
               <Tooltip formatter={(x: number) => [`${fmt(ativa, x)} ${ativa.unit}`.trim(), ativa.label]}
                 contentStyle={{ borderRadius: 6, border: `1px solid ${OURO}`, fontSize: 12 }} />
-              <Line type="monotone" dataKey="valor" stroke={OURO} strokeWidth={2.5}
-                dot={{ r: 4, fill: OURO, stroke: "#fff", strokeWidth: 1.5 }} activeDot={{ r: 6 }} isAnimationActive={false} />
+              <Line type="linear" dataKey="valor" stroke={OURO} strokeWidth={1.25} strokeLinejoin="miter" strokeMiterlimit={10}
+                dot={(pr: { cx?: number; cy?: number; index?: number }) => pr.cx == null || pr.cy == null ? <g key={`d-${pr.index}`} /> : <rect key={`d-${pr.index}`} x={pr.cx - 3} y={pr.cy - 3} width={6} height={6} fill={OURO} />}
+                activeDot={(pr: { cx?: number; cy?: number }) => pr.cx == null || pr.cy == null ? <g /> : <rect x={pr.cx - 5} y={pr.cy - 5} width={10} height={10} fill="none" stroke="#000" strokeWidth={1.5} />} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>

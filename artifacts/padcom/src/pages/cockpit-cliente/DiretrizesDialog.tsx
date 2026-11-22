@@ -46,10 +46,10 @@ export function DiretrizesDialog({ tipo, escuro, onClose }: { tipo: TipoReferenc
           {pressao ? (
             <>
               <li>Vale o pior dos dois números da leitura.</li>
-              <li>Pressão medida em casa: a meta é ficar abaixo de 130/80. É a média de 7 dias que orienta a conduta, não uma leitura isolada.</li>
+              <li>Pressão medida em casa: a meta é ficar abaixo de 130 / 80. É a média de 7 dias que orienta a conduta, não uma leitura isolada.</li>
               <li>Referência: Diretrizes Brasileiras de Hipertensão Arterial (Sociedade Brasileira de Cardiologia).</li>
               <li>Os níveis "baixo" e "muito baixo" seguem critério clínico do consultório.</li>
-              <li>180/110 ou mais: procurar atendimento.</li>
+              <li>180 / 110 ou mais: procurar atendimento.</li>
             </>
           ) : freq ? (
             <>

@@ -121,7 +121,7 @@ export default function MeuPulsoCliente({ token = "", clienteId, escuro = false 
     return {
       energia: media(janela.map((r) => r.energia)), libido: media(janela.map((r) => r.libido)), sono: media(janela.map((r) => r.sono)),
       fc: media(janela.map((r) => r.frequenciaCardiaca)), s, d, g,
-      pa: s != null && d != null ? `${Math.round(s)}/${Math.round(d)}` : null,
+      pa: s != null && d != null ? `${Math.round(s)} / ${Math.round(d)}` : null,
       nPA: nivelPressao(s == null ? null : Math.round(s), d == null ? null : Math.round(d)), nG: nivelGlicemia(g == null ? null : Math.round(g)),
       nFC: nivelFrequencia(f == null ? null : Math.round(f)),
     };
@@ -326,7 +326,7 @@ export default function MeuPulsoCliente({ token = "", clienteId, escuro = false 
                       )}
                       <td className="per"><span className="pn-per"><Icone size={12} aria-hidden="true" />{nome}</span></td>
                       <td>{r && r.pressaoSistolica != null && r.pressaoDiastolica != null
-                        ? <Medida v={`${r.pressaoSistolica}/${r.pressaoDiastolica}`} nivel={nivelPressao(r.pressaoSistolica, r.pressaoDiastolica)} /> : <span className="vazio">—</span>}</td>
+                        ? <Medida v={`${r.pressaoSistolica} / ${r.pressaoDiastolica}`} nivel={nivelPressao(r.pressaoSistolica, r.pressaoDiastolica)} /> : <span className="vazio">—</span>}</td>
                       <td>{r && r.glicemia != null ? <Medida v={String(r.glicemia)} nivel={nivelGlicemia(r.glicemia)} /> : <span className="vazio">—</span>}</td>
                       <td>{r && r.frequenciaCardiaca != null ? <Medida v={String(r.frequenciaCardiaca)} nivel={nivelFrequencia(r.frequenciaCardiaca)} /> : <span className="vazio">—</span>}</td>
                       <td>{nota(r?.energia)}</td>
