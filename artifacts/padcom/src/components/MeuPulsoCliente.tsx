@@ -144,7 +144,16 @@ function EscalaDialog({ foco, escuro, onClose }: { foco: string | null; escuro: 
 
 const CAMPOS_NOTA = [["energia", "Energia"], ["libido", "Libido"], ["sono", "Sono"]] as const;
 
-export default function MeuPulsoCliente({ token, escuro = false }: { token: string; escuro?: boolean }) {
+/** Data de hoje e período do dia no fuso de São Paulo (usado quando o consultório abre o pulso de um cliente). */
+const agoraSP = (): { hoje: string; periodoAgora: Reg["periodo"] } => {
+  const hoje = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const h = Number(new Date().toLocaleString("en-GB", { timeZone: "America/Sao_Paulo", hour: "2-digit", hour12: false }));
+  return { hoje, periodoAgora: h < 12 ? "manha" : h < 18 ? "tarde" : "noite" };
+};
+
+/** Pulso do cliente. Na Área do Cliente usa o token do próprio cliente; no cockpit (clienteId) é a MESMA tela, só leitura e em grade ampla. */
+export default function MeuPulsoCliente({ token = "", clienteId, escuro = false }: { token?: string; clienteId?: number; escuro?: boolean }) {
+  const consultorio = clienteId != null;
   const [escala, setEscala] = useState<string | null>(null);
   const [dados, setDados] = useState<Dados | null>(null);
   const [erro, setErro] = useState("");
@@ -157,13 +166,16 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
 
   const carregar = useCallback(async () => {
     try {
-      const r = await fetch(`${API_BASE}/api/area-paciente/pulso-diario?dias=60`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!r.ok) throw new Error(r.status === 401 ? "Sessão expirada. Entre novamente." : "Não foi possível carregar o seu pulso.");
-      const d = (await r.json()) as Dados;
+      const r = consultorio
+        ? await fetch(`${API_BASE}/api/pulso-diario/${clienteId}?dias=60`)
+        : await fetch(`${API_BASE}/api/area-paciente/pulso-diario?dias=60`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) throw new Error(r.status === 401 ? "Sessão expirada. Entre novamente." : "Não foi possível carregar o pulso.");
+      const bruto = await r.json();
+      const d = (consultorio ? { ...agoraSP(), registros: bruto as Reg[] } : bruto) as Dados;
       setDados(d); setErro("");
       setPeriodo((p) => p ?? d.periodoAgora);
     } catch (e) { setErro((e as Error).message); }
-  }, [token]);
+  }, [token, clienteId, consultorio]);
   useEffect(() => { void carregar(); }, [carregar]);
 
   const janela = useMemo(() => {
@@ -231,16 +243,16 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
 
   return (
     <div className={`pn-escopo pn-pagina space-y-7${escuro ? " dark" : ""}`} data-testid="meu-pulso">
-      <header className="panel-3d-sub pn-painel flex items-center gap-3">
+      {!consultorio && <header className="panel-3d-sub pn-painel flex items-center gap-3">
         <span className="btn-3d-soft pn-mini !h-11 !w-11 shrink-0"><Activity className="h-5 w-5" aria-hidden="true" /></span>
         <div className="min-w-0">
           <h2 className="text-lg font-black uppercase leading-tight tracking-wide">Meu pulso</h2>
           <p className="text-xs" style={{ color: "var(--pn-mudo)" }}>Seu dia a dia em números. Registre como você está e veja em que nível cada medida se encontra.</p>
         </div>
-      </header>
+      </header>}
 
       {/* Painel congelado: acompanha a rolagem logo abaixo da faixa superior */}
-      <PainelPulso className="sticky z-20" style={{ top: "calc(var(--paxter-topbar-h, 0px) + 8px)" }}
+      <PainelPulso className={consultorio ? "" : "sticky z-20"} style={consultorio ? undefined : { top: "calc(var(--paxter-topbar-h, 0px) + 8px)" }}
         titulo={`Média dos últimos ${dias} dias`} rotulo={`Médias dos últimos ${dias} dias`}>
         <div role="radiogroup" aria-label="Período da média" className="mb-3 flex gap-1.5">
           {JANELAS.map((j) => (
@@ -260,6 +272,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
         </div>
       </PainelPulso>
 
+      {!consultorio && (
       <PainelPulso titulo="Registrar agora" rotulo="Registrar agora">
         <div role="radiogroup" aria-label="Período do dia" className="mb-3 flex gap-2">
           {PERIODOS.map(({ id, nome, Icone }) => (
@@ -323,9 +336,11 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
         )}
         <p className="mt-3 text-[11px]" style={{ color: "var(--pn-mudo)" }}>Preencha só o que você mediu. Ao salvar de novo no mesmo período, o que já estava registrado é mantido.</p>
       </PainelPulso>
+      )}
 
-      <ReguasNiveis mediaPA={m.pa} mediaGlicemia={inteiro(m.g)} nivelPA={m.nPA} nivelGlicemia={m.nG} mediaFC={inteiro(m.fc)} nivelFC={m.nFC} janelaTexto={`${dias} dias`} escuro={escuro} />
+      <ReguasNiveis mediaPA={m.pa} mediaGlicemia={inteiro(m.g)} nivelPA={m.nPA} nivelGlicemia={m.nG} mediaFC={inteiro(m.fc)} nivelFC={m.nFC} janelaTexto={`${dias} dias`} escuro={escuro} grade={consultorio} />
 
+      <div className={consultorio ? "grid gap-7 xl:grid-cols-2" : "space-y-7"}>
       <GraficoZonas titulo="Pressão máxima (sistólica)" ajuda="pressao" escuro={escuro} unidade="mmHg" referencia={`normal ${P.baixa.s} a ${P.alta.s - 1}`} pontos={serie((d) => d.sis)} zonas={ZONAS_SIS} />
       <GraficoZonas titulo="Pressão mínima (diastólica)" ajuda="pressao" escuro={escuro} unidade="mmHg" referencia={`normal ${P.baixa.d} a ${P.alta.d - 1}`} pontos={serie((d) => d.dias)} zonas={ZONAS_DIA} />
       <GraficoZonas titulo="Glicemia" ajuda="glicemia" escuro={escuro} unidade="mg/dL" referencia={`normal ${G.baixa} a ${G.alta - 1}`} pontos={serie((d) => d.gli)} zonas={ZONAS_GLI} />
@@ -333,10 +348,11 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
       <GraficoZonas titulo="Energia" unidade="nota 0 a 10" pontos={serie((d) => d.en)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
       <GraficoZonas titulo="Libido" unidade="nota 0 a 10" pontos={serie((d) => d.li)} zonas={ZONAS_LIBIDO} dominioFixo={[0, 10]} />
       <GraficoZonas titulo="Sono" unidade="nota 0 a 10" pontos={serie((d) => d.so)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
+      </div>
 
-      <PainelPulso titulo="Meus registros" rotulo="Meus registros">
+      <PainelPulso titulo={consultorio ? "Registros do cliente" : "Meus registros"} rotulo="Registros">
         {historico.length === 0 ? (
-          <p className="py-3 text-center text-xs" style={{ color: "var(--pn-mudo)" }}>Nenhum registro neste período. Use "Registrar agora" acima.</p>
+          <p className="py-3 text-center text-xs" style={{ color: "var(--pn-mudo)" }}>{consultorio ? "Nenhum registro neste período." : "Nenhum registro neste período. Use \"Registrar agora\" acima."}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="pn-tab">

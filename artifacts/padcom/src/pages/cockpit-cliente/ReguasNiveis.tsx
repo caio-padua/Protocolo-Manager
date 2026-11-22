@@ -43,15 +43,15 @@ function Regua({ titulo, unidade, linhas, atual, rotuloAtual, dica, onDiretriz, 
   );
 }
 
-export function ReguasNiveis({ mediaPA, mediaGlicemia, nivelPA, nivelGlicemia, mediaFC, nivelFC, janelaTexto, escuro = false }: {
+export function ReguasNiveis({ mediaPA, mediaGlicemia, nivelPA, nivelGlicemia, mediaFC, nivelFC, janelaTexto, escuro = false, grade = false }: {
   mediaPA: string | null; mediaGlicemia: string | null; nivelPA: Nivel | null; nivelGlicemia: Nivel | null;
-  mediaFC?: string | null; nivelFC?: Nivel | null; janelaTexto: string; escuro?: boolean;
+  mediaFC?: string | null; nivelFC?: Nivel | null; janelaTexto: string; escuro?: boolean; grade?: boolean;
 }) {
   const [diretriz, setDiretriz] = useState<"pressao" | "glicemia" | "frequencia" | null>(null);
   const fp = faixasPressao(), fg = faixasGlicemia(), ff = faixasFrequencia();
   const col = (i: 0 | 1) => Object.fromEntries(NIVEIS.map((n) => [n.id, fp[n.id][i]])) as Record<Nivel, string>;
   return (
-    <div className="pn-escopo space-y-7">
+    <div className={grade ? "pn-escopo grid items-start gap-7 xl:grid-cols-3" : "pn-escopo space-y-7"}>
       <Regua titulo="Pressão arterial" unidade="mmHg" atual={nivelPA} rotuloAtual={mediaPA ? `${mediaPA} · ${janelaTexto}` : null}
         linhas={[{ nome: "Máxima (sistólica)", valores: col(0) }, { nome: "Mínima (diastólica)", valores: col(1) }]}
         dica="Vale o pior dos dois números. Com 180/110 ou mais, procure atendimento." aberto={diretriz === "pressao"} onDiretriz={() => setDiretriz((d) => (d === "pressao" ? null : "pressao"))} />
