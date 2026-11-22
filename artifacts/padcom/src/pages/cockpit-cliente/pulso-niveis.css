@@ -204,3 +204,9 @@
   .pn-grupo-rot { font-size: 7.5px; letter-spacing: .03em; }
   .pn-tab td.dia { padding-right: 2px; }
 }
+
+/* Apelido (subtitulo abaixo do titulo): italico, preto intenso, nitido */
+.pn-apelido { margin: 2px 0 0; font: italic 600 13.5px/1.3 "EB Garamond", Georgia, serif; color: #0a0a0a; letter-spacing: .01em; }
+.dark .pn-apelido, .pn-escopo.dark .pn-apelido { color: #fbf6e8; }
+.pn-notas-tit { display: flex; flex-direction: column; min-width: 0; }
+.pn-notas-tit .pn-apelido { font-style: italic; }

@@ -47,6 +47,7 @@ const inteiro = (min: number, max: number) => z.number().int().min(min).max(max)
 const valoresSchema = z.object({
   energia: inteiro(0, 10),
   disposicao: inteiro(0, 10),
+  libido: inteiro(0, 10),
   sono: inteiro(0, 10),
   pressaoSistolica: inteiro(50, 260),
   pressaoDiastolica: inteiro(30, 160),
@@ -66,7 +67,7 @@ router.post("/pulso-telegram/sessao", async (req, res): Promise<void> => {
     nome: primeiro ? primeiro.charAt(0).toUpperCase() + primeiro.slice(1).toLowerCase() : "",
     data, periodo,
     atual: atual ? {
-      energia: atual.energia, disposicao: atual.disposicao, sono: atual.sono,
+      energia: atual.energia, disposicao: atual.disposicao, libido: atual.libido, sono: atual.sono,
       pressaoSistolica: atual.pressaoSistolica, pressaoDiastolica: atual.pressaoDiastolica,
       frequenciaCardiaca: atual.frequenciaCardiaca, glicemia: atual.glicemia,
     } : null,
@@ -86,7 +87,7 @@ router.post("/pulso-telegram/registrar", async (req, res): Promise<void> => {
 
   const { data, periodo } = periodoAgora();
   const valores = {
-    energia: v.energia ?? null, disposicao: v.disposicao ?? null, sono: v.sono ?? null,
+    energia: v.energia ?? null, disposicao: v.disposicao ?? null, libido: v.libido ?? null, sono: v.sono ?? null,
     pressaoSistolica: sis, pressaoDiastolica: dia,
     frequenciaCardiaca: v.frequenciaCardiaca ?? null, glicemia: v.glicemia ?? null,
   };

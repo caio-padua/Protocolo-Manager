@@ -25,6 +25,7 @@ const upsertSchema = z.object({
   periodo: z.enum(PERIODOS),
   energia: z.number().int().min(0).max(10).nullable().optional(),
   disposicao: z.number().int().min(0).max(10).nullable().optional(),
+  libido: z.number().int().min(0).max(10).nullable().optional(),
   sono: z.number().int().min(0).max(10).nullable().optional(),
   pressaoSistolica: z.number().int().min(0).max(300).nullable().optional(),
   pressaoDiastolica: z.number().int().min(0).max(200).nullable().optional(),
@@ -94,6 +95,7 @@ router.post("/pulso-diario/:clientId", async (req, res): Promise<void> => {
     periodo: v.periodo,
     energia: v.energia ?? null,
     disposicao: v.disposicao ?? null,
+    libido: v.libido ?? null,
     sono: v.sono ?? null,
     pressaoSistolica: v.pressaoSistolica ?? null,
     pressaoDiastolica: v.pressaoDiastolica ?? null,
@@ -112,6 +114,7 @@ router.post("/pulso-diario/:clientId", async (req, res): Promise<void> => {
       set: {
         energia: valores.energia,
         disposicao: valores.disposicao,
+        libido: valores.libido,
         sono: valores.sono,
         pressaoSistolica: valores.pressaoSistolica,
         pressaoDiastolica: valores.pressaoDiastolica,
@@ -186,6 +189,7 @@ const autoRegistroSchema = z.object({
   periodo: z.enum(PERIODOS).optional(),
   energia: z.number().int().min(0).max(10).nullable().optional(),
   disposicao: z.number().int().min(0).max(10).nullable().optional(),
+  libido: z.number().int().min(0).max(10).nullable().optional(),
   sono: z.number().int().min(0).max(10).nullable().optional(),
   pressaoSistolica: z.number().int().min(50).max(300).nullable().optional(),
   pressaoDiastolica: z.number().int().min(30).max(200).nullable().optional(),
@@ -200,7 +204,7 @@ router.post("/area-paciente/pulso-diario", async (req, res): Promise<void> => {
   const p = autoRegistroSchema.safeParse(req.body);
   if (!p.success) { res.status(400).json({ error: "Confira os números digitados." }); return; }
   const v = p.data;
-  const campos = ["energia", "disposicao", "sono", "pressaoSistolica", "pressaoDiastolica", "frequenciaCardiaca", "glicemia"] as const;
+  const campos = ["energia", "disposicao", "libido", "sono", "pressaoSistolica", "pressaoDiastolica", "frequenciaCardiaca", "glicemia"] as const;
   const enviados = campos.filter((c) => v[c] != null);
   if (enviados.length === 0) { res.status(400).json({ error: "Preencha pelo menos uma medida." }); return; }
   if ((v.pressaoSistolica != null) !== (v.pressaoDiastolica != null)) {
@@ -216,7 +220,7 @@ router.post("/area-paciente/pulso-diario", async (req, res): Promise<void> => {
   const novo = (c: (typeof campos)[number]) => (v[c] != null ? v[c]! : (atual?.[c] ?? null));
   const valores = {
     clienteId: clientId, data, periodo,
-    energia: novo("energia"), disposicao: novo("disposicao"), sono: novo("sono"),
+    energia: novo("energia"), disposicao: novo("disposicao"), libido: novo("libido"), sono: novo("sono"),
     pressaoSistolica: novo("pressaoSistolica"), pressaoDiastolica: novo("pressaoDiastolica"),
     frequenciaCardiaca: novo("frequenciaCardiaca"), glicemia: novo("glicemia"),
     humor: atual?.humor ?? null, observacao: atual?.observacao ?? null,

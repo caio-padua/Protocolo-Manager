@@ -12,7 +12,7 @@ import "@/pages/cockpit-cliente/pulso-niveis.css";
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 type Reg = {
-  data: string; periodo: "manha" | "tarde" | "noite"; energia: number | null; disposicao: number | null; sono: number | null;
+  data: string; periodo: "manha" | "tarde" | "noite"; energia: number | null; libido: number | null; sono: number | null;
   pressaoSistolica: number | null; pressaoDiastolica: number | null; frequenciaCardiaca: number | null; glicemia: number | null; origem: string;
 };
 type Dados = { hoje: string; periodoAgora: Reg["periodo"]; registros: Reg[] };
@@ -68,14 +68,26 @@ const ZONAS_NOTA: ZonaGrafico[] = [
   { key: "n5", name: "Ótimo", color: "#15803d", low: 9, high: null },
 ];
 
+const ZONAS_LIBIDO: ZonaGrafico[] = [
+  { key: "l1", name: "Muito baixa", color: "#dc2626", low: null, high: 3 }, { key: "l2", name: "Baixa", color: "#d97706", low: 3, high: 5 },
+  { key: "l3", name: "Moderada", color: "#ca8a04", low: 5, high: 7 }, { key: "l4", name: "Boa", color: "#65a30d", low: 7, high: 9 },
+  { key: "l5", name: "Alta", color: "#15803d", low: 9, high: null },
+];
+const ESCALA_LIBIDO = [
+  { de: 0, ate: 2, nome: "Muito baixa", cor: "muitoalto", sente: "Quase nenhum desejo. Em geral nenhum dia da semana teve vontade." },
+  { de: 3, ate: 4, nome: "Baixa", cor: "alto", sente: "Desejo raro, bem menor que o seu normal. Apareceu só uma ou duas vezes na semana." },
+  { de: 5, ate: 6, nome: "Moderada", cor: "baixo", sente: "Desejo presente, mas abaixo do que é seu normal. Apareceu algumas vezes na semana." },
+  { de: 7, ate: 8, nome: "Boa", cor: "normal", sente: "Desejo claro e frequente, como no seu normal. Com 8, a vontade aparece quase todos os dias e é fácil de sentir." },
+  { de: 9, ate: 10, nome: "Alta", cor: "normal", sente: "Desejo forte, todos os dias, como nos seus melhores períodos." },
+] as const;
 const ESCALA = [
   { de: 0, ate: 2, nome: "Muito mal", cor: "muitoalto" }, { de: 3, ate: 4, nome: "Ruim", cor: "alto" }, { de: 5, ate: 6, nome: "Regular", cor: "baixo" },
   { de: 7, ate: 8, nome: "Bom", cor: "normal" }, { de: 9, ate: 10, nome: "Ótimo", cor: "normal" },
 ] as const;
-const SIGNIFICADO: Record<string, { nome: string; texto: string; zero: string; dez: string }> = {
-  energia: { nome: "Energia", texto: "Quanta força você sente para fazer as coisas do dia.", zero: "Sem força nenhuma, sem conseguir fazer o básico.", dez: "Cheio de força, fazendo tudo sem cansar." },
-  disposicao: { nome: "Disposição", texto: "Ânimo e vontade para começar e manter suas atividades.", zero: "Sem vontade de nada, tudo é um esforço.", dez: "Animado e com vontade de fazer as coisas." },
-  sono: { nome: "Sono", texto: "Como foi a sua noite de sono.", zero: "Quase não dormi, acordei muito cansado.", dez: "Dormi a noite toda e acordei descansado." },
+const SIGNIFICADO: Record<string, { nome: string; apelido: string; texto: string; zero: string; dez: string }> = {
+  energia: { nome: "Energia", apelido: "O combustível do seu dia", texto: "Quanta força você sente para fazer as coisas do dia.", zero: "Sem força nenhuma, sem conseguir fazer o básico.", dez: "Cheio de força, fazendo tudo sem cansar." },
+  libido: { nome: "Libido", apelido: "Termômetro de saúde", texto: "Seu desejo sexual nos últimos dias.", zero: "Nenhum desejo.", dez: "Desejo muito forte, mais que o seu normal." },
+  sono: { nome: "Sono", apelido: "A fase de reparação do corpo", texto: "Como foi a sua noite de sono.", zero: "Quase não dormi, acordei muito cansado.", dez: "Dormi a noite toda e acordei descansado." },
 };
 
 const SONO_REPARADOR: Array<[string, string]> = [
@@ -92,18 +104,26 @@ function EscalaDialog({ foco, escuro, onClose }: { foco: string | null; escuro: 
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className={`${escuro ? "dark " : ""}pn-escopo !top-[8vh] !translate-y-0 max-h-[84vh] w-[min(94vw,480px)] max-w-none overflow-y-auto border border-border bg-background p-5`} style={{ color: "var(--pn-tinta)" }}>
         <DialogTitle className="pr-8 text-base font-black uppercase tracking-wide">{m.nome}: como dar a nota</DialogTitle>
-        <DialogDescription className="text-xs" style={{ color: "var(--pn-mudo)" }}>{m.texto} Use a nota que melhor descreve como você se sentiu.</DialogDescription>
+        <p className="pn-apelido">{m.apelido}</p>
+        <DialogDescription className="mt-1 text-xs" style={{ color: "var(--pn-mudo)" }}>{m.texto} Use a nota que melhor descreve como você se sentiu.</DialogDescription>
+        {foco === "libido" && (
+          <div className="concave-3d mt-3 px-3 py-2.5 text-[12.5px] leading-snug">
+            <b className="block text-[11px] font-black uppercase tracking-wider">Por que perguntamos</b>
+            Não queremos saber da sua vida sexual. O desejo é um termômetro de saúde: costuma mudar junto com os hormônios, o sono, o estresse, o humor e a circulação. Responder é opcional; se preferir, deixe em branco.
+          </div>
+        )}
         <ul className="mt-3 space-y-2">
-          {ESCALA.map((e) => (
+          {(foco === "libido" ? ESCALA_LIBIDO : ESCALA).map((e) => (
             <li key={e.nome} className="grid grid-cols-[84px_1fr] items-center gap-3">
               <span className="bevel-3d pn-chip text-center" data-nivel={e.cor}>{e.nome}</span>
-              <span className="text-sm font-bold"><Numeral peso={700}>{`${e.de} a ${e.ate}`}</Numeral></span>
+              <span className="text-sm font-bold"><Numeral peso={700}>{`${e.de} a ${e.ate}`}</Numeral>
+                {"sente" in e && <span className="mt-0.5 block text-[12px] font-medium leading-snug">{e.sente}</span>}</span>
             </li>
           ))}
         </ul>
         <dl className="mt-4 space-y-1.5 text-[12.5px] leading-relaxed">
-          <div><dt className="inline font-bold">Nota 0: </dt><dd className="inline">{m.zero}</dd></div>
-          <div><dt className="inline font-bold">Nota 10: </dt><dd className="inline">{m.dez}</dd></div>
+          {foco !== "libido" && <><div><dt className="inline font-bold">Nota 0: </dt><dd className="inline">{m.zero}</dd></div>
+          <div><dt className="inline font-bold">Nota 10: </dt><dd className="inline">{m.dez}</dd></div></>}
         </dl>
         {foco === "sono" && (
           <>
@@ -122,7 +142,7 @@ function EscalaDialog({ foco, escuro, onClose }: { foco: string | null; escuro: 
   );
 }
 
-const CAMPOS_NOTA = [["energia", "Energia"], ["disposicao", "Disposição"], ["sono", "Sono"]] as const;
+const CAMPOS_NOTA = [["energia", "Energia"], ["libido", "Libido"], ["sono", "Sono"]] as const;
 
 export default function MeuPulsoCliente({ token, escuro = false }: { token: string; escuro?: boolean }) {
   const [escala, setEscala] = useState<string | null>(null);
@@ -131,7 +151,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
   const [dias, setDias] = useState<(typeof JANELAS)[number]>(7);
   const [periodo, setPeriodo] = useState<Reg["periodo"] | null>(null);
   const [f, setF] = useState({ sis: "", dia: "", fc: "", gli: "" });
-  const [notas, setNotas] = useState<{ energia: number | null; disposicao: number | null; sono: number | null }>({ energia: null, disposicao: null, sono: null });
+  const [notas, setNotas] = useState<{ energia: number | null; libido: number | null; sono: number | null }>({ energia: null, libido: null, sono: null });
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
 
@@ -154,7 +174,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
   const m = useMemo(() => {
     const s = media(janela.map((r) => r.pressaoSistolica)), d = media(janela.map((r) => r.pressaoDiastolica)), g = media(janela.map((r) => r.glicemia)), f = media(janela.map((r) => r.frequenciaCardiaca));
     return {
-      energia: media(janela.map((r) => r.energia)), disposicao: media(janela.map((r) => r.disposicao)), sono: media(janela.map((r) => r.sono)),
+      energia: media(janela.map((r) => r.energia)), libido: media(janela.map((r) => r.libido)), sono: media(janela.map((r) => r.sono)),
       fc: media(janela.map((r) => r.frequenciaCardiaca)), s, d, g,
       pa: s != null && d != null ? `${Math.round(s)}/${Math.round(d)}` : null,
       nPA: nivelPressao(s == null ? null : Math.round(s), d == null ? null : Math.round(d)), nG: nivelGlicemia(g == null ? null : Math.round(g)),
@@ -169,7 +189,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
     return dd.map((dia) => {
       const l = janela.filter((r) => r.data === dia);
       return { dia, sis: media(l.map((r) => r.pressaoSistolica)), dias: media(l.map((r) => r.pressaoDiastolica)), gli: media(l.map((r) => r.glicemia)), fc: media(l.map((r) => r.frequenciaCardiaca)),
-        en: media(l.map((r) => r.energia)), di: media(l.map((r) => r.disposicao)), so: media(l.map((r) => r.sono)), reg: l };
+        en: media(l.map((r) => r.energia)), li: media(l.map((r) => r.libido)), so: media(l.map((r) => r.sono)), reg: l };
     });
   }, [dados, dias, janela]);
   const historico = useMemo(() => [...porDia].reverse().filter((d) => d.reg.length > 0).slice(0, 30), [porDia]);
@@ -189,7 +209,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
       const j = (await r.json().catch(() => ({}))) as { error?: string };
       if (!r.ok) throw new Error(r.status === 401 ? "Só o próprio cliente pode registrar. Entre com seus dados." : j.error ?? "Não foi possível salvar.");
       setResultado({ ok: true, texto: "Registro salvo. Seus números já estão atualizados abaixo." });
-      setF({ sis: "", dia: "", fc: "", gli: "" }); setNotas({ energia: null, disposicao: null, sono: null });
+      setF({ sis: "", dia: "", fc: "", gli: "" }); setNotas({ energia: null, libido: null, sono: null });
       await carregar();
     } catch (e) { setResultado({ ok: false, texto: (e as Error).message }); }
     finally { setEnviando(false); }
@@ -205,7 +225,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
     porDia.flatMap((d) => { const v = f(d); return v == null ? [] : [{ iso: d.dia, data: dataGrafico(d.dia), valor: Math.round(v * 10) / 10 }]; });
 
   const cartoes: Array<[string, string, string | null, Nivel | null]> = [
-    ["Energia", "0 a 10", um(m.energia), null], ["Disposição", "0 a 10", um(m.disposicao), null], ["Sono", "0 a 10", um(m.sono), null],
+    ["Energia", "0 a 10", um(m.energia), null], ["Libido", "0 a 10", um(m.libido), null], ["Sono", "0 a 10", um(m.sono), null],
     ["Pressão", "mmHg", m.pa, m.nPA], ["Freq. card.", "bpm", inteiro(m.fc), m.nFC], ["Glicemia", "mg/dL", inteiro(m.g), m.nG],
   ];
 
@@ -278,7 +298,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
         {CAMPOS_NOTA.map(([k, rot]) => (
           <div key={k} className="pn-grupo-notas">
             <div className="pn-notas-cab">
-              <b>{rot}</b>
+              <span className="pn-notas-tit"><b>{rot}</b><i className="pn-apelido">{SIGNIFICADO[k]!.apelido}</i></span>
               <button type="button" className="btn-3d-soft pn-mini" onClick={() => setEscala(k)} aria-label={`O que significa a nota de ${rot}`} title="O que significa cada nota">
                 <HelpCircle size={14} aria-hidden="true" />
               </button>
@@ -311,7 +331,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
       <GraficoZonas titulo="Glicemia" ajuda="glicemia" escuro={escuro} unidade="mg/dL" referencia={`normal ${G.baixa} a ${G.alta - 1}`} pontos={serie((d) => d.gli)} zonas={ZONAS_GLI} />
       <GraficoZonas titulo="Frequência cardíaca" ajuda="frequencia" escuro={escuro} unidade="bpm" referencia={`normal ${F.baixa} a ${F.alta - 1}`} pontos={serie((d) => d.fc)} zonas={ZONAS_FC} />
       <GraficoZonas titulo="Energia" unidade="nota 0 a 10" pontos={serie((d) => d.en)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
-      <GraficoZonas titulo="Disposição" unidade="nota 0 a 10" pontos={serie((d) => d.di)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
+      <GraficoZonas titulo="Libido" unidade="nota 0 a 10" pontos={serie((d) => d.li)} zonas={ZONAS_LIBIDO} dominioFixo={[0, 10]} />
       <GraficoZonas titulo="Sono" unidade="nota 0 a 10" pontos={serie((d) => d.so)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
 
       <PainelPulso titulo="Meus registros" rotulo="Meus registros">
@@ -327,7 +347,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
                   <th colSpan={3}><span className="bevel-3d pn-grupo-rot">Sinais vitais</span></th>
                   <th colSpan={3}><span className="bevel-3d pn-grupo-rot">Qualidade de vida</span></th>
                 </tr>
-                <tr className="sub"><th>Pressão</th><th>Glic.</th><th>FC</th><th>Ener.</th><th>Disp.</th><th>Sono</th></tr>
+                <tr className="sub"><th>Pressão</th><th>Glic.</th><th>FC</th><th>Ener.</th><th>Lib.</th><th>Sono</th></tr>
               </thead>
               <tbody>
                 {historico.map(({ dia, reg }) => PERIODOS.map(({ id, nome, Icone }, idx) => {
@@ -350,7 +370,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
                       <td>{r && r.glicemia != null ? <Medida v={String(r.glicemia)} nivel={nivelGlicemia(r.glicemia)} /> : <span className="vazio">—</span>}</td>
                       <td>{r && r.frequenciaCardiaca != null ? <Medida v={String(r.frequenciaCardiaca)} nivel={nivelFrequencia(r.frequenciaCardiaca)} /> : <span className="vazio">—</span>}</td>
                       <td>{nota(r?.energia)}</td>
-                      <td>{nota(r?.disposicao)}</td>
+                      <td>{nota(r?.libido)}</td>
                       <td>{nota(r?.sono)}</td>
                     </tr>
                   );
