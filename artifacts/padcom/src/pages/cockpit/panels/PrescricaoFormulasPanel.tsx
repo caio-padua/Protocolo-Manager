@@ -1227,8 +1227,9 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                           : "Nada emitido ainda. Use o botão Emitir receitas acima; o resultado aparece aqui."}
                     </div>
                   )}
+            {/* Histórico das receitas emitidas e encaminhamento (Drive, WhatsApp, Telegram, E-mail) no mesmo painel. */}
+            <PrescricoesEmitidas fixo embutido clientId={clientId} emissionId={emitResult?.prescriptionId} />
           </section>
-        <PrescricoesEmitidas embutido clientId={clientId} emissionId={emitResult?.prescriptionId} />
         </div>
       </div>
       </fieldset>}

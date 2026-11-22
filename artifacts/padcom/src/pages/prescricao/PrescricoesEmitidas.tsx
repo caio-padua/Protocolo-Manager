@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Download, Eye } from "lucide-react";
 import { BASE } from "../comunicacao/_shared";
 import ClinicalHistoryToggle from "@/components/ClinicalHistoryToggle";
+import PainelEncaminhamento from "@/components/encaminhamento/PainelEncaminhamento";
 import ClinicalDocumentResendForm from "@/components/ClinicalDocumentResendForm";
 import { getCollabToken } from "@/lib/collab-auth";
 
@@ -34,8 +35,8 @@ async function request(path: string, body?: unknown) {
   return data;
 }
 
-function PrescriptionHistoryRow({ p, clientId }: { p: Prescricao; clientId: number | null }) {
-  const [open, setOpen] = useState(false);
+function PrescriptionHistoryRow({ p, clientId, fixo = false, abrir = false }: { p: Prescricao; clientId: number | null; fixo?: boolean; abrir?: boolean }) {
+  const [open, setOpen] = useState(abrir);
   const files = useQuery<{ recipes: RecipeFile[] }>({
     queryKey: ["prescription-issued-files", p.id],
     queryFn: () => request(`/prescriptions/${p.id}`),
@@ -86,8 +87,9 @@ function PrescriptionHistoryRow({ p, clientId }: { p: Prescricao; clientId: numb
               </PrescriptionPdfLink>
             </span>
           </div>
-          {clientId && p.signatureStatus !== "unsigned_expired" &&
-            <ClinicalDocumentResendForm clientId={clientId} documentType="prescricao" documentId={recipe.id} />}
+          {clientId && p.signatureStatus !== "unsigned_expired" && (fixo
+            ? <PainelEncaminhamento clientId={clientId} documentType="prescricao" documentId={recipe.id} />
+            : <ClinicalDocumentResendForm clientId={clientId} documentType="prescricao" documentId={recipe.id} />)}
         </div>)}
         {!files.isPending && !files.error && !files.data?.recipes.length && <p className="text-sm">Nenhum PDF encontrado nesta prescrição.</p>}
       </div>
@@ -95,8 +97,10 @@ function PrescriptionHistoryRow({ p, clientId }: { p: Prescricao; clientId: numb
   </div>;
 }
 
-export function PrescricoesEmitidas({ clientId, emissionId, embutido = false }: { clientId: number | null; emissionId?: number; embutido?: boolean }) {
-  const [open, setOpen] = useState(false);
+export function PrescricoesEmitidas({ clientId, emissionId, embutido = false, fixo = false }: { clientId: number | null; emissionId?: number; embutido?: boolean; fixo?: boolean }) {
+  // fixo: histórico sempre aberto dentro do painel de emissão, sem interruptor.
+  const [openManual, setOpen] = useState(false);
+  const open = fixo || openManual;
   const { data, isPending, error, refetch } = useQuery<Prescricao[]>({
     queryKey: ["prescricoes-emitidas", clientId, emissionId], queryFn: () => request("/prescriptions"),
     enabled: open, staleTime: 0, refetchInterval: open ? 30000 : false,
@@ -106,7 +110,9 @@ export function PrescricoesEmitidas({ clientId, emissionId, embutido = false }: 
     (clientId == null || p.clientId === clientId),
   ) ?? [];
   return <section className={`no-print ${embutido ? "border-t border-current/15 pt-4 mt-2" : "panel-3d p-4"} space-y-3`} aria-label="Prescrições emitidas">
-    <ClinicalHistoryToggle label="Histórico de prescrições emitidas" open={open} onOpenChange={setOpen} />
+    {fixo
+      ? <h3 className="text-[11px] font-bold uppercase tracking-wide">Histórico de prescrições emitidas</h3>
+      : <ClinicalHistoryToggle label="Histórico de prescrições emitidas" open={open} onOpenChange={setOpen} />}
     {open && <>
     <p className="text-sm text-muted-foreground">Emitir não envia mensagens. Abra cada registro para visualizar ou baixar os PDFs, e confirme o destinatário antes de reenviar.</p>
     {isPending && <p role="status">Carregando prescrições…</p>}
@@ -116,7 +122,7 @@ export function PrescricoesEmitidas({ clientId, emissionId, embutido = false }: 
     </div>}
     {!isPending && !error && !rows.length && <p className="text-sm text-muted-foreground">Nenhuma prescrição emitida encontrada.</p>}
     <div className="space-y-2 max-h-[32rem] overflow-y-auto">
-      {rows.map(p => <PrescriptionHistoryRow key={`${clientId}:${p.id}`} p={p} clientId={clientId} />)}
+      {rows.map((p, i) => <PrescriptionHistoryRow key={`${clientId}:${p.id}`} p={p} clientId={clientId} fixo={fixo} abrir={fixo && i === 0} />)}
     </div>
     </>}
   </section>;
