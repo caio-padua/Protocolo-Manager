@@ -18,13 +18,12 @@ export const NOME_DESTINO: Record<DestinoEmissao, string> = {
   WHATSAPP: "WhatsApp", TELEGRAM: "Telegram", EMAIL: "E-mail", DRIVE: "Drive",
 };
 
-const ITENS: Array<{ id: DestinoEmissao; Icone: typeof Mail }> = [
-  { id: "WHATSAPP", Icone: MessageCircle },
-  { id: "TELEGRAM", Icone: Send },
-  { id: "EMAIL", Icone: Mail },
-  { id: "DRIVE", Icone: FolderInput },
+const ITENS: Array<{ id: DestinoEmissao; Icone: typeof Mail; funcao: string }> = [
+  { id: "WHATSAPP", Icone: MessageCircle, funcao: "Envia o PDF pelo WhatsApp" },
+  { id: "TELEGRAM", Icone: Send, funcao: "Envia o PDF pelo Telegram" },
+  { id: "EMAIL", Icone: Mail, funcao: "Envia o PDF por e-mail" },
+  { id: "DRIVE", Icone: FolderInput, funcao: "Guarda na pasta do cliente" },
 ];
-const ROTULO = "text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 leading-none";
 
 export default function DestinosEmissao({ clientId, marcados, onChange, disabled }: {
   clientId: number; marcados: DestinoEmissao[]; onChange: (v: DestinoEmissao[]) => void; disabled?: boolean;
@@ -56,26 +55,28 @@ export default function DestinosEmissao({ clientId, marcados, onChange, disabled
 
   return (
     <div className="space-y-2" aria-label="Para onde enviar a receita">
-      <div className="bevel-3d inline-flex px-2.5 py-1 text-[10px] font-black uppercase tracking-widest">Para onde vai a receita</div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {ITENS.map(({ id, Icone }) => {
+      <div className="bevel-3d inline-flex rounded-[3px] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest">Para onde vai a receita</div>
+      <div className="grid grid-cols-2 gap-2">
+        {ITENS.map(({ id, Icone, funcao }) => {
           const valor = contato(id);
           const ligado = marcados.includes(id);
           const off = !valor || Boolean(disabled) || carregando;
           return (
             <button
               key={id} type="button" role="checkbox" aria-checked={ligado} disabled={off} onClick={() => alternar(id)}
-              aria-label={`${NOME_DESTINO[id]}${valor ? `: ${valor}` : ": sem contato"}`}
+              aria-label={`${NOME_DESTINO[id]}: ${funcao}${valor ? `. Contato: ${valor}` : ". Sem contato cadastrado"}`}
+              title={valor ? `${funcao} (${valor})` : "Sem contato cadastrado"}
               data-testid={`destino-${id.toLowerCase()}`}
-              className={`relative h-[92px] w-full min-w-0 px-2.5 py-2 text-left flex flex-col justify-between rounded-[6px] transition
-                ${ligado ? "btn-3d-apertado" : off ? "concave-3d" : "btn-3d-soft"} ${off ? "opacity-55 cursor-not-allowed" : "cursor-pointer"}`}
+              className={`flex w-full min-w-0 items-center gap-2.5 rounded-[3px] px-3 py-2 text-left transition
+                ${ligado ? "btn-3d-apertado" : off ? "concave-3d" : "btn-3d-soft"} ${off ? "cursor-not-allowed opacity-55" : "cursor-pointer"}`}
             >
-              <span className="flex items-center justify-between">
-                <span className={`${ROTULO} inline-flex items-center gap-1`}><Icone className="h-3.5 w-3.5" />{NOME_DESTINO[id]}</span>
-                {ligado && <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />}
+              <Icone className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[12px] font-bold leading-tight">{NOME_DESTINO[id]}</span>
+                <span className="block text-[10px] leading-tight text-muted-foreground">{funcao}</span>
+                <span className="block truncate text-[10px] leading-tight text-muted-foreground/80">{valor || "sem contato cadastrado"}</span>
               </span>
-              <span className="text-[11px] font-bold leading-tight break-all line-clamp-2">{valor || "—"}</span>
-              <span className={`${ROTULO} ${valor ? "" : "opacity-60"}`}>{!valor ? "Sem contato cadastrado" : ligado ? "Selecionado" : "Toque para selecionar"}</span>
+              {ligado && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />}
             </button>
           );
         })}

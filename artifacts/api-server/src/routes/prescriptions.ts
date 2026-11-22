@@ -13,11 +13,12 @@ import {
   catalogoItensTable,
   catalogoFormulasTable,
 } from "@workspace/db";
-import { eq, desc, asc, or } from "drizzle-orm";
+import { eq, desc, asc, or, and, inArray } from "drizzle-orm";
 import { requireCollaborator } from "./collaborator";
 import { registrarErroSistema } from "../lib/system-error-log";
 import { PreviewPrescriptionBody, EmitPrescriptionBody } from "@workspace/api-zod";
 import { brtDisplayDate, brtISODate } from "../lib/brt";
+import { nomeArquivoReceita } from "../lib/nome-arquivo-receita";
 import { planDesmembramento, type PrescriptionItemInput } from "../lib/desmembramento";
 import { consumeSncrNumber } from "../lib/sncr";
 import { handleSncrAlert } from "../lib/sncr-alerts";
@@ -91,6 +92,48 @@ router.get("/prescriptions", requireCollaborator, async (req, res): Promise<void
       emittedAt: p.emittedAt ? p.emittedAt.toISOString() : null,
     })),
   );
+});
+
+/** Histórico completo do cliente com as fórmulas de cada receita (sem os PDFs), para a tela expandida e a comparação. */
+router.get("/prescriptions/historico/:clientId", requireCollaborator, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const identity = await resolveClinicalEmitter(req, Number(req.params.clientId));
+    const rows = await db.select().from(prescriptionsTable).where(and(
+      eq(prescriptionsTable.clientId, identity.client.id),
+      eq(prescriptionsTable.empresaId, identity.clinic.empresaId),
+      inArray(prescriptionsTable.status, ["emitted", "emitted_unsigned"]),
+      authorizedPrescriptionFilter(req.collaborator!.professionalId),
+    )).orderBy(desc(prescriptionsTable.createdAt)).limit(500);
+    const recipes = rows.length ? await db.select({
+      id: recipesTable.id, prescriptionId: recipesTable.prescriptionId, title: recipesTable.title,
+      recipeType: recipesTable.recipeType, itemsJson: recipesTable.itemsJson,
+    }).from(recipesTable).where(inArray(recipesTable.prescriptionId, rows.map((p) => p.id))).orderBy(asc(recipesTable.id)) : [];
+    res.json(rows.map((p) => ({
+      id: p.id,
+      createdAt: p.createdAt.toISOString(),
+      emittedAt: p.emittedAt ? p.emittedAt.toISOString() : null,
+      status: p.status,
+      signatureStatus: p.signatureStatus,
+      professionalName: p.professionalName ?? null,
+      recipes: recipes.filter((r) => r.prescriptionId === p.id).map((r) => ({
+        id: r.id,
+        title: r.title ?? "Receita",
+        recipeType: r.recipeType,
+        items: (Array.isArray(r.itemsJson) ? r.itemsJson : []).map((i) => {
+          const it = i as { name?: unknown; ativos?: unknown; posologia?: unknown };
+          return {
+            name: typeof it.name === "string" ? it.name : "",
+            ativos: typeof it.ativos === "string" ? it.ativos : null,
+            posologia: typeof it.posologia === "string" ? it.posologia : null,
+          };
+        }),
+      })),
+    })));
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) { res.status(error.status).json({ error: error.message }); return; }
+    throw error;
+  }
 });
 
 router.get("/prescriptions/:id", requireCollaborator, async (req, res): Promise<void> => {
@@ -497,8 +540,6 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     const pdfBase64 = pdfBuffer.toString("base64");
     const qrPdfSha256 = createHash("sha256").update(pdfBuffer).digest("hex");
 
-    const safeClient = body.clientName.replace(/[^a-zA-Z0-9 ]/g, "").trim().toUpperCase();
-    const kind = plan.recipeType === "controlado_isolado" ? `CONTROLADO ${plan.anvisaType ?? ""}` : "MANIPULACAO";
 
     // 2c) Persiste receita PRIMEIRO para obter um id estavel — o id entra no nome
     //     do arquivo, garantindo unicidade (sem colisao/sobrescrita no Drive
@@ -526,7 +567,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       })
       .returning();
 
-    const fileName = `${batchDate} RECEITA ${kind} ${safeClient} #${recipe.id}.pdf`.replace(/\s+/g, " ");
+    const fileName = `${nomeArquivoReceita(batchDate, body.clientName, plan.recipeType)}.pdf`;
 
     // 2d) Upload Drive (best-effort). allowDuplicates=true: nunca apaga homonimo
     //     (o id ja torna o nome unico; protege PDFs anteriores do mesmo dia).

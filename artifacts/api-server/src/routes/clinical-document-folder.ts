@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { Router, type Response } from "express";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { db, clientsTable, collaboratorAuditTable } from "@workspace/db";
+import { db, clientsTable, collaboratorAuditTable, recipesTable } from "@workspace/db";
+import { nomeArquivoReceita, nomeLivreNaPasta } from "../lib/nome-arquivo-receita";
 import { requireCollaborator } from "./collaborator";
 import { ClinicalIdentityError, resolveClinicalEmitter, resolveClinicalMember } from "../lib/clinical-emitter";
 import { authorizedPrescription } from "./prescription-delivery";
@@ -136,18 +137,41 @@ router.post("/clinical-documents/archive-folder", async (req, res) => {
     const pastaId = subfolders[pasta];
     if (!pastaId) { res.status(502).json({ error: `A pasta ${pasta} do cliente não foi localizada.` }); return; }
 
-    // Nome único por tipo+id: o mesmo documento nunca duplica e documentos diferentes nunca se apagam.
     const sha = createHash("sha256").update(bytes).digest("hex");
-    const nome = `${nomeSeguro(document.fileName || document.label)} [${input.documentType}-${input.documentId}].pdf`;
-    const existente = (await driveListChildren(pastaId)).find((f) => !f.isFolder && f.name === nome);
+    const filhos = await driveListChildren(pastaId);
+    let nome: string;
     let estado: "guardado" | "ja_estava";
     let webViewLink = "";
-    if (existente) {
-      estado = "ja_estava";
+    if (input.documentType === "prescricao") {
+      // Receita: nome padrão AA.MM.DD RECEITA MANIPULADA NOME. O vínculo com o arquivo do Drive fica na própria
+      // receita (drive_file_id), então repetir o pedido nunca duplica e receitas do mesmo dia nunca se apagam.
+      const [rec] = await db.select({ batchDate: recipesTable.batchDate, recipeType: recipesTable.recipeType, driveFileId: recipesTable.driveFileId })
+        .from(recipesTable).where(eq(recipesTable.id, input.documentId)).limit(1);
+      if (!rec) { res.status(404).json({ error: "Receita não encontrada." }); return; }
+      const jaNoDrive = rec.driveFileId ? filhos.find((f) => !f.isFolder && f.id === rec.driveFileId) : undefined;
+      if (jaNoDrive) {
+        nome = jaNoDrive.name;
+        estado = "ja_estava";
+      } else {
+        nome = nomeLivreNaPasta(nomeArquivoReceita(rec.batchDate, client.name, rec.recipeType), filhos.filter((f) => !f.isFolder).map((f) => f.name));
+        const up = await uploadFileToDrive(pastaId, nome, "application/pdf", bytes, true);
+        estado = "guardado";
+        webViewLink = up.webViewLink;
+        await db.update(recipesTable).set({ driveFileId: up.fileId, driveWebViewLink: up.webViewLink, fileName: nome })
+          .where(eq(recipesTable.id, input.documentId))
+          .catch((err) => req.log.warn({ err: String(err) }, "Vínculo da receita com o Drive não gravado"));
+      }
     } else {
-      const up = await uploadFileToDrive(pastaId, nome, "application/pdf", bytes, true);
-      estado = "guardado";
-      webViewLink = up.webViewLink;
+      // Nome único por tipo+id: o mesmo documento nunca duplica e documentos diferentes nunca se apagam.
+      nome = `${nomeSeguro(document.fileName || document.label)} [${input.documentType}-${input.documentId}].pdf`;
+      const existente = filhos.find((f) => !f.isFolder && f.name === nome);
+      if (existente) {
+        estado = "ja_estava";
+      } else {
+        const up = await uploadFileToDrive(pastaId, nome, "application/pdf", bytes, true);
+        estado = "guardado";
+        webViewLink = up.webViewLink;
+      }
     }
     await db.insert(collaboratorAuditTable).values({
       professionalId: identity.professional.id,

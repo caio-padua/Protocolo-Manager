@@ -204,3 +204,4 @@
 - [Frequência cardíaca do Pulso — 3 níveis](pulso-frequencia-cardiaca-niveis.md) — baixa <50, normal 50–99, alta ≥100 (SBC 2022); demo 60 dias só sobrescreve origem demo.
 - [Ajuda "?" da antropometria exige referências](antropometria-ajuda-referencias.md) — nacionais+internacionais, mais recente marcada; lista única em .ts; spec em specs/.
 - [Molde do "?" de ajuda](molde-botao-ajuda-pulso.md) — copiar DiretrizesDialog do Pulso; molde escrito na skill-layout-paxter/references/botao-ajuda-interrogacao.md.
+- [Painel Emissão de receitas](painel-emissao-receitas.md) — destinos retangulares, sem caixa de confirmação, prévia PDF, histórico comparável, nome Drive AA.MM.DD.

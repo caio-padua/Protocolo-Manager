@@ -22,6 +22,7 @@ import {
   Loader2,
   CheckCircle2,
   FolderPlus,
+  Columns3,
 } from "lucide-react";
 import {
   CATEGORIES,
@@ -46,6 +47,7 @@ import { useToast } from "@/hooks/use-toast";
 import { BASE } from "../../comunicacao/_shared";
 import { useProtocolosSalvos } from "../../prescricao/useProtocolosSalvos";
 import { PrescricoesEmitidas, PrescriptionPdfLink } from "../../prescricao/PrescricoesEmitidas";
+import { HistoricoReceitasExpandido } from "../../prescricao/HistoricoReceitasExpandido";
 import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
 import { ClinicalIdentityPanel } from "@/components/ClinicalIdentityPanel";
 import { ClinicalDraftGate, ClinicalDraftNotice, type IdentityQuery } from "@/components/ClinicalDraft";
@@ -53,7 +55,6 @@ import { useClinicalDraft } from "@/hooks/use-clinical-draft";
 import { emptyPrescriptionDraft, prescriptionDraftSchema } from "./clinical-draft-schemas";
 import { getCollabToken } from "@/lib/collab-auth";
 import { useQueryClient } from "@tanstack/react-query";
-import ClinicalDemonstrationPanel from "./ClinicalDemonstrationPanel";
 
 // ===========================================================================
 // PAINEL: PRESCRICAO DE FORMULAS (client-scoped) — extraido de prescricao/index.tsx.
@@ -147,7 +148,8 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
   const [emitResult, setEmitResult] = useState<EmitResult | null>(null);
   // Destinos escolhidos ANTES de emitir. Escolher não envia; só "Emitir e enviar" envia, com a confirmação marcada.
   const [destinos, setDestinos] = useState<DestinoEmissao[]>([]);
-  const [autorizoEnvio, setAutorizoEnvio] = useState(false);
+  const [previaLoading, setPreviaLoading] = useState(false);
+  const [historicoAberto, setHistoricoAberto] = useState(false);
   const [envioAuto, setEnvioAuto] = useState<{ enviando: boolean; itens: Array<{ titulo: string; linhas: Array<{ ok: boolean; texto: string }> }> } | null>(null);
   // ── Motor Único (emite PDF com o modelo ativo do banco) ───────────────────
   const [emitirMotorUnicoLoading, setEmitirMotorUnicoLoading] = useState(false);
@@ -437,6 +439,36 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
     previewMutation.mutate({ data: { items: buildItems() } });
   };
 
+  /** Prévia: gera um PDF de teste (sem validade, não emite, não envia) e abre numa nova aba. */
+  const handlePreviewPdf = async () => {
+    if (previaLoading) return;
+    const err = validateRouting(false);
+    if (err) { toast({ title: err, variant: "destructive" }); return; }
+    const tab = window.open("about:blank", "_blank");
+    if (tab) tab.opener = null;
+    setPreviaLoading(true);
+    try {
+      const headers = { Authorization: `Bearer ${getCollabToken() ?? ""}` };
+      const r = await fetch(`${BASE}/api/clinical-demonstrations/${clientId}`, {
+        method: "POST", headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "prescricao", prescriptionItems: buildItems() }),
+      });
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d?.id) throw new Error(d?.error || "Não foi possível gerar a prévia.");
+      const pdf = await fetch(`${BASE}/api/clinical-demonstrations/${clientId}/${d.id}`, { headers });
+      if (!pdf.ok) throw new Error("A prévia foi gerada, mas não pôde ser aberta.");
+      const url = URL.createObjectURL(await pdf.blob());
+      if (!tab) { URL.revokeObjectURL(url); throw new Error("Permita abrir uma nova aba para ver a prévia."); }
+      tab.location.href = url;
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      tab?.close();
+      toast({ title: "Prévia indisponível", description: safeClinicalErrorMessage(e), variant: "destructive" });
+    } finally {
+      setPreviaLoading(false);
+    }
+  };
+
   /** Depois de emitir: envia o PDF já emitido aos destinos marcados. Falha ou incerteza nunca repete sozinha. */
   const encaminharAposEmitir = async (res: EmitResult, alvos: DestinoEmissao[]) => {
     const token = getCollabToken();
@@ -518,7 +550,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
     }, { onSuccess: res => {
       if (Array.isArray(res.recipes) && res.recipes.length) {
         draft.complete(snapshot);
-        if (enviarPara.length) { void encaminharAposEmitir(res as EmitResult, enviarPara); setAutorizoEnvio(false); }
+        if (enviarPara.length) { void encaminharAposEmitir(res as EmitResult, enviarPara); }
         else setEnvioAuto(null);
       }
     } });
@@ -953,14 +985,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
             </div>
           )}
 
-          {identity.data?.canPrescribe && (
-            <ClinicalDemonstrationPanel
-              clientId={clientId}
-              kind="prescricao"
-              canCreate={selected.length > 0 && !identity.isFetching && !identity.isError}
-              payload={{ kind: "prescricao", prescriptionItems: buildItems() }}
-            />
-          )}
+          {/* O documento de teste foi substituído pelo botão "Prévia em PDF" do painel de emissão. */}
           {/* Roteamento para farmácias + emissão */}
           {selected.length > 0 && (
             <div className="space-y-3">
@@ -1105,26 +1130,21 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
               <Send className="h-4 w-4" /> Emissão
             </h3>
                   {identity.data?.canPrescribe && selected.length > 0 && (
-                    <DestinosEmissao clientId={clientId} marcados={destinos} onChange={(v) => { setDestinos(v); setAutorizoEnvio(false); }} disabled={emitMutation.isPending} />
+                    <DestinosEmissao clientId={clientId} marcados={destinos} onChange={setDestinos} disabled={emitMutation.isPending} />
                   )}
                   {/* Barra de ações acompanha a rolagem: fica sempre ao alcance, no fim da área visível. */}
                   <div className="panel-3d-sub sticky bottom-2 z-20 space-y-2 rounded-md p-2" data-testid="barra-emissao">
-                  {identity.data?.canPrescribe && destinos.length > 0 && (
-                    <label className="concave-3d flex items-start gap-2 px-3 py-2 text-[12px]">
-                      <input type="checkbox" className="mt-1" checked={autorizoEnvio} disabled={emitMutation.isPending} onChange={(e) => setAutorizoEnvio(e.target.checked)} />
-                      <span>Autorizo emitir e enviar o PDF assinado ao contato cadastrado da cliente por: <strong>{destinos.map((d) => NOME_DESTINO[d]).join(", ")}</strong>.</span>
-                    </label>
-                  )}
                   <div className="grid grid-cols-2 gap-2 [&>button]:justify-center [&>button]:px-3 [&>button]:py-2.5 [&>button]:text-sm">
                     <button
-                      onClick={handlePreview}
-                      disabled={previewMutation.isPending || selected.length === 0 || !pharmacies?.length}
-                      className="btn-3d-soft col-span-2 flex items-center gap-2 rounded-md px-4 py-2 text-xs font-semibold disabled:opacity-40"
+                      onClick={() => void handlePreviewPdf()}
+                      disabled={previaLoading || selected.length === 0 || !identity.data?.canPrescribe}
+                      data-testid="button-previa-pdf"
+                      className="btn-3d-soft col-span-2 flex items-center gap-2 rounded-[3px] px-4 py-2 text-xs font-semibold disabled:opacity-40"
                       style={{ color: GOLD }}
-                      title="Mostra como as fórmulas serão separadas em receitas. Não emite."
+                      title="Abre o PDF de prévia em outra aba. Não emite e não envia."
                     >
-                      {previewMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-                      {previewMutation.isPending ? "Gerando…" : "Prévia do desmembramento"}
+                      {previaLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                      {previaLoading ? "Gerando prévia…" : "Prévia em PDF"}
                     </button>
                     {identity.data?.canPrescribe ? (
                       <>
@@ -1141,9 +1161,9 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       </button>
                       <button
                         onClick={() => handleEmit("signed", destinos)}
-                        disabled={emitMutation.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length || destinos.length === 0 || !autorizoEnvio}
+                        disabled={emitMutation.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length || destinos.length === 0}
                         data-testid="button-emit-and-send"
-                        title={destinos.length === 0 ? "Escolha ao menos um destino acima." : !autorizoEnvio ? "Marque a autorização de envio." : "Gera a receita e envia aos destinos marcados."}
+                        title={destinos.length === 0 ? "Escolha ao menos um destino acima." : "Gera a receita e envia aos destinos marcados."}
                         className="btn-3d flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-bold disabled:opacity-40"
                       >
                         {emitMutation.isPending || envioAuto?.enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -1187,8 +1207,13 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                   </div>
                   </div>
 
+                  {identity.data?.canPrescribe && destinos.length > 0 && (
+                    <p className="px-1 text-[11px] text-muted-foreground" data-testid="aviso-envio">
+                      "Emitir e enviar" manda o PDF assinado ao contato cadastrado da cliente por: <strong>{destinos.map((d) => NOME_DESTINO[d]).join(", ")}</strong>.
+                    </p>
+                  )}
                   {envioAuto && (
-                    <div className="concave-3d space-y-2 rounded-md p-3 text-xs" role="status" data-testid="resultado-envio-emissao">
+                    <div className="concave-3d space-y-2 rounded-[3px] p-3 text-xs" role="status" data-testid="resultado-envio-emissao">
                       <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                         {envioAuto.enviando ? "Enviando…" : "Resultado do envio (a entrega só é confirmada depois pelo provedor)"}
                       </p>
@@ -1332,6 +1357,11 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                     </div>
                   )}
             {/* Histórico das receitas emitidas e encaminhamento (Drive, WhatsApp, Telegram, E-mail) no mesmo painel. */}
+            <button type="button" onClick={() => setHistoricoAberto(true)} data-testid="button-historico-expandido"
+              className="btn-3d-soft flex w-full items-center justify-center gap-2 rounded-[3px] px-4 py-2 text-xs font-semibold" style={{ color: GOLD }}>
+              <Columns3 className="h-4 w-4" /> Abrir histórico completo e comparar receitas
+            </button>
+            <HistoricoReceitasExpandido clientId={clientId} aberto={historicoAberto} onFechar={() => setHistoricoAberto(false)} />
             <PrescricoesEmitidas fixo embutido clientId={clientId} emissionId={emitResult?.prescriptionId} />
           </section>
         </div>
