@@ -29,6 +29,7 @@ import {
   FORMULAS,
   VIAS,
   PERIODOS,
+  ORIENTACOES,
   parseBody,
   tomadaToText,
   getPrecoMedio,
@@ -976,13 +977,23 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                           Tomada
                         </button>
                       </div>
-                      <div className="space-y-2">
+                      <div className="overflow-x-auto">
+                       <div className="min-w-[780px] space-y-2">
+                        <div className="grid grid-cols-12 items-center gap-1.5 px-2 text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                          <span className="col-span-1 text-center">Qtd</span>
+                          <span className="col-span-1">Via</span>
+                          <span className="col-span-3">Período</span>
+                          <span className="col-span-4">Orientação</span>
+                          <span className="col-span-2 text-center">Sugestão de horário</span>
+                          <span className="col-span-1" />
+                        </div>
                         {f.tomadas.map((t, ti) => (
                           <div key={ti} className="concave-3d grid grid-cols-12 items-center gap-1.5 rounded-md p-2">
                             <select
+                              aria-label="Quantidade de doses"
                               value={t.doses}
                               onChange={(e) => updateTomada(f.id, ti, "doses", e.target.value)}
-                              className={`col-span-2 text-center font-mono !px-1 !py-2 ${inputCls}`}
+                              className={`col-span-1 text-center font-mono !px-1 !py-2 ${inputCls}`}
                             >
                               {[1, 2, 3, 4, 5, 6].map((n) => (
                                 <option key={n} value={n} className="bg-background text-foreground">
@@ -991,9 +1002,10 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                               ))}
                             </select>
                             <select
+                              aria-label="Via"
                               value={t.via || "VO"}
                               onChange={(e) => updateTomada(f.id, ti, "via", e.target.value)}
-                              className={`col-span-2 !px-1 !py-2 ${inputCls}`}
+                              className={`col-span-1 !px-1 !py-2 ${inputCls}`}
                             >
                               {VIAS.map((v) => (
                                 <option key={v} value={v} className="bg-background text-foreground">
@@ -1002,19 +1014,31 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                               ))}
                             </select>
                             <input
+                              aria-label="Período"
                               list="cockpit-periodos-list"
                               value={t.periodo}
                               onChange={(e) => updateTomada(f.id, ti, "periodo", e.target.value)}
                               placeholder="Período…"
-                              className={`col-span-5 !px-2 !py-2 ${inputCls}`}
+                              className={`col-span-3 !px-2 !py-2 ${inputCls}`}
                             />
                             <input
+                              aria-label="Orientação"
+                              list="cockpit-orientacoes-list"
+                              value={t.orientacao ?? ""}
+                              onChange={(e) => updateTomada(f.id, ti, "orientacao", e.target.value)}
+                              placeholder="Ex.: 10 minutos antes do almoço"
+                              className={`col-span-4 !px-2 !py-2 ${inputCls}`}
+                            />
+                            <input
+                              aria-label="Sugestão de horário"
                               value={t.hora}
                               onChange={(e) => updateTomada(f.id, ti, "hora", e.target.value)}
                               placeholder="14h"
                               className={`col-span-2 text-center font-mono !px-1 !py-2 ${inputCls}`}
                             />
                             <button
+                              type="button"
+                              aria-label="Remover tomada"
                               onClick={() => removeTomada(f.id, ti)}
                               className="col-span-1 flex justify-center text-destructive hover:opacity-80"
                             >
@@ -1022,6 +1046,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                             </button>
                           </div>
                         ))}
+                       </div>
                       </div>
                     </div>
                   </div>
@@ -1029,6 +1054,11 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
               ))}
             </div>
           )}
+          <datalist id="cockpit-orientacoes-list">
+            {ORIENTACOES.map((o) => (
+              <option key={o} value={o} />
+            ))}
+          </datalist>
           <datalist id="cockpit-periodos-list">
             {PERIODOS.map((p) => (
               <option key={p} value={p} />

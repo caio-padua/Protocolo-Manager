@@ -18,6 +18,9 @@ export default function AtivosLinhas({ formulaId, valor, onChange }: {
   const adicionar = () => { if (valor.trim() && linhas[linhas.length - 1].trim()) onChange(`${valor}\n`); };
   return (
     <div className="space-y-1.5" data-testid={`ativos-${formulaId}`}>
+      <div className="grid grid-cols-[minmax(0,1fr)_96px_84px_28px] items-center gap-1.5 px-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground sm:grid-cols-[minmax(0,1fr)_120px_96px_28px]">
+        <span>Ativo</span><span className="text-center">Dose</span><span>Unidade</span><span />
+      </div>
       {linhas.map((linha, i) => {
         // Linhas em branco do meio são separadores preservados; só a última linha vazia vira campo para digitar.
         if (!linha.trim() && i !== linhas.length - 1) return null;
