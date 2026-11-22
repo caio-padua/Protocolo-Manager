@@ -205,7 +205,7 @@ export function ClinicalCertificateStatus({
           </span>
         </div>
         {dataCurta && (
-          <div className="flex flex-col items-center gap-0.5 leading-none" style={fonteData}>
+          <div className="concave-3d flex flex-col items-center gap-0.5 rounded-[5px] px-2 py-1 leading-none" style={fonteData}>
             <span className="text-[8.5px]">{rotuloData}</span>
             <span className="text-[9px]">{dataCurta}</span>
           </div>
