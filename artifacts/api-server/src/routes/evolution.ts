@@ -10,7 +10,7 @@ import { getSecret, getSecretStatus } from "../lib/secure-settings";
 import { logger } from "../lib/logger";
 import { requireCollaborator } from "./collaborator";
 import {
-  ConfigInvalida, contatoAutorizado, contatosAutorizados, homologacaoAtiva, chamar, chaveApi, chaveWebhook, consultarConexao, contatoDoJid, destinoDeEnvio,
+  ConfigInvalida, dividirTextoSemPerda, contatoAutorizado, contatosAutorizados, homologacaoAtiva, chamar, chaveApi, chaveWebhook, consultarConexao, contatoDoJid, destinoDeEnvio,
   enderecoSeguro, garantirTabelasEvolution, lerConfig, mascararContato, normalizarBaseUrl, normalizarEvento,
   obterQr, podeEnviarAgora, registrarWebhook, salvarConfig, statusDoProvedor, statusEvolutionPodeAvancar,
   textoDaMensagem, tokenConfere, urlDoWebhook, validarNomeInstancia,
@@ -173,11 +173,26 @@ router.post("/evolution/teste", requireCollaborator, async (req, res) => {
   if (typeof req.body?.numero !== "string") { res.status(400).json({ error: "Informe um único número." }); return; }
   const destino = destinoDeEnvio(req.body.numero);
   if (!destino || destino.includes("@")) { res.status(400).json({ error: "Número inválido. Use DDD + número (ou +código do país)." }); return; }
-  // Texto já cadastrado (ex.: prévia do motor de lembretes) segue INTEIRO: acima do limite do WhatsApp recusa, nunca corta.
-  const texto = String(req.body?.texto ?? "Teste de conexão do WhatsApp da clínica. Pode ignorar esta mensagem.").trim();
-  if (!texto || texto.length > 4000) { res.status(400).json({ error: "Texto vazio ou acima de 4000 caracteres; nada foi cortado nem enviado." }); return; }
-  const r = await enviarUma(e, destino, texto, "teste_isolado", usuarioDe(req));
-  res.status(r.http).json(r.corpo);
+  // Texto já cadastrado (ex.: prévia do motor de lembretes) segue INTEGRAL. Só passa de 4000 caracteres é dividido,
+  // sem perda, e enviado em sequência a UM destinatário; para na primeira parte que falhar.
+  const texto = String(req.body?.texto ?? "Teste de conexão do WhatsApp da clínica. Pode ignorar esta mensagem.");
+  if (!texto.trim()) { res.status(400).json({ error: "Texto vazio." }); return; }
+  const partes = dividirTextoSemPerda(texto.trim());
+  const contexto = typeof req.body?.contexto === "string" && /^[a-z0-9_]{1,60}$/.test(req.body.contexto) ? req.body.contexto : "teste_isolado";
+  const resultados: Array<{ parte: number; de: number; caracteres: number; http: number; ok?: boolean; id?: number; status?: string; erro?: string | null }> = [];
+  let ultimoCorpo: Record<string, unknown> = {};
+  for (let i = 0; i < partes.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 2000));
+    const r = await enviarUma(e, destino, partes[i]!, contexto, usuarioDe(req));
+    ultimoCorpo = r.corpo as Record<string, unknown>;
+    const c = r.corpo as { ok?: boolean; id?: number; status?: string; erro?: string | null; error?: string };
+    resultados.push({ parte: i + 1, de: partes.length, caracteres: partes[i]!.length, http: r.http, ok: c.ok, id: c.id, status: c.status, erro: c.erro ?? c.error ?? null });
+    if (!c.ok) break;
+  }
+  const primeiro = resultados[0]!;
+  if (partes.length === 1) { res.status(primeiro.http).json({ ...ultimoCorpo, partes: resultados }); return; }
+  const todas = resultados.length === partes.length && resultados.every((x) => x.ok);
+  res.status(todas ? 200 : 502).json({ ok: todas, partesTotal: partes.length, partes: resultados });
 });
 
 // ── Webhook público (autenticidade = token secreto da clínica) ─────────────

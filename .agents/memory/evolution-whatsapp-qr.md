@@ -14,3 +14,6 @@ description: canal provisório por clínica; homologação com lista de contatos
 - Teste isolado da Evolution recusa texto >1600 caracteres (nunca corta); prévias reais de clientes 11/12 passam disso.
 - Cadastro de Dayana (cliente 12) tem o MESMO telefone do Dr. Caio (final 4000): receber nesse número não prova a Dayana.
 - Entrega efetiva ("entregue"/"lido") e recebimento dependem de confirmação humana e de resposta de alguém da lista.
+- Limite correto na Evolution é 4000 caracteres (1600 era do Twilio); só acima disso divide sem perda (dividirTextoSemPerda), em sequência, parando na primeira falha.
+- A "Carta de Encantamento" e a prévia do lembrete são o MESMO motor (montarMensagemPaxmed). Não existe modelo aprovado de "como está o atendimento / precisa de algo" (comunicacao_modelo_texto não tem).
+- Dayana (cliente 12): cadastro com telefone do Dr. Caio; WhatsApp informado pelo Dr. Caio termina em 7163 (único na lista); destino explícito na homologação, cadastro não alterado.

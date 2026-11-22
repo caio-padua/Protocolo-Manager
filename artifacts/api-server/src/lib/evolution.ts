@@ -284,3 +284,32 @@ export function contatoAutorizado(contato: string, env: NodeJS.ProcessEnv = proc
   const alvo = telefoneCanonico(contato.endsWith("@s.whatsapp.net") ? contato.split("@")[0] : contato);
   return Boolean(alvo && contatosAutorizados(env).includes(alvo));
 }
+
+
+// ── Texto longo: divisão sem perda ─────────────────────────────────────────
+export const LIMITE_MENSAGEM = 4000;
+const LIMITE_PARTE = 3500;
+
+/**
+ * Divide só quando o texto passa do limite do WhatsApp. Corta em fronteira de parágrafo, depois de linha,
+ * depois de espaço; nunca resume, altera ou descarta caractere (juntar as partes devolve o texto original).
+ */
+export function dividirTextoSemPerda(texto: string, limite = LIMITE_MENSAGEM, alvo = LIMITE_PARTE): string[] {
+  if (texto.length <= limite) return [texto];
+  const partes: string[] = [];
+  let resto = texto;
+  while (resto.length > limite) {
+    const janela = resto.slice(0, alvo);
+    let corte = janela.lastIndexOf("\n\n");
+    if (corte < alvo / 3) corte = janela.lastIndexOf("\n");
+    if (corte < alvo / 3) corte = janela.lastIndexOf(" ");
+    if (corte < 1) corte = alvo;
+    // não separa um par substituto (emoji) ao meio
+    const c = resto.charCodeAt(corte - 1);
+    if (c >= 0xd800 && c <= 0xdbff) corte -= 1;
+    partes.push(resto.slice(0, corte));
+    resto = resto.slice(corte);
+  }
+  partes.push(resto);
+  return partes;
+}

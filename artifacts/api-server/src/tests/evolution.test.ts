@@ -198,3 +198,22 @@ describe("homologação: contatos autorizados (falha fechada)", () => {
     expect(ev.homologacaoAtiva({ EVOLUTION_HOMOLOGACAO: "false" } as any)).toBe(false);
   });
 });
+
+describe("divisão de texto longo sem perda", () => {
+  it("texto curto segue inteiro em uma parte", () => {
+    expect(ev.dividirTextoSemPerda("abc")).toEqual(["abc"]);
+  });
+  it("texto longo é dividido e a junção devolve o original exato", () => {
+    const par = "Linha de dose 1 mg 🟩 ".repeat(40) + "\n\n";
+    const texto = par.repeat(12).trim();
+    const partes = ev.dividirTextoSemPerda(texto);
+    expect(partes.length).toBeGreaterThan(1);
+    expect(partes.every((x) => x.length <= 4000)).toBe(true);
+    expect(partes.join("")).toBe(texto);
+  });
+  it("sem espaços nem quebras ainda não perde caractere", () => {
+    const texto = "x".repeat(9000);
+    expect(ev.dividirTextoSemPerda(texto).join("")).toBe(texto);
+  });
+});
+
