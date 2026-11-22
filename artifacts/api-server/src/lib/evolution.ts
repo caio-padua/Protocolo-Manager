@@ -276,7 +276,8 @@ export function homologacaoAtiva(env: NodeJS.ProcessEnv = process.env): boolean 
 }
 export function contatosAutorizados(env: NodeJS.ProcessEnv = process.env): string[] {
   return (env.EVOLUTION_CONTATOS_AUTORIZADOS ?? "").split(",")
-    .map((x) => telefoneCanonico(x.trim())).filter((x): x is string => Boolean(x));
+    .map((x) => telefoneCanonico(x.trim())).filter((x): x is string => Boolean(x))
+    .filter((x, i, a) => a.indexOf(x) === i);
 }
 export function contatoAutorizado(contato: string, env: NodeJS.ProcessEnv = process.env): boolean {
   if (!homologacaoAtiva(env)) return true;

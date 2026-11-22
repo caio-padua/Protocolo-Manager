@@ -173,7 +173,9 @@ router.post("/evolution/teste", requireCollaborator, async (req, res) => {
   if (typeof req.body?.numero !== "string") { res.status(400).json({ error: "Informe um único número." }); return; }
   const destino = destinoDeEnvio(req.body.numero);
   if (!destino || destino.includes("@")) { res.status(400).json({ error: "Número inválido. Use DDD + número (ou +código do país)." }); return; }
-  const texto = String(req.body?.texto ?? "Teste de conexão do WhatsApp da clínica. Pode ignorar esta mensagem.").trim().slice(0, 500);
+  // Texto já cadastrado (ex.: prévia do motor de lembretes) segue INTEIRO: acima do limite do WhatsApp recusa, nunca corta.
+  const texto = String(req.body?.texto ?? "Teste de conexão do WhatsApp da clínica. Pode ignorar esta mensagem.").trim();
+  if (!texto || texto.length > 1600) { res.status(400).json({ error: "Texto vazio ou acima de 1600 caracteres; nada foi cortado nem enviado." }); return; }
   const r = await enviarUma(e, destino, texto, "teste_isolado", usuarioDe(req));
   res.status(r.http).json(r.corpo);
 });
