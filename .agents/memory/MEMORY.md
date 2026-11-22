@@ -40,12 +40,11 @@
 - [Seed runner mata servidor no boot](seed-runner-bundle-exit.md) — arquivo de seed com bloco `import.meta.url===argv[1]`+`process.exit` NÃO pode ser importado no entry (esbuild empacota e derruba o b
 - [Profissionais estratificados + Entrada 4](profissionais-estratificacao.md) — Entrada 4 = "Corpo Clínico", inclui não-médicos agendáveis; catálogo só ativo p/ paciente; 4 entradas nunca se misturam.
 - [Marca navy/ouro nas telas (padcom)](paxter-navy-gold-marca-telas.md) — chrome=navy/ouro (mata teal/#3D7A7A); STATUS sobrevive (verde=done, emerald NAO trocar em massa); toggle tema useScreenTheme.
-- [Motor de Agenda — fuso e fonte](motor-agenda-fuso-fonte.md) — horario ancora no fuso da clinica (BRT UTC-3, sufixo -03:00); nao inventar fonte de ocupacao de fase futura, usar entrada explicita.
+- [Agenda — índice de decisões](indice-agenda.md) — fuso, vínculos, integração Google e configuração.
 - [Object Storage — servir exige prefixo](object-storage-serve-prefixo.md) — rota publica que serve PRIVATE_OBJECT_DIR deve limitar prefixo (uploads/); dir e compartilhado; upload presigned em 2 passo
 - [Documentos clínicos no Drive por empresa](documentos-drive-tenant.md) — emissão clínica usa a raiz de clientes da empresa explicitamente; raiz ausente bloqueia a cópia, nunca cai na pasta global.
 - [Rebrand: marca x identificadores tecnicos](rebrand-marca-vs-identificadores.md) — trocar texto/marca visivel (wordmark, calName, SUMMARY, PRODID, filenames .ics); PRESERVAR UID .ics, colunas (codig
 - [Drive uploadFileToDrive apaga homonimos](drive-upload-homonimos.md) — deleta homonimos por padrao; arquivos que coexistem precisam de nome unico (id) + allowDuplicates=true; inserir-no-banco-primei
-- [Reagendamento e fuso da sessao](reagendamento-fuso-sessao.md) — scheduled_date/time sao BRT em texto; ancorar -03:00 ao comparar com now(); Google mover=delete+create (best-effort, zerar id em falh
 - [Grade Imaginaria — modelo mental de card](grade-imaginaria-skill.md) — 5 zonas canonicas (top bar / titulo / identidade / meta grid / conteudo); badge de status ao lado do ID nunca do nome; LED pro
 - **Anamnese** — [LINHA VERMELHA em 3 camadas + flush](anamnese-v2-linha-vermelha.md) · [client_id so por token verificado](anamnese-acesso-revisao.md) · [perguntaId REPETE, identidade e o id](anamnese-perguntaid-nao-unico.md) · [selecao OURO, foco ciano](anamnese-v2-pele-escura.md) · [.dark no MESMO no](anamnese-tema-seletor-mesmo-elemento.md)
 - [Orcamentos "Console Clinico" + relevo 3D](orcamentos-console-clinico.md) — dose exibida (catalogo) != dose salva (r.dose) e proposital; classes 3D UNLAYERED vencem utilitarios Tailwind/shadcn.
@@ -77,7 +76,7 @@
 - **Seeds** — [idempotência por completude](seed-idempotencia-por-completude.md) · [materializer não destrutivo](seed-materializer-nao-destrutivo.md).
 - [Governança por camada de tela](governanca-camada-de-tela.md) — matriz Ferramenta×Papel obedecida no front; item read-only NÃO entra no filtro de menu; rota legada fora do gate = brecha.
 - [Halo neon sem apagar relevo 3D](neon-halo-pseudoelemento.md) — box-shadow não é aditivo: brilho animado vai em ::after, nunca no elemento com bevel/btn-3d (Padrão 21).
-- [Telegram bot compartilhado — takeover](telegram-bot-compartilhado-takeover.md) — quem faz polling consome updates; setWebhook assume com exclusividade (quebra o primo); setMyName renomeia via API.
+- [Telegram — índice de decisões](indice-telegram.md) — arquitetura, bot, chat, agendamento e lembretes.
 - Card de profissional — padrão correto — foto=concave-3d+rounded-[6px] (NUNCA rounded-full); card=panel-3d-sub+faixa 4px; nome=Inter uppercase; upload foto=cópia fiel do ClientPhotoCard.
 - Auditoria walking-dead: rotas x menu — páginas registradas em App.tsx podem existir sem entrada no menu; auditar periodicamente cruzando arquivos em pages/ vs rotas vs sidebar.
 - [Cockpit lembrete deriva da anamnese, não do protocolo](cockpit-lembrete-deriva-anamnese.md) — /cockpit/:id/emitir monta períodos do motor de anamnese (item_doenca), não dos protocol_items.
@@ -106,7 +105,6 @@
 - [Substâncias e ofertas](substancia-mestre-apresentacoes-ofertas.md) — dose e forma definem cadastro; concentrações podem variar em apresentações separadas.
 - [Portao-captacao das vitrines + push GitHub](vitrine-gate-leads.md) — login do gate E o lead (contrato só adiciona campo); push git falha sem credencial: usar painel Git do Replit.
 - [Dicionário — fonte única e sync automático](dicionario-fonte-unica.md) — GLOSSARIO em slack-glossario.ts é a lei; boot + rota sync propagam para Sheets sem tocar CEO edits.
-- [Telegram — arquitetura do canal com pacientes](telegram-arquitetura.md) — @Paduaclinica_bot; vinculação por validationPassword; espelho WhatsApp→Telegram; e-mail onboarding; webhook encaminha ao CE
 - [Slack Monitor de LLMs — canal padaxor-projeto](slack-monitor-llms.md) — canal #padaxor-projeto ID=C0BLW5S7GQL; PADAXOR_SLACK_CHANNEL_ID=env var shared; googledrive.files.create exige Readable strea
 - [Slack Report Formato V2 — cabeçalho + tabela + handoff](slack-report-formato-v2.md) — 3 blocos novos: contexto com quem preencheu; tabela emoldurada de CONCLUÍDOS (cols A:I); handoffs inter-LLM via
 - [LLM Monitor dispatch — padrão de histórico dual-canal](llm-monitor-dispatch-padrao.md) — telegramSkipped NÃO é ambosOk; early return removido para step 4 sempre rodar; chatId TEST_FORCE_FAIL testa
@@ -139,7 +137,6 @@
 - [Envio clínico com resultado incerto](envio-clinico-resultado-incerto.md) — reservas não expiram nem autorizam repetição automática; resposta perdida exige conferência, não nova chave.
 - [Comercialização multiempresa](comercializacao-multiempresa.md) — finalidade comercial exige isolamento real; correção local não certifica o sistema inteiro para várias clínicas.
 - [Fixtures de autenticação do colaborador](colaborador-auth-test-fixtures.md) — testes protegidos precisam simular sessão ativa completa e cada validação de autenticação executada na rota.
-- [Cadastro empresarial separado da agenda](cadastro-empresa-vs-local-agenda.md) — dados legais ficam em Empresas; locais e agendas são camada operacional, sem criar hierarquia por inferência.
 - [Pedido médico do cliente](pedido-medico-cliente.md) — cliente pede e paga; destino = médico habitual com certificado vigente, senão responsável técnico; sem preço = 503; reembolso é humano.
 - [Receituário V2 pagina em vez de recusar](receituario-pdf-paginacao.md) — limite de 1 página causava 500 genérico na emissão; usar ensureSpace/newPage; erro real só no log.
 - [Modelo clínico PAXMED padrão](modelo-clinico-paxmed-padrao.md) — decisão: cabeçalho azul e rodapé PAXMED sem ativação; faixa do certificado na parte inferior.
@@ -152,25 +149,15 @@
 - [Importação e sessões](ics-importacao-sessoes-do-sistema.md) — diferenciar compromissos importados de sessões do sistema.
 - [Informações clínicas no Google](agenda-evento-google-padrao.md) — conectar o formato existente às duas agendas, sem inventar dados ou estados.
 - [Planejador de protocolo + participação médica](protocolo-planejador-dimensionamento.md) — IV/IM/SC sem médico, implante com; planejador puro existe mas sem rota; lacuna = vagas + reserva conjunta.
-- [Google Agenda — resultado incerto](google-evento-resultado-incerto-conferencia.md) — conferência reaproveita o id reservado; id novo duplica; só 404 é "não existe".
 - [Remarcar e cancelar visita de protocolo](remarcar-cancelar-visita-protocolo.md) — duração reservada nunca encolhe; Google só fora da transação; cancelar mantém ponteiro se falhar; n/total pela posi
 - [Vínculo empresarial do profissional](vinculo-empresarial-profissional.md) — originária + até 5 empresas; agenda só nas vinculadas; 409 em vez de desligar sozinho; fixtures precisam da tabela nova.
-- [Evento Google — comparação com o IHE](google-evento-ihe-comparacao.md) — IHE atualizava o evento ao aplicar (Manager perdeu); cor do print é renderização do Google, não divergência de código.
-- [Ação clínica que atualiza o Google — reserva e prazo](google-evento-acao-clinica-reserva.md) — nunca reivindicar reserva alheia; prazo próprio na chamada; teste sem timer curto.
 - [Linha do Tempo Viva — pedidos do CEO](linha-do-tempo-viva-regras-ceo.md) — K1–K6 aprovadas; aguda/crônica; substâncias constantes, chave de 6 dígitos como rubrica, RAS FAP vivo.
 - [Protocolo completo constante](protocolo-completo-constante.md) — constantes calculadas na leitura; evento do Google montado em 3 caminhos (mexer nos 3); guarda de empresa; rodar suíte com --maxWork
 - [Confirmação do cliente por visita (K8/K10)](confirmacao-visita-k8-licoes.md) — jobs no api-worker; guard explícito; blocos clínicos HTML só no e-mail; envio nunca bloqueia registro.
-- [Chat do CEO no Telegram — cofre x Secret](telegram-ceo-chatid-cofre-vs-secret.md) — Secret PADAXOR_TELEGRAM_CHAT_ID está errado; só a API hidrata o cofre; worker e scripts não.
 - [IHE já desenhou PIN, rubrica e app da enfermagem](ihe-app-enfermagem-pin-rubrica.md) — formatos de rubrica já decididos em 12/06/2026 no IHE; ler IHE antes de construir; como ler via PAT; K8 sem He
 - [Rubrica do cliente em imagem](rubrica-cliente-imagem.md) — tabela com histórico + arquivo privado; RAS troca iniciais por imagem só em plena/cadastro; pngjs aceita PNG cortado e entrelaçado sem tet
-- [Agenda por categoria, local polimórfico, equipe](agenda-categoria-local-equipe.md) — categoria pendente≠inferida; locations mistura espaço físico e agenda Google (não fundir); tabelas de equipe por
-- [Clínica x unidade da agenda nos documentos](clinica-vs-unidade-agenda-documentos.md) — unit é local de agenda; documentos usam empresas.nome; lançador escolhe procedimentos (217 gerados das substân
 - [Campo ligado + legenda de origem](campo-ligado-legenda-origem.md) — dado não digitado = título Saliente + resposta Côncava + chip C/M/E; horário padrão lido de agenda_windows.
-- [Agenda Configuração — códigos de repetição](agenda-repeticao-codigos.md) — repeat_weeks: 1, 2/3/4/6/8 semanas, 101–105 mensal; "recurso" vira "agenda de atendimento"; tela = Agenda Configuração.
 - [Locais externos da clínica](locais-externos-cadastro.md) — aba dentro do cadastro da empresa, tabela própria com campos da empresa (CNPJ fictício, sem integrações); agenda EXTERNA copia o endereço;
-- [Agenda e cadastro profissional — formas de atendimento](agenda-forma-vocabulario.md) — Sede, Local externo, Online e Home Care; disponibilidade do profissional no mesmo bloco, sem ativar a empresa.
-- [Protocolo: dois fluxos de agenda e local sobrecarregado](protocolo-dois-fluxos-agenda-local.md) — location_id do procedimento aponta para agenda; fluxo por períodos só enfermagem Sede.
-- [Pit Stop + referência agenda/profissional/local](pit-stop-agendamento.md) — plano compartilhado (Caminho B); ler docs/REFERENCIA-AGENDA-PROFISSIONAL-LOCAL.md antes de mexer em agenda/equipe/local.
 - [Vínculo profissional×agenda: três origens](agenda-vinculo-tres-origens.md) — titular + location_professionals + preferidos; tela que lê uma só mente; auditoria em /agenda/auditoria-vinculos.
 - [Conflito Google: marca + decisão humana](google-conflito-marca-fingerprint.md) — marca paxterFp bloqueia sobrescrita (409); UI sem window.confirm (iframe bloqueia).
 - [Filtro único de agendas](agenda-filtro-unico-chaves.md) — chave r{id} compartilhada entre sessão e Google; estado vive no index.tsx, views só recebem `ocultas`.
@@ -180,12 +167,10 @@
 - [Agenda — tela da consulta avulsa](agenda-consulta-avulsa-tela.md) — período do motor, resultado incerto nunca repete, campos separados; armadilhas do e2e (viewport, CDP) e do codegen (barrel api-zo
 - [Encaixe rápido interno (Quick Book)](agenda-encaixe-interno.md) — canal decidido no servidor (rota+Governança), antecedência em minutos no app_settings, mesma decisão no seletor e na confirmação, s
 - [Agenda — barra congelada e cartão rápido](agenda-barra-congelada.md) — sticky precisa de top negativo = padding do Layout; sem scroll-snap na faixa; e2e do filtro clica o + antes; goto lento no dev
-- [Telegram — chat do CEO, repasse e status](telegram-diagnostico-repasse-ceo.md) — webhook único aponta para um ambiente; repasse ao CEO sem eco; status honesto na Central de Auditoria.
 - **Telegram — webhook** — [dedupe por update_id](telegram-dedupe-update-id.md) · [claim, outbox, config única](telegram-webhook-claim-outbox.md) — chave (chat,update); gravar antes de repassar.
 - [Testes de auth x tenantContext](telegram-testes-mocks-tenantcontext.md) — falhas vieram de mocks defasados; nunca afrouxar a auth para passar teste.
-- [Lembrete no Telegram](lembrete-telegram-motor.md) — mesmo motor, canal por modo em app_settings; janela leva só seus períodos; prova automática isolando o Job 2.
 - [Avaliações corporais do Cockpit](avaliacoes-corporais-cockpit.md) — catálogo único em lib/avaliacoes-corporais; campos vazios; remoção por deleted_at.
-- [Assistente de agendamento no Telegram](telegram-assistente-agendamento.md) — cliente reserva real, visitante vira pedido; planejar do pipeline durável; testar via vitest.
+- [Avatar corporal híbrido](avatar-corporal-hibrido.md) — modelo único, quatro vistas, representação aproximada; licença e viabilidade primeiro.
 - [Biblioteca de orientações](orientacoes-biblioteca-categorias-tom.md) — categorias aditivas, tom por clínica, marcadores bloqueiam aprovação; "categoria do ensaio" pendente de esclarecimento.
 - [Modelos de orientação como dado](orientacoes-modelos-semente.md) — 28 rascunhos por clínica via API; variáveis ainda não ligadas ao envio; envio pelo cockpit pausa a IA.
 - [Crédito pré-pago da mensageria](mensageria-credito-pay-per-use.md) — pay per use por clínica, isenção do Instituto, custo de IA à parte; falta tela, pagamento real e tarifas.
