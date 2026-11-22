@@ -231,7 +231,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
               <p className="whitespace-nowrap text-[9px] font-extrabold uppercase tracking-[.08em]">{rot}</p>
               <p className="mb-1 text-[8px] font-semibold uppercase tracking-wider" style={{ color: "var(--pn-mudo)" }}>{un}</p>
               <p className="pn-medida !block w-full py-1 text-base font-bold">{val == null ? "—" : <Numeral peso={700}>{val}</Numeral>}</p>
-              <p className="mt-1.5 h-4">{nivel ? <span className="bevel-3d pn-chip" data-nivel={nivel}>{NOME_NIVEL[nivel]}</span> : null}</p>
+              <p className="mt-1.5 min-h-[26px]">{nivel ? <span className="bevel-3d pn-chip" data-nivel={nivel}>{NOME_NIVEL[nivel]}</span> : null}</p>
             </div>
           ))}
         </div>

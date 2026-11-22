@@ -135,4 +135,4 @@
 .pn-escopo .bevel-3d.pn-pino-placa { background: linear-gradient(180deg, #fff 0%, var(--face) 55%, var(--face2) 100%); }
 .pn-escopo.dark .bevel-3d.pn-pino-placa { background: linear-gradient(180deg, var(--face) 0%, var(--face2) 100%); }
 .btn-3d-soft.pn-mini { width: 28px; height: 26px; padding: 0; color: var(--pn-tinta); }
-.pn-escopo .pn-chip { text-transform: lowercase; letter-spacing: .02em; font-size: 10px; }
+.pn-escopo .pn-chip { text-transform: lowercase; letter-spacing: .02em; font-size: 11px; border-radius: 2px; padding: 5px 12px; line-height: 1.2; }
