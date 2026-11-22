@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { BookOpen } from "lucide-react";
 import { Numeral } from "@/components/numeral/Numeral";
+import { BotaoAjuda } from "./BotaoAjuda";
 import { DiretrizesDialog } from "./DiretrizesDialog";
 import { PainelPulso } from "./PainelPulso";
 import { NIVEIS, NIVEIS_FC, faixasFrequencia, faixasGlicemia, faixasPressao, type Nivel } from "./pulso-faixas";
@@ -9,17 +9,14 @@ import "./pulso-niveis.css";
 // As duas réguas (pressão e glicemia). Usada na janela do cockpit e na Área do Cliente.
 // O marcador mostra em qual nível está a média atual do cliente. O botão do canto abre os parâmetros e diretrizes.
 
-function Regua({ titulo, unidade, linhas, atual, rotuloAtual, dica, onDiretriz, niveis = NIVEIS }: {
+function Regua({ titulo, unidade, linhas, atual, rotuloAtual, dica, onDiretriz, aberto, niveis = NIVEIS }: {
+  aberto: boolean;
   niveis?: Array<{ id: Nivel; nome: string }>; titulo: string; unidade: string; linhas: Array<{ nome: string; valores: Record<Nivel, string> }>;
   atual: Nivel | null; rotuloAtual: string | null; dica: string; onDiretriz: () => void;
 }) {
   return (
     <PainelPulso rotulo={titulo} titulo={<>{titulo} <span style={{ color: "var(--pn-mudo)", letterSpacing: ".08em" }}>· {unidade}</span></>}
-      acoes={
-        <button type="button" className="btn-3d-soft pn-mini" onClick={onDiretriz} aria-label={`Parâmetros e diretrizes: ${titulo}`} title="Parâmetros e diretrizes">
-          <BookOpen size={14} aria-hidden="true" />
-        </button>
-      }>
+      canto={<BotaoAjuda aberto={aberto} onClick={onDiretriz} rotulo={titulo} />}>
       {atual && rotuloAtual && (
         <div className="pn-media-atual" data-nivel={atual}>
           <span className="pn-media-atual-rot">Sua média</span>
@@ -57,14 +54,14 @@ export function ReguasNiveis({ mediaPA, mediaGlicemia, nivelPA, nivelGlicemia, m
     <div className="pn-escopo space-y-7">
       <Regua titulo="Pressão arterial" unidade="mmHg" atual={nivelPA} rotuloAtual={mediaPA ? `${mediaPA} · ${janelaTexto}` : null}
         linhas={[{ nome: "Máxima (sistólica)", valores: col(0) }, { nome: "Mínima (diastólica)", valores: col(1) }]}
-        dica="Vale o pior dos dois números. Com 180/110 ou mais, procure atendimento." onDiretriz={() => setDiretriz("pressao")} />
+        dica="Vale o pior dos dois números. Com 180/110 ou mais, procure atendimento." aberto={diretriz === "pressao"} onDiretriz={() => setDiretriz((d) => (d === "pressao" ? null : "pressao"))} />
       <Regua titulo="Glicemia de jejum" unidade="mg/dL" atual={nivelGlicemia} rotuloAtual={mediaGlicemia ? `${mediaGlicemia} · ${janelaTexto}` : null}
         linhas={[{ nome: "Glicemia", valores: fg }]}
-        dica="Valor alto ou muito alto precisa ser confirmado em outro dia, com exame de laboratório." onDiretriz={() => setDiretriz("glicemia")} />
+        dica="Valor alto ou muito alto precisa ser confirmado em outro dia, com exame de laboratório." aberto={diretriz === "glicemia"} onDiretriz={() => setDiretriz((d) => (d === "glicemia" ? null : "glicemia"))} />
       {mediaFC !== undefined && (
         <Regua titulo="Frequência cardíaca" unidade="bpm" atual={nivelFC ?? null} rotuloAtual={mediaFC ? `${mediaFC} · ${janelaTexto}` : null} niveis={NIVEIS_FC}
           linhas={[{ nome: "Em repouso", valores: ff as Record<Nivel, string> }]}
-          dica="Medida em repouso, sentado e calmo. Alta ou baixa com tontura, falta de ar ou dor no peito: procure atendimento." onDiretriz={() => setDiretriz("frequencia")} />
+          dica="Medida em repouso, sentado e calmo. Alta ou baixa com tontura, falta de ar ou dor no peito: procure atendimento." aberto={diretriz === "frequencia"} onDiretriz={() => setDiretriz((d) => (d === "frequencia" ? null : "frequencia"))} />
       )}
       <DiretrizesDialog tipo={diretriz} escuro={escuro} onClose={() => setDiretriz(null)} />
     </div>

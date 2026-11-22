@@ -1,5 +1,5 @@
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { BookOpen } from "lucide-react";
+import { ReferenciaLista } from "./ReferenciaLista";
 import { NIVEIS, NIVEIS_FC, faixasFrequencia, faixasGlicemia, faixasPressao } from "./pulso-faixas";
 import "./pulso-niveis.css";
 
@@ -14,13 +14,14 @@ export function DiretrizesDialog({ tipo, escuro, onClose }: { tipo: "pressao" | 
       <DialogContent className={`${escuro ? "dark " : ""}pn-escopo !top-[6vh] !translate-y-0 max-h-[88vh] w-[min(94vw,560px)] max-w-none overflow-y-auto border border-border bg-background p-5 text-foreground`}
         style={{ color: "var(--pn-tinta)" }}>
         <div className="flex items-center gap-3 pr-8">
-          <BookOpen className="h-5 w-5 shrink-0" aria-hidden="true" />
           <div>
             <DialogTitle className="text-base font-black uppercase tracking-wide">{pressao ? "Pressão arterial: parâmetros" : freq ? "Frequência cardíaca: parâmetros" : "Glicemia de jejum: parâmetros"}</DialogTitle>
-            <DialogDescription className="text-xs" style={{ color: "var(--pn-mudo)" }}>Adultos. Os números abaixo são os usados por este consultório.</DialogDescription>
+            <DialogDescription className="text-xs" style={{ color: "var(--pn-mudo)" }}>Adultos. Valores usados por este consultório.</DialogDescription>
           </div>
         </div>
-        <table className="pn-tab mt-4" style={{ tableLayout: "auto" }}>
+        <div className="mt-4"><ReferenciaLista tipo={tipo} /></div>
+        <h4 className="pn-sec-rotulo mt-5">Níveis</h4>
+        <table className="pn-tab" style={{ tableLayout: "auto" }}>
           <thead><tr><th style={{ textAlign: "left" }}>Nível</th>{pressao ? <><th>Máxima (mmHg)</th><th>Mínima (mmHg)</th></> : <th>{freq ? "bpm" : "mg/dL"}</th>}</tr></thead>
           <tbody>
             {(freq ? NIVEIS_FC : NIVEIS).map((n) => (
@@ -31,7 +32,8 @@ export function DiretrizesDialog({ tipo, escuro, onClose }: { tipo: "pressao" | 
             ))}
           </tbody>
         </table>
-        <ul className="mt-4 space-y-2 text-[12.5px] leading-relaxed">
+        <h4 className="pn-sec-rotulo mt-5">Para lembrar</h4>
+        <ul className="space-y-2 text-[12.5px] leading-relaxed">
           {pressao ? (
             <>
               <li>Vale o pior dos dois números da leitura.</li>

@@ -3,8 +3,8 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import "./pulso-niveis.css";
 
 // Painel calmo (recuado) com botão para minimizar e maximizar. Usado na Área do Cliente e nas réguas de níveis.
-export function PainelPulso({ titulo, acoes, children, style, className = "", iniciaAberto = true, rotulo }: {
-  titulo: ReactNode; acoes?: ReactNode; children: ReactNode; style?: CSSProperties; className?: string; iniciaAberto?: boolean; rotulo?: string;
+export function PainelPulso({ titulo, acoes, canto, children, style, className = "", iniciaAberto = true, rotulo }: {
+  titulo: ReactNode; acoes?: ReactNode; canto?: ReactNode; children: ReactNode; style?: CSSProperties; className?: string; iniciaAberto?: boolean; rotulo?: string;
 }) {
   const [aberto, setAberto] = useState(iniciaAberto);
   return (
@@ -16,6 +16,7 @@ export function PainelPulso({ titulo, acoes, children, style, className = "", in
           aria-label={aberto ? "Minimizar painel" : "Maximizar painel"} title={aberto ? "Minimizar" : "Maximizar"}>
           {aberto ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
         </button>
+        {canto}
       </header>
       {aberto && <div className="pn-painel-corpo">{children}</div>}
     </section>

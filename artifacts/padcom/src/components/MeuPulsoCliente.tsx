@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { PainelPulso } from "@/pages/cockpit-cliente/PainelPulso";
 import { Numeral } from "@/components/numeral/Numeral";
 import { ReguasNiveis } from "@/pages/cockpit-cliente/ReguasNiveis";
+import { ReferenciaLista } from "@/pages/cockpit-cliente/ReferenciaLista";
 import { GraficoZonas, type PontoGrafico, type ZonaGrafico } from "@/pages/cockpit-cliente/GraficoZonas";
 import { LIMITES, NIVEIS, nivelFrequencia, nivelGlicemia, nivelPressao, type Nivel } from "@/pages/cockpit-cliente/pulso-faixas";
 import "@/pages/cockpit-cliente/pulso-niveis.css";
@@ -77,6 +78,13 @@ const SIGNIFICADO: Record<string, { nome: string; texto: string; zero: string; d
   sono: { nome: "Sono", texto: "Como foi a sua noite de sono.", zero: "Quase não dormi, acordei muito cansado.", dez: "Dormi a noite toda e acordei descansado." },
 };
 
+const SONO_REPARADOR: Array<[string, string]> = [
+  ["Duração", "Dormiu 7 horas ou mais na noite."],
+  ["Para pegar no sono", "Levou até cerca de 30 minutos para dormir."],
+  ["Durante a noite", "Acordou poucas vezes e voltou a dormir logo."],
+  ["Ao acordar", "Levantou descansado, sem cansaço pesado."],
+];
+
 function EscalaDialog({ foco, escuro, onClose }: { foco: string | null; escuro: boolean; onClose: () => void }) {
   if (!foco) return null;
   const m = SIGNIFICADO[foco]!;
@@ -97,6 +105,18 @@ function EscalaDialog({ foco, escuro, onClose }: { foco: string | null; escuro: 
           <div><dt className="inline font-bold">Nota 0: </dt><dd className="inline">{m.zero}</dd></div>
           <div><dt className="inline font-bold">Nota 10: </dt><dd className="inline">{m.dez}</dd></div>
         </dl>
+        {foco === "sono" && (
+          <>
+            <h4 className="pn-sec-rotulo mt-5">Como saber se o sono foi reparador</h4>
+            <ul className="space-y-2">
+              {SONO_REPARADOR.map(([t, x]) => (
+                <li key={t} className="concave-3d px-3 py-2 text-[12.5px] leading-snug"><b className="block text-[11px] font-black uppercase tracking-wider">{t}</b>{x}</li>
+              ))}
+            </ul>
+            <p className="mt-2 text-[11px] leading-snug" style={{ color: "var(--pn-mudo)" }}>Quanto mais itens estiverem bons, mais alta é a nota. Se só um estiver ruim, a nota fica no meio.</p>
+            <div className="mt-5"><ReferenciaLista tipo="sono" /></div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -286,10 +306,10 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
 
       <ReguasNiveis mediaPA={m.pa} mediaGlicemia={inteiro(m.g)} nivelPA={m.nPA} nivelGlicemia={m.nG} mediaFC={inteiro(m.fc)} nivelFC={m.nFC} janelaTexto={`${dias} dias`} escuro={escuro} />
 
-      <GraficoZonas titulo="Pressão máxima (sistólica)" unidade="mmHg" referencia={`normal ${P.baixa.s} a ${P.alta.s - 1}`} pontos={serie((d) => d.sis)} zonas={ZONAS_SIS} />
-      <GraficoZonas titulo="Pressão mínima (diastólica)" unidade="mmHg" referencia={`normal ${P.baixa.d} a ${P.alta.d - 1}`} pontos={serie((d) => d.dias)} zonas={ZONAS_DIA} />
-      <GraficoZonas titulo="Glicemia" unidade="mg/dL" referencia={`normal ${G.baixa} a ${G.alta - 1}`} pontos={serie((d) => d.gli)} zonas={ZONAS_GLI} />
-      <GraficoZonas titulo="Frequência cardíaca" unidade="bpm" referencia={`normal ${F.baixa} a ${F.alta - 1}`} pontos={serie((d) => d.fc)} zonas={ZONAS_FC} />
+      <GraficoZonas titulo="Pressão máxima (sistólica)" ajuda="pressao" escuro={escuro} unidade="mmHg" referencia={`normal ${P.baixa.s} a ${P.alta.s - 1}`} pontos={serie((d) => d.sis)} zonas={ZONAS_SIS} />
+      <GraficoZonas titulo="Pressão mínima (diastólica)" ajuda="pressao" escuro={escuro} unidade="mmHg" referencia={`normal ${P.baixa.d} a ${P.alta.d - 1}`} pontos={serie((d) => d.dias)} zonas={ZONAS_DIA} />
+      <GraficoZonas titulo="Glicemia" ajuda="glicemia" escuro={escuro} unidade="mg/dL" referencia={`normal ${G.baixa} a ${G.alta - 1}`} pontos={serie((d) => d.gli)} zonas={ZONAS_GLI} />
+      <GraficoZonas titulo="Frequência cardíaca" ajuda="frequencia" escuro={escuro} unidade="bpm" referencia={`normal ${F.baixa} a ${F.alta - 1}`} pontos={serie((d) => d.fc)} zonas={ZONAS_FC} />
       <GraficoZonas titulo="Energia" unidade="nota 0 a 10" pontos={serie((d) => d.en)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
       <GraficoZonas titulo="Disposição" unidade="nota 0 a 10" pontos={serie((d) => d.di)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
       <GraficoZonas titulo="Sono" unidade="nota 0 a 10" pontos={serie((d) => d.so)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />

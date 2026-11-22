@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PainelPulso } from "./PainelPulso";
+import { BotaoAjudaComJanela } from "./BotaoAjuda";
+import type { TipoReferencia } from "./pulso-referencias";
 import "./pulso-niveis.css";
 
 // Gráfico do Meu Pulso no MESMO padrão do gráfico de exames do Pax Care (EvolucaoExamesPanel > CartaoGrafico):
@@ -40,7 +42,8 @@ const medir = (rotulos: string[]): number => {
 const MARGEM = 1 / 3;
 const LARGURA_POR_PONTO = 56;
 
-export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, dominioFixo, vazio }: {
+export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, dominioFixo, vazio, ajuda, escuro = false }: {
+  ajuda?: TipoReferencia; escuro?: boolean;
   titulo: string; unidade: string; referencia?: string; pontos: PontoGrafico[]; zonas: ZonaGrafico[] | null;
   dominioFixo?: [number, number]; vazio?: string;
 }) {
@@ -102,10 +105,11 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
   const corAtiva = ativo?.cor ?? MUTED;
   const rotuloAtivo = ativo?.zona ? ativo.zona.toUpperCase() : "—";
 
+  const canto = ajuda ? <BotaoAjudaComJanela tipo={ajuda} rotulo={titulo} escuro={escuro} /> : undefined;
   const cab = <>{titulo} <span style={{ color: "var(--pn-mudo)", letterSpacing: ".08em" }}>· {unidade}{referencia ? ` · ${referencia}` : ""}</span></>;
   if (!data.length) {
     return (
-      <PainelPulso titulo={cab} rotulo={`Gráfico de ${titulo}`}>
+      <PainelPulso titulo={cab} canto={canto} rotulo={`Gráfico de ${titulo}`}>
         <div className="concave-3d px-3 py-8 text-center text-[12px]" style={{ color: "var(--pn-mudo)" }}>{vazio ?? "Ainda não há registros para desenhar este gráfico."}</div>
       </PainelPulso>
     );
@@ -114,7 +118,7 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
   const caixa = "screen-3d flex flex-col items-center px-1 py-1.5";
   const cx7 = "text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]";
   return (
-    <PainelPulso titulo={cab} rotulo={`Gráfico de ${titulo}`}>
+    <PainelPulso titulo={cab} canto={canto} rotulo={`Gráfico de ${titulo}`}>
       <div className="screen-tv-3d p-2">
         <div ref={rolagem} className="scroll-gold overflow-x-auto pb-1" style={{ overscrollBehaviorX: "contain" }}>
           <div style={{ minWidth: larguraMinima, width: "100%", height: 240 }}>
