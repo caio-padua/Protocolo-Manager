@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PainelEncaminhamento from "@/components/encaminhamento/PainelEncaminhamento";
 import DestinosEmissao, { NOME_DESTINO, type DestinoEmissao, type CanalEnvio } from "@/components/encaminhamento/DestinosEmissao";
 import { tituloProprio } from "@/lib/utils";
@@ -48,7 +48,8 @@ import { BASE } from "../../comunicacao/_shared";
 import { useProtocolosSalvos } from "../../prescricao/useProtocolosSalvos";
 import { PrescricoesEmitidas, PrescriptionPdfLink } from "../../prescricao/PrescricoesEmitidas";
 import PainelRecolhivel from "@/components/PainelRecolhivel";
-import { HistoricoReceitasExpandido } from "../../prescricao/HistoricoReceitasExpandido";
+import { chaveTexto } from "@/lib/comparar-receitas";
+import { HistoricoReceitasExpandido, type FormulaParaEdicao } from "../../prescricao/HistoricoReceitasExpandido";
 import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
 import { ClinicalIdentityPanel } from "@/components/ClinicalIdentityPanel";
 import { ClinicalDraftGate, ClinicalDraftNotice, type IdentityQuery } from "@/components/ClinicalDraft";
@@ -150,6 +151,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
   // Destinos escolhidos ANTES de emitir. Escolher não envia; só "Emitir e enviar" envia, com a confirmação marcada.
   const [destinos, setDestinos] = useState<DestinoEmissao[]>([]);
   const [previaLoading, setPreviaLoading] = useState(false);
+  const [focoPedido, setFocoPedido] = useState<{ id: string; ativo: string | null } | null>(null);
   const [farmaciaAberta, setFarmaciaAberta] = useState<Array<string | number>>([]);
   const [abaHistorico, setAbaHistorico] = useState<"emitidas" | "comparar">("emitidas");
   const [contatos, setContatos] = useState<Partial<Record<CanalEnvio, string>>>({});
@@ -310,6 +312,49 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
     setPreviewPlans(null);
     setEmitResult(null);
   };
+  /** Ponte da comparação: leva ao editor DESTA tela os ativos mantidos, sem criar editor novo. Não emite nem envia. */
+  const levarDaComparacao = (itens: FormulaParaEdicao[]) => {
+    if (!itens.length) return;
+    const novos: SelectedFormula[] = itens.map((it) => {
+      const cat = allFormulas.find((f) => chaveTexto(f.name) === chaveTexto(it.name));
+      const tomadas = parseBody((it.posologia ?? "").split(";").join("\n")).tomadas;
+      return {
+        id: cat?.id ?? `hist-${chaveTexto(it.name).replace(/[^a-z0-9]+/g, "-")}`,
+        cat: cat?.cat ?? "historico", name: cat?.name ?? it.name, ativos: it.ativos, tomadas,
+        preco: cat ? getPrecoMedio(cat) : 0,
+      };
+    });
+    setSelected((prev) => {
+      const next = [...prev];
+      for (const n of novos) {
+        const i = next.findIndex((x) => x.id === n.id);
+        if (i >= 0) next[i] = n; else next.push(n);
+      }
+      return next;
+    });
+    setPreviewPlans(null);
+    setEmitResult(null);
+    const alvo = itens.findIndex((i) => i.foco);
+    const idx = alvo >= 0 ? alvo : 0;
+    setFocoPedido({ id: novos[idx].id, ativo: itens[idx].foco });
+  };
+  useEffect(() => {
+    if (!focoPedido) return;
+    const el = document.querySelector<HTMLTextAreaElement>(`textarea[data-ativos-id="${CSS.escape(focoPedido.id)}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.focus({ preventScroll: true });
+    if (focoPedido.ativo) {
+      const linhas = el.value.split("\n");
+      const i = linhas.findIndex((l) => chaveTexto(l).includes(chaveTexto(focoPedido.ativo!)));
+      if (i >= 0) {
+        const ini = linhas.slice(0, i).join("\n").length + (i > 0 ? 1 : 0);
+        el.setSelectionRange(ini, ini + linhas[i].length);
+      }
+    }
+    setFocoPedido(null);
+  }, [focoPedido, selected]);
+
   const removeFormula = (id: string) => {
     setSelected((prev) => prev.filter((s) => s.id !== id));
     setPreviewPlans(null);
@@ -901,6 +946,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       </label>
                       <textarea
                         value={f.ativos}
+                        data-ativos-id={f.id}
                         onChange={(e) => updateAtivos(f.id, e.target.value)}
                         className={`mt-1 w-full resize-y font-mono text-xs ${inputCls}`}
                         rows={Math.min(f.ativos.split("\n").length + 1, 12)}
@@ -1310,7 +1356,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
         </div>
         {abaHistorico === "emitidas"
           ? <PrescricoesEmitidas fixo embutido clientId={clientId} emissionId={emitResult?.prescriptionId} />
-          : <HistoricoReceitasExpandido clientId={clientId} />}
+          : <HistoricoReceitasExpandido clientId={clientId} onLevarParaEdicao={levarDaComparacao} />}
       </PainelRecolhivel>
       </fieldset>}
     </div>

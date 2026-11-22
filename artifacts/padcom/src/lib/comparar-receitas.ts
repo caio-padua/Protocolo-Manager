@@ -127,3 +127,16 @@ export function compararReceitas(receitas: ReceitaParaComparar[]): ResultadoComp
     },
   };
 }
+
+/** Uma linha de texto por ativo, na mesma ordem de lerAtivos, para reaproveitar o texto original ao levar o ativo para edição. */
+export function lerLinhasAtivos(texto: string | null | undefined): Array<{ nome: string; linha: string }> {
+  if (!texto) return [];
+  const saida: Array<{ nome: string; linha: string }> = [];
+  for (const bruta of texto.split(/\r?\n/)) {
+    const linha = bruta.trim();
+    if (!linha) continue;
+    const a = lerAtivos(linha)[0];
+    if (a) saida.push({ nome: a.nome, linha });
+  }
+  return saida;
+}
