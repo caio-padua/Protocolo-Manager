@@ -86,7 +86,7 @@ const ESCALA = [
 ] as const;
 const SIGNIFICADO: Record<string, { nome: string; apelido: string; texto: string; zero: string; dez: string }> = {
   energia: { nome: "Energia", apelido: "O combustível do seu dia", texto: "Quanta força você sente para fazer as coisas do dia.", zero: "Sem força nenhuma, sem conseguir fazer o básico.", dez: "Cheio de força, fazendo tudo sem cansar." },
-  libido: { nome: "Libido", apelido: "Termômetro de saúde", texto: "Seu desejo sexual nos últimos dias.", zero: "Nenhum desejo.", dez: "Desejo muito forte, mais que o seu normal." },
+  libido: { nome: "Libido", apelido: "O Termômetro de saúde", texto: "Seu desejo sexual nos últimos dias.", zero: "Nenhum desejo.", dez: "Desejo muito forte, mais que o seu normal." },
   sono: { nome: "Sono", apelido: "A fase de reparação do corpo", texto: "Como foi a sua noite de sono.", zero: "Quase não dormi, acordei muito cansado.", dez: "Dormi a noite toda e acordei descansado." },
 };
 
