@@ -95,7 +95,7 @@ function PrescriptionHistoryRow({ p, clientId }: { p: Prescricao; clientId: numb
   </div>;
 }
 
-export function PrescricoesEmitidas({ clientId, emissionId }: { clientId: number | null; emissionId?: number }) {
+export function PrescricoesEmitidas({ clientId, emissionId, embutido = false }: { clientId: number | null; emissionId?: number; embutido?: boolean }) {
   const [open, setOpen] = useState(false);
   const { data, isPending, error, refetch } = useQuery<Prescricao[]>({
     queryKey: ["prescricoes-emitidas", clientId, emissionId], queryFn: () => request("/prescriptions"),
@@ -105,7 +105,7 @@ export function PrescricoesEmitidas({ clientId, emissionId }: { clientId: number
     (p.status === "emitted" || p.status === "emitted_unsigned") &&
     (clientId == null || p.clientId === clientId),
   ) ?? [];
-  return <section className="no-print panel-3d p-4 space-y-3" aria-label="Prescrições emitidas">
+  return <section className={`no-print ${embutido ? "border-t border-current/15 pt-4 mt-2" : "panel-3d p-4"} space-y-3`} aria-label="Prescrições emitidas">
     <ClinicalHistoryToggle label="Histórico de prescrições emitidas" open={open} onOpenChange={setOpen} />
     {open && <>
     <p className="text-sm text-muted-foreground">Emitir não envia mensagens. Abra cada registro para visualizar ou baixar os PDFs, e confirme o destinatário antes de reenviar.</p>

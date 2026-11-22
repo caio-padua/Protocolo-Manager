@@ -1215,7 +1215,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       )}
                     </div>
                   )}
-        <PrescricoesEmitidas clientId={clientId} emissionId={emitResult?.prescriptionId} />
+        <PrescricoesEmitidas embutido clientId={clientId} emissionId={emitResult?.prescriptionId} />
         </div>
       </div>
       </fieldset>}

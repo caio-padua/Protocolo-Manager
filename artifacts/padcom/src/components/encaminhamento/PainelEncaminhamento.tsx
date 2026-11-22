@@ -67,7 +67,7 @@ function Slot({ ligado, desabilitado, onClick, children, rotulo }: {
     <button
       type="button" role="checkbox" aria-checked={ligado} aria-label={rotulo} disabled={desabilitado} onClick={onClick}
       className={`relative h-[92px] w-full min-w-0 px-2.5 py-2 text-left flex flex-col justify-between rounded-[6px] transition
-        ${ligado ? "bevel-3d ring-2 ring-[#9a7b32]" : "concave-3d"} ${desabilitado ? "opacity-55 cursor-not-allowed" : "cursor-pointer"}`}
+        ${ligado ? "btn-3d-apertado" : desabilitado ? "concave-3d" : "btn-3d-soft"} ${desabilitado ? "opacity-55 cursor-not-allowed" : "cursor-pointer"}`}
     >
       {children}
     </button>
@@ -185,7 +185,7 @@ export default function PainelEncaminhamento({ clientId, documentType, documentI
       if (!r.ok) throw new Error(d?.error || "O servidor não confirmou o arquivamento.");
       setGuardado({
         ok: true, link: d.webViewLink,
-        texto: d.estado === "ja_estava" ? `Já estava na pasta ${d.pasta} do cliente. Nada foi duplicado.` : `Guardado na pasta ${d.pasta} do cliente.`,
+        texto: d.estado === "ja_estava" ? `Já estava no Drive, pasta ${d.pasta} do cliente. Nada foi duplicado.` : `Exportado para o Drive, pasta ${d.pasta} do cliente.`,
       });
     } catch (e) {
       setGuardado({ ok: false, texto: e instanceof Error ? e.message : "Falha ao guardar na pasta." });
@@ -205,14 +205,14 @@ export default function PainelEncaminhamento({ clientId, documentType, documentI
         type="button" aria-expanded={aberto} onClick={() => { setAberto((v) => !v); setErro(""); setResultados([]); }}
         className="btn-3d-soft w-full h-10 px-3 inline-flex items-center justify-between gap-2 text-[11px] font-black uppercase tracking-wider"
       >
-        <span className="inline-flex items-center gap-2"><Send className="h-4 w-4" />Encaminhar · baixar · guardar</span>
+        <span className="inline-flex items-center gap-2"><Send className="h-4 w-4" />Encaminhar · baixar · Drive</span>
         <ChevronDown className={`h-4 w-4 transition ${aberto ? "rotate-180" : ""}`} />
       </button>
 
       {aberto && (
         <div className="mt-3 space-y-4 px-1 pb-1">
           <Zona titulo="1 · Para onde enviar">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-2 gap-2">
               {CANAIS.map(({ id, nome, Icone }) => {
                 const valor = contato(id);
                 const ligado = marcados.includes(id);
@@ -223,7 +223,7 @@ export default function PainelEncaminhamento({ clientId, documentType, documentI
                       {ligado && <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />}
                     </span>
                     <span className="text-[11px] font-bold leading-tight break-all line-clamp-2">{valor || "—"}</span>
-                    <span className={`${RÓTULO} ${valor ? "" : "opacity-60"}`}>{!valor ? "Sem contato cadastrado" : ligado ? "Marcado" : "Toque para marcar"}</span>
+                    <span className={`${RÓTULO} ${valor ? "" : "opacity-60"}`}>{!valor ? "Sem contato cadastrado" : ligado ? "Selecionado" : "Toque para selecionar"}</span>
                   </Slot>
                 );
               })}
@@ -261,8 +261,8 @@ export default function PainelEncaminhamento({ clientId, documentType, documentI
             </p>
           </Zona>
 
-          <Zona titulo="2 · Baixar e guardar">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+          <Zona titulo="2 · Baixar ou exportar para o Drive">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <button type="button" className="btn-3d-soft h-11 px-3 inline-flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-wider" onClick={() => acaoPdf(false)}>
                 <Eye className="h-4 w-4" />Abrir PDF
               </button>
@@ -271,7 +271,7 @@ export default function PainelEncaminhamento({ clientId, documentType, documentI
               </button>
               <button type="button" disabled={guardando} onClick={() => void guardar()}
                 className="btn-3d-soft h-11 px-3 inline-flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-wider disabled:opacity-60">
-                <FolderInput className="h-4 w-4" />{guardando ? "Guardando…" : `Guardar na pasta ${pasta}`}
+                <FolderInput className="h-4 w-4" />{guardando ? "Exportando…" : "Exportar Drive"}
               </button>
             </div>
             <div className="concave-3d min-h-[40px] px-3 py-2 text-[11px] font-bold" role="status">
@@ -280,7 +280,7 @@ export default function PainelEncaminhamento({ clientId, documentType, documentI
                   {guardado.texto}
                   {guardado.link && <> <a className="underline" href={guardado.link} target="_blank" rel="noreferrer">Abrir no Drive</a></>}
                 </span>
-              ) : <span className="text-muted-foreground/60">Pasta do cliente no Drive: {pasta}. Nada foi guardado ainda.</span>}
+              ) : <span className="text-muted-foreground/60">Exportar Drive grava este PDF na subpasta {pasta} do cliente. Nada exportado ainda.</span>}
             </div>
           </Zona>
 
