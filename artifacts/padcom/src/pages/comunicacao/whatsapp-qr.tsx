@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { QrCode, RefreshCw, Send, Settings2, MessageSquare } from "lucide-react";
 import { ConsoleShell, BlockTitle, BASE } from "./_shared";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 
 // ============================================================================
 // WHATSAPP POR QR CODE (Evolution API) — alternativa PROVISÓRIA, não oficial.
@@ -8,7 +9,7 @@ import { ConsoleShell, BlockTitle, BASE } from "./_shared";
 // A chave de acesso nunca volta do servidor (só "definida / não definida").
 // ============================================================================
 
-type Config = { configurado: boolean; baseUrl: string | null; instanceName: string | null; chaveDefinida: boolean; webhookTokenDefinido: boolean; podeEditar: boolean };
+type Config = { homologacao?: boolean; contatosAutorizados?: string[];  configurado: boolean; baseUrl: string | null; instanceName: string | null; chaveDefinida: boolean; webhookTokenDefinido: boolean; podeEditar: boolean };
 type Conversa = { contato: string; exibicao: string; ultimaDirecao: string; ultimoTrecho: string; status: string; em: string };
 type Msg = { id: number; direcao: string; corpo: string; status: string; erro: string | null; criado_em: string };
 
@@ -19,6 +20,8 @@ const ESTADOS: Record<string, string> = {
   credenciais_recusadas: "Servidor recusou a chave de acesso",
   instancia_inexistente: "Instância não existe no servidor",
   erro_do_provedor: "Resposta inesperada do servidor",
+  sessao_expirada: "Sessão expirada: entre novamente no sistema",
+  contato_nao_autorizado: "Número fora da lista autorizada (homologação)",
   desconectado: "Celular desconectado (leia o QR Code)",
   conectando: "Conectando…",
   conectado: "Conectado",
@@ -34,7 +37,7 @@ const STATUS_MSG: Record<string, string> = {
 };
 
 async function api<T>(caminho: string, init?: RequestInit): Promise<{ ok: boolean; status: number; dados: T }> {
-  const r = await fetch(`${BASE}/api${caminho}`, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) } });
+  const r = await fetch(`${BASE}/api${caminho}`, { ...init, headers: collabAuthHeaders({ "Content-Type": "application/json", ...((init?.headers as Record<string, string>) ?? {}) }) });
   return { ok: r.ok, status: r.status, dados: (await r.json().catch(() => ({}))) as T };
 }
 const fmt = (iso: string) => new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
@@ -57,7 +60,7 @@ export default function ComunicacaoWhatsappQr() {
     const c = await api<Config>("/evolution/config");
     if (c.ok) { setCfg(c.dados); setForm((f) => ({ ...f, baseUrl: c.dados.baseUrl ?? f.baseUrl, instanceName: c.dados.instanceName ?? f.instanceName })); }
     const k = await api<{ estado: string }>("/evolution/conexao");
-    setEstado(k.ok ? k.dados.estado : "erro_do_provedor");
+    setEstado(k.ok ? k.dados.estado : k.status === 401 ? "sessao_expirada" : "erro_do_provedor");
     const v = await api<{ conversas: Conversa[] }>("/evolution/conversas");
     if (v.ok) setConversas(v.dados.conversas);
   }, []);
@@ -97,6 +100,11 @@ export default function ComunicacaoWhatsappQr() {
 
   return (
     <ConsoleShell icon={QrCode} title="WhatsApp por QR Code (provisório)" subtitle="Canal não oficial via Evolution API. O WhatsApp oficial (Twilio) e o Telegram continuam funcionando.">
+      {cfg?.homologacao && (
+        <div className="concave-3d px-3 py-2 text-[13px]" data-testid="aviso-homologacao">
+          Homologação: só estes contatos autorizados recebem e têm mensagens registradas: {cfg.contatosAutorizados?.length ? cfg.contatosAutorizados.join(", ") : "nenhum cadastrado (todo envio fica bloqueado)"}.
+        </div>
+      )}
       {aviso && <div className="concave-3d px-3 py-2 text-[13px]" role="status">{aviso}</div>}
 
       <section className="panel-3d p-5 space-y-3">

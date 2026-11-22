@@ -10,7 +10,7 @@ import { getSecret, getSecretStatus } from "../lib/secure-settings";
 import { logger } from "../lib/logger";
 import { requireCollaborator } from "./collaborator";
 import {
-  ConfigInvalida, chamar, chaveApi, chaveWebhook, consultarConexao, contatoDoJid, destinoDeEnvio,
+  ConfigInvalida, contatoAutorizado, contatosAutorizados, homologacaoAtiva, chamar, chaveApi, chaveWebhook, consultarConexao, contatoDoJid, destinoDeEnvio,
   enderecoSeguro, garantirTabelasEvolution, lerConfig, mascararContato, normalizarBaseUrl, normalizarEvento,
   obterQr, podeEnviarAgora, registrarWebhook, salvarConfig, statusDoProvedor, statusEvolutionPodeAvancar,
   textoDaMensagem, tokenConfere, urlDoWebhook, validarNomeInstancia,
@@ -50,6 +50,7 @@ router.get("/evolution/config", requireCollaborator, async (req, res) => {
   const cfg = await lerConfig(e);
   const [chave, tok] = await Promise.all([getSecretStatus(chaveApi(e)), getSecretStatus(chaveWebhook(e))]);
   res.json({
+    homologacao: homologacaoAtiva(), contatosAutorizados: contatosAutorizados().map(mascararContato),
     configurado: Boolean(cfg), baseUrl: cfg?.baseUrl ?? null, instanceName: cfg?.instanceName ?? null,
     chaveDefinida: Boolean(chave.isSet), webhookTokenDefinido: Boolean(tok.isSet), podeEditar: ehAdmin(req),
   });
@@ -126,6 +127,10 @@ router.get("/evolution/mensagens", requireCollaborator, async (req, res) => {
 async function enviarUma(empresaId: number, destino: string, texto: string, contexto: string, usuarioId: number | null) {
   const cfg = await lerConfig(empresaId);
   if (!cfg) return { http: 409, corpo: { error: "Instância Evolution não configurada.", estado: "nao_configurado" } };
+  if (!contatoAutorizado(destino)) {
+    logger.warn({ event: "evolution_envio_bloqueado_homologacao", empresaId, contato: mascararContato(destino) }, "envio Evolution bloqueado: contato fora da lista autorizada");
+    return { http: 403, corpo: { error: "Homologação: este número não está na lista de contatos autorizados.", estado: "contato_nao_autorizado" } };
+  }
   const conn = await consultarConexao(empresaId);
   if (conn.estado !== "conectado") return { http: 409, corpo: { error: "WhatsApp não está conectado.", estado: conn.estado } };
   if (!podeEnviarAgora(empresaId)) return { http: 429, corpo: { error: "Limite de envios por minuto atingido." } };
@@ -196,6 +201,7 @@ publico.post("/evolution/webhook/:empresaId/:token", async (req, res) => {
         const id = typeof d?.key?.id === "string" ? d.key.id : null;
         const c = contatoDoJid(jid);
         if (!c || c.grupo || d?.key?.fromMe || !id) continue;
+        if (!contatoAutorizado(c.contato)) { logger.info({ empresaId, contato: mascararContato(c.contato) }, "[evolution] recebida ignorada: contato fora da homologação"); continue; }
         const texto = textoDaMensagem(d?.message);
         if (!texto) continue; // mídia e outros tipos: não registrados nesta versão
         await pool.query(

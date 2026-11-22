@@ -19,6 +19,8 @@ vi.mock("../routes/collaborator", () => ({ requireCollaborator: (_q: any, _r: an
 import router, { evolutionWebhookRouter } from "../routes/evolution";
 import * as ev from "../lib/evolution";
 
+process.env.EVOLUTION_HOMOLOGACAO = "false"; // as regras gerais rodam fora da homologação; a lista autorizada é testada abaixo
+
 let server: Server; let base: string;
 beforeAll(async () => {
   const app = express(); app.use(express.json());
@@ -178,5 +180,21 @@ describe("envio humano", () => {
     h.tenant = { authenticated: true, empresaId: 6, isPlatformOwner: true };
     const r = await real(`${base}/evolution/conexao`);
     expect(((await r.json()) as any).estado).toBe("nao_configurado");
+  });
+});
+
+
+describe("homologação: contatos autorizados (falha fechada)", () => {
+  it("lista vazia bloqueia todos; só número exato da lista passa", () => {
+    expect(ev.contatoAutorizado("5511999990000", { EVOLUTION_CONTATOS_AUTORIZADOS: "" } as any)).toBe(false);
+    const env = { EVOLUTION_CONTATOS_AUTORIZADOS: "+55 11 99999-0000, 11988887777" } as any;
+    expect(ev.contatoAutorizado("5511999990000", env)).toBe(true);
+    expect(ev.contatoAutorizado("5511999990000@s.whatsapp.net", env)).toBe(true);
+    expect(ev.contatoAutorizado("5511999990001", env)).toBe(false);
+    expect(ev.contatoAutorizado("grupo@g.us", env)).toBe(false);
+  });
+  it("só libera tudo com EVOLUTION_HOMOLOGACAO=false explícito", () => {
+    expect(ev.homologacaoAtiva({} as any)).toBe(true);
+    expect(ev.homologacaoAtiva({ EVOLUTION_HOMOLOGACAO: "false" } as any)).toBe(false);
   });
 });

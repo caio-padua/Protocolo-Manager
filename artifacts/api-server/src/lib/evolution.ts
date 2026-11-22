@@ -263,3 +263,23 @@ export function tokenConfere(recebido: string, esperado: string | null): boolean
   const b = crypto.createHash("sha256").update(esperado).digest();
   return crypto.timingSafeEqual(a, b);
 }
+
+
+// ── Homologação: contatos autorizados pelo proprietário (falha fechada) ────
+/**
+ * Enquanto a integração está em homologação, SÓ números da lista EVOLUTION_CONTATOS_AUTORIZADOS
+ * (separados por vírgula) podem receber ou ter mensagem registrada. Lista vazia = ninguém.
+ * Só sai desse modo com EVOLUTION_HOMOLOGACAO=false, decisão explícita do proprietário.
+ */
+export function homologacaoAtiva(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (env.EVOLUTION_HOMOLOGACAO ?? "").trim().toLowerCase() !== "false";
+}
+export function contatosAutorizados(env: NodeJS.ProcessEnv = process.env): string[] {
+  return (env.EVOLUTION_CONTATOS_AUTORIZADOS ?? "").split(",")
+    .map((x) => telefoneCanonico(x.trim())).filter((x): x is string => Boolean(x));
+}
+export function contatoAutorizado(contato: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  if (!homologacaoAtiva(env)) return true;
+  const alvo = telefoneCanonico(contato.endsWith("@s.whatsapp.net") ? contato.split("@")[0] : contato);
+  return Boolean(alvo && contatosAutorizados(env).includes(alvo));
+}
