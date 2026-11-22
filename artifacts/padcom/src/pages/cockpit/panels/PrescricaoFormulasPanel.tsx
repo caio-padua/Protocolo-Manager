@@ -67,6 +67,7 @@ import ClinicalDemonstrationPanel from "./ClinicalDemonstrationPanel";
 // ===========================================================================
 
 const GOLD = "#c2a05a";
+const MOSTRAR_EMISSOES_SUSPENSAS = false;
 const SAFE_CLINICAL_ERROR =
   "Falha interna ao salvar. O rascunho foi preservado; confira o histórico antes de tentar novamente.";
 
@@ -1107,19 +1108,20 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                     <DestinosEmissao clientId={clientId} marcados={destinos} onChange={(v) => { setDestinos(v); setAutorizoEnvio(false); }} disabled={emitMutation.isPending} />
                   )}
                   {/* Barra de ações acompanha a rolagem: fica sempre ao alcance, no fim da área visível. */}
-                  <div className="sticky bottom-0 z-20 -mx-1 space-y-2 rounded-md bg-[#f1ead9]/95 p-2 shadow-[0_-6px_12px_-8px_rgba(0,0,0,0.35)] backdrop-blur dark:bg-[#10151f]/95" data-testid="barra-emissao">
+                  <div className="panel-3d-sub sticky bottom-2 z-20 space-y-2 rounded-md p-2" data-testid="barra-emissao">
                   {identity.data?.canPrescribe && destinos.length > 0 && (
                     <label className="concave-3d flex items-start gap-2 px-3 py-2 text-[12px]">
                       <input type="checkbox" className="mt-1" checked={autorizoEnvio} disabled={emitMutation.isPending} onChange={(e) => setAutorizoEnvio(e.target.checked)} />
                       <span>Autorizo emitir e enviar o PDF assinado ao contato cadastrado da cliente por: <strong>{destinos.map((d) => NOME_DESTINO[d]).join(", ")}</strong>.</span>
                     </label>
                   )}
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid grid-cols-2 gap-2 [&>button]:justify-center [&>button]:px-3 [&>button]:py-2.5 [&>button]:text-sm">
                     <button
                       onClick={handlePreview}
                       disabled={previewMutation.isPending || selected.length === 0 || !pharmacies?.length}
-                      className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
+                      className="btn-3d-soft col-span-2 flex items-center gap-2 rounded-md px-4 py-2 text-xs font-semibold disabled:opacity-40"
                       style={{ color: GOLD }}
+                      title="Mostra como as fórmulas serão separadas em receitas. Não emite."
                     >
                       {previewMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
                       {previewMutation.isPending ? "Gerando…" : "Prévia do desmembramento"}
@@ -1159,6 +1161,8 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                         {createApproval.isPending ? "Enviando para revisão…" : "Enviar ao médico responsável"}
                       </button>
                     ) : null}
+                    {/* Emitir Receituário (motor único) e Gerar PDF Visual: suspensos até a homologação; preservados no código, fora da tela para não duplicar as ações. */}
+                    {MOSTRAR_EMISSOES_SUSPENSAS && (<>
                     {/* ── Motor Único (lê modelo ativo do banco) ── */}
                     {identity.data?.canPrescribe && <button
                       onClick={() => { void handleEmitirMotorUnico(); }}
@@ -1179,6 +1183,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       {gerarPdfVisualLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                       Gerar PDF Visual
                     </button>}
+                    </>)}
                   </div>
                   </div>
 
@@ -1323,7 +1328,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                         ? "Selecione fórmulas para a receita. Depois de emitir, as receitas, o PDF e o encaminhamento aparecem aqui."
                         : !pharmacies?.length
                           ? "Cadastre uma farmácia para liberar a emissão."
-                          : "Nada emitido ainda. Use o botão Emitir receitas acima; o resultado aparece aqui."}
+                          : "Nada emitido ainda. O resultado aparece aqui."}
                     </div>
                   )}
             {/* Histórico das receitas emitidas e encaminhamento (Drive, WhatsApp, Telegram, E-mail) no mesmo painel. */}

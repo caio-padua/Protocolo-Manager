@@ -83,7 +83,7 @@ export default function DestinosEmissao({ clientId, marcados, onChange, disabled
       {carregando && <p role="status" className="text-[11px]">Conferindo os canais cadastrados…</p>}
       {erro && <p role="alert" className="text-[12px] font-bold text-destructive">{erro}</p>}
       <p className="text-[11px] text-muted-foreground">
-        Selecionar não envia nada. "Emitir receita" só gera e guarda. "Emitir e enviar" gera e depois envia aos destinos marcados.
+        Marcar não envia. "Emitir receita" só gera; "Emitir e enviar" gera e envia.
       </p>
     </div>
   );
