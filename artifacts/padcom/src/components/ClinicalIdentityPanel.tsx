@@ -4,12 +4,15 @@ import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatu
 export function ClinicalIdentityPanel({
   identity,
   allowUnsignedPrescription = false,
+  ocultarQuandoNormal = false,
   canGenerateUnsigned = false,
   unsignedGenerationPending = false,
   onGenerateUnsigned,
 }: {
   identity: ReturnType<typeof useClinicalIdentity>;
   allowUnsignedPrescription?: boolean;
+  /** Esconde o painel quando a identidade está válida; carregando, erro e pendência continuam visíveis. */
+  ocultarQuandoNormal?: boolean;
   canGenerateUnsigned?: boolean;
   unsignedGenerationPending?: boolean;
   onGenerateUnsigned?: () => void;
@@ -23,6 +26,7 @@ export function ClinicalIdentityPanel({
   );
   if (!identity.data) return null;
   const { client, professional, clinic, issue } = identity.data;
+  if (ocultarQuandoNormal && !issue && identity.data.canPrescribe) return null;
   return (
     <>
     <section className="panel-3d-sub p-3" aria-label="Identificação clínica validada">

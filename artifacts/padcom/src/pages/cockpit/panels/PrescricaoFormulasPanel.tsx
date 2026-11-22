@@ -654,6 +654,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
       <ClinicalIdentityPanel
         identity={identity}
         allowUnsignedPrescription
+        ocultarQuandoNormal
         canGenerateUnsigned={buildItems().length > 0 && !draft.pending}
         unsignedGenerationPending={emitMutation.isPending}
         onGenerateUnsigned={() => handleEmit("unsigned_expired")}
@@ -1167,6 +1168,16 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       >
                         {emitMutation.isPending || envioAuto?.enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                         {emitMutation.isPending ? "Emitindo…" : envioAuto?.enviando ? "Encaminhando…" : "Emitir e encaminhar"}
+                      </button>
+                      <button
+                        onClick={() => handleEmit("unsigned_expired")}
+                        disabled={emitMutation.isPending || envioAuto?.enviando || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
+                        data-testid="button-emit-unsigned"
+                        className="btn-3d-soft flex w-full items-center justify-center gap-2 !rounded-[2px] px-4 py-3 text-sm font-semibold disabled:opacity-40"
+                        style={{ color: GOLD }}
+                      >
+                        <FileSignature className="h-4 w-4" />
+                        Emitir sem assinatura
                       </button>
                       </>
                     ) : identity.data?.canPreparePrescription ? (
