@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, ChevronDown, Gauge, Moon, Sun, Sunrise } from "lucide-react";
 import { Numeral } from "@/components/numeral/Numeral";
-import { nivelGlicemia, nivelPressao, type Nivel } from "./pulso-faixas";
+import { nivelFrequencia, nivelGlicemia, nivelPressao, type Nivel } from "./pulso-faixas";
 import { BASE } from "@/pages/comunicacao/_shared";
 
 // Pulso Diário no cockpit: um botão da mesma altura dos demais (médias do último mês)
@@ -129,8 +129,12 @@ export function PulsoDiarioBotao({ clientId, aberto, onToggle, janela, onJanela 
     document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("mousedown", fora); document.removeEventListener("keydown", esc); };
   }, [menu]);
-  const itens: Array<[string, string | null]> = [
-    ["Energia", m.energia], ["Disposição", m.disposicao], ["Sono", m.sono], ["Pressão", m.pa], ["Freq.", m.fc], ["Glicemia", m.glicemia],
+  const [paS, paD] = m.pa ? m.pa.split(" / ").map(Number) : [null, null];
+  const tomMedia = (n: Nivel | null): Tom => (n ? NIVEL_PARA_TOM[n] : "neutro");
+  const itens: Array<[string, string | null, Tom]> = [
+    ["Energia", m.energia, "neutro"], ["Disposição", m.disposicao, "neutro"], ["Sono", m.sono, "neutro"],
+    ["Pressão", m.pa, tomPressao(paS, paD)], ["Freq.", m.fc, tomMedia(m.fc == null ? null : nivelFrequencia(Number(m.fc)))],
+    ["Glicemia", m.glicemia, tomGlicemia(m.glicemia == null ? null : Number(m.glicemia))],
   ];
   return (
     <div className="cc-pulso-wrap" ref={caixa}>
@@ -141,8 +145,8 @@ export function PulsoDiarioBotao({ clientId, aberto, onToggle, janela, onJanela 
           <small>{isError ? "Indisponível" : isLoading ? "Carregando" : m.n ? `${dias} dias · ${m.n} ${m.n === 1 ? "registro" : "registros"}` : `Sem registros nos ${dias} dias`}</small></span>
         {!isError && !isLoading && m.n > 0 && (
           <span className="cc-pulso-medias" aria-label={`Médias dos últimos ${dias} dias`}>
-            {itens.map(([rot, val]) => (
-              <span key={rot} className="cc-pulso-media"><small>{rot}</small><b>{val == null ? "—" : <Numeral peso={700}>{val}</Numeral>}</b></span>
+            {itens.map(([rot, val, tom]) => (
+              <span key={rot} className="cc-pulso-media"><small>{rot}</small><b data-tom={val == null || tom === "ok" || tom === "neutro" ? undefined : tom} title={DICA_TOM[tom]}>{val == null ? "—" : <Numeral peso={700}>{val}</Numeral>}</b></span>
             ))}
           </span>
         )}
