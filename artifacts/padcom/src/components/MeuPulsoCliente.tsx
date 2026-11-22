@@ -203,7 +203,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
 
   const cartoes: Array<[string, string, string | null, Nivel | null]> = [
     ["Energia", "0 a 10", um(m.energia), null], ["Disposição", "0 a 10", um(m.disposicao), null], ["Sono", "0 a 10", um(m.sono), null],
-    ["Pressão", "mmHg", m.pa, m.nPA], ["Freq. cardíaca", "bpm", inteiro(m.fc), null], ["Glicemia", "mg/dL", inteiro(m.g), m.nG],
+    ["Pressão", "mmHg", m.pa, m.nPA], ["Freq. card.", "bpm", inteiro(m.fc), null], ["Glicemia", "mg/dL", inteiro(m.g), m.nG],
   ];
 
   return (
@@ -228,7 +228,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
         <div className="grid grid-cols-3 gap-x-2 gap-y-3 sm:grid-cols-6">
           {cartoes.map(([rot, un, val, nivel]) => (
             <div key={rot} className="text-center">
-              <p className="text-[9px] font-extrabold uppercase tracking-[.08em]">{rot}</p>
+              <p className="whitespace-nowrap text-[9px] font-extrabold uppercase tracking-[.08em]">{rot}</p>
               <p className="mb-1 text-[8px] font-semibold uppercase tracking-wider" style={{ color: "var(--pn-mudo)" }}>{un}</p>
               <p className="pn-medida !block w-full py-1 text-base font-bold">{val == null ? "—" : <Numeral peso={700}>{val}</Numeral>}</p>
               <p className="mt-1.5 h-4">{nivel ? <span className="bevel-3d pn-chip" data-nivel={nivel}>{NOME_NIVEL[nivel]}</span> : null}</p>
