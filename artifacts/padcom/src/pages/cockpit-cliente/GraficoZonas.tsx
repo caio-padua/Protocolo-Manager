@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PainelPulso } from "./PainelPulso";
 import { BotaoAjudaComJanela } from "./BotaoAjuda";
@@ -41,10 +41,11 @@ const medir = (rotulos: string[]): number => {
 const MARGEM = 1 / 3;
 const LARGURA_POR_PONTO = 56;
 
-export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, dominioFixo, vazio, ajuda, escuro = false }: {
+export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, dominioFixo, vazio, ajuda, escuro = false, cantoExtra, rodape, formatarValor, rotuloContagem = "dias", semSituacao = "—", padraoExames = false }: {
   ajuda?: TipoReferencia; escuro?: boolean;
   titulo: string; unidade: string; referencia?: string; pontos: PontoGrafico[]; zonas: ZonaGrafico[] | null;
-  dominioFixo?: [number, number]; vazio?: string;
+  dominioFixo?: [number, number]; vazio?: string; cantoExtra?: ReactNode; rodape?: ReactNode;
+  formatarValor?: (valor: number) => string; rotuloContagem?: string; semSituacao?: string; padraoExames?: boolean;
 }) {
   const data = useMemo(() => pontos.map((p) => {
     const z = zonaDe(p.valor, zonas);
@@ -91,7 +92,7 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
     ];
   }, [data, ultimoX]);
 
-  const larguraMinima = Math.round((ultimoX + 2 * MARGEM) * LARGURA_POR_PONTO) + 56;
+  const larguraMinima = Math.round((ultimoX + 2 * MARGEM) * (padraoExames ? 64 : LARGURA_POR_PONTO)) + 56;
   const rolagem = useRef<HTMLDivElement | null>(null);
   useEffect(() => { const el = rolagem.current; if (el) el.scrollLeft = el.scrollWidth; }, [serie.length]);
   const fmtEixo = (v: number) => (dominio.max - dominio.min >= 10 ? String(Math.round(v)) : v.toFixed(1).replace(".", ","));
@@ -102,9 +103,9 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
   const [ponteiro, setPonteiro] = useState<(typeof data)[number] | null>(null);
   const ativo = ponteiro ?? ultimo;
   const corAtiva = ativo?.cor ?? MUTED;
-  const rotuloAtivo = ativo?.zona ? ativo.zona.toUpperCase() : "—";
+  const rotuloAtivo = ativo?.zona ? ativo.zona.toUpperCase() : semSituacao;
 
-  const canto = ajuda ? <BotaoAjudaComJanela tipo={ajuda} rotulo={titulo} escuro={escuro} /> : undefined;
+  const canto = cantoExtra ?? (ajuda ? <BotaoAjudaComJanela tipo={ajuda} rotulo={titulo} escuro={escuro} /> : undefined);
   const cab = <>{titulo} <span style={{ color: "var(--pn-mudo)", letterSpacing: ".08em" }}>· {unidade}{referencia ? ` · ${referencia}` : ""}</span></>;
   if (!data.length) {
     return (
@@ -120,7 +121,7 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
     <PainelPulso titulo={cab} canto={canto} ampliavel rotulo={`Gráfico de ${titulo}`}>
       <div className="screen-tv-3d p-2">
         <div ref={rolagem} className="scroll-gold overflow-x-auto pb-1" style={{ overscrollBehaviorX: "contain" }}>
-          <div style={{ minWidth: larguraMinima, width: "100%", height: 240 }}>
+          <div style={{ minWidth: larguraMinima, width: "100%", height: padraoExames ? 260 : 240 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={serie} margin={{ top: 12, right: 12, left: 0, bottom: 4 }}
                 onMouseMove={(st) => {
@@ -131,7 +132,7 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
                 onMouseLeave={() => setPonteiro(null)}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(22,41,74,0.10)" />
                 {zonas?.map((z) => (
-                  <ReferenceArea key={z.key} y1={z.low ?? dominio.min} y2={z.high ?? dominio.max} fill={z.color} fillOpacity={0.18} stroke={z.color} strokeOpacity={0.25} />
+                  <ReferenceArea key={z.key} y1={z.low ?? dominio.min} y2={z.high ?? dominio.max} fill={z.color} fillOpacity={padraoExames ? 0.16 : 0.18} stroke={z.color} strokeOpacity={padraoExames ? 0.22 : 0.25} />
                 ))}
                 <XAxis type="number" dataKey="x" domain={[-MARGEM, ultimoX + MARGEM]} ticks={data.map((_, i) => i)}
                   tickFormatter={(i: number) => data[Math.round(i)]?.data ?? ""} interval={0}
@@ -139,17 +140,17 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
                 <YAxis tick={{ fill: MUTED, fontSize: 10 }} tickLine={false} axisLine={{ stroke: "rgba(22,41,74,0.15)" }}
                   width={larguraEixoY} tickSize={2} tickMargin={2} tickFormatter={fmtEixo} domain={[dominio.min, dominio.max]} />
                 <Tooltip content={() => null} cursor={{ stroke: "rgba(184,146,77,0.55)", strokeDasharray: "4 3" }} />
-                <Line type="linear" dataKey="ext" stroke={NAVY} strokeOpacity={0.35} strokeWidth={1} strokeDasharray="4 4" isAnimationActive={false} activeDot={false}
+                <Line type="linear" dataKey="ext" stroke={NAVY} strokeOpacity={0.35} strokeWidth={padraoExames ? 1.5 : 1} strokeDasharray="4 4" isAnimationActive={false} activeDot={false}
                   dot={(props: { cx?: number; cy?: number; payload?: Ponto; index?: number }) => {
                     const { cx, cy, payload, index } = props;
                     if (cx == null || cy == null || !payload?.fantasma) return <g key={`f-${index}`} />;
                     return <rect key={`f-${index}`} x={cx - 4} y={cy - 4} width={8} height={8} fill="none" stroke={NAVY} strokeOpacity={0.45} strokeWidth={1} strokeDasharray="2 2" />;
                   }} />
-                <Line type="linear" dataKey="valor" stroke={NAVY} strokeWidth={1.25} strokeLinejoin="miter" strokeLinecap="butt" strokeMiterlimit={10} isAnimationActive={false}
+                <Line type="linear" dataKey="valor" stroke={NAVY} strokeWidth={padraoExames ? 2.5 : 1.25} strokeLinejoin="miter" strokeLinecap="butt" strokeMiterlimit={10} isAnimationActive={false}
                   dot={(props: { cx?: number; cy?: number; payload?: Ponto; index?: number }) => {
                     const { cx, cy, payload, index } = props;
                     if (cx == null || cy == null || !payload || payload.fantasma || payload.valor == null) return <g key={`d-${index}`} />;
-                    const txt = rotuloPonto(payload.valor), w = txt.length * 5.8 + 10, h = 15;
+                    const txt = formatarValor ? formatarValor(payload.valor) : rotuloPonto(payload.valor), w = txt.length * 5.8 + 10, h = 15;
                     const acima = cy - h - 8 >= 0, ry = acima ? cy - h - 7 : cy + 7;
                     return (
                       <g key={`d-${index}`} pointerEvents="none">
@@ -181,7 +182,7 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
           <div className={caixa}><span className={cx7}>Máximo</span><span className="text-[12px] font-black leading-tight text-[color:var(--evo-ink)]">{stats.fmt(stats.max.valor)}</span><span className="max-w-full truncate text-[7px] font-semibold text-[color:var(--evo-muted)]">{stats.max.data}</span></div>
           <div className={caixa}><span className={cx7}>Média</span><span className="text-[12px] font-black leading-tight text-[color:var(--evo-ink)]">{stats.media}</span><span className="max-w-full truncate text-[7px] font-semibold text-[color:var(--evo-muted)]">período todo</span></div>
           <div className={caixa}><span className={cx7}>Variação</span><span className="text-[12px] font-black leading-tight text-[color:var(--evo-ink)]">{stats.variacao ?? "—"}</span><span className="max-w-full truncate text-[7px] font-semibold text-[color:var(--evo-muted)]">desde {stats.desde}</span></div>
-          <div className={caixa}><span className={cx7}>Anterior</span><span className="max-w-full truncate text-[12px] font-black leading-tight text-[color:var(--evo-ink)]">{stats.anterior ?? "—"}</span><span className="max-w-full truncate text-[7px] font-semibold text-[color:var(--evo-muted)]">{data.length} dias</span></div>
+          <div className={caixa}><span className={cx7}>Anterior</span><span className="max-w-full truncate text-[12px] font-black leading-tight text-[color:var(--evo-ink)]">{stats.anterior ?? "—"}</span><span className="max-w-full truncate text-[7px] font-semibold text-[color:var(--evo-muted)]">{data.length} {rotuloContagem}</span></div>
         </div>
       )}
 
@@ -190,7 +191,7 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
           <div className="concave-3d flex w-[82px] flex-col items-center justify-center py-1.5">
             <span className={cx7}>{ponteiro ? "no ponto" : "última"}</span>
             <span className="flex items-baseline gap-0.5 tabular-nums">
-              <span className="text-[15px] font-black leading-tight text-[color:var(--evo-ink)]">{ativo ? String(ativo.valor).replace(".", ",") : "—"}</span>
+              <span className="text-[15px] font-black leading-tight text-[color:var(--evo-ink)]">{ativo ? (formatarValor ? formatarValor(ativo.valor) : String(ativo.valor).replace(".", ",")) : "—"}</span>
               <span className="text-[9px] font-semibold text-[color:var(--evo-ink)]">{unidade.replace(/^0 a 10$/, "")}</span>
             </span>
           </div>
@@ -210,6 +211,7 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
           </div>
         </div>
       </div>
+      {rodape}
     </PainelPulso>
   );
 }

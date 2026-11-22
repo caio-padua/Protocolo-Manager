@@ -6,14 +6,17 @@ import type { TipoAvaliacao } from "@workspace/avaliacoes-corporais";
 import { ArrowDownRight, ArrowRight, ArrowUpRight, Trash2 } from "lucide-react";
 import { dataBr, numeroBr, useRemoverMedicao } from "./api";
 import type { Medicao } from "./api";
+import { GraficoZonas } from "../GraficoZonas";
+import { AjudaAntropometria } from "./AjudaAntropometria";
+import { FAIXAS_IMC, formatarImc, idadeAdultaNaMedicao } from "./classificacaoImc";
 
 type Metrica = { key: string; label: string; unit: string; casas: number; grupo: string; derivada: boolean };
 type Ponto = { id: number; data: string; rotulo: string; valor: number };
 
 const OURO = "#b8924d";
 
-export function EvolucaoMedicoes({ clientId, tipo, medicoes, maximizado }: {
-  clientId: number; tipo: TipoAvaliacao; medicoes: Medicao[]; maximizado: boolean;
+export function EvolucaoMedicoes({ clientId, tipo, medicoes, maximizado, nascimento, escuro }: {
+  clientId: number; tipo: TipoAvaliacao; medicoes: Medicao[]; maximizado: boolean; nascimento?: string | null; escuro: boolean;
 }) {
   const def = AVALIACOES[tipo];
   const remover = useRemoverMedicao(clientId);
@@ -29,7 +32,9 @@ export function EvolucaoMedicoes({ clientId, tipo, medicoes, maximizado }: {
     ...def.derivados.map((d) => ({ key: d.key, label: d.label, unit: d.unit, casas: d.casas, grupo: d.grupo, derivada: true })),
   ], [def]);
 
-  const valoresPorMedicao = useMemo(() => medicoes.map((m) => {
+  const valoresPorMedicao = useMemo(() => (tipo === "antropometria"
+    ? [...medicoes].sort((a, b) => a.data.localeCompare(b.data) || a.id - b.id)
+    : medicoes).map((m) => {
     const v: Record<string, number> = {};
     for (const [k, x] of Object.entries(m.valores)) if (typeof x === "number") v[k] = x;
     return { m, v: { ...v, ...calculaDerivados(tipo, m.valores) } };
@@ -56,7 +61,7 @@ export function EvolucaoMedicoes({ clientId, tipo, medicoes, maximizado }: {
     return [...g.entries()];
   }, [comDados]);
 
-  const fmt = (m: Metrica, v: number) => numeroBr(v, m.casas);
+  const fmt = (m: Metrica, v: number) => tipo === "antropometria" && m.key === "imc" ? formatarImc(v) : numeroBr(v, m.casas);
 
   function variacao(pts: Ponto[]) {
     if (pts.length < 2) return null;
@@ -84,10 +89,38 @@ export function EvolucaoMedicoes({ clientId, tipo, medicoes, maximizado }: {
   const valores = pontos.map((p) => p.valor);
   const primeiro = pontos[0], ultimo = pontos[pontos.length - 1];
   const totalAbs = ultimo.valor - primeiro.valor;
+  const ehImc = tipo === "antropometria" && ativa.key === "imc";
+  const faixasPermitidas = ehImc && pontos.every((p) => idadeAdultaNaMedicao(nascimento, p.data));
 
   return (
     <div className="space-y-5">
       {/* Gráfico principal */}
+      {tipo === "antropometria" ? (
+        <div className="pn-escopo">
+          <GraficoZonas
+            key={ativa.key}
+            padraoExames
+            titulo={ativa.label}
+            unidade={ativa.unit}
+            referencia={faixasPermitidas ? "referência geral para adultos" : undefined}
+            pontos={pontos.map((p) => ({ iso: p.data, data: p.rotulo, valor: p.valor }))}
+            zonas={faixasPermitidas ? [...FAIXAS_IMC] : null}
+            cantoExtra={<AjudaAntropometria nome={ativa.label} imc={ehImc} escuro={escuro} />}
+            formatarValor={ehImc ? formatarImc : (valor) => fmt(ativa, valor)}
+            rotuloContagem="medições"
+            semSituacao="Sem faixa"
+            rodape={ehImc ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                {faixasPermitidas
+                  ? "Referência geral, não diagnóstico. Não se aplica à gestação ou amamentação; confirme o contexto clínico."
+                  : "Faixas para adultos indisponíveis: verifique o nascimento e a idade em cada medição."}
+              </p>
+            ) : (
+              <p className="mt-3 text-xs text-muted-foreground">Sem faixa universal configurada. A interpretação depende do contexto clínico.</p>
+            )}
+          />
+        </div>
+      ) : (
       <section className="panel-3d-sub p-4" aria-label={`Evolução de ${ativa.label}`}>
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <div>
@@ -139,6 +172,7 @@ export function EvolucaoMedicoes({ clientId, tipo, medicoes, maximizado }: {
           </p>
         )}
       </section>
+      )}
 
       {/* Cartões de todos os itens */}
       {grupos.map(([grupo, itens]) => (

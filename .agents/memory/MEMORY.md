@@ -169,7 +169,7 @@
 - [Agenda — barra congelada e cartão rápido](agenda-barra-congelada.md) — sticky precisa de top negativo = padding do Layout; sem scroll-snap na faixa; e2e do filtro clica o + antes; goto lento no dev
 - **Telegram — webhook** — [dedupe por update_id](telegram-dedupe-update-id.md) · [claim, outbox, config única](telegram-webhook-claim-outbox.md) — chave (chat,update); gravar antes de repassar.
 - [Testes de auth x tenantContext](telegram-testes-mocks-tenantcontext.md) — falhas vieram de mocks defasados; nunca afrouxar a auth para passar teste.
-- [Avaliações corporais do Cockpit](avaliacoes-corporais-cockpit.md) — catálogo único em lib/avaliacoes-corporais; campos vazios; remoção por deleted_at.
+- [Avaliações corporais do Cockpit](avaliacoes-corporais-cockpit.md) — catálogo único; campos vazios; limites e cautelas da referência de índice de massa corporal.
 - [Avatar corporal híbrido](avatar-corporal-hibrido.md) — modelo único, quatro vistas, representação aproximada; licença e viabilidade primeiro.
 - [Biblioteca de orientações](orientacoes-biblioteca-categorias-tom.md) — categorias aditivas, tom por clínica, marcadores bloqueiam aprovação; "categoria do ensaio" pendente de esclarecimento.
 - [Modelos de orientação como dado](orientacoes-modelos-semente.md) — 28 rascunhos por clínica via API; variáveis ainda não ligadas ao envio; envio pelo cockpit pausa a IA.

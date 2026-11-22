@@ -228,7 +228,7 @@ export default function ClientIdentity({ client, onMensagens }: ClientIdentityPr
         onJanela={setJanelaPulso} escuro={escuro} onClose={() => setPulsoAberto(false)} />
       <FotosModal clientId={client.id} clienteNome={tituloProprio(client.name)} aberto={fotosAberto} escuro={escuro}
         onClose={() => setFotosAberto(false)} />
-      <AvaliacaoModal clientId={client.id} clienteNome={tituloProprio(client.name)} tipo={avaliacaoAberta}
+      <AvaliacaoModal clientId={client.id} clienteNome={tituloProprio(client.name)} nascimento={client.birthDate} tipo={avaliacaoAberta}
         medicoes={medicoes.data ?? []} escuro={escuro} onClose={() => setAvaliacaoAberta(null)} />
     </section>
   );

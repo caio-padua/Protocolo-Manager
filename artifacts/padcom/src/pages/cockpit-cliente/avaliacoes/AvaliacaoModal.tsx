@@ -8,8 +8,8 @@ import { FormularioMedicao } from "./FormularioMedicao";
 import type { Medicao } from "./api";
 import { ICONES_AVALIACAO } from "./icones";
 
-export function AvaliacaoModal({ clientId, clienteNome, tipo, medicoes, escuro, onClose }: {
-  clientId: number; clienteNome: string; tipo: TipoAvaliacao | null; medicoes: Medicao[]; escuro: boolean; onClose: () => void;
+export function AvaliacaoModal({ clientId, clienteNome, nascimento, tipo, medicoes, escuro, onClose }: {
+  clientId: number; clienteNome: string; nascimento?: string | null; tipo: TipoAvaliacao | null; medicoes: Medicao[]; escuro: boolean; onClose: () => void;
 }) {
   const [aba, setAba] = useState<"evolucao" | "nova">("nova");
   const [maximizado, setMaximizado] = useState(false);
@@ -60,7 +60,7 @@ export function AvaliacaoModal({ clientId, clienteNome, tipo, medicoes, escuro, 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-4">
           {aba === "evolucao" ? (
             doTipo.length ? (
-              <EvolucaoMedicoes clientId={clientId} tipo={tipo} medicoes={doTipo} maximizado={maximizado} />
+              <EvolucaoMedicoes clientId={clientId} tipo={tipo} medicoes={doTipo} maximizado={maximizado} nascimento={nascimento} escuro={escuro} />
             ) : (
               <div className="concave-3d p-6 text-center text-sm text-muted-foreground">
                 Nenhuma medição de {def.titulo.toLowerCase()} registrada para este cliente.
