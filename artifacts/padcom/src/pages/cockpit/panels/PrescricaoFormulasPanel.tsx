@@ -1160,16 +1160,6 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                         Emitir receita
                       </button>
                       <button
-                        onClick={() => handleEmit("signed", destinos)}
-                        disabled={emitMutation.isPending || envioAuto?.enviando || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length || destinos.length === 0}
-                        data-testid="button-emit-and-send"
-                        title={destinos.length === 0 ? "Marque ao menos um destino." : undefined}
-                        className="btn-3d flex w-full items-center justify-center gap-2 !rounded-[2px] px-4 py-3 text-sm font-bold disabled:opacity-40"
-                      >
-                        {emitMutation.isPending || envioAuto?.enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        {emitMutation.isPending ? "Emitindo…" : envioAuto?.enviando ? "Encaminhando…" : "Emitir e encaminhar"}
-                      </button>
-                      <button
                         onClick={() => handleEmit("unsigned_expired")}
                         disabled={emitMutation.isPending || envioAuto?.enviando || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
                         data-testid="button-emit-unsigned"
@@ -1178,6 +1168,16 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       >
                         <FileSignature className="h-4 w-4" />
                         Emitir sem assinatura
+                      </button>
+                      <button
+                        onClick={() => handleEmit("signed", destinos)}
+                        disabled={emitMutation.isPending || envioAuto?.enviando || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length || destinos.length === 0}
+                        data-testid="button-emit-and-send"
+                        title={destinos.length === 0 ? "Marque ao menos um destino." : undefined}
+                        className="btn-3d flex w-full items-center justify-center gap-2 !rounded-[2px] px-4 py-3 text-sm font-bold disabled:opacity-40"
+                      >
+                        {emitMutation.isPending || envioAuto?.enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        {emitMutation.isPending ? "Emitindo…" : envioAuto?.enviando ? "Encaminhando…" : "Emitir e encaminhar"}
                       </button>
                       </>
                     ) : identity.data?.canPreparePrescription ? (
