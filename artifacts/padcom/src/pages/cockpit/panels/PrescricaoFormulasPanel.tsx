@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import PainelEncaminhamento from "@/components/encaminhamento/PainelEncaminhamento";
 import { tituloProprio } from "@/lib/utils";
 import {
   Search,
@@ -1175,6 +1176,11 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                               </a>
                             )}
                           </div>
+                          {emitResult.signatureStatus !== "unsigned_expired" && (
+                            <div className="basis-full">
+                              <PainelEncaminhamento clientId={clientId} documentType="prescricao" documentId={rec.id} iniciarAberto />
+                            </div>
+                          )}
                         </div>
                       ))}
 
