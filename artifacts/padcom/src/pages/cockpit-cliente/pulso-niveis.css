@@ -210,3 +210,10 @@
 .dark .pn-apelido, .pn-escopo.dark .pn-apelido { color: #fbf6e8; }
 .pn-notas-tit { display: flex; flex-direction: column; min-width: 0; }
 .pn-notas-tit .pn-apelido { font-style: italic; }
+
+/* Texto padrao das janelas do "?" (Area do Cliente e cockpit): mesmo tamanho, mesma tinta, mesmos marcadores */
+.pn-texto { margin: 0; font: 500 13.5px/1.55 Inter,sans-serif; color: var(--pn-tinta); }
+.pn-sub-rotulo { margin: 6px 0 -4px; font: 800 12px/1.3 Inter,sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--pn-tinta); }
+.pn-lista-pontos { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font: 500 13.5px/1.5 Inter,sans-serif; color: var(--pn-tinta); }
+.pn-lista-pontos li { position: relative; padding-left: 16px; }
+.pn-lista-pontos li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 6px; height: 6px; border-radius: 1px; background: #b8924d; box-shadow: 0 1px 0 rgba(255,255,255,.6); }
