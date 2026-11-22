@@ -1369,6 +1369,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
             className={`${abaHistorico === "emitidas" ? "btn-3d-apertado" : "btn-3d-soft"} !rounded-[2px] px-4 py-2 text-xs font-bold uppercase tracking-wider`}>Emitidas</button>
           <button type="button" onClick={() => setAbaHistorico("comparar")} data-testid="aba-comparar"
             className={`${abaHistorico === "comparar" ? "btn-3d-apertado" : "btn-3d-soft"} !rounded-[2px] px-4 py-2 text-xs font-bold uppercase tracking-wider`}>Comparar</button>
+          <div id="slot-gerar-prescricao" className="ml-auto" />
         </div>
         {abaHistorico === "emitidas"
           ? <PrescricoesEmitidas fixo embutido clientId={clientId} emissionId={emitResult?.prescriptionId} />

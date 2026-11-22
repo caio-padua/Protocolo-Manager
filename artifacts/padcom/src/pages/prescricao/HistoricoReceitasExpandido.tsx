@@ -6,6 +6,7 @@
  * Somente leitura: nada é emitido ou enviado aqui.
  */
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Eye, Loader2, Pencil, FilePlus2 } from "lucide-react";
 import { getCollabToken } from "@/lib/collab-auth";
@@ -73,6 +74,9 @@ export function HistoricoReceitasExpandido({ clientId, onLevarParaEdicao }: {
   );
   useEffect(() => { setManter({}); }, [marcadas.join(",")]);
 
+  // O botão mora na linha das abas (Emitidas | Comparar), fora da área rolável, para ficar sempre no mesmo lugar.
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setSlot(document.getElementById("slot-gerar-prescricao")); });
   const alternar = (id: number) => setMarcadas((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]));
   const chave = (f: LinhaFormula, a: LinhaAtivo) => `${chaveTexto(f.nome)}|${chaveTexto(a.nome)}`;
   const ultima = escolhidas.length - 1;
@@ -104,8 +108,20 @@ export function HistoricoReceitasExpandido({ clientId, onLevarParaEdicao }: {
   };
   const totalMantidos = comparacao ? comparacao.formulas.reduce((n, f) => n + f.ativos.filter((a) => mantido(f, a)).length, 0) : 0;
 
+  const botaoGerar = comparacao && slot ? createPortal(
+    <button
+      type="button" disabled={!onLevarParaEdicao || totalMantidos === 0} data-testid="gerar-nova-prescricao"
+      title="Leva os ativos marcados como Manter ao editor de prescrição desta tela"
+      onClick={() => onLevarParaEdicao?.(montarPacote())}
+      style={{ background: "linear-gradient(#3b82f6,#1d4ed8)", color: "#fff" }}
+      className="btn-3d flex items-center gap-2 !rounded-[2px] px-4 py-2 text-xs font-bold uppercase tracking-wider disabled:opacity-40"
+    >
+      <FilePlus2 className="h-4 w-4" /> Gerar nova prescrição ({totalMantidos})
+    </button>, slot) : null;
+
   return (
     <div data-testid="historico-expandido">
+      {botaoGerar}
       <div className="grid gap-3 md:h-[70vh] md:grid-cols-[320px_1fr]">
         {/* Lista */}
         <section className="panel-3d-sub flex max-h-[60vh] min-h-0 flex-col gap-2 !rounded-[3px] p-2 md:max-h-none" aria-label="Prescrições emitidas">
@@ -152,13 +168,6 @@ export function HistoricoReceitasExpandido({ clientId, onLevarParaEdicao }: {
                 <span className="flex items-center gap-1.5"><i className="inline-block h-3 w-5 rounded-[3px] border-2 border-[#D97706] bg-[#FFFBEB]" /> Dose ou posologia alterada</span>
                 <span className="flex items-center gap-1.5"><i className="inline-block h-3 w-5 rounded-[3px] border-2 border-[#0284C7] bg-[#F0F9FF]" /> Ativo só em algumas receitas</span>
                 <span className="flex items-center gap-1.5"><i className="inline-block h-3 w-5 rounded-[3px] border-2 border-border" /> Igual</span>
-                <button
-                  type="button" disabled={!onLevarParaEdicao || totalMantidos === 0} data-testid="gerar-nova-prescricao"
-                  onClick={() => onLevarParaEdicao?.(montarPacote())}
-                  className="btn-3d ml-auto flex items-center gap-2 !rounded-[2px] px-4 py-2 text-xs font-bold disabled:opacity-40"
-                >
-                  <FilePlus2 className="h-4 w-4" /> Gerar nova prescrição a partir desta seleção ({totalMantidos})
-                </button>
               </div>
               <div className="overflow-x-auto">
                 <div className="min-w-[640px] space-y-3">
