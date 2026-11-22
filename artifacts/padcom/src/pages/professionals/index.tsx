@@ -53,7 +53,9 @@ import {
   ChevronDown,
   KeyRound,
   History,
+  Share2,
 } from "lucide-react";
+import RedesSociaisCampos from "@/components/RedesSociaisCampos";
 import { tituloProprio } from "@/lib/utils";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
@@ -1179,6 +1181,7 @@ export default function Professionals() {
                     : []),
                   { value: "vinculos", label: "VÍNCULOS", Icon: Link2, disabled: !editingId || ehAdmin },
                   { value: "documentos", label: "DOCUMENTOS", Icon: FileText, disabled: !editingId },
+                  { value: "redes", label: "REDES SOCIAIS", Icon: Share2, disabled: !editingId },
                   ...(canViewProfessionalHistory
                     ? [{ value: "historico", label: "HISTÓRICO", Icon: History }]
                     : []),
@@ -1548,6 +1551,10 @@ export default function Professionals() {
               </TabsContent>
 
               {/* ── Aba: Documentos ── */}
+              <TabsContent value="redes" className="focus:outline-none pb-4">
+                {editingId ? <RedesSociaisCampos tipo="professionals" id={editingId} /> : null}
+              </TabsContent>
+
               <TabsContent value="documentos" className="focus:outline-none pb-4">
                 {editingId ? (
                   <>

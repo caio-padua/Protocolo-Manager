@@ -1,3 +1,4 @@
+- [Redes sociais cliente/profissional](redes-sociais-submenu.md) — aba própria; Instagram do cliente fica na coluna; demais na tabela redes_sociais.
 - [Pulso — uma nota por período](pulso-uma-nota-por-periodo.md) — manhã=sono, tarde=energia, noite=libido; pendentes reaparecem; telegram pendente.
 - [Gráfico de linha — padrão do Pulso](grafico-linha-padrao-pulso.md) — espessura/faixas/ponto ativo de graficoPadrao.ts; setas movem o ponto.
 - [Forro risca de giz parado + painéis oficiais](forro-risca-de-giz-parado.md) — leva-fabric-fixo em fundo de página; panel-3d-sub/bevel-3d oficiais; barra inferior com touch-action pan-x.

@@ -11,7 +11,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2, Crown, Camera } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2, Crown, Camera, Share2 } from "lucide-react";
+import RedesSociaisCampos from "@/components/RedesSociaisCampos";
 import { AbasRolaveis } from "@/components/AbasRolaveis";
 import CategoriaCliente from "@/components/clients/categoria-cliente";
 import { ClientPhotoCard } from "@/components/clients/photo-card";
@@ -144,7 +145,7 @@ export default function EditClient() {
     } catch (e) { setCanalErro((e as Error).message); }
     finally { setCanalSalvando(false); }
   }
-  const [aba, setAba] = useState<"dados" | "vinculo" | "preferencias" | "endereco" | "midia" | "notas" | "cadastro">("dados");
+  const [aba, setAba] = useState<"dados" | "vinculo" | "preferencias" | "endereco" | "midia" | "notas" | "redes" | "cadastro">("dados");
   const [loadingCep, setLoadingCep] = useState(false);
   const [saveError, setSaveError] = useState("");
   const loadedClientId = useRef<number | null>(null);
@@ -280,7 +281,6 @@ export default function EditClient() {
         birthDate: values.birthDate || undefined,
         address: address || undefined,
         pais: values.pais || "BRASIL",
-        instagram: values.instagram || undefined,
         comoConheceu: values.comoConheceu || undefined,
         status: values.status,
         ...(form.formState.dirtyFields.clinicaOrigemEmpresaId
@@ -363,6 +363,7 @@ export default function EditClient() {
           { value: "endereco", label: "ENDEREÇO", Icon: MapPin },
           { value: "midia", label: "FOTO E ASSINATURA", Icon: Camera },
           { value: "notas", label: "ADICIONAIS E NOTAS", Icon: Plus },
+          { value: "redes", label: "REDES SOCIAIS", Icon: Share2 },
           { value: "cadastro", label: "CADASTRO", Icon: Crown },
       ]} />
 
@@ -374,7 +375,13 @@ export default function EditClient() {
         </Card>
       )}
 
-      <Card className={`panel-3d border-none ${aba === "cadastro" ? "hidden" : ""}`}>
+      {aba === "redes" && (
+        <Card className="panel-3d border-none"><CardContent className="p-6">
+          <RedesSociaisCampos tipo="clients" id={id} aoSalvar={() => queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) })} />
+        </CardContent></Card>
+      )}
+
+      <Card className={`panel-3d border-none ${aba === "cadastro" || aba === "redes" ? "hidden" : ""}`}>
         <CardContent className="p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit, (erros) => {
@@ -383,7 +390,7 @@ export default function EditClient() {
               if (campos.includes("clinicaOrigemEmpresaId") || campos.includes("preferredAgendaResourceIds") || campos.includes("locationId")) { setAba("vinculo"); return; }
               if (campos.includes("visitPreferences")) { setAba("preferencias"); return; }
               const enderecoCampos = ["cep", "logradouro", "numero", "complemento", "bairro", "cidade", "estado", "pais"];
-              const notasCampos = ["instagram", "comoConheceu", "notes"];
+              const notasCampos = ["comoConheceu", "notes"];
               if (campos.some((c) => !enderecoCampos.includes(c) && !notasCampos.includes(c))) setAba("dados");
               else if (campos.some((c) => enderecoCampos.includes(c))) setAba("endereco");
               else setAba("notas");
@@ -768,19 +775,6 @@ export default function EditClient() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-                  <FormField
-                    control={form.control}
-                    name="instagram"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Instagram</FormLabel>
-                        <FormControl>
-                          <Input placeholder="@usuario" {...field} className="field-engraved" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                   <FormField
                     control={form.control}
                     name="comoConheceu"

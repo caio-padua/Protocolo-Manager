@@ -12,6 +12,7 @@ import {
   requireCollaborator,
 } from "./collaborator.js";
 import { requirePlatformOwner } from "../middleware/tenantContext.js";
+import { REDES, RedesInvalidas, lerRedesDaTabela, normalizarRedes, salvarRedesNaTabela } from "../lib/redes-sociais.js";
 import { resolveClerkEnvironmentForRequest } from "../lib/clerk-environment.js";
 import { HEALTH_CATEGORY_SLUGS, includeRequiredWorkAreas, normalizedCatalogName, professionalCategoryIdentity, saveWorkAreaLinks, WorkAreaError, workAreaIdsSchema } from "../lib/professional-work-areas.js";
 import { ObjectStorageService } from "../lib/objectStorage.js";
@@ -1213,5 +1214,23 @@ router.post(
     res.json(formatProfessional(updated, names.areas, names.specialties));
   },
 );
+
+// ─── Redes sociais do profissional ───
+router.get("/professionals/:id/redes-sociais", requireCollaborator, async (req, res): Promise<void> => {
+  const id = parseRouteId(req.params.id);
+  if (isNaN(id) || !await belongsToRequestCompany(req, id)) { res.status(404).json({ error: "Profissional não encontrado." }); return; }
+  res.json({ catalogo: REDES, redes: await lerRedesDaTabela("profissional", id) });
+});
+router.put("/professionals/:id/redes-sociais", requireCollaborator, async (req, res): Promise<void> => {
+  const id = parseRouteId(req.params.id);
+  if (isNaN(id) || !await belongsToRequestCompany(req, id)) { res.status(404).json({ error: "Profissional não encontrado." }); return; }
+  const proprio = req.collaborator?.professionalId === id;
+  if (!proprio && !req.tenantContext?.isPlatformOwner) { res.status(403).json({ error: "Somente o próprio profissional ou o administrador altera as redes sociais." }); return; }
+  let redes: Record<string, string>;
+  try { redes = normalizarRedes((req.body as { redes?: unknown } | undefined)?.redes); }
+  catch (e) { if (e instanceof RedesInvalidas) { res.status(400).json({ error: e.message }); return; } throw e; }
+  await salvarRedesNaTabela("profissional", id, redes);
+  res.json({ ok: true, redes: await lerRedesDaTabela("profissional", id) });
+});
 
 export default router;

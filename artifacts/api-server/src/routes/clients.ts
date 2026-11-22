@@ -9,6 +9,7 @@ import { sendWhatsapp, isWhatsappConfigured } from "../lib/whatsapp";
 import { sendTelegramOnboardingEmail } from "../lib/email-service";
 import { emitirLinkMagico, BOT_USERNAME, BOT_LINK } from "../lib/telegram-magic-link";
 import { requireCollaborator } from "./collaborator";
+import { REDES, RedesInvalidas, lerRedesDaTabela, normalizarRedes, salvarRedesNaTabela } from "../lib/redes-sociais";
 import { getPreferredAgendas, setPreferredAgendas, validateClientLocation, validateDefaultAgenda, InvalidPreferredAgendas } from "../lib/client-preferred-agendas";
 import { getVisitOptions, getVisitPreferences, setVisitPreferences, VisitPreferenceError } from "../lib/client-visit-preferences";
 import { ClientProtocolAgendaError, loadClientProtocolAgendas } from "../lib/protocol-client-agendas";
@@ -952,6 +953,43 @@ router.get("/clientes/:id/telegram-status", requireCollaborator, async (req, res
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
+});
+
+// ─── Redes sociais do cliente (Instagram segue na coluna clients.instagram) ───
+async function clienteDaEmpresa(req: Request, id: number) {
+  const [c] = await db.select().from(clientsTable).where(and(
+    eq(clientsTable.id, id), eq(clientsTable.empresaId, req.tenantContext.empresaId), isNull(clientsTable.deletedAt),
+  ));
+  return c ?? null;
+}
+router.get("/clients/:id/redes-sociais", requireClientWriter, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) { res.status(400).json({ error: "Cliente inválido." }); return; }
+  const c = await clienteDaEmpresa(req, id);
+  if (!c) { res.status(404).json({ error: "Cliente não encontrado." }); return; }
+  const redes = await lerRedesDaTabela("cliente", id);
+  if (c.instagram?.trim()) redes.instagram = c.instagram.trim();
+  res.json({ catalogo: REDES, redes, somenteLeitura: c.numeroOficialEmpresa === true });
+});
+router.put("/clients/:id/redes-sociais", requireClientWriter, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) { res.status(400).json({ error: "Cliente inválido." }); return; }
+  const c = await clienteDaEmpresa(req, id);
+  if (!c) { res.status(404).json({ error: "Cliente não encontrado." }); return; }
+  if (c.numeroOficialEmpresa === true) { res.status(409).json({ error: "Este cadastro é o celular oficial da empresa: redes sociais ficam somente leitura." }); return; }
+  let redes: Record<string, string>;
+  try { redes = normalizarRedes((req.body as { redes?: unknown } | undefined)?.redes); }
+  catch (e) { if (e instanceof RedesInvalidas) { res.status(400).json({ error: e.message }); return; } throw e; }
+  const { instagram, ...outras } = redes;
+  await salvarRedesNaTabela("cliente", id, outras);
+  if (instagram !== undefined) {
+    await db.update(clientsTable).set({ instagram: instagram || null, updatedAt: new Date() })
+      .where(and(eq(clientsTable.id, id), eq(clientsTable.empresaId, req.tenantContext.empresaId)));
+  }
+  const atuais = await lerRedesDaTabela("cliente", id);
+  const [depois] = await db.select({ instagram: clientsTable.instagram }).from(clientsTable).where(eq(clientsTable.id, id));
+  if (depois?.instagram?.trim()) atuais.instagram = depois.instagram.trim();
+  res.json({ ok: true, redes: atuais });
 });
 
 export default router;
