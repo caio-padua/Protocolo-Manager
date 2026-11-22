@@ -360,7 +360,7 @@ export default function Area() {
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
-                style={{ width: 84 }}
+                style={{ width: 90 }}
                 className={`flex flex-col items-center py-2 px-1.5 transition-colors ${
                   active ? "text-accent" : "text-muted-foreground hover:text-accent"
                 }`}
@@ -372,10 +372,13 @@ export default function Area() {
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
-                    gap: 2,
-                    padding: "5px 10px 4px",
+                    justifyContent: "flex-start",
+                    gap: 3,
+                    padding: "7px 2px 4px",
                     borderRadius: 7,
-                    width: 70,
+                    width: 78,
+                    height: 56,
+                    boxSizing: "border-box",
                     transition: "all 0.15s ease",
                     /* Up-bevel nas tabs inativas: placa que sai da superfície */
                     ...(active ? {} : {
@@ -388,8 +391,8 @@ export default function Area() {
                     }),
                   }}
                 >
-                  <Icon className="w-5 h-5" />
-                  <span className="text-[9px] font-bold uppercase tracking-wider">{t.label}</span>
+                  <Icon className="w-5 h-5 shrink-0" />
+                  <span className="w-full text-center text-[8.5px] font-bold uppercase leading-[1.15] tracking-[.02em]" style={{ height: 20, overflow: "hidden" }}>{t.label}</span>
                 </div>
               </button>
             );
