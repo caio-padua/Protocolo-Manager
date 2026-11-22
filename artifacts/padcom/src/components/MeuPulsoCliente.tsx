@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, AlertCircle, CheckCircle, HelpCircle, Loader2, Moon, Sun, Sunrise } from "lucide-react";
+import { Activity, AlertCircle, CheckCircle, Loader2, Moon, Sun, Sunrise } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { PainelPulso } from "@/pages/cockpit-cliente/PainelPulso";
 import { Numeral } from "@/components/numeral/Numeral";
 import { ReguasNiveis } from "@/pages/cockpit-cliente/ReguasNiveis";
-import { ReferenciaLista } from "@/pages/cockpit-cliente/ReferenciaLista";
+import { BotaoAjuda, BotaoAjudaComJanela } from "@/pages/cockpit-cliente/BotaoAjuda";
+import { EscalaDialog, SIGNIFICADO } from "@/pages/cockpit-cliente/NotaDialog";
+import { AjudaPainelDialog } from "@/pages/cockpit-cliente/AjudaPainelDialog";
 import { GraficoZonas, type PontoGrafico, type ZonaGrafico } from "@/pages/cockpit-cliente/GraficoZonas";
 import { LIMITES, NIVEIS, nivelFrequencia, nivelGlicemia, nivelPressao, type Nivel } from "@/pages/cockpit-cliente/pulso-faixas";
 import "@/pages/cockpit-cliente/pulso-niveis.css";
@@ -73,86 +75,6 @@ const ZONAS_LIBIDO: ZonaGrafico[] = [
   { key: "l3", name: "Moderada", color: "#ca8a04", low: 5, high: 7 }, { key: "l4", name: "Boa", color: "#65a30d", low: 7, high: 9 },
   { key: "l5", name: "Alta", color: "#15803d", low: 9, high: null },
 ];
-const ESCALA_LIBIDO = [
-  { de: 0, ate: 2, nome: "Muito baixa", cor: "muitoalto", sente: "Quase nenhum desejo. Vontade em nenhum ou em apenas 1 dia da semana." },
-  { de: 3, ate: 4, nome: "Baixa", cor: "alto", sente: "Desejo raro. Vontade em cerca de 2 dias da semana, e fraca." },
-  { de: 5, ate: 6, nome: "Moderada", cor: "baixo", sente: "Desejo ocasional. Vontade em 3 a 4 dias da semana." },
-  { de: 7, ate: 8, nome: "Boa", cor: "normal", sente: "Desejo frequente. Vontade em 5 a 6 dias da semana. Com nota 8, o desejo aparece quase todos os dias e é fácil de sentir." },
-  { de: 9, ate: 10, nome: "Alta", cor: "normal", sente: "Desejo forte e constante. Vontade todos os dias da semana." },
-] as const;
-const ESCALA = [
-  { de: 0, ate: 2, nome: "Muito mal", cor: "muitoalto" }, { de: 3, ate: 4, nome: "Ruim", cor: "alto" }, { de: 5, ate: 6, nome: "Regular", cor: "baixo" },
-  { de: 7, ate: 8, nome: "Bom", cor: "normal" }, { de: 9, ate: 10, nome: "Ótimo", cor: "normal" },
-] as const;
-const SIGNIFICADO: Record<string, { nome: string; apelido: string; texto: string; zero: string; dez: string }> = {
-  energia: { nome: "Energia", apelido: "O combustível do seu dia", texto: "Quanta força você sente para fazer as coisas do dia.", zero: "Sem força nenhuma, sem conseguir fazer o básico.", dez: "Cheio de força, fazendo tudo sem cansar." },
-  libido: { nome: "Libido", apelido: "O Termômetro de saúde", texto: "O quanto de desejo você sentiu nos últimos 7 dias. Dê a nota pelo que sentiu, sem comparar com outras fases da vida.", zero: "Nenhum desejo.", dez: "Desejo muito forte, mais que o seu normal." },
-  sono: { nome: "Sono", apelido: "A fase de reparação do corpo", texto: "Como foi a sua noite de sono.", zero: "Quase não dormi, acordei muito cansado.", dez: "Dormi a noite toda e acordei descansado." },
-};
-
-const SONO_REPARADOR: Array<[string, string]> = [
-  ["Duração", "Dormiu 7 horas ou mais na noite."],
-  ["Para pegar no sono", "Levou até cerca de 30 minutos para dormir."],
-  ["Durante a noite", "Acordou poucas vezes e voltou a dormir logo."],
-  ["Ao acordar", "Levantou descansado, sem cansaço pesado."],
-];
-
-function EscalaDialog({ foco, escuro, onClose }: { foco: string | null; escuro: boolean; onClose: () => void }) {
-  if (!foco) return null;
-  const m = SIGNIFICADO[foco]!;
-  return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className={`${escuro ? "dark " : ""}pn-escopo !top-[8vh] !translate-y-0 max-h-[84vh] w-[min(94vw,480px)] max-w-none overflow-y-auto border border-border bg-background p-5`} style={{ color: "var(--pn-tinta)" }}>
-        <DialogTitle className="pr-8 text-base font-black uppercase tracking-wide">{m.nome}: como dar a nota</DialogTitle>
-        <p className="pn-apelido">{m.apelido}</p>
-        <h4 className="pn-sec-rotulo mt-4">O que é</h4>
-        <DialogDescription className="pn-texto">{m.texto}</DialogDescription>
-        <h4 className="pn-sec-rotulo mt-5">Como dar a nota</h4>
-        <ul className="space-y-2.5">
-          {(foco === "libido" ? ESCALA_LIBIDO : ESCALA).map((e) => (
-            <li key={e.nome} className="grid grid-cols-[84px_1fr] items-center gap-3">
-              <span className="bevel-3d pn-chip text-center" data-nivel={e.cor}>{e.nome}</span>
-              <span className="text-sm font-bold"><Numeral peso={700}>{`${e.de} a ${e.ate}`}</Numeral>
-                {"sente" in e && <span className="pn-texto mt-0.5 block font-medium">{e.sente}</span>}</span>
-            </li>
-          ))}
-        </ul>
-        {foco !== "libido" && (
-          <ul className="pn-lista-pontos mt-3">
-            <li><b>Nota 0:</b> {m.zero}</li>
-            <li><b>Nota 10:</b> {m.dez}</li>
-          </ul>
-        )}
-        {foco === "sono" && (
-          <>
-            <h4 className="pn-sec-rotulo mt-5">Como saber se o sono foi reparador</h4>
-            <ul className="space-y-2">
-              {SONO_REPARADOR.map(([t, x]) => (
-                <li key={t} className="concave-3d px-3 py-2 text-[13px] leading-snug"><b className="block text-[11px] font-black uppercase tracking-wider">{t}</b>{x}</li>
-              ))}
-            </ul>
-            <p className="pn-texto mt-2" style={{ color: "var(--pn-mudo)" }}>Quanto mais itens estiverem bons, mais alta é a nota. Se só um estiver ruim, a nota fica no meio.</p>
-          </>
-        )}
-        <h4 className="pn-sec-rotulo mt-5">{foco === "libido" ? "O porquê do questionário sobre libido" : "Por que perguntamos"}</h4>
-        {foco === "libido" ? (
-          <div className="grid gap-3">
-            <p className="pn-texto">Não é algo relacionado a entrar na sua intimidade ou algo parecido. Não queremos entrar na sua intimidade e não temos nenhum intuito de causar constrangimento. Queremos que você entenda.</p>
-            <p className="pn-texto">A libido hoje está relacionada a muitos fatores, como qualidade do sono, níveis hormonais e nível de cortisol (o hormônio do estresse). Também se relaciona com comorbidades, como pressão alta, diabetes e síndrome metabólica.</p>
-            <h5 className="pn-sub-rotulo">Por que é um termômetro da saúde?</h5>
-            <p className="pn-texto">Porque, quando o corpo está fora de equilíbrio, o desejo costuma acompanhar essa mudança. Acompanhar a nota ao longo das semanas nos ajuda a ver se o tratamento está funcionando. Responder é opcional: se preferir, deixe em branco.</p>
-          </div>
-        ) : foco === "sono" ? (
-          <p className="pn-texto">É durante o sono que o corpo se repara. Um sono curto ou ruim pesa sobre a pressão, a glicemia, os hormônios e o humor. Por isso a nota do sono ajuda a interpretar todas as outras medidas.</p>
-        ) : (
-          <p className="pn-texto">A energia acompanha o sono, os hormônios, a alimentação e o estresse. Ver a nota ao longo das semanas ajuda a saber se o tratamento está trazendo mais força para o seu dia.</p>
-        )}
-        {foco === "sono" && <div className="mt-5"><ReferenciaLista tipo="sono" /></div>}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 const CAMPOS_NOTA = [["energia", "Energia"], ["libido", "Libido"], ["sono", "Sono"]] as const;
 
 /** Data de hoje e período do dia no fuso de São Paulo (usado quando o consultório abre o pulso de um cliente). */
@@ -264,7 +186,12 @@ export default function MeuPulsoCliente({ token = "", clienteId, escuro = false 
 
       {/* Painel congelado: acompanha a rolagem logo abaixo da faixa superior */}
       <PainelPulso className={consultorio ? "" : "sticky z-20"} style={consultorio ? undefined : { top: "calc(var(--paxter-topbar-h, 0px) + 8px)" }}
-        titulo={`Média dos últimos ${dias} dias`} rotulo={`Médias dos últimos ${dias} dias`}>
+        titulo={`Média dos últimos ${dias} dias`} rotulo={`Médias dos últimos ${dias} dias`}
+        canto={<AjudaPainelDialog titulo="Média dos últimos dias" escuro={escuro}>
+          <p>Cada quadro é a média de tudo o que foi registrado no período escolhido (7, 15, 30 ou 60 dias).</p>
+          <p>A etiqueta colorida abaixo mostra em que nível a média está: muito baixo, baixo, normal, alto ou muito alto.</p>
+          <p>Energia, Libido e Sono são notas de 0 a 10. Pressão, frequência e glicemia são medidas.</p>
+        </AjudaPainelDialog>}>
         <div role="radiogroup" aria-label="Período da média" className="mb-3 flex gap-1.5">
           {JANELAS.map((j) => (
             <button key={j} type="button" role="radio" aria-checked={dias === j} onClick={() => setDias(j)}
@@ -303,6 +230,7 @@ export default function MeuPulsoCliente({ token = "", clienteId, escuro = false 
             <input className="pn-campo" inputMode="numeric" pattern="[0-9]*" maxLength={3} placeholder="80" aria-label="Pressão mínima" value={f.dia}
               onChange={(e) => setF((p) => ({ ...p, dia: e.target.value.replace(/\D/g, "") }))} />
           </div>
+          <BotaoAjudaComJanela tipo="pressao" rotulo="Pressão arterial" escuro={escuro} />
         </div>
         <div className="pn-linha">
           <div className="pn-linha-rotulo"><b>Frequência cardíaca</b><small>Batimentos por minuto (bpm).</small></div>
@@ -310,6 +238,7 @@ export default function MeuPulsoCliente({ token = "", clienteId, escuro = false 
             <input className="pn-campo" inputMode="numeric" pattern="[0-9]*" maxLength={3} placeholder="70" aria-label="Frequência cardíaca" value={f.fc}
               onChange={(e) => setF((p) => ({ ...p, fc: e.target.value.replace(/\D/g, "") }))} />
           </div>
+          <BotaoAjudaComJanela tipo="frequencia" rotulo="Frequência cardíaca" escuro={escuro} />
         </div>
         <div className="pn-linha">
           <div className="pn-linha-rotulo"><b>Glicemia</b><small>Em mg/dL, de preferência em jejum.</small></div>
@@ -317,16 +246,15 @@ export default function MeuPulsoCliente({ token = "", clienteId, escuro = false 
             <input className="pn-campo" inputMode="numeric" pattern="[0-9]*" maxLength={3} placeholder="92" aria-label="Glicemia" value={f.gli}
               onChange={(e) => setF((p) => ({ ...p, gli: e.target.value.replace(/\D/g, "") }))} />
           </div>
+          <BotaoAjudaComJanela tipo="glicemia" rotulo="Glicemia" escuro={escuro} />
         </div>
 
         {CAMPOS_NOTA.map(([k, rot]) => (
           <div key={k} className="pn-grupo-notas">
             <div className="pn-notas-cab">
               <span className="pn-notas-tit"><b>{rot}</b><i className="pn-apelido">{SIGNIFICADO[k]!.apelido}</i></span>
-              <button type="button" className="btn-3d-soft pn-mini" onClick={() => setEscala(k)} aria-label={`O que significa a nota de ${rot}`} title="O que significa cada nota">
-                <HelpCircle size={14} aria-hidden="true" />
-              </button>
               <span className="ml-auto text-[11px]" style={{ color: "var(--pn-mudo)" }}>{notas[k] == null ? "toque na nota" : <>nota <Numeral peso={700}>{String(notas[k])}</Numeral></>}</span>
+              <BotaoAjuda aberto={escala === k} onClick={() => setEscala((e) => (e === k ? null : k))} rotulo={rot} />
             </div>
             <div role="radiogroup" aria-label={rot} className="pn-nota">
               {Array.from({ length: 11 }, (_, i) => (
@@ -356,12 +284,17 @@ export default function MeuPulsoCliente({ token = "", clienteId, escuro = false 
       <GraficoZonas titulo="Pressão mínima (diastólica)" ajuda="pressao" escuro={escuro} unidade="mmHg" referencia={`normal ${P.baixa.d} a ${P.alta.d - 1}`} pontos={serie((d) => d.dias)} zonas={ZONAS_DIA} />
       <GraficoZonas titulo="Glicemia" ajuda="glicemia" escuro={escuro} unidade="mg/dL" referencia={`normal ${G.baixa} a ${G.alta - 1}`} pontos={serie((d) => d.gli)} zonas={ZONAS_GLI} />
       <GraficoZonas titulo="Frequência cardíaca" ajuda="frequencia" escuro={escuro} unidade="bpm" referencia={`normal ${F.baixa} a ${F.alta - 1}`} pontos={serie((d) => d.fc)} zonas={ZONAS_FC} />
-      <GraficoZonas titulo="Energia" unidade="nota 0 a 10" pontos={serie((d) => d.en)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
-      <GraficoZonas titulo="Libido" unidade="nota 0 a 10" pontos={serie((d) => d.li)} zonas={ZONAS_LIBIDO} dominioFixo={[0, 10]} />
-      <GraficoZonas titulo="Sono" unidade="nota 0 a 10" pontos={serie((d) => d.so)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
+      <GraficoZonas titulo="Energia" ajuda="energia" escuro={escuro} unidade="nota 0 a 10" pontos={serie((d) => d.en)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
+      <GraficoZonas titulo="Libido" ajuda="libido" escuro={escuro} unidade="nota 0 a 10" pontos={serie((d) => d.li)} zonas={ZONAS_LIBIDO} dominioFixo={[0, 10]} />
+      <GraficoZonas titulo="Sono" ajuda="sono" escuro={escuro} unidade="nota 0 a 10" pontos={serie((d) => d.so)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
       </div>
 
-      <PainelPulso titulo={consultorio ? "Registros do cliente" : "Meus registros"} rotulo="Registros">
+      <PainelPulso titulo={consultorio ? "Registros do cliente" : "Meus registros"} rotulo="Registros"
+        canto={<AjudaPainelDialog titulo="Registros" escuro={escuro}>
+          <p>Cada dia mostra três linhas: manhã, tarde e noite.</p>
+          <p>Em "Sinais vitais" ficam a pressão, a glicemia e a frequência cardíaca. Em "Qualidade de vida" ficam as notas de energia, libido e sono.</p>
+          <p>O contorno colorido de um valor indica o nível dele. Traço significa que nada foi registrado naquele período.</p>
+        </AjudaPainelDialog>}>
         {historico.length === 0 ? (
           <p className="py-3 text-center text-xs" style={{ color: "var(--pn-mudo)" }}>{consultorio ? "Nenhum registro neste período." : "Nenhum registro neste período. Use \"Registrar agora\" acima."}</p>
         ) : (

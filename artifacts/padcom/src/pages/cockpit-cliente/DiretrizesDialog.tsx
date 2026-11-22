@@ -1,11 +1,14 @@
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ReferenciaLista } from "./ReferenciaLista";
+import { EscalaDialog } from "./NotaDialog";
+import type { TipoReferencia } from "./pulso-referencias";
 import { NIVEIS, NIVEIS_FC, faixasFrequencia, faixasGlicemia, faixasPressao } from "./pulso-faixas";
 import "./pulso-niveis.css";
 
 // Parâmetros e diretrizes de referência, para consulta rápida durante a conversa com o cliente.
-export function DiretrizesDialog({ tipo, escuro, onClose }: { tipo: "pressao" | "glicemia" | "frequencia" | null; escuro: boolean; onClose: () => void }) {
+export function DiretrizesDialog({ tipo, escuro, onClose }: { tipo: TipoReferencia | null; escuro: boolean; onClose: () => void }) {
   if (!tipo) return null;
+  if (tipo === "energia" || tipo === "libido" || tipo === "sono") return <EscalaDialog foco={tipo} escuro={escuro} onClose={onClose} />;
   const pressao = tipo === "pressao";
   const freq = tipo === "frequencia";
   const fp = faixasPressao(), fg = faixasGlicemia(), ff = faixasFrequencia();

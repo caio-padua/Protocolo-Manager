@@ -1,5 +1,5 @@
 // Referências científicas por assunto do Meu Pulso: uma internacional e uma nacional, conferidas nas páginas das revistas.
-export type TipoReferencia = "pressao" | "glicemia" | "frequencia";
+export type TipoReferencia = "pressao" | "glicemia" | "frequencia" | "energia" | "libido" | "sono";
 
 export type Referencia = {
   origem: "Internacional" | "Nacional";
@@ -10,7 +10,29 @@ export type Referencia = {
   serve: string; // o que esta fonte sustenta nos níveis mostrados
 };
 
-export const REFERENCIAS: Record<TipoReferencia | "sono", Referencia[]> = {
+export const REFERENCIAS: Record<TipoReferencia, Referencia[]> = {
+  energia: [
+    { origem: "Internacional", titulo: "Development of a fatigue scale",
+      autores: "Chalder T, Berelowitz G, Pawlikowska T, et al.", revista: "Journal of Psychosomatic Research. 1993;37(2):147-153",
+      link: "https://pubmed.ncbi.nlm.nih.gov/8463991", serve: "Escala de fadiga usada no mundo todo para medir a falta de energia física e mental." },
+    { origem: "Nacional", titulo: "Cross-cultural validation of the Chalder Fatigue Questionnaire in Brazilian primary care",
+      autores: "Cho HJ, Costa E, Menezes PR, Chalder T, Bhugra D, Wessely S.", revista: "Journal of Psychosomatic Research. 2007;62(3):301-304",
+      link: "https://pubmed.ncbi.nlm.nih.gov/17324680", serve: "Validação da escala de fadiga para a população brasileira." },
+  ],
+  libido: [
+    { origem: "Internacional", titulo: "The Female Sexual Function Index (FSFI): a multidimensional self-report instrument for the assessment of female sexual function",
+      autores: "Rosen R, Brown C, Heiman J, et al.", revista: "Journal of Sex & Marital Therapy. 2000;26(2):191-208",
+      link: "https://pubmed.ncbi.nlm.nih.gov/10782451", serve: "Mulheres: questionário padrão que inclui o desejo sexual. Não mede só a libido nem usa a nota de 0 a 10 deste painel." },
+    { origem: "Nacional", titulo: "Tradução para português, adaptação cultural e validação do Female Sexual Function Index",
+      autores: "Thiel RRC, Dambros M, Palma PCR, et al.", revista: "Revista Brasileira de Ginecologia e Obstetrícia. 2008;30(10):504-510",
+      link: "https://doi.org/10.1590/S0100-72032008001000005", serve: "Mulheres: versão validada para o português do Brasil." },
+    { origem: "Internacional", titulo: "The international index of erectile function (IIEF): a multidimensional scale for assessment of erectile dysfunction",
+      autores: "Rosen RC, Riley A, Wagner G, et al.", revista: "Urology. 1997;49(6):822-830",
+      link: "https://pubmed.ncbi.nlm.nih.gov/9187685", serve: "Homens: questionário padrão que inclui o desejo sexual. Não usa a nota de 0 a 10 deste painel." },
+    { origem: "Nacional", titulo: "Validação do Índice Internacional de Função Erétil (IIFE) para uso no Brasil",
+      autores: "Gonzáles AI, Sties SW, Wittkopf PG, et al.", revista: "Arquivos Brasileiros de Cardiologia. 2013;101(2)",
+      link: "https://doi.org/10.5935/abc.20130141", serve: "Homens: versão validada para o português do Brasil." },
+  ],
   sono: [
     { origem: "Internacional", titulo: "Recommended Amount of Sleep for a Healthy Adult: A Joint Consensus Statement of the American Academy of Sleep Medicine and Sleep Research Society",
       autores: "Watson NF, Badr MS, Belenky G, et al.", revista: "Sleep. 2015;38(6):843-844",

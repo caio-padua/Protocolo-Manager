@@ -75,7 +75,7 @@
 .pn-pino-placa b, .pn-pino-placa b * { color: var(--pn-tinta) !important; }
 
 /* Registrar agora: linhas rotulo | campos, todos os campos com a mesma largura e alinhados */
-.pn-linha { display: grid; grid-template-columns: minmax(0,1fr) 112px; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid var(--pn-fio); }
+.pn-linha { display: grid; grid-template-columns: minmax(0,1fr) 112px 27px; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid var(--pn-fio); }
 .pn-linha:first-child { border-top: 0; padding-top: 2px; }
 .pn-linha-rotulo b { display: block; font: 800 12px/1.2 Inter,sans-serif; letter-spacing: .04em; text-transform: uppercase; color: var(--pn-tinta); }
 .pn-linha-rotulo small { display: block; margin-top: 3px; font: 500 11px/1.3 Inter,sans-serif; color: var(--pn-mudo); }
