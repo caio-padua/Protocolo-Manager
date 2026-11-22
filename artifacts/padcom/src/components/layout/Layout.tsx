@@ -242,6 +242,7 @@ const navigation: NavEntry[] = [
       { name: "E-mails", href: "/comunicacao/emails", icon: Mail },
       { name: "Plataformas Digitais", href: "/comunicacao/plataformas", icon: Cloud },
       { name: "Status WhatsApp", href: "/comunicacao/whatsapp-status", icon: MessageSquareText },
+      { name: "WhatsApp por QR Code", href: "/comunicacao/whatsapp-qr", icon: MessageSquareText },
       { name: "Central de Auditoria", href: "/comunicacao/central-auditoria", icon: ShieldCheck },
       { name: "Frases do Assistente", href: "/comunicacao/frases-assistente", icon: MessageSquareText },
       { name: "Guia Digital — Enviar ao Paciente", href: "/comunicacao/guia-paciente", icon: BookOpen },

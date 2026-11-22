@@ -153,6 +153,7 @@ import agentesWppRouter from "./agentes-wpp";
 import agentesIntegracoesRouter from "./agentes-integracoes";
 import agentesQuickrepliesRouter from "./agentes-quickreplies";
 import whatsappInboundRouter from "./whatsapp-inbound";
+import evolutionRouter, { evolutionWebhookRouter } from "./evolution";
 import prontuarioRouter from "./prontuario";
 import driveWatcherRouter from "./drive-watcher";
 import menuRouter from "./menu";
@@ -191,6 +192,9 @@ router.use(whatsappWebhookRouter);
 // e responde via Aurora ADM com contexto clínico. Registrado ANTES do portão.
 router.use(whatsappInboundRouter);
 
+// Evolution API (QR Code): webhook público autenticado por token secreto da clínica.
+router.use(evolutionWebhookRouter);
+
 // Webhooks do Trello (HEAD+POST de validação e eventos de cards).
 // Devem vir ANTES do portão — Trello não envia token de colaborador.
 router.use(agentesTrelloRouter);
@@ -224,6 +228,7 @@ router.use(pulsoTelegramPublicRouter);
 router.use(collaboratorGuard);
 
 router.use(healthRouter);
+router.use(evolutionRouter);
 router.use(clientsRouter);
 router.use(avaliacoesCorporaisRouter);
 router.use(antropometriaFigurasRouter);

@@ -121,6 +121,7 @@ import ComunicacaoDigital from "@/pages/comunicacao/digital";
 import ComunicacaoEmails from "@/pages/comunicacao/emails";
 import ComunicacaoPlataformas from "@/pages/comunicacao/plataformas";
 import ComunicacaoWhatsappStatus from "@/pages/comunicacao/whatsapp-status";
+import ComunicacaoWhatsappQr from "@/pages/comunicacao/whatsapp-qr";
 import FrasesAssistentePage from "@/pages/comunicacao/frases-assistente-page";
 import ComunicacaoCentralAuditoria from "@/pages/comunicacao/central-auditoria";
 import AvatarManager from "@/pages/comunicacao/avatares";
@@ -370,6 +371,7 @@ function Router() {
             <Route path="/comunicacao/emails" component={ComunicacaoEmails} />
             <Route path="/comunicacao/plataformas" component={ComunicacaoPlataformas} />
             <Route path="/comunicacao/whatsapp-status" component={ComunicacaoWhatsappStatus} />
+            <Route path="/comunicacao/whatsapp-qr" component={ComunicacaoWhatsappQr} />
             <Route path="/comunicacao/central-auditoria" component={ComunicacaoCentralAuditoria} />
             <Route path="/comunicacao/frases-assistente" component={FrasesAssistentePage} />
             <Route path="/comunicacao/avatares" component={AvatarManager} />
