@@ -119,7 +119,7 @@
 .pn-tab .per svg { display: inline-block; vertical-align: middle; color: var(--pn-mudo); }
 .pn-tab .pn-medida { min-width: 0; padding: 2px 3px; font-size: 12.5px; white-space: nowrap; }
 .pn-tab .vazio { color: var(--pn-mudo); opacity: .6; }
-@media (max-width: 380px) { .pn-tab { font-size: 11px; } .pn-tab .pn-medida { font-size: 11.5px; padding: 2px 2px; } .pn-cal { width: 48px; } }
+@media (max-width: 380px) { .pn-tab { font-size: 11px; } .pn-tab .pn-medida { font-size: 11.5px; padding: 2px 2px; } }
 
 /* ===== Padrao da skill: canais (nivel, selo, placa, botao) usam o relevo oficial bevel-3d / btn-3d-soft.
    Aqui so entra a COR semantica do nivel (face tingida + filete + texto), como bevel-3d-ok. O relevo vem do index.css. ===== */
@@ -185,3 +185,22 @@
 /* Botão "?" no canto superior direito dos painéis */
 .pn-ajuda { display: inline-flex; align-items: center; justify-content: center; width: 27px; height: 25px; border-radius: 3px; padding: 0; color: var(--pn-tinta); cursor: pointer; font: 900 14px/1 Inter,sans-serif; }
 .pn-ajuda[aria-pressed="true"] { box-shadow: inset 0 3px 5px rgba(0,0,0,.35), inset 0 -1px 0 rgba(255,255,255,.4); color: #b8924d; }
+
+/* Tabela de registros: grupos de colunas, dia estreito, sem simbolos no celular */
+.pn-tab th.cab-dia, .pn-tab th.cab-per { vertical-align: bottom; }
+.pn-tab th.cab-per { text-align: left; padding-left: 8px; }
+.pn-tab tr.grupo th { padding-bottom: 6px; border-bottom: 0; }
+.pn-tab tr.sub th { padding-bottom: 8px; }
+.pn-grupo-rot { display: block; padding: 5px 2px; border-radius: 3px; font: 900 8.5px/1.1 Inter,sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--pn-tinta); white-space: nowrap; }
+.pn-tab .pn-cal { width: 100%; max-width: 46px; }
+.pn-tab .pn-cal-faixa { letter-spacing: .08em; padding-left: 0; font-size: 8px; }
+.pn-tab .pn-cal b { font-size: 22px; }
+.pn-tab .pn-cal i { font-size: 7.5px; letter-spacing: .02em; }
+@media (max-width: 640px) {
+  .pn-tab .per .pn-per svg { display: none; }
+  .pn-per { font-size: 9.5px; }
+  .pn-tab .per { padding-left: 4px; }
+  .pn-tab th.cab-per { padding-left: 4px; }
+  .pn-grupo-rot { font-size: 7.5px; letter-spacing: .03em; }
+  .pn-tab td.dia { padding-right: 2px; }
+}

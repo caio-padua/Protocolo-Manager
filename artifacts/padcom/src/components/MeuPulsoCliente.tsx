@@ -320,9 +320,14 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
         ) : (
           <div className="overflow-x-auto">
             <table className="pn-tab">
-              <colgroup><col style={{ width: "13%" }} /><col style={{ width: "17%" }} /><col style={{ width: "13%" }} /><col style={{ width: "11.5%" }} /><col style={{ width: "11.5%" }} /><col style={{ width: "11.5%" }} /><col style={{ width: "11.5%" }} /><col style={{ width: "11.5%" }} /></colgroup>
+              <colgroup><col style={{ width: "11%" }} /><col style={{ width: "15%" }} /><col style={{ width: "17.5%" }} /><col style={{ width: "12%" }} /><col style={{ width: "12%" }} /><col style={{ width: "10.5%" }} /><col style={{ width: "10.5%" }} /><col style={{ width: "10.5%" }} /></colgroup>
               <thead>
-                <tr><th>Dia</th><th>Período</th><th>Pressão</th><th>Glic.</th><th>FC</th><th>Ener.</th><th>Disp.</th><th>Sono</th></tr>
+                <tr className="grupo">
+                  <th rowSpan={2} className="cab-dia">Dia</th><th rowSpan={2} className="cab-per">Período</th>
+                  <th colSpan={3}><span className="bevel-3d pn-grupo-rot">Sinais vitais</span></th>
+                  <th colSpan={3}><span className="bevel-3d pn-grupo-rot">Qualidade de vida</span></th>
+                </tr>
+                <tr className="sub"><th>Pressão</th><th>Glic.</th><th>FC</th><th>Ener.</th><th>Disp.</th><th>Sono</th></tr>
               </thead>
               <tbody>
                 {historico.map(({ dia, reg }) => PERIODOS.map(({ id, nome, Icone }, idx) => {
