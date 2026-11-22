@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import PainelEncaminhamento from "@/components/encaminhamento/PainelEncaminhamento";
-import DestinosEmissao, { NOME_DESTINO, type DestinoEmissao } from "@/components/encaminhamento/DestinosEmissao";
+import DestinosEmissao, { NOME_DESTINO, type DestinoEmissao, type CanalEnvio } from "@/components/encaminhamento/DestinosEmissao";
 import { tituloProprio } from "@/lib/utils";
 import {
   Search,
@@ -47,6 +47,7 @@ import { useToast } from "@/hooks/use-toast";
 import { BASE } from "../../comunicacao/_shared";
 import { useProtocolosSalvos } from "../../prescricao/useProtocolosSalvos";
 import { PrescricoesEmitidas, PrescriptionPdfLink } from "../../prescricao/PrescricoesEmitidas";
+import PainelRecolhivel from "@/components/PainelRecolhivel";
 import { HistoricoReceitasExpandido } from "../../prescricao/HistoricoReceitasExpandido";
 import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
 import { ClinicalIdentityPanel } from "@/components/ClinicalIdentityPanel";
@@ -149,7 +150,8 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
   // Destinos escolhidos ANTES de emitir. Escolher não envia; só "Emitir e enviar" envia, com a confirmação marcada.
   const [destinos, setDestinos] = useState<DestinoEmissao[]>([]);
   const [previaLoading, setPreviaLoading] = useState(false);
-  const [historicoAberto, setHistoricoAberto] = useState(false);
+  const [abaHistorico, setAbaHistorico] = useState<"emitidas" | "comparar">("emitidas");
+  const [contatos, setContatos] = useState<Partial<Record<CanalEnvio, string>>>({});
   const [envioAuto, setEnvioAuto] = useState<{ enviando: boolean; itens: Array<{ titulo: string; linhas: Array<{ ok: boolean; texto: string }> }> } | null>(null);
   // ── Motor Único (emite PDF com o modelo ativo do banco) ───────────────────
   const [emitirMotorUnicoLoading, setEmitirMotorUnicoLoading] = useState(false);
@@ -491,9 +493,14 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
           const d = await r.json().catch(() => null);
           if (!r.ok) throw new Error(d?.error || "O servidor não confirmou o envio.");
           for (const x of (d?.results ?? []) as Array<{ channel: DestinoEmissao; state: string; error?: string }>) {
+            const dest = contatos[x.channel as CanalEnvio];
+            const aceito = x.state === "provider_accepted";
+            const quem = x.channel === "EMAIL" ? `ao e-mail ${dest ?? ""}` : x.channel === "TELEGRAM" ? `ao Telegram ${dest ?? ""}` : `ao número ${dest ?? ""}`;
             linhas.push({
-              ok: x.state === "provider_accepted",
-              texto: `${NOME_DESTINO[x.channel] ?? x.channel}: ${x.state === "provider_accepted" ? "aceito pelo provedor; entrega não confirmada" : x.error || (x.state === "unknown" ? "resultado incerto; confira o histórico antes de repetir" : x.state)}`,
+              ok: aceito,
+              texto: aceito
+                ? `PDF, documento encaminhado ${quem}`.trim()
+                : `${NOME_DESTINO[x.channel] ?? x.channel}: não encaminhado. ${x.error || (x.state === "unknown" ? "Resultado incerto; confira o histórico antes de repetir." : x.state)}`,
             });
           }
         } catch (e) {
@@ -507,7 +514,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
           });
           const d = await r.json().catch(() => null);
           if (!r.ok) throw new Error(d?.error || "O servidor não confirmou o arquivamento.");
-          linhas.push({ ok: true, texto: `Drive: ${d.estado === "ja_estava" ? "já estava na pasta" : "exportado para a pasta"} ${d.pasta ?? ""}`.trim() });
+          linhas.push({ ok: true, texto: `PDF, documento ${d.estado === "ja_estava" ? "já estava" : "guardado"} na pasta ${d.pasta ?? "do cliente"}`.trim() });
         } catch (e) {
           linhas.push({ ok: false, texto: `Drive: ${e instanceof Error ? e.message : "falha"}` });
         }
@@ -691,9 +698,6 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
             <FileText className="h-4 w-4" />
             Prescrição Modelo
           </button>
-          <span className="text-xs text-muted-foreground">
-            Preenche o rascunho com fórmulas do catálogo. Não emite nem envia: confira e clique em "Emitir receitas".
-          </span>
         </div>
       </div>
 
@@ -986,12 +990,16 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
           )}
 
           {/* O documento de teste foi substituído pelo botão "Prévia em PDF" do painel de emissão. */}
+          {/* Camadas horizontais abaixo das fórmulas: nada fica ao lado nem cruza outro painel. */}
+        </div>
+      </div>
+      <PainelRecolhivel titulo="Prescrição, emissão e encaminhamento" testId="painel-emissao">
+        {selected.length === 0 && !emitResult && !envioAuto && (
+          <p className="concave-3d !rounded-[3px] px-3 py-3 text-sm text-muted-foreground" role="status">Adicione fórmulas acima.</p>
+        )}
           {/* Roteamento para farmácias + emissão */}
           {selected.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest" style={{ color: GOLD }}>
-                <Building2 className="h-4 w-4" /> Roteamento e Emissão
-              </h3>
+            <div className="space-y-3" data-testid="roteamento-farmacias">
 
               {!pharmacies?.length ? (
                 <div className="bevel-3d flex items-center gap-2 rounded-md px-3 py-2 text-xs text-amber-700">
@@ -1124,24 +1132,16 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
               )}
             </div>
           )}
-          {/* Painel fixo de emissão: botões e resultado ficam sempre juntos, visíveis. */}
-          <section className="panel-3d-sub space-y-3 rounded-md p-3" data-testid="painel-emissao">
-            <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest" style={{ color: GOLD }}>
-              <Send className="h-4 w-4" /> Emissão
-            </h3>
                   {identity.data?.canPrescribe && selected.length > 0 && (
-                    <DestinosEmissao clientId={clientId} marcados={destinos} onChange={setDestinos} disabled={emitMutation.isPending} />
+                    <DestinosEmissao clientId={clientId} marcados={destinos} onChange={setDestinos} disabled={emitMutation.isPending} onContatos={setContatos} />
                   )}
-                  {/* Barra de ações acompanha a rolagem: fica sempre ao alcance, no fim da área visível. */}
-                  <div className="panel-3d-sub sticky bottom-2 z-20 space-y-2 rounded-md p-2" data-testid="barra-emissao">
-                  <div className="grid grid-cols-2 gap-2 [&>button]:justify-center [&>button]:px-3 [&>button]:py-2.5 [&>button]:text-sm">
+                  <div className="grid grid-cols-1 gap-2" data-testid="barra-emissao">
                     <button
                       onClick={() => void handlePreviewPdf()}
                       disabled={previaLoading || selected.length === 0 || !identity.data?.canPrescribe}
                       data-testid="button-previa-pdf"
-                      className="btn-3d-soft col-span-2 flex items-center gap-2 rounded-[3px] px-4 py-2 text-xs font-semibold disabled:opacity-40"
+                      className="btn-3d-soft flex w-full items-center justify-center gap-2 !rounded-[2px] px-4 py-3 text-sm font-semibold disabled:opacity-40"
                       style={{ color: GOLD }}
-                      title="Abre o PDF de prévia em outra aba. Não emite e não envia."
                     >
                       {previaLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
                       {previaLoading ? "Gerando prévia…" : "Prévia em PDF"}
@@ -1152,22 +1152,21 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                         onClick={() => handleEmit()}
                         disabled={emitMutation.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
                         data-testid="button-emit-prescriptions"
-                        title="Gera e guarda a receita. Não envia nada."
-                        className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
+                        className="btn-3d-soft flex w-full items-center justify-center gap-2 !rounded-[2px] px-4 py-3 text-sm font-semibold disabled:opacity-40"
                         style={{ color: GOLD }}
                       >
-                        {emitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                        {emitMutation.isPending ? "Emitindo…" : "Emitir receita"}
+                        {emitMutation.isPending && !envioAuto ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                        Emitir receita
                       </button>
                       <button
                         onClick={() => handleEmit("signed", destinos)}
-                        disabled={emitMutation.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length || destinos.length === 0}
+                        disabled={emitMutation.isPending || envioAuto?.enviando || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length || destinos.length === 0}
                         data-testid="button-emit-and-send"
-                        title={destinos.length === 0 ? "Escolha ao menos um destino acima." : "Gera a receita e envia aos destinos marcados."}
-                        className="btn-3d flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-bold disabled:opacity-40"
+                        title={destinos.length === 0 ? "Marque ao menos um destino." : undefined}
+                        className="btn-3d flex w-full items-center justify-center gap-2 !rounded-[2px] px-4 py-3 text-sm font-bold disabled:opacity-40"
                       >
                         {emitMutation.isPending || envioAuto?.enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        {emitMutation.isPending ? "Emitindo…" : envioAuto?.enviando ? "Enviando…" : "Emitir e enviar"}
+                        {emitMutation.isPending ? "Emitindo…" : envioAuto?.enviando ? "Encaminhando…" : "Emitir e encaminhar"}
                       </button>
                       </>
                     ) : identity.data?.canPreparePrescription ? (
@@ -1175,53 +1174,21 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                         onClick={handleSubmitForReview}
                         disabled={createApproval.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
                         data-testid="button-submit-prescription-review"
-                        className="btn-3d flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-bold disabled:opacity-40"
+                        className="btn-3d flex w-full items-center justify-center gap-2 !rounded-[2px] px-4 py-3 text-sm font-bold disabled:opacity-40"
                       >
                         {createApproval.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
                         {createApproval.isPending ? "Enviando para revisão…" : "Enviar ao médico responsável"}
                       </button>
                     ) : null}
-                    {/* Emitir Receituário (motor único) e Gerar PDF Visual: suspensos até a homologação; preservados no código, fora da tela para não duplicar as ações. */}
-                    {MOSTRAR_EMISSOES_SUSPENSAS && (<>
-                    {/* ── Motor Único (lê modelo ativo do banco) ── */}
-                    {identity.data?.canPrescribe && <button
-                      onClick={() => { void handleEmitirMotorUnico(); }}
-                      disabled
-                      title="Emissão alternativa suspensa até a homologação da assinatura e dos envios"
-                      className="btn-3d flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
-                    >
-                      {emitirMotorUnicoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                      Emitir Receituário
-                    </button>}
-                    {/* ── PDF Visual (Puppeteer server-side) ── */}
-                    {identity.data?.canPrescribe && <button
-                      onClick={() => { void handleGerarPdfVisual(); }}
-                      disabled
-                      title="PDF visual alternativo suspenso até a homologação da assinatura e dos envios"
-                      className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
-                    >
-                      {gerarPdfVisualLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                      Gerar PDF Visual
-                    </button>}
-                    </>)}
                   </div>
-                  </div>
-
-                  {identity.data?.canPrescribe && destinos.length > 0 && (
-                    <p className="px-1 text-[11px] text-muted-foreground" data-testid="aviso-envio">
-                      "Emitir e enviar" manda o PDF assinado ao contato cadastrado da cliente por: <strong>{destinos.map((d) => NOME_DESTINO[d]).join(", ")}</strong>.
-                    </p>
-                  )}
                   {envioAuto && (
-                    <div className="concave-3d space-y-2 rounded-[3px] p-3 text-xs" role="status" data-testid="resultado-envio-emissao">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        {envioAuto.enviando ? "Enviando…" : "Resultado do envio (a entrega só é confirmada depois pelo provedor)"}
-                      </p>
+                    <div className="bevel-3d space-y-2 !rounded-[3px] p-3 text-sm" role="status" data-testid="resultado-envio-emissao">
+                      {envioAuto.enviando && <p className="text-xs font-bold">Encaminhando…</p>}
                       {envioAuto.itens.map((it, i) => (
                         <div key={i}>
                           <p className="font-semibold">{it.titulo}</p>
                           <ul className="space-y-0.5">
-                            {it.linhas.map((l, j) => <li key={j} className={l.ok ? "text-emerald-700" : "text-destructive font-bold"}>{l.texto}</li>)}
+                            {it.linhas.map((l, j) => <li key={j} className={l.ok ? "text-emerald-800" : "font-bold text-destructive"}>{l.texto}</li>)}
                           </ul>
                         </div>
                       ))}
@@ -1274,12 +1241,8 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                         </div>
                       )}
 
-                      <h4 className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide" style={{ color: GOLD }}>
-                        <FileSignature className="h-3.5 w-3.5" />
-                        Receitas emitidas ({emitResult.recipes.length})
-                      </h4>
                       {emitResult.recipes.map((rec) => (
-                        <div key={rec.id} className="panel-3d-sub flex flex-wrap items-center justify-between gap-2 rounded-md p-3">
+                        <div key={rec.id} className="bevel-3d flex flex-wrap items-center justify-between gap-2 !rounded-[3px] p-3">
                           <div className="min-w-0">
                         <p className="text-sm font-semibold text-foreground">{rec.title}</p>
                             <p className="text-xs text-muted-foreground">
@@ -1308,11 +1271,6 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                               </a>
                             )}
                           </div>
-                          {emitResult.signatureStatus !== "unsigned_expired" && (
-                            <div className="basis-full">
-                              <PainelEncaminhamento clientId={clientId} documentType="prescricao" documentId={rec.id} iniciarAberto />
-                            </div>
-                          )}
                         </div>
                       ))}
 
@@ -1323,7 +1281,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                             WhatsApp às farmácias
                           </h4>
                           {emitResult.pharmacyDispatches.map((d) => (
-                            <div key={d.pharmacyId} className="panel-3d-sub flex flex-wrap items-center justify-between gap-2 rounded-md p-3">
+                            <div key={d.pharmacyId} className="bevel-3d flex flex-wrap items-center justify-between gap-2 !rounded-[3px] p-3">
                               <div className="min-w-0">
                                 <p className="text-sm font-semibold text-foreground">{d.pharmacyName}</p>
                                 <p className="text-xs text-muted-foreground">
@@ -1347,25 +1305,21 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       )}
                     </div>
                   )}
-                  {!emitResult && (
-                    <div className="concave-3d rounded-md px-3 py-3 text-xs text-muted-foreground" data-testid="emissao-vazia" role="status">
-                      {selected.length === 0
-                        ? "Selecione fórmulas para a receita. Depois de emitir, as receitas, o PDF e o encaminhamento aparecem aqui."
-                        : !pharmacies?.length
-                          ? "Cadastre uma farmácia para liberar a emissão."
-                          : "Nada emitido ainda. O resultado aparece aqui."}
-                    </div>
+                  {!emitResult && selected.length > 0 && !pharmacies?.length && (
+                    <p className="concave-3d !rounded-[3px] px-3 py-3 text-xs text-muted-foreground" data-testid="emissao-vazia" role="status">Cadastre uma farmácia para liberar a emissão.</p>
                   )}
-            {/* Histórico das receitas emitidas e encaminhamento (Drive, WhatsApp, Telegram, E-mail) no mesmo painel. */}
-            <button type="button" onClick={() => setHistoricoAberto(true)} data-testid="button-historico-expandido"
-              className="btn-3d-soft flex w-full items-center justify-center gap-2 rounded-[3px] px-4 py-2 text-xs font-semibold" style={{ color: GOLD }}>
-              <Columns3 className="h-4 w-4" /> Abrir histórico completo e comparar receitas
-            </button>
-            <HistoricoReceitasExpandido clientId={clientId} aberto={historicoAberto} onFechar={() => setHistoricoAberto(false)} />
-            <PrescricoesEmitidas fixo embutido clientId={clientId} emissionId={emitResult?.prescriptionId} />
-          </section>
+      </PainelRecolhivel>
+      <PainelRecolhivel titulo="Prescrições — Histórico" testId="painel-historico">
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setAbaHistorico("emitidas")} data-testid="aba-emitidas"
+            className={`${abaHistorico === "emitidas" ? "btn-3d-apertado" : "btn-3d-soft"} !rounded-[2px] px-4 py-2 text-xs font-bold uppercase tracking-wider`}>Emitidas</button>
+          <button type="button" onClick={() => setAbaHistorico("comparar")} data-testid="aba-comparar"
+            className={`${abaHistorico === "comparar" ? "btn-3d-apertado" : "btn-3d-soft"} !rounded-[2px] px-4 py-2 text-xs font-bold uppercase tracking-wider`}>Comparar</button>
         </div>
-      </div>
+        {abaHistorico === "emitidas"
+          ? <PrescricoesEmitidas fixo embutido clientId={clientId} emissionId={emitResult?.prescriptionId} />
+          : <HistoricoReceitasExpandido clientId={clientId} />}
+      </PainelRecolhivel>
       </fieldset>}
     </div>
   );

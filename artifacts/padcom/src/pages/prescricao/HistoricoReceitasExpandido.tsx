@@ -6,8 +6,7 @@
  */
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Columns3, Eye, History, Loader2 } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Columns3, Eye, Loader2 } from "lucide-react";
 import { getCollabToken } from "@/lib/collab-auth";
 import { BASE } from "../comunicacao/_shared";
 import { PrescriptionPdfLink } from "./PrescricoesEmitidas";
@@ -40,12 +39,11 @@ function nomesDasFormulas(p: Prescricao): string[] {
   return [...new Set(p.recipes.flatMap((r) => r.items.map((i) => i.name)).filter(Boolean))];
 }
 
-export function HistoricoReceitasExpandido({ clientId, aberto, onFechar }: { clientId: number; aberto: boolean; onFechar: () => void }) {
+export function HistoricoReceitasExpandido({ clientId }: { clientId: number }) {
   const [marcadas, setMarcadas] = useState<number[]>([]);
   const [busca, setBusca] = useState("");
   const { data, isPending, error, refetch } = useQuery<Prescricao[]>({
     queryKey: ["prescricoes-historico", clientId],
-    enabled: aberto,
     staleTime: 0,
     retry: false,
     queryFn: async () => {
@@ -78,15 +76,10 @@ export function HistoricoReceitasExpandido({ clientId, aberto, onFechar }: { cli
   const alternar = (id: number) => setMarcadas((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]));
 
   return (
-    <Dialog open={aberto} onOpenChange={(v) => { if (!v) onFechar(); }}>
-      <DialogContent className="flex h-[90vh] w-[96vw] max-w-[1400px] flex-col gap-3 overflow-hidden rounded-[4px] p-4" data-testid="historico-expandido">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base font-bold uppercase tracking-widest"><History className="h-4 w-4" /> Histórico de receitas emitidas</DialogTitle>
-          <DialogDescription>Marque duas ou mais prescrições para compará-las lado a lado. Aqui só se consulta: nada é emitido nem enviado.</DialogDescription>
-        </DialogHeader>
-        <div className="grid min-h-0 flex-1 gap-3 md:grid-cols-[340px_1fr]">
+    <div data-testid="historico-expandido">
+        <div className="grid gap-3 md:h-[70vh] md:grid-cols-[340px_1fr]">
           {/* Lista */}
-          <section className="panel-3d-sub flex min-h-0 flex-col gap-2 rounded-[4px] p-2" aria-label="Prescrições emitidas">
+          <section className="panel-3d-sub flex max-h-[60vh] min-h-0 flex-col gap-2 !rounded-[3px] p-2 md:max-h-none" aria-label="Prescrições emitidas">
             <input className="concave-3d rounded-[3px] bg-transparent px-2 py-1.5 text-sm outline-none" placeholder="Buscar fórmula ou número…" value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar no histórico" />
             {isPending && <p role="status" className="flex items-center gap-2 text-xs"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando…</p>}
             {error && <div role="alert" className="text-xs text-destructive">{error.message}<button type="button" className="btn-3d-soft ml-2 rounded-[3px] px-2 py-1" onClick={() => void refetch()}>Tentar novamente</button></div>}
@@ -96,7 +89,7 @@ export function HistoricoReceitasExpandido({ clientId, aberto, onFechar }: { cli
                 const ligado = marcadas.includes(p.id);
                 return (
                   <li key={p.id}>
-                    <div className={`rounded-[3px] p-2 text-xs ${ligado ? "btn-3d-apertado" : "concave-3d"}`}>
+                    <div className={`!rounded-[2px] p-2 text-xs ${ligado ? "btn-3d-apertado" : "concave-3d"}`}>
                       <label className="flex cursor-pointer items-start gap-2">
                         <input type="checkbox" className="mt-0.5" checked={ligado} onChange={() => alternar(p.id)} data-testid={`comparar-${p.id}`} />
                         <span className="min-w-0 flex-1">
@@ -107,7 +100,7 @@ export function HistoricoReceitasExpandido({ clientId, aberto, onFechar }: { cli
                       </label>
                       <div className="mt-1.5 flex flex-wrap gap-1.5 pl-6">
                         {p.recipes.map((r) => (
-                          <PrescriptionPdfLink key={r.id} href={`${BASE}/api/clinical-documents/prescricao/${r.id}/pdf`} className="btn-3d-soft inline-flex items-center gap-1 rounded-[3px] px-2 py-1 text-[11px]">
+                          <PrescriptionPdfLink key={r.id} href={`${BASE}/api/clinical-documents/prescricao/${r.id}/pdf`} className="btn-3d-soft inline-flex items-center gap-1 !rounded-[2px] px-2 py-1 text-[11px]">
                             <Eye className="h-3 w-3" /> PDF da receita {r.id}
                           </PrescriptionPdfLink>
                         ))}
@@ -120,7 +113,7 @@ export function HistoricoReceitasExpandido({ clientId, aberto, onFechar }: { cli
           </section>
 
           {/* Comparação */}
-          <section className="panel-3d-sub min-h-0 overflow-auto rounded-[4px] p-3" aria-label="Comparação" data-testid="area-comparacao">
+          <section className="panel-3d-sub min-h-0 overflow-auto !rounded-[3px] p-3" aria-label="Comparação" data-testid="area-comparacao">
             {escolhidas.length === 0 && <Vazio texto="Marque uma ou mais prescrições na lista para ver as fórmulas. Com duas ou mais, o sistema compara." />}
             {escolhidas.length === 1 && <UmaReceita p={escolhidas[0]} />}
             {comparacao && (
@@ -139,8 +132,7 @@ export function HistoricoReceitasExpandido({ clientId, aberto, onFechar }: { cli
             )}
           </section>
         </div>
-      </DialogContent>
-    </Dialog>
+    </div>
   );
 }
 

@@ -25,8 +25,9 @@ const ITENS: Array<{ id: DestinoEmissao; Icone: typeof Mail; funcao: string }> =
   { id: "DRIVE", Icone: FolderInput, funcao: "Guarda na pasta do cliente" },
 ];
 
-export default function DestinosEmissao({ clientId, marcados, onChange, disabled }: {
+export default function DestinosEmissao({ clientId, marcados, onChange, disabled, onContatos }: {
   clientId: number; marcados: DestinoEmissao[]; onChange: (v: DestinoEmissao[]) => void; disabled?: boolean;
+  onContatos?: (c: Partial<Record<CanalEnvio, string>>) => void;
 }) {
   const [alvos, setAlvos] = useState<Alvo[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -41,7 +42,11 @@ export default function DestinosEmissao({ clientId, marcados, onChange, disabled
       .then(async (r) => {
         const d = await r.json().catch(() => null);
         if (!r.ok) throw new Error(d?.error || "Não foi possível conferir os destinatários.");
-        if (!ac.signal.aborted) setAlvos(Array.isArray(d?.targets) ? d.targets : []);
+        if (!ac.signal.aborted) {
+          const lista: Alvo[] = Array.isArray(d?.targets) ? d.targets : [];
+          setAlvos(lista);
+          onContatos?.(Object.fromEntries(lista.map((a) => [a.channel, a.recipient])));
+        }
       })
       .catch((e: unknown) => { if (!ac.signal.aborted) setErro(e instanceof Error ? e.message : "Falha ao consultar os canais."); })
       .finally(() => { if (!ac.signal.aborted) setCarregando(false); });
@@ -55,8 +60,7 @@ export default function DestinosEmissao({ clientId, marcados, onChange, disabled
 
   return (
     <div className="space-y-2" aria-label="Para onde enviar a receita">
-      <div className="bevel-3d inline-flex rounded-[3px] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest">Para onde vai a receita</div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {ITENS.map(({ id, Icone, funcao }) => {
           const valor = contato(id);
           const ligado = marcados.includes(id);
@@ -67,13 +71,12 @@ export default function DestinosEmissao({ clientId, marcados, onChange, disabled
               aria-label={`${NOME_DESTINO[id]}: ${funcao}${valor ? `. Contato: ${valor}` : ". Sem contato cadastrado"}`}
               title={valor ? `${funcao} (${valor})` : "Sem contato cadastrado"}
               data-testid={`destino-${id.toLowerCase()}`}
-              className={`flex w-full min-w-0 items-center gap-2.5 rounded-[3px] px-3 py-2 text-left transition
+              className={`flex w-full min-w-0 items-center gap-2.5 !rounded-[2px] px-3 py-2.5 text-left transition
                 ${ligado ? "btn-3d-apertado" : off ? "concave-3d" : "btn-3d-soft"} ${off ? "cursor-not-allowed opacity-55" : "cursor-pointer"}`}
             >
               <Icone className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span className="min-w-0 flex-1">
                 <span className="block text-[12px] font-bold leading-tight">{NOME_DESTINO[id]}</span>
-                <span className="block text-[10px] leading-tight text-muted-foreground">{funcao}</span>
                 <span className="block truncate text-[10px] leading-tight text-muted-foreground/80">{valor || "sem contato cadastrado"}</span>
               </span>
               {ligado && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />}
@@ -83,9 +86,6 @@ export default function DestinosEmissao({ clientId, marcados, onChange, disabled
       </div>
       {carregando && <p role="status" className="text-[11px]">Conferindo os canais cadastrados…</p>}
       {erro && <p role="alert" className="text-[12px] font-bold text-destructive">{erro}</p>}
-      <p className="text-[11px] text-muted-foreground">
-        Marcar não envia. "Emitir receita" só gera; "Emitir e enviar" gera e envia.
-      </p>
     </div>
   );
 }

@@ -111,10 +111,10 @@ export function PrescricoesEmitidas({ clientId, emissionId, embutido = false, fi
   ) ?? [];
   return <section className={`no-print ${embutido ? "border-t border-current/15 pt-4 mt-2" : "panel-3d p-4"} space-y-3`} aria-label="Prescrições emitidas">
     {fixo
-      ? <h3 className="text-[11px] font-bold uppercase tracking-wide">Histórico de prescrições emitidas</h3>
+      ? null
       : <ClinicalHistoryToggle label="Histórico de prescrições emitidas" open={open} onOpenChange={setOpen} />}
     {open && <>
-    <p className="text-sm text-muted-foreground">Emitir não envia mensagens. Abra cada registro para visualizar ou baixar os PDFs, e confirme o destinatário antes de reenviar.</p>
+    {!fixo && <p className="text-sm text-muted-foreground">Emitir não envia mensagens. Abra cada registro para visualizar ou baixar os PDFs, e confirme o destinatário antes de reenviar.</p>}
     {isPending && <p role="status">Carregando prescrições…</p>}
     {error && <div role="alert" className="text-sm text-destructive">
       Não foi possível carregar o histórico: {error.message}
