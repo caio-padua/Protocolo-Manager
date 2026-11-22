@@ -108,15 +108,14 @@ export function HistoricoReceitasExpandido({ clientId, onLevarParaEdicao }: {
   };
   const totalMantidos = comparacao ? comparacao.formulas.reduce((n, f) => n + f.ativos.filter((a) => mantido(f, a)).length, 0) : 0;
 
-  const botaoGerar = comparacao && slot ? createPortal(
+  const botaoGerar = slot ? createPortal(
     <button
-      type="button" disabled={!onLevarParaEdicao || totalMantidos === 0} data-testid="gerar-nova-prescricao"
-      title="Leva os ativos marcados como Manter ao editor de prescrição desta tela"
+      type="button" disabled={!comparacao || !onLevarParaEdicao || totalMantidos === 0} data-testid="gerar-nova-prescricao"
+      title={comparacao ? "Leva os ativos marcados como Manter ao editor de prescrição desta tela" : "Marque duas ou mais prescrições para comparar"}
       onClick={() => onLevarParaEdicao?.(montarPacote())}
-      style={{ background: "linear-gradient(#3b82f6,#1d4ed8)", color: "#fff" }}
       className="btn-3d flex items-center gap-2 !rounded-[2px] px-4 py-2 text-xs font-bold uppercase tracking-wider disabled:opacity-40"
     >
-      <FilePlus2 className="h-4 w-4" /> Gerar nova prescrição ({totalMantidos})
+      <FilePlus2 className="h-4 w-4" /> Gerar nova prescrição{comparacao ? ` (${totalMantidos})` : ""}
     </button>, slot) : null;
 
   return (
