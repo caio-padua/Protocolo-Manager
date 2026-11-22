@@ -6,7 +6,7 @@
  *    cifrado com o id da empresa na chave. Nada é compartilhado entre empresas.
  *  - Nunca simula: servidor fora, credencial recusada, celular desconectado ou resposta
  *    desconhecida viram estados explícitos.
- *  - Nunca envia sozinho: o webhook só REGISTRA. Respostas partem de ação humana.
+ *  - Resposta automática só ocorre com motor da clínica ativo, identidade única e regra aprovada.
  *  - Nunca espelha no Telegram nem toca no Twilio.
  *  - O servidor só é contatado se o endereço passar na checagem anti-SSRF (acesso a rede interna).
  */
@@ -16,6 +16,7 @@ import crypto from "node:crypto";
 import { pool } from "@workspace/db";
 import { getSecret, setSecret } from "./secure-settings";
 import { telefoneCanonico } from "./whatsapp-seguranca";
+import { reconciliarStatusEvolution } from "./evolution-document-delivery-status";
 
 // ── Tabelas (criadas sob demanda; nunca destrutivo) ────────────────────────
 let pronto: Promise<void> | null = null;
@@ -40,6 +41,7 @@ export function garantirTabelasEvolution(): Promise<void> {
       erro TEXT,
       contexto TEXT,
       enviado_por INTEGER,
+      reissue_request_id BIGINT,
       criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
@@ -50,7 +52,17 @@ export function garantirTabelasEvolution(): Promise<void> {
     await pool.query(`ALTER TABLE evolution_mensagens
       ADD COLUMN IF NOT EXISTS processamento TEXT,
       ADD COLUMN IF NOT EXISTS desfecho_atendimento TEXT,
-      ADD COLUMN IF NOT EXISTS orientacao_id BIGINT`);
+      ADD COLUMN IF NOT EXISTS orientacao_id BIGINT,
+      ADD COLUMN IF NOT EXISTS plano_atendimento JSONB,
+      ADD COLUMN IF NOT EXISTS reissue_request_id BIGINT`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS evolution_mensagens_reissue_request
+      ON evolution_mensagens (empresa_id, reissue_request_id)
+      WHERE reissue_request_id IS NOT NULL`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS evolution_status_recebidos (
+      empresa_id INTEGER NOT NULL, provider_id TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('aceito','enviado','entregue','lido','falha')),
+      recebido_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (empresa_id,provider_id,status))`);
     await pool.query(`CREATE TABLE IF NOT EXISTS evolution_vinculos_cliente (
       empresa_id INTEGER NOT NULL,
       cliente_id INTEGER NOT NULL,
@@ -62,6 +74,25 @@ export function garantirTabelasEvolution(): Promise<void> {
       PRIMARY KEY (empresa_id, cliente_id),
       UNIQUE (empresa_id, telefone)
     )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS evolution_homologacao_config (
+      empresa_id INTEGER PRIMARY KEY,
+      texto_teste TEXT NOT NULL DEFAULT '',
+      motor_ativo BOOLEAN NOT NULL DEFAULT FALSE,
+      modelo_selecao TEXT NOT NULL DEFAULT '',
+      modelo_interprete TEXT NOT NULL DEFAULT '',
+      modelo_conferente TEXT NOT NULL DEFAULT '',
+      modelo_aprendiz TEXT NOT NULL DEFAULT '',
+      nome_assistente TEXT NOT NULL DEFAULT '',
+      atualizado_por INTEGER,
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+    await pool.query(`ALTER TABLE evolution_homologacao_config
+      ADD COLUMN IF NOT EXISTS motor_ativo BOOLEAN NOT NULL DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS modelo_selecao TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS modelo_interprete TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS modelo_conferente TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS modelo_aprendiz TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS nome_assistente TEXT NOT NULL DEFAULT ''`);
   })().catch((e) => { pronto = null; throw e; });
   return pronto;
 }
@@ -271,6 +302,41 @@ export function podeEnviarAgora(empresaId: number, max = 10, ms = 60_000, agora 
   return true;
 }
 export function _zerarLimite() { janelaEnvios.clear(); }
+
+export async function enviarTextoEvolution(
+  empresaId: number,
+  destino: string,
+  texto: string,
+  contexto: string,
+  usuarioId: number | null,
+  reissueRequestId?: string | null,
+): Promise<{ accepted: boolean; status: number; error?: string | null; providerId?: string | null; id?: number; messageStatus?: string }> {
+  const cfg = await lerConfig(empresaId);
+  if (!cfg) return { accepted: false, status: 409, error: "nao_configurado" };
+  if (!contatoAutorizado(destino)) return { accepted: false, status: 403, error: "contato_nao_autorizado" };
+  if (!texto.trim() || texto.length > LIMITE_MENSAGEM) return { accepted: false, status: 400, error: "texto_invalido" };
+  const conexao = await consultarConexao(empresaId);
+  if (conexao.estado !== "conectado") return { accepted: false, status: 409, error: conexao.estado };
+  if (!podeEnviarAgora(empresaId)) return { accepted: false, status: 429, error: "limite_de_envios" };
+  const inserted = await pool.query(
+    `INSERT INTO evolution_mensagens
+       (empresa_id, instancia, direcao, contato, corpo, provider_id, status, erro, contexto, enviado_por, reissue_request_id)
+     VALUES ($1,$2,'saida',$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+    [empresaId, cfg.instanceName, destino, texto, null, "incerto", null, contexto, usuarioId,
+      reissueRequestId ?? null]);
+  const id = Number(inserted.rows[0]?.id);
+  if (!Number.isSafeInteger(id) || id <= 0) throw new Error("registro_de_envio_indisponivel");
+  const resposta = await chamar(cfg, "POST", `/message/sendText/${encodeURIComponent(cfg.instanceName)}`, { number: destino, text: texto });
+  const providerId = typeof resposta.json?.key?.id === "string" ? resposta.json.key.id : null;
+  const accepted = resposta.ok && providerId !== null;
+  const uncertain = !accepted && (!resposta.status || resposta.status >= 500 || resposta.ok || resposta.status === 408);
+  const statusMensagem = accepted ? "aceito" : uncertain ? "incerto" : "falha";
+  const error = accepted ? null : (resposta.status ? `HTTP_${resposta.status}` : resposta.falha ?? "sem_resposta");
+  await pool.query(`UPDATE evolution_mensagens SET provider_id=$3,status=$4,erro=$5,atualizado_em=NOW()
+    WHERE id=$1 AND empresa_id=$2`, [id, empresaId, providerId, statusMensagem, error]);
+  if (providerId) await reconciliarStatusEvolution(empresaId, providerId);
+  return { accepted, status: accepted ? 200 : 502, error, providerId, id, messageStatus: statusMensagem };
+}
 
 export function tokenConfere(recebido: string, esperado: string | null): boolean {
   if (!esperado) return false;

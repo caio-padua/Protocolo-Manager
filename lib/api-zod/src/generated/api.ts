@@ -8256,3 +8256,213 @@ export const GetFinancialGoalsSummaryResponse = zod.object({
   ),
   message: zod.string().nullish(),
 });
+
+/**
+ * @summary Lê parâmetros editáveis da homologação do WhatsApp
+ */
+
+export const GetEvolutionHomologacaoConfigResponse = zod.object({
+  empresaId: zod.number().min(1),
+  modelos: zod.object({
+    selecao: zod.string(),
+    interprete: zod.string(),
+    conferente: zod.string(),
+    aprendizagem: zod.string(),
+  }),
+  textoTeste: zod.string(),
+  motorAtivo: zod.boolean(),
+  nomeAssistente: zod.string(),
+});
+
+/**
+ * @summary Salva parâmetros editáveis da homologação
+ */
+export const updateEvolutionHomologacaoConfigBodyModelosSelecaoMax = 100;
+
+export const updateEvolutionHomologacaoConfigBodyModelosInterpreteMax = 100;
+
+export const updateEvolutionHomologacaoConfigBodyModelosConferenteMax = 100;
+
+export const updateEvolutionHomologacaoConfigBodyModelosAprendizagemMax = 100;
+
+export const updateEvolutionHomologacaoConfigBodyTextoTesteMax = 4000;
+
+export const updateEvolutionHomologacaoConfigBodyNomeAssistenteMax = 80;
+
+export const UpdateEvolutionHomologacaoConfigBody = zod.object({
+  modelos: zod.object({
+    selecao: zod
+      .string()
+      .max(updateEvolutionHomologacaoConfigBodyModelosSelecaoMax),
+    interprete: zod
+      .string()
+      .max(updateEvolutionHomologacaoConfigBodyModelosInterpreteMax),
+    conferente: zod
+      .string()
+      .max(updateEvolutionHomologacaoConfigBodyModelosConferenteMax),
+    aprendizagem: zod
+      .string()
+      .max(updateEvolutionHomologacaoConfigBodyModelosAprendizagemMax),
+  }),
+  textoTeste: zod
+    .string()
+    .max(updateEvolutionHomologacaoConfigBodyTextoTesteMax),
+  nomeAssistente: zod
+    .string()
+    .max(updateEvolutionHomologacaoConfigBodyNomeAssistenteMax),
+  motorAtivo: zod.boolean(),
+});
+
+export const UpdateEvolutionHomologacaoConfigResponse = zod.object({
+  ok: zod.literal(true),
+});
+
+/**
+ * @summary Envia um texto escrito pela equipe para um único contato autorizado
+ */
+export const sendEvolutionIsolatedTestBodyNumeroMin = 8;
+export const sendEvolutionIsolatedTestBodyNumeroMax = 20;
+
+export const sendEvolutionIsolatedTestBodyTextoMax = 4000;
+
+export const sendEvolutionIsolatedTestBodyContextoMax = 60;
+
+export const SendEvolutionIsolatedTestBody = zod.object({
+  numero: zod
+    .string()
+    .min(sendEvolutionIsolatedTestBodyNumeroMin)
+    .max(sendEvolutionIsolatedTestBodyNumeroMax),
+  texto: zod.string().min(1).max(sendEvolutionIsolatedTestBodyTextoMax),
+  contexto: zod
+    .string()
+    .max(sendEvolutionIsolatedTestBodyContextoMax)
+    .optional(),
+  confirmo: zod.literal(true),
+});
+
+export const sendEvolutionIsolatedTestResponsePartesItemCaracteresMin = 0;
+
+export const SendEvolutionIsolatedTestResponse = zod.object({
+  ok: zod.boolean().optional(),
+  partesTotal: zod.number().min(1).optional(),
+  partes: zod.array(
+    zod.object({
+      parte: zod.number().min(1),
+      de: zod.number().min(1),
+      caracteres: zod
+        .number()
+        .min(sendEvolutionIsolatedTestResponsePartesItemCaracteresMin),
+      http: zod.number(),
+      ok: zod.boolean().optional(),
+      id: zod.number().optional(),
+      status: zod.string().optional(),
+      erro: zod.string().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Lista clientes ativos com telefone protegido
+ */
+
+export const GetEvolutionHomologacaoClientsResponse = zod.object({
+  clientes: zod.array(
+    zod.object({
+      id: zod.number().min(1),
+      nome: zod.string(),
+      telefone: zod.string().nullable(),
+      telefoneMascarado: zod.string().nullable(),
+      vinculoExplicito: zod.boolean(),
+    }),
+  ),
+});
+
+/**
+ * @summary Confirma vínculo explícito entre cliente e telefone
+ */
+
+export const updateEvolutionHomologacaoLinkBodyTelefoneMin = 8;
+export const updateEvolutionHomologacaoLinkBodyTelefoneMax = 20;
+
+export const updateEvolutionHomologacaoLinkBodyTelefoneFinalRegExp = new RegExp(
+  "^\\d{4}$",
+);
+
+export const UpdateEvolutionHomologacaoLinkBody = zod.object({
+  clienteId: zod.number().min(1),
+  telefone: zod
+    .string()
+    .min(updateEvolutionHomologacaoLinkBodyTelefoneMin)
+    .max(updateEvolutionHomologacaoLinkBodyTelefoneMax)
+    .optional(),
+  telefoneFinal: zod
+    .string()
+    .regex(updateEvolutionHomologacaoLinkBodyTelefoneFinalRegExp)
+    .optional(),
+  confirmo: zod.literal(true),
+});
+
+export const UpdateEvolutionHomologacaoLinkResponse = zod.object({
+  ok: zod.literal(true),
+  telefoneMascarado: zod.string(),
+});
+
+/**
+ * @summary Executa o motor real sem registrar nem enviar pergunta simulada
+ */
+
+export const planEvolutionHomologacaoResponseBodyPerguntaMax = 1000;
+
+export const PlanEvolutionHomologacaoResponseBody = zod.object({
+  clienteId: zod.number().min(1),
+  pergunta: zod
+    .string()
+    .min(1)
+    .max(planEvolutionHomologacaoResponseBodyPerguntaMax),
+});
+
+export const PlanEvolutionHomologacaoResponseResponse = zod.object({
+  simulacao: zod.literal(true),
+  mensagemDeEntradaRegistrada: zod.literal(false),
+  resposta: zod.string().nullable(),
+  desfecho: zod.string(),
+  caminhoResolucao: zod.string(),
+  orientacaoId: zod.number().min(1).optional(),
+  motor: zod.object({
+    decisao: zod.string(),
+    interpretadorChamado: zod.boolean(),
+    conferidorChamado: zod.boolean(),
+    modeloSelecionado: zod.boolean(),
+  }),
+  efeitosExecutados: zod.array(zod.string()),
+});
+
+/**
+ * @summary Envia individualmente a resposta do motor com aviso de simulação
+ */
+
+export const sendEvolutionHomologacaoResponseBodyPerguntaMax = 1000;
+
+export const sendEvolutionHomologacaoResponseBodyContextoMax = 60;
+
+export const SendEvolutionHomologacaoResponseBody = zod.object({
+  clienteId: zod.number().min(1),
+  pergunta: zod
+    .string()
+    .min(1)
+    .max(sendEvolutionHomologacaoResponseBodyPerguntaMax),
+  contexto: zod
+    .string()
+    .max(sendEvolutionHomologacaoResponseBodyContextoMax)
+    .optional(),
+  confirmo: zod.literal(true),
+});
+
+export const SendEvolutionHomologacaoResponseResponse = zod.object({
+  simulacao: zod.literal(true),
+  perguntaRegistradaComoEntrada: zod.literal(false),
+  respostaGeradaPor: zod.enum(["motor PAXMED"]),
+  desfecho: zod.string(),
+  caminhoResolucao: zod.string(),
+  inferenciaIA: zod.boolean(),
+});

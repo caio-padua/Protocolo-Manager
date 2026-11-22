@@ -27,15 +27,6 @@ export interface OrientacaoAprovada {
   resposta: string;
 }
 
-export const TEXTO_ENCAMINHADO =
-  "Olá! Sou a assistente virtual da clínica. Recebi sua mensagem e vou encaminhar para a equipe da clínica. Assim que um profissional puder, você recebe a resposta por aqui.";
-
-/** Mesma mensagem, com o nome real da clínica. Sem nome, cai no texto genérico (nunca usa o nome do sistema). */
-export function textoEncaminhado(nomeClinica?: string | null): string {
-  const n = nomeClinica?.trim();
-  return n ? TEXTO_ENCAMINHADO.replace("da clínica. Recebi", `de ${n}. Recebi`).replace("equipe da clínica", `equipe de ${n}`) : TEXTO_ENCAMINHADO;
-}
-
 /**
  * RASCUNHOS para revisão clínica do Dr. Caio. Não são enviados enquanto `queixaRevisada` for false.
  * Nenhum deles diagnostica, ajusta dose ou diz que um sintoma é normal.
@@ -161,8 +152,8 @@ export interface DepsAtendimento {
   registrarSaida: (p: { empresaId: number; clienteId: number; chatId: string; texto: string }) => Promise<void>;
   passarParaHumano: (clienteId: number, motivo: string) => Promise<void>;
   alertarEquipe: (texto: string) => Promise<boolean>;
-  /** Nome real da clínica (empresa). Opcional: ausente = texto genérico. */
-  nomeClinica?: (empresaId: number) => Promise<string | null>;
+  /** Texto de encaminhamento carregado do banco editável da clínica. */
+  textoEncaminhado: (empresaId: number, clienteNome: string) => Promise<string>;
   registrarDesfecho: (inboxMessageId: number, d: Desfecho, orientacaoId: number | null, meta?: {
     caminho: "cardapio" | "regra" | "interprete" | "conferente" | "documento" | "equipe";
     faqId: number | null; interpreteChamado: boolean; conferenteChamado: boolean; aprendizChamado: boolean;
@@ -230,7 +221,7 @@ export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAten
     if (!await deps.alertarEquipe(
       `Atendimento #${e.inboxMessageId}, cliente #${e.clienteId}, pede avaliação clínica. Abra a conversa no Cockpit protegido.`,
     )) return fechar("falha_alerta");
-    const texto = textoEncaminhado(deps.nomeClinica ? await deps.nomeClinica(e.empresaId).catch(() => null) : null);
+    const texto = await deps.textoEncaminhado(e.empresaId, e.clienteNome);
     const ok = await deps.enviarAoPaciente(e.chatId, texto);
     if (ok) await deps.registrarSaida({ empresaId: e.empresaId, clienteId: e.clienteId, chatId: e.chatId, texto });
     return fechar(ok ? "encaminhado_humano" : "falha_envio");
@@ -244,8 +235,7 @@ export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAten
       `Atendimento #${e.inboxMessageId}, cliente #${e.clienteId}, requer equipe. Abra a conversa no Cockpit protegido.`,
     );
     if (!alertou) return fechar("falha_alerta");
-    const resposta = respostaDocumento.texto ??
-      textoEncaminhado(deps.nomeClinica ? await deps.nomeClinica(e.empresaId).catch(() => null) : null);
+    const resposta = respostaDocumento.texto ?? await deps.textoEncaminhado(e.empresaId, e.clienteNome);
     const ok = await deps.enviarAoPaciente(e.chatId, resposta);
     if (ok) await deps.registrarSaida({ empresaId: e.empresaId, clienteId: e.clienteId, chatId: e.chatId, texto: resposta });
     return fechar(ok ? "encaminhado_humano" : "falha_envio");
@@ -309,7 +299,7 @@ export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAten
   caminhoResolucao = "equipe";
   await deps.passarParaHumano(e.clienteId, "sem_orientacao_aprovada");
   if (!await deps.alertarEquipe(`Atendimento #${e.inboxMessageId}, cliente #${e.clienteId}, requer equipe. Abra a conversa no Cockpit protegido.`)) return fechar("falha_alerta");
-  const textoEnc = textoEncaminhado(deps.nomeClinica ? await deps.nomeClinica(e.empresaId).catch(() => null) : null);
+  const textoEnc = await deps.textoEncaminhado(e.empresaId, e.clienteNome);
   const ok = await deps.enviarAoPaciente(e.chatId, textoEnc);
   if (ok) await deps.registrarSaida({ empresaId: e.empresaId, clienteId: e.clienteId, chatId: e.chatId, texto: textoEnc });
   return fechar(ok ? "encaminhado_humano" : "falha_envio");

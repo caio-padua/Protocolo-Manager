@@ -7,6 +7,9 @@ import { absoluteBaseUrl } from "./messaging/base-url";
 import { escaparHtmlTelegram } from "./orientacao-texto";
 import { sendTelegram } from "./telegram";
 import { vinculoTelegramAtualUnico } from "./telegram-vinculo-atual";
+import { enviarTextoEvolution } from "./evolution";
+import { carregarFrases } from "./telegram-frases";
+import { resolverIdentidadeWhatsapp } from "./evolution-client-identity";
 import {
   confirmClinicalDocumentReissueRequest,
   createReissueRequest,
@@ -27,6 +30,21 @@ interface DocumentoVerificado {
   documentId: number;
 }
 
+async function enviarTextoDoCanal(
+  e: EntradaAtendimento,
+  chatId: string,
+  texto: string,
+  contexto: string,
+  reissueRequestId?: string,
+): Promise<{ sent: boolean; mock: boolean; error?: string; providerId?: string | null }> {
+  if (e.canal !== "whatsapp") {
+    const result = await sendTelegram(chatId, escaparHtmlTelegram(texto), { disableWebPagePreview: true });
+    return { sent: result.sent && !result.mock, mock: result.mock, error: result.error };
+  }
+  const result = await enviarTextoEvolution(e.empresaId, chatId, texto, contexto, null, reissueRequestId);
+  return { sent: result.accepted, mock: false, error: result.error ?? undefined, providerId: result.providerId };
+}
+
 async function verificarDocumento(
   exec: ExecutorReenvio,
   e: EntradaAtendimento,
@@ -34,10 +52,17 @@ async function verificarDocumento(
   documentId: number,
 ): Promise<DocumentoVerificado | null> {
   if (!documentType || !Number.isSafeInteger(documentId) || documentId <= 0) return null;
-  if (!await vinculoTelegramAtualUnico(exec, { clienteId: e.clienteId, empresaId: e.empresaId, chatId: e.chatId })) return null;
-  const client = await exec.execute(sql`SELECT id,location_id FROM clients
-    WHERE id=${e.clienteId} AND empresa_id=${e.empresaId} AND telegram_chat_id=${e.chatId}
-      AND status='active' AND deleted_at IS NULL LIMIT 1`);
+  let client: { rows: unknown[] };
+  if (e.canal === "whatsapp") {
+    const identity = await resolverIdentidadeWhatsapp(exec, e.empresaId, e.chatId);
+    if (identity?.id !== e.clienteId) return null;
+    client = { rows: [{ id: identity.id, location_id: identity.locationId }] };
+  } else {
+    if (!await vinculoTelegramAtualUnico(exec, { clienteId: e.clienteId, empresaId: e.empresaId, chatId: e.chatId })) return null;
+    client = await exec.execute(sql`SELECT id,location_id FROM clients
+      WHERE id=${e.clienteId} AND empresa_id=${e.empresaId} AND telegram_chat_id=${e.chatId}
+        AND status='active' AND deleted_at IS NULL LIMIT 1`);
+  }
   if (client.rows.length !== 1) return null;
   const locationId = Number((client.rows[0] as { location_id?: number | string }).location_id);
   if (!Number.isSafeInteger(locationId) || locationId <= 0) return null;
@@ -62,7 +87,7 @@ async function verificarDocumento(
 
 function requestOperationKey(e: EntradaAtendimento): string {
   const hex = createHash("sha256")
-    .update(`telegram-reissue:${e.empresaId}:${e.clienteId}:${e.inboxMessageId}`)
+    .update(`${e.canal ?? "telegram"}-reissue:${e.empresaId}:${e.clienteId}:${e.inboxMessageId}`)
     .digest("hex").slice(0, 32).split("");
   hex[12] = "5";
   hex[16] = ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
@@ -90,7 +115,7 @@ export async function autorizarOfertaReenvio(
       locationId: issued.locationId,
       documentType,
       documentId,
-      requestedByChannel: "telegram",
+      requestedByChannel: e.canal ?? "telegram",
       clientConsent: false,
     });
     reissueRequestId = request.id;
@@ -214,7 +239,14 @@ export async function marcarReenvioConcluido(e: EntradaAtendimento, plano: Plano
   await db.execute(sql`UPDATE telegram_documento_reenvios SET status='enviado',atualizado_em=NOW()
     WHERE id=${documento.ofertaId} AND empresa_id=${e.empresaId} AND cliente_id=${e.clienteId}
       AND chat_id=${e.chatId} AND confirmacao_inbox_message_id=${e.inboxMessageId}
-      AND status='enviando'`);
+      AND status='enviando'
+      AND EXISTS (
+        SELECT 1 FROM clinical_document_reissue_requests r
+        WHERE r.id=telegram_documento_reenvios.reissue_request_id
+          AND r.empresa_id=${e.empresaId} AND r.client_id=${e.clienteId}
+          AND r.request_status='provider_accepted'
+          AND r.delivery_status IN ('provider_accepted','delivered','read')
+      )`);
 }
 
 export async function enviarLinkReceitaConfirmada(
@@ -222,7 +254,7 @@ export async function enviarLinkReceitaConfirmada(
   e: EntradaAtendimento,
   plano: PlanoAtendimento,
   dono: string,
-): Promise<{ sent: boolean; mock: boolean; error?: string; textoHistorico?: string }> {
+): Promise<{ sent: boolean; mock: boolean; error?: string; textoHistorico?: string; documentLinkAccepted?: boolean }> {
   const documento = plano.documento;
   if (documento?.acao !== "confirmar_reenvio" || !documento.ofertaId ||
       !documento.reissueRequestId || !documento.documentType || !documento.documentId || chat !== e.chatId) {
@@ -263,6 +295,11 @@ export async function enviarLinkReceitaConfirmada(
   if (!canDeliver) {
     if (request.request_status === "awaiting_payment" &&
         request.payment_status === "unverified" && request.payment_provider === null) {
+      if (e.canal === "whatsapp") {
+        const message = (await carregarFrases())("documento_reenvio_conferencia_cobranca");
+        const result = await enviarTextoDoCanal(e, chat, message, "segunda_via_revisao_cobranca");
+        return { ...result, error: result.error, textoHistorico: message };
+      }
       const charge = await createAndSendReissueCharge(documento.reissueRequestId, chat);
       if (charge.sent) {
         return {
@@ -271,19 +308,20 @@ export async function enviarLinkReceitaConfirmada(
           textoHistorico: "Link da taxa administrativa enviado após consentimento explícito; entrega documental bloqueada até pagamento confirmado.",
         };
       }
-      const paymentFailure = "Não consegui confirmar a criação ou o envio do link de pagamento. Não vou repetir a cobrança automaticamente; a equipe vai conferir antes de qualquer novo envio.";
-      const notice = await sendTelegram(chat, paymentFailure);
+      const paymentFailure = (await carregarFrases())("documento_reenvio_falha_cobranca");
+      const notice = await enviarTextoDoCanal(e, chat, paymentFailure, "segunda_via_falha_cobranca");
       return { ...notice, error: charge.error, textoHistorico: paymentFailure };
     }
+    const frases = await carregarFrases();
     const message = request.request_status === "awaiting_review"
-      ? "Recebi seu pedido. A equipe vai conferir a vigência do tratamento ou a assinatura PaxMed Members antes de liberar. Não houve cobrança nem envio do documento."
+      ? frases("documento_reenvio_aguardando_revisao")
       : request.request_status === "awaiting_payment"
-        ? "Recebi sua confirmação. O envio continua bloqueado até o pagamento da taxa administrativa ser confirmado pela clínica."
-        : "Recebi seu pedido. Ele permanece em conferência; não houve cobrança nem envio do documento.";
-    const result = await sendTelegram(chat, message);
+        ? frases("documento_reenvio_aguardando_pagamento")
+        : frases("documento_reenvio_em_conferencia");
+    const result = await enviarTextoDoCanal(e, chat, message, "segunda_via_revisao");
     if (result.sent) {
       await db.execute(sql`UPDATE clinical_document_reissue_requests
-        SET delivery_channel='telegram',delivery_result=${message},updated_at=NOW()
+        SET delivery_channel=${e.canal ?? "telegram"},delivery_result=${message},updated_at=NOW()
         WHERE id=${documento.reissueRequestId}::bigint AND request_status=${request.request_status}`);
     }
     return { ...result, textoHistorico: message };
@@ -292,7 +330,8 @@ export async function enviarLinkReceitaConfirmada(
   if (!result.sent) return { ...result, textoHistorico: "A segunda via ainda não foi liberada. A equipe precisa conferir o registro." };
   return {
     ...result,
-    textoHistorico: "Link seguro da segunda via enviado para o Telegram, com validade de sete dias.",
+    documentLinkAccepted: result.sent,
+    textoHistorico: `Link seguro da segunda via enviado pelo canal ${e.canal ?? "telegram"}, com validade de sete dias.`,
   };
 }
 
@@ -300,33 +339,48 @@ export async function deliverApprovedClinicalDocumentReissue(
   requestId: string,
 ): Promise<{ sent: boolean; mock: boolean; error?: string }> {
   const rows = await db.execute(sql`SELECT r.id,r.client_id,r.empresa_id,r.location_id,r.document_type,
-      r.document_id,r.document_label,r.document_pdf_sha256,r.payment_status,c.telegram_chat_id
+      r.document_id,r.document_label,r.document_pdf_sha256,r.payment_status,r.requested_by_channel,
+      c.telegram_chat_id,d.chat_id AS offer_chat_id
     FROM clinical_document_reissue_requests r
     JOIN clients c ON c.id=r.client_id
+    LEFT JOIN telegram_documento_reenvios d ON d.reissue_request_id=r.id AND d.status='enviando'
     WHERE r.id=${requestId}::bigint AND r.request_status='approved'
       AND r.payment_status IN ('not_required','paid')
       AND r.delivery_status='not_started'
       AND c.status='active' AND c.deleted_at IS NULL
+      AND (r.requested_by_channel<>'whatsapp' OR d.id IS NOT NULL)
     LIMIT 1`);
   const row = rows.rows[0] as {
     id: string | number; client_id: number | string; empresa_id: number | string;
     location_id: number | string; document_type: DocumentoVerificado["documentType"];
     document_id: string | null; document_label: string; document_pdf_sha256: string | null;
-    telegram_chat_id: string | null;
+    telegram_chat_id: string | null; requested_by_channel: string; offer_chat_id: string | null;
   } | undefined;
-  if (!row || !row.document_type || !row.document_id || !row.document_pdf_sha256 || !row.telegram_chat_id) {
+  if (!row || !row.document_type || !row.document_id || !row.document_pdf_sha256) {
     return { sent: false, mock: false, error: "solicitacao_aprovada_ou_destino_indisponivel" };
   }
   const clientId = Number(row.client_id);
   const empresaId = Number(row.empresa_id);
   const locationId = Number(row.location_id);
-  const chatId = row.telegram_chat_id;
-  if (!await vinculoTelegramAtualUnico(db, { clienteId: clientId, empresaId, chatId })) {
+  const channel = row.requested_by_channel === "whatsapp" ? "whatsapp" : "telegram";
+  const chatId = channel === "whatsapp" ? row.offer_chat_id : row.telegram_chat_id;
+  if (!chatId) return { sent: false, mock: false, error: "destino_indisponivel" };
+  if (channel === "whatsapp") {
+    const identity = await resolverIdentidadeWhatsapp(db, empresaId, chatId);
+    if (identity?.id !== clientId || identity.locationId !== locationId) {
+      return { sent: false, mock: false, error: "vinculo_whatsapp_nao_confirmado" };
+    }
+  } else if (chatId !== row.telegram_chat_id ||
+    !await vinculoTelegramAtualUnico(db, { clienteId: clientId, empresaId, chatId })) {
     return { sent: false, mock: false, error: "vinculo_telegram_nao_unico" };
   }
   const issued = await getIssuedDocument(row.document_type, Number(row.document_id));
   if (!issued || issued.status !== "emitted" || issued.clientId !== clientId ||
       issued.empresaId !== empresaId || issued.locationId !== locationId || !issued.pdfData ||
+      ((row.document_type === "prescricao" || row.document_type === "documento_assinado") &&
+        issued.signatureStatus !== "signed") ||
+      (row.document_type !== "documento_assinado" && !issued.professionalId) ||
+      Buffer.from(issued.pdfData, "base64").subarray(0, 5).toString("ascii") !== "%PDF-" ||
       createHash("sha256").update(Buffer.from(issued.pdfData, "base64")).digest("hex") !== row.document_pdf_sha256) {
     await db.execute(sql`UPDATE clinical_document_reissue_requests
       SET request_status='unknown',delivery_status='unknown',
@@ -344,8 +398,8 @@ export async function deliverApprovedClinicalDocumentReissue(
 
   const share = criarTokenClinicalShare();
   const claimed = await db.execute(sql`UPDATE clinical_document_reissue_requests
-    SET request_status='delivery_pending',delivery_status='queued',delivery_channel='telegram',
-        delivery_attempted_at=NOW(),delivery_result='Envio iniciado; aguardando confirmação do Telegram.',
+    SET request_status='delivery_pending',delivery_status='queued',delivery_channel=${channel},
+        delivery_attempted_at=NOW(),delivery_result=${`Envio iniciado; aguardando confirmação do ${channel}.`},
         delivery_share_token_hash=${share.tokenHash},
         delivery_share_expires_at=${new Date(share.expiresAt)},updated_at=NOW()
     WHERE id=${requestId}::bigint AND request_status='approved'
@@ -357,25 +411,38 @@ export async function deliverApprovedClinicalDocumentReissue(
     empresaId,
     locationId,
     eventType: "delivery_started",
-    details: { channel: "telegram" },
+    details: { channel },
   });
 
   const url = `${baseUrl.origin}/api/clinical-documents/share/${share.token}`;
-  const message = `Segue o link seguro para acessar a segunda via de ${escaparHtmlTelegram(issued.label)}. ` +
-    `Ele fica válido por sete dias: <a href="${escaparHtmlTelegram(url)}">Abrir documento</a>.`;
-  let result: { sent: boolean; mock: boolean; error?: string };
+  const frases = await carregarFrases();
+  const message = channel === "whatsapp"
+    ? frases("documento_link_seguro_whatsapp", { titulo: issued.label, url })
+    : frases("documento_link_seguro_telegram", {
+      titulo: escaparHtmlTelegram(issued.label),
+      url: escaparHtmlTelegram(url),
+    });
+  let result: { sent: boolean; mock: boolean; error?: string; providerId?: string | null };
   try {
-    result = await sendTelegram(chatId, message, { disableWebPagePreview: true });
+    result = channel === "whatsapp"
+      ? await enviarTextoDoCanal({
+          inboxMessageId: 0, empresaId, clienteId: clientId, clienteNome: "", chatId, texto: "", canal: "whatsapp",
+        }, chatId, message, "segunda_via_documento", requestId)
+      : await sendTelegram(chatId, message, { disableWebPagePreview: true });
   } catch {
     result = { sent: false, mock: false, error: "resultado_do_envio_indeterminado" };
   }
   await db.execute(sql`UPDATE clinical_document_reissue_requests
-    SET request_status=${result.sent ? "provider_accepted" : "unknown"},
-        delivery_status=${result.sent ? "provider_accepted" : "unknown"},
-        delivery_completed_at=CASE WHEN ${result.sent} THEN NOW() ELSE delivery_completed_at END,
-        delivery_result=${result.sent
-          ? "O Telegram confirmou o envio do link seguro."
-          : "O Telegram não confirmou o resultado; confira antes de repetir."},
+    SET request_status=CASE WHEN request_status='failed' THEN request_status
+          ELSE ${result.sent ? "provider_accepted" : "unknown"} END,
+        delivery_status=CASE WHEN delivery_status IN ('delivered','read','failed') THEN delivery_status
+          ELSE ${result.sent ? "provider_accepted" : "unknown"} END,
+        delivery_completed_at=CASE WHEN delivery_status IN ('delivered','read') THEN COALESCE(delivery_completed_at,NOW())
+          ELSE delivery_completed_at END,
+        delivery_result=CASE WHEN delivery_status IN ('delivered','read','failed') THEN delivery_result
+          ELSE ${result.sent
+            ? `O ${channel} aceitou o envio do link seguro.`
+            : `O ${channel} não confirmou o resultado; confira antes de repetir.`} END,
         updated_at=NOW()
     WHERE id=${requestId}::bigint AND request_status='delivery_pending'`);
   await recordClinicalDocumentReissueEvent({
@@ -383,7 +450,12 @@ export async function deliverApprovedClinicalDocumentReissue(
     empresaId,
     locationId,
     eventType: result.sent ? "delivery_provider_accepted" : "delivery_unknown",
-    details: { channel: "telegram", confirmed: result.sent },
+    details: {
+      channel,
+      confirmed: result.sent,
+      ...(channel === "whatsapp" ? { providerMessageId: result.providerId ?? null } : {}),
+      ...(result.error ? { error: result.error } : {}),
+    },
   });
   return result;
 }

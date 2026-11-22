@@ -28,12 +28,23 @@ export function nomeEhSensivel(nome: string): boolean {
 export function redigirTexto(texto: string): string {
   let t = texto;
   for (const p of PADROES_VALOR) t = t.replace(p, MASCARA);
+  // Credenciais em segmentos da URL não têm um nome de campo sensível.
+  // Apenas logs: a rede de respostas precisa preservar links protegidos válidos.
+  t = t.replace(
+    /(\/api\/(?:evolution\/webhook\/\d+|clinical-documents\/share)\/)[^/?#\s"'<>]+/gi,
+    `$1${MASCARA}`,
+  );
   // access_token=..., token: "...", ?key=...
   t = t.replace(
     /((?:token|secret|senha|password|api[-_.]?key|access[-_.]?token)["']?\s*[:=]\s*["']?)[^\s"'&,}]{6,}/gi,
     `$1${MASCARA}`,
   );
   return t;
+}
+
+/** Usar no serializador HTTP, antes de a URL entrar no objeto do log. */
+export function caminhoSeguroParaLog(url: string | undefined): string | undefined {
+  return url === undefined ? undefined : redigirTexto(url.split("?")[0]);
 }
 
 export function redigir<T>(valor: T, profundidade = 0): T {

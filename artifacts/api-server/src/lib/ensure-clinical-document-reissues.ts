@@ -61,6 +61,7 @@ export async function ensureClinicalDocumentReissuesTable(): Promise<void> {
       delivery_status TEXT NOT NULL DEFAULT 'not_started',
       delivery_attempted_at TIMESTAMPTZ,
       delivery_completed_at TIMESTAMPTZ,
+      document_accessed_at TIMESTAMPTZ,
       delivery_result TEXT,
       delivery_share_token_hash TEXT,
       delivery_share_expires_at TIMESTAMPTZ,
@@ -79,9 +80,14 @@ export async function ensureClinicalDocumentReissuesTable(): Promise<void> {
       CONSTRAINT clinical_document_reissue_payment_ck
         CHECK (payment_status IN ('not_required','awaiting_consent','pending','paid','overdue','cancelled','unverified')),
       CONSTRAINT clinical_document_reissue_delivery_ck
-        CHECK (delivery_status IN ('not_started','queued','provider_accepted','failed','unknown'))
+        CHECK (delivery_status IN ('not_started','queued','provider_accepted','delivered','read','failed','unknown'))
     )
   `);
+  await db.execute(sql`ALTER TABLE clinical_document_reissue_requests
+    DROP CONSTRAINT IF EXISTS clinical_document_reissue_channel_ck`);
+  await db.execute(sql`ALTER TABLE clinical_document_reissue_requests
+    ADD CONSTRAINT clinical_document_reissue_channel_ck
+    CHECK (requested_by_channel IN ('telegram','whatsapp','client_portal','staff'))`);
 
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS clinical_document_archives (
@@ -131,8 +137,14 @@ export async function ensureClinicalDocumentReissuesTable(): Promise<void> {
       ADD COLUMN IF NOT EXISTS client_confirmation_inbox_id BIGINT,
       ADD COLUMN IF NOT EXISTS delivery_share_token_hash TEXT,
       ADD COLUMN IF NOT EXISTS delivery_share_expires_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS document_accessed_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS review_note TEXT
   `);
+  await db.execute(sql`ALTER TABLE clinical_document_reissue_requests
+    DROP CONSTRAINT IF EXISTS clinical_document_reissue_delivery_ck`);
+  await db.execute(sql`ALTER TABLE clinical_document_reissue_requests
+    ADD CONSTRAINT clinical_document_reissue_delivery_ck
+    CHECK (delivery_status IN ('not_started','queued','provider_accepted','delivered','read','failed','unknown'))`);
 
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS idx_document_reissue_queue

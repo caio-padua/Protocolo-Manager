@@ -12,7 +12,7 @@ import { sendTelegram, sendTelegramPhotoBuffer } from "./telegram.js";
 import { enviarAnexosDaMensagem } from "./anexos-mensagem.js";
 import { vinculoTelegramAtualUnico } from "./telegram-vinculo-atual.js";
 import { renderFlyerPaxmed } from "./flyer-paxmed.js";
-import { getSetting } from "./secure-settings.js";
+import { getNomeAssistenteAtendimento } from "./atendimento-ia-config.js";
 
 export type Categoria = "link_pagamento" | "boleto" | "documento" | "pedido_exame" | "orcamento" | "lembrete_formal" | "oferta_pam" | "duvida_cliente" | "pedido_recebido" | "anamnese_nova";
 export interface DefCategoria {
@@ -216,8 +216,7 @@ export async function enviarComunicacao(p: PedidoEnvio): Promise<ResultadoEnvio>
   if (!emp?.nome) throw new ErroComunicacao("clínica sem nome cadastrado");
   const valor = def.variaveis.includes("valor") ? brl(validarValor(p.valorCentavos, p.ambiente)) : (p.valorCentavos != null ? brl(validarValor(p.valorCentavos, p.ambiente)) : null);
   const venc = dataBR(p.vencimento);
-  const assistente = (await getSetting("comunicacao.assistente.nome"))?.trim();
-  if (!assistente) throw new ErroComunicacao("Nome da assistente não configurado na tela de comunicação.");
+  const assistente = await getNomeAssistenteAtendimento(c.empresaId) || String(emp.nome);
   const vars: Record<string, string> = {
     nome: primeiroNome(c.name), assistente, clinica: String(emp.nome),
     ...(valor ? { valor } : {}), ...(p.referencia ? { referencia: p.referencia } : {}), ...(p.link ? { link: p.link } : {}),

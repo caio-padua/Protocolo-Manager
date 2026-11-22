@@ -2,19 +2,33 @@
 name: Evolution API (WhatsApp por QR Code)
 description: canal provisório por clínica; homologação com lista de contatos autorizados; o que já foi provado com servidor real
 ---
-- Chave e token do webhook no cofre com id da empresa na chave; webhook só registra, nunca responde; envio só humano e conectado; "entregue" só por webhook.
+- Chave e token do webhook ficam no cofre por empresa; identidade e canal precisam ser únicos antes de consultar dados.
 - Homologação (padrão ligado): só números de EVOLUTION_CONTATOS_AUTORIZADOS (vírgula) enviam/recebem; lista vazia bloqueia tudo; sai só com EVOLUTION_HOMOLOGACAO=false.
-- Servidor real da Evolution (Railway, instância paxmed-teste) respondeu: conexão=conectado, envio aceito, webhook avançou aceito→enviado.
-**Why:** "Resposta inesperada" vinha da tela chamar /api/evolution/* SEM o cabeçalho Authorization (401 virava erro_do_provedor); tela de comunicação precisa de collabAuthHeaders.
-**How to apply:** webhook foi registrado com o domínio de desenvolvimento (temporário); ao publicar, registrar de novo pelo botão da tela. Recebimento (entrada) ainda não provado; faltam 3 números na lista.
+- Motor de entrada fica desligado por padrão; ativação é por clínica; aceite do provedor não comprova entrega ou leitura.
+- Vínculo de teste fica separado de `clients.phone`; quatro dígitos só resolvem um contato já autorizado quando a correspondência é única.
+**Why:** número autorizado diferente do cadastro canônico não prova identidade; preservar os dois registros evita atribuir conversas à pessoa errada.
+**How to apply:** vincular pelo painel de homologação com confirmação administrativa; nunca inferir cliente por sufixo nem sobrescrever o cadastro principal.
 
 ## Homologação supervisionada (lições)
 - A lista EVOLUTION_CONTATOS_AUTORIZADOS é lida do ambiente do processo: trocou o segredo, reiniciar a API (tela só muda após reinício).
-- Motores reais (lembretes de prescrição, Pulso, pedidos) enviam por Twilio/Telegram; NENHUM usa a Evolution. Pulso é Telegram com botão (não serve em texto simples).
-- Teste isolado da Evolution recusa texto >1600 caracteres (nunca corta); prévias reais de clientes 11/12 passam disso.
-- Cadastro de Dayana (cliente 12) tem o MESMO telefone do Dr. Caio (final 4000): receber nesse número não prova a Dayana.
-- Entrega efetiva ("entregue"/"lido") e recebimento dependem de confirmação humana e de resposta de alguém da lista.
-- Limite correto na Evolution é 4000 caracteres (1600 era do Twilio); só acima disso divide sem perda (dividirTextoSemPerda), em sequência, parando na primeira falha.
-- A "Carta de Encantamento" e a prévia do lembrete são o MESMO motor (montarMensagemPaxmed). Não existe modelo aprovado de "como está o atendimento / precisa de algo" (comunicacao_modelo_texto não tem).
-- Dayana (cliente 12): cadastro com telefone do Dr. Caio; WhatsApp informado pelo Dr. Caio termina em 7163 (único na lista); destino explícito na homologação, cadastro não alterado.
-- Perguntas hipotéticas: o motor de atendimento só decide por planejarAtendimento (sem efeitos) com depsReaisAtendimento; ele é feito para Telegram (identidade por chat) e orientacoes_aprovadas estava com 0 aprovadas (72 rascunhos), então a resposta real é o texto de encaminhamento. Cliente em modo humano (Dayana) não gera resposta. tsx quebra no rrule (ESM); rodar lib via vitest temporário.
+- A Evolution aceita até 4000 caracteres por envio; acima disso, dividir sem perda e interromper na primeira falha.
+- Pergunta simulada não entra no histórico como mensagem recebida nem cria solicitação, cobrança, documento ou reserva.
+- Entrega efetiva ("entregue"/"lido") depende de confirmação do provedor; nunca inferir status pelo aceite do envio.
+
+## Ordem das confirmações do provedor
+
+Confirmações de entrega e leitura podem chegar antes da resposta da chamada de envio ou simultaneamente.
+Uma confirmação mais avançada não pode ser descartada porque outra atualização venceu a corrida.
+
+**Why:** a ordem da rede não acompanha a ordem das operações locais; comparar apenas um estado previamente lido perde evidência legítima.
+
+**How to apply:** testar confirmação precoce, entrega e leitura concorrentes, repetição e retorno atrasado, mantendo o estado mais avançado e sem repetir envios externos.
+
+## Segredos em endereços registrados
+
+A redação genérica do objeto de log não substitui a proteção do endereço dentro do serializador de requisição.
+Links protegidos precisam ser ocultados nos registros, mas preservados na resposta entregue ao cliente.
+
+**Why:** a transformação do objeto pode ocorrer antes da serialização da requisição; nessa ordem, um segredo no caminho do endereço ainda pode aparecer no registro final.
+
+**How to apply:** verificar o registro final com credencial sintética e testar separadamente que a resposta da aplicação mantém o link funcional.

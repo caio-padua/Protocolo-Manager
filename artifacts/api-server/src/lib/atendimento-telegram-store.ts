@@ -27,6 +27,8 @@ import {
 } from "./telegram-aprendiz";
 import { planejarAgendamentoCliente, aplicarMigracaoAgendamentoTelegram } from "./telegram-agendamento-store";
 import { criarConferenteLeitura, textoSeguroParaInterpretar } from "./telegram-interprete";
+import { getModeloAtendimento } from "./atendimento-ia-config";
+import { carregarFrases, comGlobais } from "./telegram-frases";
 import {
   planejarAtendimento, normalizar,
   type ConfigAtendimentoIA, type DepsAtendimento, type Desfecho, type EntradaAtendimento, type Candidata,
@@ -48,6 +50,26 @@ export interface ExecutorAtendimento {
 }
 
 export async function aplicarMigracaoAtendimento(exec: ExecutorAtendimento): Promise<void> {
+  await exec.execute(sql`
+    CREATE TABLE IF NOT EXISTS evolution_homologacao_config (
+      empresa_id INTEGER PRIMARY KEY,
+      texto_teste TEXT NOT NULL DEFAULT '',
+      motor_ativo BOOLEAN NOT NULL DEFAULT FALSE,
+      modelo_selecao TEXT NOT NULL DEFAULT '',
+      modelo_interprete TEXT NOT NULL DEFAULT '',
+      modelo_conferente TEXT NOT NULL DEFAULT '',
+      modelo_aprendiz TEXT NOT NULL DEFAULT '',
+      nome_assistente TEXT NOT NULL DEFAULT '',
+      atualizado_por INTEGER,
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await exec.execute(sql`ALTER TABLE evolution_homologacao_config
+    ADD COLUMN IF NOT EXISTS modelo_selecao TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS modelo_interprete TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS modelo_conferente TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS modelo_aprendiz TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS nome_assistente TEXT NOT NULL DEFAULT ''`);
   await exec.execute(sql`
     CREATE TABLE IF NOT EXISTS orientacoes_aprovadas (
       id                BIGSERIAL PRIMARY KEY,
@@ -195,7 +217,7 @@ Pergunta sem dados pessoais: """${textoSeguro}"""
 Orientações:
 ${lista}`;
   // Modelo escolhido pela clínica (só modelos realmente conectados); sem escolha, o padrão atual.
-  const modelo = (await getSetting("atendimento.ia.modelo.selecao"))?.trim();
+  const modelo = await getModeloAtendimento(empresaId, "selecao");
   if (!modelo) return null;
   const chave = inboxMessageId ? `telegram:${inboxMessageId}:interprete:orientacao` : `ia:${randomUUID()}`;
   onUso?.();
@@ -246,9 +268,12 @@ export function depsReaisAtendimento(
     },
     responderDocumento: (e) => responderSobreDocumentoTelegram(db, e),
     buscarFaq: (texto, eid) => buscarFaqAprendida(eid, texto),
-    nomeClinica: async (eid) => {
+    textoEncaminhado: async (eid, clienteNome) => {
       const r = await db.execute(sql`SELECT nome FROM empresas WHERE id=${eid}`);
-      return (r.rows[0] as { nome?: string } | undefined)?.nome ?? null;
+      const nomeClinica = (r.rows[0] as { nome?: string } | undefined)?.nome ?? null;
+      const primeiroNome = clienteNome.trim().split(/\s+/)[0] ?? "";
+      const frases = comGlobais(await carregarFrases(), { clinica: nomeClinica, primeiroNome });
+      return frases("sem_orientacao_encaminhada");
     },
     escolherComIA: (texto, cand) => escolherOrientacaoComIA(texto, cand, empresaId, inboxMessageId, () => {
       if (uso) uso.interprete = true;

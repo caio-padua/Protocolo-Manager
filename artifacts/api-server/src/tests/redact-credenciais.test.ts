@@ -1,9 +1,23 @@
 import { describe, it, expect } from "vitest";
-import { redigir, redigirTexto, redigirPorValor, nomeEhSensivel } from "../lib/redact";
+import { redigir, redigirTexto, redigirPorValor, nomeEhSensivel, caminhoSeguroParaLog } from "../lib/redact";
 
 const TOK = "1234567890:" + "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789";
 
 describe("redacao de credenciais", () => {
+  it("oculta segredo de webhook sem esconder a identificação da rota", () => {
+    const url = "/api/evolution/webhook/5/segredo-sintetico-para-teste?evento=ignorado";
+    expect(caminhoSeguroParaLog(url)).toBe("/api/evolution/webhook/5/[REDIGIDO]");
+    expect(redigirTexto(`Erro em https://exemplo.invalid${url}`)).not.toContain("segredo-sintetico");
+  });
+  it("oculta link de documento em logs, sem danificar a resposta entregue ao cliente", () => {
+    const url = "https://exemplo.invalid/api/clinical-documents/share/acesso-sintetico";
+    expect(redigirTexto(url)).not.toContain("acesso-sintetico");
+    expect(redigirPorValor({ url })).toEqual({ url });
+  });
+  it("preserva rotas comuns e remove a consulta do registro de acesso", () => {
+    expect(caminhoSeguroParaLog("/api/evolution/conexao?teste=1")).toBe("/api/evolution/conexao");
+    expect(caminhoSeguroParaLog(undefined)).toBeUndefined();
+  });
   it("pega nomes em qualquer caixa e separador", () => {
     for (const n of ["botToken", "BOT_TOKEN", "bot-token", "Authorization", "apiKey", "API_KEY", "Senha", "webhookSecret", "access_token"])
       expect(nomeEhSensivel(n)).toBe(true);

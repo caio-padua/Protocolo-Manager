@@ -11,8 +11,7 @@ import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { requireAiTenant } from "./ai-central";
 import { logger } from "./logger";
 import { garantirTabelasCredito, registrarCustoProvedor } from "./mensageria-credito";
-
-const MODELO_APRENDIZ = "claude-haiku-5-5";
+import { getModeloAtendimento } from "./atendimento-ia-config";
 const LIMIAR_APRENDIZAGEM = 3;
 const SIMILARIDADE_MINIMA = 0.72;
 
@@ -183,6 +182,8 @@ function temDadoPessoal(texto: string): boolean {
 }
 
 async function padronizarPergunta(exemplos: string[], empresaId: number, messageId: number, orientationId: number): Promise<string | null> {
+  const modelo = await getModeloAtendimento(empresaId, "aprendizagem");
+  if (!modelo) return null;
   const guard = requireAiTenant(empresaId, "agent");
   const content = `Padronize as perguntas repetidas abaixo em uma única pergunta curta e neutra, sem responder. Use somente o assunto comum que aparece nos exemplos. Responda somente JSON: {"pergunta":"..."}. Exemplos: ${JSON.stringify(exemplos)}`;
   const chave = `telegram-aprendiz:${messageId}:${orientationId}`;
@@ -190,7 +191,7 @@ async function padronizarPergunta(exemplos: string[], empresaId: number, message
   try {
     chamadaIniciada = true;
     const result = await anthropic.messages.create(
-      { model: MODELO_APRENDIZ, max_tokens: 100, messages: [{ role: "user", content }] },
+      { model: modelo, max_tokens: 100, messages: [{ role: "user", content }] },
       { headers: guard.headers },
     );
     await registrarCustoProvedor({
@@ -198,7 +199,7 @@ async function padronizarPergunta(exemplos: string[], empresaId: number, message
       chave,
       etapa: "telegram_aprendizado",
       provedor: "anthropic",
-      modelo: MODELO_APRENDIZ,
+      modelo,
       inputTokens: result.usage.input_tokens,
       outputTokens: result.usage.output_tokens,
     });
@@ -214,7 +215,7 @@ async function padronizarPergunta(exemplos: string[], empresaId: number, message
     return pergunta;
   } catch (error) {
     if (chamadaIniciada) await registrarCustoProvedor({
-      empresaId, chave, etapa: "telegram_aprendizado", provedor: "anthropic", modelo: MODELO_APRENDIZ,
+      empresaId, chave, etapa: "telegram_aprendizado", provedor: "anthropic", modelo,
     });
     logger.warn({ empresaId, errorType: error instanceof Error ? error.constructor.name : typeof error }, "[telegram-aprendiz] pergunta não foi padronizada; sem publicação");
     return null;

@@ -125,6 +125,18 @@ import type {
   EmpresaCodigoSemanticoInput,
   EmpresaCodigoSemanticoLista,
   ErrorResponse,
+  EvolutionHomologacaoClients,
+  EvolutionHomologacaoConfig,
+  EvolutionHomologacaoConfigSaved,
+  EvolutionHomologacaoConfigUpdate,
+  EvolutionHomologacaoLinkResult,
+  EvolutionHomologacaoLinkUpdate,
+  EvolutionHomologacaoPlanInput,
+  EvolutionHomologacaoPlanResult,
+  EvolutionHomologacaoSendInput,
+  EvolutionHomologacaoSendResult,
+  EvolutionIsolatedTestInput,
+  EvolutionIsolatedTestResult,
   ExamDocumentDispatchInput,
   ExamDocumentDispatchResult,
   ExamRequestEmitBody,
@@ -17767,3 +17779,619 @@ export function useGetFinancialGoalsSummary<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Lê parâmetros editáveis da homologação do WhatsApp
+ */
+export const getGetEvolutionHomologacaoConfigUrl = () => {
+  return `/api/evolution/homologacao/config`;
+};
+
+export const getEvolutionHomologacaoConfig = async (
+  options?: RequestInit,
+): Promise<EvolutionHomologacaoConfig> => {
+  return customFetch<EvolutionHomologacaoConfig>(
+    getGetEvolutionHomologacaoConfigUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetEvolutionHomologacaoConfigQueryKey = () => {
+  return [`/api/evolution/homologacao/config`] as const;
+};
+
+export const getGetEvolutionHomologacaoConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof getEvolutionHomologacaoConfig>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEvolutionHomologacaoConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetEvolutionHomologacaoConfigQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getEvolutionHomologacaoConfig>>
+  > = ({ signal }) =>
+    getEvolutionHomologacaoConfig({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getEvolutionHomologacaoConfig>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetEvolutionHomologacaoConfigQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getEvolutionHomologacaoConfig>>
+>;
+export type GetEvolutionHomologacaoConfigQueryError = ErrorType<void>;
+
+/**
+ * @summary Lê parâmetros editáveis da homologação do WhatsApp
+ */
+
+export function useGetEvolutionHomologacaoConfig<
+  TData = Awaited<ReturnType<typeof getEvolutionHomologacaoConfig>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEvolutionHomologacaoConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetEvolutionHomologacaoConfigQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Salva parâmetros editáveis da homologação
+ */
+export const getUpdateEvolutionHomologacaoConfigUrl = () => {
+  return `/api/evolution/homologacao/config`;
+};
+
+export const updateEvolutionHomologacaoConfig = async (
+  evolutionHomologacaoConfigUpdate: EvolutionHomologacaoConfigUpdate,
+  options?: RequestInit,
+): Promise<EvolutionHomologacaoConfigSaved> => {
+  return customFetch<EvolutionHomologacaoConfigSaved>(
+    getUpdateEvolutionHomologacaoConfigUrl(),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(evolutionHomologacaoConfigUpdate),
+    },
+  );
+};
+
+export const getUpdateEvolutionHomologacaoConfigMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEvolutionHomologacaoConfig>>,
+    TError,
+    { data: BodyType<EvolutionHomologacaoConfigUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateEvolutionHomologacaoConfig>>,
+  TError,
+  { data: BodyType<EvolutionHomologacaoConfigUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateEvolutionHomologacaoConfig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateEvolutionHomologacaoConfig>>,
+    { data: BodyType<EvolutionHomologacaoConfigUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateEvolutionHomologacaoConfig(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateEvolutionHomologacaoConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateEvolutionHomologacaoConfig>>
+>;
+export type UpdateEvolutionHomologacaoConfigMutationBody =
+  BodyType<EvolutionHomologacaoConfigUpdate>;
+export type UpdateEvolutionHomologacaoConfigMutationError = ErrorType<void>;
+
+/**
+ * @summary Salva parâmetros editáveis da homologação
+ */
+export const useUpdateEvolutionHomologacaoConfig = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEvolutionHomologacaoConfig>>,
+    TError,
+    { data: BodyType<EvolutionHomologacaoConfigUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateEvolutionHomologacaoConfig>>,
+  TError,
+  { data: BodyType<EvolutionHomologacaoConfigUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateEvolutionHomologacaoConfigMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Envia um texto escrito pela equipe para um único contato autorizado
+ */
+export const getSendEvolutionIsolatedTestUrl = () => {
+  return `/api/evolution/teste`;
+};
+
+export const sendEvolutionIsolatedTest = async (
+  evolutionIsolatedTestInput: EvolutionIsolatedTestInput,
+  options?: RequestInit,
+): Promise<EvolutionIsolatedTestResult> => {
+  return customFetch<EvolutionIsolatedTestResult>(
+    getSendEvolutionIsolatedTestUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(evolutionIsolatedTestInput),
+    },
+  );
+};
+
+export const getSendEvolutionIsolatedTestMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEvolutionIsolatedTest>>,
+    TError,
+    { data: BodyType<EvolutionIsolatedTestInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendEvolutionIsolatedTest>>,
+  TError,
+  { data: BodyType<EvolutionIsolatedTestInput> },
+  TContext
+> => {
+  const mutationKey = ["sendEvolutionIsolatedTest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendEvolutionIsolatedTest>>,
+    { data: BodyType<EvolutionIsolatedTestInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return sendEvolutionIsolatedTest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendEvolutionIsolatedTestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendEvolutionIsolatedTest>>
+>;
+export type SendEvolutionIsolatedTestMutationBody =
+  BodyType<EvolutionIsolatedTestInput>;
+export type SendEvolutionIsolatedTestMutationError = ErrorType<void>;
+
+/**
+ * @summary Envia um texto escrito pela equipe para um único contato autorizado
+ */
+export const useSendEvolutionIsolatedTest = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEvolutionIsolatedTest>>,
+    TError,
+    { data: BodyType<EvolutionIsolatedTestInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendEvolutionIsolatedTest>>,
+  TError,
+  { data: BodyType<EvolutionIsolatedTestInput> },
+  TContext
+> => {
+  return useMutation(getSendEvolutionIsolatedTestMutationOptions(options));
+};
+
+/**
+ * @summary Lista clientes ativos com telefone protegido
+ */
+export const getGetEvolutionHomologacaoClientsUrl = () => {
+  return `/api/evolution/homologacao/clientes`;
+};
+
+export const getEvolutionHomologacaoClients = async (
+  options?: RequestInit,
+): Promise<EvolutionHomologacaoClients> => {
+  return customFetch<EvolutionHomologacaoClients>(
+    getGetEvolutionHomologacaoClientsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetEvolutionHomologacaoClientsQueryKey = () => {
+  return [`/api/evolution/homologacao/clientes`] as const;
+};
+
+export const getGetEvolutionHomologacaoClientsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getEvolutionHomologacaoClients>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEvolutionHomologacaoClients>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetEvolutionHomologacaoClientsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getEvolutionHomologacaoClients>>
+  > = ({ signal }) =>
+    getEvolutionHomologacaoClients({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getEvolutionHomologacaoClients>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetEvolutionHomologacaoClientsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getEvolutionHomologacaoClients>>
+>;
+export type GetEvolutionHomologacaoClientsQueryError = ErrorType<void>;
+
+/**
+ * @summary Lista clientes ativos com telefone protegido
+ */
+
+export function useGetEvolutionHomologacaoClients<
+  TData = Awaited<ReturnType<typeof getEvolutionHomologacaoClients>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEvolutionHomologacaoClients>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetEvolutionHomologacaoClientsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Confirma vínculo explícito entre cliente e telefone
+ */
+export const getUpdateEvolutionHomologacaoLinkUrl = () => {
+  return `/api/evolution/homologacao/vinculo`;
+};
+
+export const updateEvolutionHomologacaoLink = async (
+  evolutionHomologacaoLinkUpdate: EvolutionHomologacaoLinkUpdate,
+  options?: RequestInit,
+): Promise<EvolutionHomologacaoLinkResult> => {
+  return customFetch<EvolutionHomologacaoLinkResult>(
+    getUpdateEvolutionHomologacaoLinkUrl(),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(evolutionHomologacaoLinkUpdate),
+    },
+  );
+};
+
+export const getUpdateEvolutionHomologacaoLinkMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEvolutionHomologacaoLink>>,
+    TError,
+    { data: BodyType<EvolutionHomologacaoLinkUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateEvolutionHomologacaoLink>>,
+  TError,
+  { data: BodyType<EvolutionHomologacaoLinkUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateEvolutionHomologacaoLink"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateEvolutionHomologacaoLink>>,
+    { data: BodyType<EvolutionHomologacaoLinkUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateEvolutionHomologacaoLink(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateEvolutionHomologacaoLinkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateEvolutionHomologacaoLink>>
+>;
+export type UpdateEvolutionHomologacaoLinkMutationBody =
+  BodyType<EvolutionHomologacaoLinkUpdate>;
+export type UpdateEvolutionHomologacaoLinkMutationError = ErrorType<void>;
+
+/**
+ * @summary Confirma vínculo explícito entre cliente e telefone
+ */
+export const useUpdateEvolutionHomologacaoLink = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEvolutionHomologacaoLink>>,
+    TError,
+    { data: BodyType<EvolutionHomologacaoLinkUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateEvolutionHomologacaoLink>>,
+  TError,
+  { data: BodyType<EvolutionHomologacaoLinkUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateEvolutionHomologacaoLinkMutationOptions(options));
+};
+
+/**
+ * @summary Executa o motor real sem registrar nem enviar pergunta simulada
+ */
+export const getPlanEvolutionHomologacaoResponseUrl = () => {
+  return `/api/evolution/homologacao/planejar`;
+};
+
+export const planEvolutionHomologacaoResponse = async (
+  evolutionHomologacaoPlanInput: EvolutionHomologacaoPlanInput,
+  options?: RequestInit,
+): Promise<EvolutionHomologacaoPlanResult> => {
+  return customFetch<EvolutionHomologacaoPlanResult>(
+    getPlanEvolutionHomologacaoResponseUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(evolutionHomologacaoPlanInput),
+    },
+  );
+};
+
+export const getPlanEvolutionHomologacaoResponseMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof planEvolutionHomologacaoResponse>>,
+    TError,
+    { data: BodyType<EvolutionHomologacaoPlanInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof planEvolutionHomologacaoResponse>>,
+  TError,
+  { data: BodyType<EvolutionHomologacaoPlanInput> },
+  TContext
+> => {
+  const mutationKey = ["planEvolutionHomologacaoResponse"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof planEvolutionHomologacaoResponse>>,
+    { data: BodyType<EvolutionHomologacaoPlanInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return planEvolutionHomologacaoResponse(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PlanEvolutionHomologacaoResponseMutationResult = NonNullable<
+  Awaited<ReturnType<typeof planEvolutionHomologacaoResponse>>
+>;
+export type PlanEvolutionHomologacaoResponseMutationBody =
+  BodyType<EvolutionHomologacaoPlanInput>;
+export type PlanEvolutionHomologacaoResponseMutationError = ErrorType<void>;
+
+/**
+ * @summary Executa o motor real sem registrar nem enviar pergunta simulada
+ */
+export const usePlanEvolutionHomologacaoResponse = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof planEvolutionHomologacaoResponse>>,
+    TError,
+    { data: BodyType<EvolutionHomologacaoPlanInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof planEvolutionHomologacaoResponse>>,
+  TError,
+  { data: BodyType<EvolutionHomologacaoPlanInput> },
+  TContext
+> => {
+  return useMutation(
+    getPlanEvolutionHomologacaoResponseMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Envia individualmente a resposta do motor com aviso de simulação
+ */
+export const getSendEvolutionHomologacaoResponseUrl = () => {
+  return `/api/evolution/homologacao/enviar-resposta`;
+};
+
+export const sendEvolutionHomologacaoResponse = async (
+  evolutionHomologacaoSendInput: EvolutionHomologacaoSendInput,
+  options?: RequestInit,
+): Promise<EvolutionHomologacaoSendResult> => {
+  return customFetch<EvolutionHomologacaoSendResult>(
+    getSendEvolutionHomologacaoResponseUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(evolutionHomologacaoSendInput),
+    },
+  );
+};
+
+export const getSendEvolutionHomologacaoResponseMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEvolutionHomologacaoResponse>>,
+    TError,
+    { data: BodyType<EvolutionHomologacaoSendInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendEvolutionHomologacaoResponse>>,
+  TError,
+  { data: BodyType<EvolutionHomologacaoSendInput> },
+  TContext
+> => {
+  const mutationKey = ["sendEvolutionHomologacaoResponse"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendEvolutionHomologacaoResponse>>,
+    { data: BodyType<EvolutionHomologacaoSendInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return sendEvolutionHomologacaoResponse(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendEvolutionHomologacaoResponseMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendEvolutionHomologacaoResponse>>
+>;
+export type SendEvolutionHomologacaoResponseMutationBody =
+  BodyType<EvolutionHomologacaoSendInput>;
+export type SendEvolutionHomologacaoResponseMutationError = ErrorType<void>;
+
+/**
+ * @summary Envia individualmente a resposta do motor com aviso de simulação
+ */
+export const useSendEvolutionHomologacaoResponse = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEvolutionHomologacaoResponse>>,
+    TError,
+    { data: BodyType<EvolutionHomologacaoSendInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendEvolutionHomologacaoResponse>>,
+  TError,
+  { data: BodyType<EvolutionHomologacaoSendInput> },
+  TContext
+> => {
+  return useMutation(
+    getSendEvolutionHomologacaoResponseMutationOptions(options),
+  );
+};

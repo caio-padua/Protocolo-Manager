@@ -1488,3 +1488,31 @@ mtime_ms = 1795354190289
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/c51472e1-d5df-4743-90f6-45012d40512d/9e646d05-3792-4716-9e28-51fc0d2b24de"
 storage_version_token = "1795354198510862"
 content_type = "image/png"
+
+[[outputs]]
+id = "By2xdBTJ3b-Yx49pbHwXI"
+uri = "file://generated-artifacts/whatsapp-supervisao/parametros-desktop.jpg"
+type = "image"
+title = "Parâmetros editáveis no computador"
+description = "Tela autenticada com os valores salvos; não representa envio ou entrega de mensagens."
+logical_id = "5fefd430-9081-49bf-bc6e-37994d86ead4"
+content_hash = "sha256:01def7a0c0b1209a33aa0e6705eec2182d3b5663051bec6bb6dd3a8e19a73bcd"
+size = 72267
+mtime_ms = 1795387822565
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/5fefd430-9081-49bf-bc6e-37994d86ead4/c85e083b-c1da-4f63-822a-04c0a3d4057f"
+storage_version_token = "1795388414282666"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "_57Pc9gljXS8RXeY9W9Kl"
+uri = "file://generated-artifacts/whatsapp-supervisao/parametros-celular.jpg"
+type = "image"
+title = "Parâmetros editáveis no celular"
+description = "Conferência da mesma configuração em tela de 390 pixels, sem dados clínicos."
+logical_id = "6195ff2b-503d-4d53-b86c-6563e1850a4d"
+content_hash = "sha256:0f72acc90d7a40098d4f6a85fc73a822d1faa0e98ec6007b78a4b736430a7f26"
+size = 52084
+mtime_ms = 1795387839441
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/6195ff2b-503d-4d53-b86c-6563e1850a4d/6297d1a9-57f6-4562-86e6-a5ab5ded70c3"
+storage_version_token = "1795388415116442"
+content_type = "image/jpeg"

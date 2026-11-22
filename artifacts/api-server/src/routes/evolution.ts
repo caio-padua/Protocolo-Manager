@@ -1,18 +1,35 @@
 /**
  * Evolution API (WhatsApp por QR Code) — rotas por clínica.
  * A clínica vem SEMPRE da sessão (tenantContext), nunca do corpo. O webhook é público e
- * só vale com o token secreto da clínica na URL. Nada responde sozinho: toda saída
- * parte de uma ação humana, para UM destinatário por vez.
+ * só vale com o token secreto da clínica na URL. Simulações e saídas supervisionadas
+ * são separadas do tráfego recebido e nunca fingem ser mensagens da pessoa.
  */
 import { Router, type IRouter, type Request, type Response } from "express";
-import { pool } from "@workspace/db";
+import { db, pool } from "@workspace/db";
 import { getSecret, getSecretStatus } from "../lib/secure-settings";
+import { getModeloAtendimento } from "../lib/atendimento-ia-config";
 import { logger } from "../lib/logger";
 import { requireCollaborator } from "./collaborator";
+import { depsReaisAtendimento } from "../lib/atendimento-telegram-store";
+import { planejarAtendimento } from "../lib/atendimento-telegram";
+import { telefoneCanonico } from "../lib/whatsapp-seguranca";
+import { registrarStatusEvolution } from "../lib/evolution-document-delivery-status";
+import { resolverIdentidadeWhatsapp } from "../lib/evolution-client-identity";
+import { fonteAtendimentoAindaAutorizada } from "../lib/atendimento-resposta-autorizada";
+import type { EntradaAtendimento, PlanoAtendimento } from "../lib/atendimento-telegram";
+import { carregarFrases } from "../lib/telegram-frases";
+import {
+  autorizarCancelamentoReenvio,
+  autorizarConfirmacaoReenvio,
+  autorizarOfertaReenvio,
+  enviarLinkReceitaConfirmada,
+  marcarOfertaReenvioEntregue,
+  marcarReenvioConcluido,
+} from "../lib/atendimento-telegram-reenvio";
 import {
   ConfigInvalida, dividirTextoSemPerda, contatoAutorizado, contatosAutorizados, homologacaoAtiva, chamar, chaveApi, chaveWebhook, consultarConexao, contatoDoJid, destinoDeEnvio,
   enderecoSeguro, garantirTabelasEvolution, lerConfig, mascararContato, normalizarBaseUrl, normalizarEvento,
-  obterQr, podeEnviarAgora, registrarWebhook, salvarConfig, statusDoProvedor, statusEvolutionPodeAvancar,
+  obterQr, podeEnviarAgora, registrarWebhook, salvarConfig, statusDoProvedor, enviarTextoEvolution,
   textoDaMensagem, tokenConfere, urlDoWebhook, validarNomeInstancia,
 } from "../lib/evolution";
 
@@ -125,31 +142,149 @@ router.get("/evolution/mensagens", requireCollaborator, async (req, res) => {
 });
 
 async function enviarUma(empresaId: number, destino: string, texto: string, contexto: string, usuarioId: number | null) {
-  const cfg = await lerConfig(empresaId);
-  if (!cfg) return { http: 409, corpo: { error: "Instância Evolution não configurada.", estado: "nao_configurado" } };
-  if (!contatoAutorizado(destino)) {
-    logger.warn({ event: "evolution_envio_bloqueado_homologacao", empresaId, contato: mascararContato(destino) }, "envio Evolution bloqueado: contato fora da lista autorizada");
-    return { http: 403, corpo: { error: "Homologação: este número não está na lista de contatos autorizados.", estado: "contato_nao_autorizado" } };
-  }
-  const conn = await consultarConexao(empresaId);
-  if (conn.estado !== "conectado") return { http: 409, corpo: { error: "WhatsApp não está conectado.", estado: conn.estado } };
-  if (!podeEnviarAgora(empresaId)) return { http: 429, corpo: { error: "Limite de envios por minuto atingido." } };
-  const r = await chamar(cfg, "POST", `/message/sendText/${encodeURIComponent(cfg.instanceName)}`, { number: destino, text: texto });
-  const provId = typeof r.json?.key?.id === "string" ? r.json.key.id : null;
-  const aceito = r.ok && provId !== null;
-  const erro = aceito ? null : (r.status ? `HTTP_${r.status}` : r.falha ?? "sem_resposta");
-  const ins = await pool.query(
-    `INSERT INTO evolution_mensagens (empresa_id, instancia, direcao, contato, corpo, provider_id, status, erro, contexto, enviado_por)
-     VALUES ($1,$2,'saida',$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-    [empresaId, cfg.instanceName, destino, texto, provId, aceito ? "aceito" : "falha", erro, contexto, usuarioId]);
-  // "aceito" = o servidor Evolution recebeu o pedido. Entrega só existe quando o webhook confirmar.
-  return { http: aceito ? 200 : 502, corpo: { ok: aceito, id: ins.rows[0].id, status: aceito ? "aceito" : "falha", erro } };
+  const envio = await enviarTextoEvolution(empresaId, destino, texto, contexto, usuarioId);
+  return { http: envio.status, corpo: {
+    ok: envio.accepted, id: envio.id, status: envio.messageStatus,
+    erro: envio.error, error: envio.error, estado: envio.id ? undefined : envio.error,
+  } };
 }
 
+async function autorizarSaidaEvolution(entrada: EntradaAtendimento, plano: PlanoAtendimento, revalidarDocumento = true): Promise<boolean> {
+  if ((await resolverIdentidadeWhatsapp(db, entrada.empresaId, entrada.chatId))?.id !== entrada.clienteId) return false;
+  const config = await pool.query(`SELECT motor_ativo FROM evolution_homologacao_config WHERE empresa_id=$1`, [entrada.empresaId]);
+  if (!config.rows[0]?.motor_ativo) return false;
+  const cfg = await depsReaisAtendimento(entrada.empresaId).lerConfig();
+  if (!(cfg.modo === "ligado" || (cfg.modo === "lista" && cfg.permitidos.has(entrada.clienteId)))) return false;
+  if (plano.desfecho === "queixa_texto_enviado" && !cfg.queixaRevisada) return false;
+  return fonteAtendimentoAindaAutorizada(db, entrada, plano, revalidarDocumento);
+}
 const usuarioDe = (req: Request): number | null => {
   const id = (req as any).tenantContext?.userId ?? (req as any).tenantContext?.colaboradorId;
   return Number.isSafeInteger(id) ? id : null;
 };
+
+async function processarEntradaEvolution(p: {
+  empresaId: number;
+  mensagemId: number;
+  telefone: string;
+  texto: string;
+  clienteId: number;
+  clienteNome: string;
+}): Promise<void> {
+  const eventoMotorId = 1_000_000_000_000 + p.mensagemId;
+  const entrada = {
+    inboxMessageId: eventoMotorId,
+    empresaId: p.empresaId,
+    clienteId: p.clienteId,
+    clienteNome: p.clienteNome,
+    chatId: p.telefone,
+    texto: p.texto,
+    canal: "whatsapp" as const,
+    simulacao: false,
+  };
+  await pool.query(`UPDATE evolution_mensagens SET processamento='processando' WHERE id=$1 AND empresa_id=$2`, [p.mensagemId, p.empresaId]);
+  try {
+    const uso = { interprete: false, conferente: false };
+    const deps = depsReaisAtendimento(p.empresaId, eventoMotorId, uso);
+    const plano = await planejarAtendimento(deps, entrada);
+    if (plano.desfecho === "desligado" || plano.desfecho === "fora_da_lista" || plano.desfecho === "pausado_humano") {
+      await pool.query(
+        `UPDATE evolution_mensagens SET processamento=$3, desfecho_atendimento=$4, plano_atendimento=$5::jsonb
+          WHERE id=$1 AND empresa_id=$2`,
+        [p.mensagemId, p.empresaId, plano.desfecho, plano.desfecho, JSON.stringify(plano)]);
+      return;
+    }
+    if (!await autorizarSaidaEvolution(entrada, plano)) {
+      await pool.query(`UPDATE evolution_mensagens SET processamento='autorizacao_revogada' WHERE id=$1 AND empresa_id=$2`,
+        [p.mensagemId, p.empresaId]);
+      return;
+    }
+    if (plano.pausa) {
+      await pool.query(
+        `INSERT INTO telegram_atendimento (cliente_id, modo, motivo, alterado_por)
+         SELECT id,'humano',$3,NULL FROM clients WHERE id=$1 AND empresa_id=$2 AND status='active' AND deleted_at IS NULL
+         ON CONFLICT (cliente_id) DO UPDATE SET modo='humano',motivo=EXCLUDED.motivo,alterado_em=NOW(),alterado_por=NULL
+         WHERE telegram_atendimento.modo='ia'`,
+        [p.clienteId, p.empresaId, plano.pausa]);
+    }
+    if (plano.alerta && !await deps.alertarEquipe(plano.alerta)) {
+      await pool.query(
+        `UPDATE evolution_mensagens SET processamento='falha_alerta', desfecho_atendimento=$3, plano_atendimento=$4::jsonb
+          WHERE id=$1 AND empresa_id=$2`,
+        [p.mensagemId, p.empresaId, plano.desfecho, JSON.stringify(plano)]);
+      return;
+    }
+    if (plano.documento?.acao === "ofertar_reenvio" &&
+        !await autorizarOfertaReenvio(db, entrada, plano)) {
+      await pool.query(
+        `UPDATE evolution_mensagens SET processamento='segunda_via_bloqueada', desfecho_atendimento=$3,
+          plano_atendimento=$4::jsonb WHERE id=$1 AND empresa_id=$2`,
+        [p.mensagemId, p.empresaId, plano.desfecho, JSON.stringify(plano)]);
+      return;
+    }
+    if (plano.documento?.acao === "confirmar_reenvio" &&
+        !await autorizarConfirmacaoReenvio(db, entrada, plano)) {
+      await pool.query(
+        `UPDATE evolution_mensagens SET processamento='segunda_via_bloqueada', desfecho_atendimento=$3,
+          plano_atendimento=$4::jsonb WHERE id=$1 AND empresa_id=$2`,
+        [p.mensagemId, p.empresaId, plano.desfecho, JSON.stringify(plano)]);
+      return;
+    }
+    if (plano.documento?.acao === "cancelar_reenvio" &&
+        !await autorizarCancelamentoReenvio(db, entrada, plano)) {
+      await pool.query(
+        `UPDATE evolution_mensagens SET processamento='segunda_via_bloqueada', desfecho_atendimento=$3,
+          plano_atendimento=$4::jsonb WHERE id=$1 AND empresa_id=$2`,
+        [p.mensagemId, p.empresaId, plano.desfecho, JSON.stringify(plano)]);
+      return;
+    }
+
+    if (plano.documento?.acao === "confirmar_reenvio") {
+      if (!await autorizarSaidaEvolution(entrada, plano, false)) {
+        await pool.query(`UPDATE evolution_mensagens SET processamento='autorizacao_revogada' WHERE id=$1 AND empresa_id=$2`,
+          [p.mensagemId, p.empresaId]);
+        return;
+      }
+      const resultado = await enviarLinkReceitaConfirmada(p.telefone, entrada, plano, `evolution:${p.mensagemId}`);
+      if (resultado.documentLinkAccepted) await marcarReenvioConcluido(entrada, plano);
+      const alertaEntregue = resultado.sent || await deps.alertarEquipe(
+        `Falha ao entregar a segunda via pelo WhatsApp. Atendimento ${p.mensagemId}, cliente ${p.clienteId}, solicitação ${plano.documento.reissueRequestId ?? "não identificada"}. Motivo: ${resultado.error ?? "resultado não confirmado"}. Conferir na fila protegida de segundas vias; não repetir automaticamente.`,
+      );
+      await pool.query(
+        `UPDATE evolution_mensagens SET processamento=$3, desfecho_atendimento=$4, orientacao_id=$5,
+          plano_atendimento=$6::jsonb WHERE id=$1 AND empresa_id=$2`,
+        [p.mensagemId, p.empresaId, resultado.documentLinkAccepted ? "concluido" :
+          alertaEntregue ? "segunda_via_pendente_de_conferencia" : "falha_alerta",
+          plano.desfecho, plano.orientacaoId, JSON.stringify(plano)]);
+      return;
+    }
+
+    if (!plano.resposta) {
+      await pool.query(
+        `UPDATE evolution_mensagens SET processamento='sem_resposta', desfecho_atendimento=$3,
+          plano_atendimento=$4::jsonb WHERE id=$1 AND empresa_id=$2`,
+        [p.mensagemId, p.empresaId, plano.desfecho, JSON.stringify(plano)]);
+      return;
+    }
+    if (!await autorizarSaidaEvolution(entrada, plano, !plano.documento?.acao)) {
+      await pool.query(`UPDATE evolution_mensagens SET processamento='autorizacao_revogada' WHERE id=$1 AND empresa_id=$2`,
+        [p.mensagemId, p.empresaId]);
+      return;
+    }
+    const enviado = await enviarUma(p.empresaId, p.telefone, plano.resposta, "motor_evolution", null);
+    const dados = enviado.corpo as { ok?: boolean };
+    if (dados.ok && plano.documento?.acao === "ofertar_reenvio") await marcarOfertaReenvioEntregue(entrada);
+    await pool.query(
+      `UPDATE evolution_mensagens SET processamento=$3, desfecho_atendimento=$4, orientacao_id=$5,
+        plano_atendimento=$6::jsonb WHERE id=$1 AND empresa_id=$2`,
+      [p.mensagemId, p.empresaId, dados.ok ? "concluido" : "incerto", plano.desfecho, plano.orientacaoId, JSON.stringify(plano)]);
+  } catch (error) {
+    logger.error({ empresaId: p.empresaId, mensagemId: p.mensagemId, errorType: error instanceof Error ? error.constructor.name : typeof error }, "[evolution] falha no motor; sem repetição automática");
+    await pool.query(
+      `UPDATE evolution_mensagens SET processamento='incerto' WHERE id=$1 AND empresa_id=$2`,
+      [p.mensagemId, p.empresaId]).catch(() => undefined);
+  }
+}
 
 /** Responder dentro de uma conversa que o contato já iniciou (contato precisa ter escrito antes). */
 router.post("/evolution/responder", requireCollaborator, async (req, res) => {
@@ -175,8 +310,8 @@ router.post("/evolution/teste", requireCollaborator, async (req, res) => {
   if (!destino || destino.includes("@")) { res.status(400).json({ error: "Número inválido. Use DDD + número (ou +código do país)." }); return; }
   // Texto já cadastrado (ex.: prévia do motor de lembretes) segue INTEGRAL. Só passa de 4000 caracteres é dividido,
   // sem perda, e enviado em sequência a UM destinatário; para na primeira parte que falhar.
-  const texto = String(req.body?.texto ?? "Teste de conexão do WhatsApp da clínica. Pode ignorar esta mensagem.");
-  if (!texto.trim()) { res.status(400).json({ error: "Texto vazio." }); return; }
+  const texto = String(req.body?.texto ?? "").trim();
+  if (!texto) { res.status(400).json({ error: "Informe um texto editável. Não há mensagem de teste embutida." }); return; }
   const partes = dividirTextoSemPerda(texto.trim());
   const contexto = typeof req.body?.contexto === "string" && /^[a-z0-9_]{1,60}$/.test(req.body.contexto) ? req.body.contexto : "teste_isolado";
   const resultados: Array<{ parte: number; de: number; caracteres: number; http: number; ok?: boolean; id?: number; status?: string; erro?: string | null }> = [];
@@ -193,6 +328,283 @@ router.post("/evolution/teste", requireCollaborator, async (req, res) => {
   if (partes.length === 1) { res.status(primeiro.http).json({ ...ultimoCorpo, partes: resultados }); return; }
   const todas = resultados.length === partes.length && resultados.every((x) => x.ok);
   res.status(todas ? 200 : 502).json({ ok: todas, partesTotal: partes.length, partes: resultados });
+});
+
+// ── Parâmetros editáveis, vínculo explícito e simulação supervisionada ──────
+router.get("/evolution/homologacao/config", requireCollaborator, async (req, res) => {
+  const empresaId = exigeAdmin(req, res); if (empresaId === null) return;
+  await garantirTabelasEvolution();
+  const textoInicial = "Olá, {cliente}. Vamos realizar um teste supervisionado do atendimento do PAXMED.\n\nA pergunta a seguir foi imaginada para teste e NÃO foi enviada por você: “{pergunta}”\n\nResposta produzida pelo motor real do PAXMED: {resposta}\n\nEste teste não criou pedido, cobrança nem documento.";
+  await pool.query(
+    `INSERT INTO evolution_homologacao_config (empresa_id, texto_teste)
+     VALUES ($1,$2) ON CONFLICT (empresa_id) DO NOTHING`,
+    [empresaId, textoInicial]);
+  const texto = await pool.query(
+    `SELECT texto_teste,motor_ativo,modelo_selecao,modelo_interprete,modelo_conferente,modelo_aprendiz,nome_assistente
+       FROM evolution_homologacao_config WHERE empresa_id=$1`,
+    [empresaId],
+  );
+  const atual = texto.rows[0] as {
+    texto_teste?: string; motor_ativo?: boolean;
+    modelo_selecao?: string; modelo_interprete?: string; modelo_conferente?: string;
+    modelo_aprendiz?: string; nome_assistente?: string;
+  } | undefined;
+  res.json({
+    empresaId,
+    modelos: {
+      selecao: atual?.modelo_selecao ?? "",
+      interprete: atual?.modelo_interprete ?? "",
+      conferente: atual?.modelo_conferente ?? "",
+      aprendizagem: atual?.modelo_aprendiz ?? "",
+    },
+    textoTeste: atual?.texto_teste ?? "",
+    motorAtivo: Boolean(atual?.motor_ativo),
+    nomeAssistente: atual?.nome_assistente ?? "",
+  });
+});
+
+router.put("/evolution/homologacao/config", requireCollaborator, async (req, res) => {
+  const empresaId = exigeAdmin(req, res); if (empresaId === null) return;
+  await garantirTabelasEvolution();
+  const modelos = req.body?.modelos ?? {};
+  const entradasModelo: unknown[] = [modelos.selecao, modelos.interprete, modelos.conferente, modelos.aprendizagem];
+  const textoTeste = req.body?.textoTeste;
+  const nomeAssistente = req.body?.nomeAssistente;
+  const motorAtivo = req.body?.motorAtivo;
+  if (entradasModelo.some((value) => typeof value !== "string") ||
+      entradasModelo.some((value) => String(value).trim().length > 100 ||
+        (String(value).trim() !== "" && !/^[A-Za-z0-9._:-]+$/.test(String(value).trim()))) ||
+      typeof textoTeste !== "string" || textoTeste.length > 4000 ||
+      (textoTeste.trim() && (!textoTeste.includes("{cliente}") || !textoTeste.includes("{pergunta}") ||
+        !textoTeste.includes("{resposta}") || /\{(?!cliente\}|pergunta\}|resposta\})[^}]+\}/.test(textoTeste))) ||
+      typeof nomeAssistente !== "string" || nomeAssistente.trim().length > 80 ||
+      typeof motorAtivo !== "boolean") {
+    res.status(400).json({ error: "Revise os campos. O texto deve conter {cliente}, {pergunta} e {resposta}." }); return;
+  }
+  try {
+    await pool.query(
+      `INSERT INTO evolution_homologacao_config (
+         empresa_id,texto_teste,motor_ativo,modelo_selecao,modelo_interprete,modelo_conferente,modelo_aprendiz,nome_assistente,atualizado_por
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (empresa_id) DO UPDATE SET
+         texto_teste=EXCLUDED.texto_teste, motor_ativo=EXCLUDED.motor_ativo,
+         modelo_selecao=EXCLUDED.modelo_selecao,modelo_interprete=EXCLUDED.modelo_interprete,
+         modelo_conferente=EXCLUDED.modelo_conferente,modelo_aprendiz=EXCLUDED.modelo_aprendiz,
+         nome_assistente=EXCLUDED.nome_assistente,
+         atualizado_por=EXCLUDED.atualizado_por, atualizado_em=NOW()`,
+      [
+        empresaId, textoTeste.trim(), motorAtivo,
+        String(modelos.selecao).trim(), String(modelos.interprete).trim(),
+        String(modelos.conferente).trim(), String(modelos.aprendizagem).trim(),
+        nomeAssistente.trim(), usuarioDe(req),
+      ]);
+  } catch (error) {
+    logger.error({ empresaId, errorType: error instanceof Error ? error.constructor.name : typeof error }, "[evolution] falha ao salvar parâmetros");
+    res.status(500).json({ error: "Não foi possível salvar os parâmetros." }); return;
+  }
+  res.json({ ok: true });
+});
+
+router.get("/evolution/homologacao/clientes", requireCollaborator, async (req, res) => {
+  const empresaId = exigeAdmin(req, res); if (empresaId === null) return;
+  await garantirTabelasEvolution();
+  const r = await pool.query(
+    `SELECT c.id, c.name, c.phone, v.telefone AS telefone_vinculado
+       FROM clients c
+       LEFT JOIN evolution_vinculos_cliente v
+         ON v.empresa_id=c.empresa_id AND v.cliente_id=c.id
+      WHERE c.empresa_id=$1 AND c.status='active' AND c.deleted_at IS NULL
+      ORDER BY c.name`, [empresaId]);
+  const clientes = (r.rows as Array<{ id: number; name: string | null; phone: string | null; telefone_vinculado: string | null }>)
+    .map((c) => {
+      const telefone = c.telefone_vinculado ?? telefoneCanonico(c.phone);
+      return {
+        id: Number(c.id),
+        nome: c.name ?? "Sem nome cadastrado",
+        telefone: telefone && contatoAutorizado(telefone) ? telefone : null,
+        telefoneMascarado: telefone ? mascararContato(telefone) : null,
+        vinculoExplicito: Boolean(c.telefone_vinculado),
+      };
+    });
+  res.json({ clientes });
+});
+
+router.put("/evolution/homologacao/vinculo", requireCollaborator, async (req, res) => {
+  const empresaId = exigeAdmin(req, res); if (empresaId === null) return;
+  const clienteId = Number(req.body?.clienteId);
+  const telefoneInformado = typeof req.body?.telefone === "string" ? req.body.telefone.trim() : "";
+  const telefoneFinal = typeof req.body?.telefoneFinal === "string" ? req.body.telefoneFinal.replace(/\D/g, "") : "";
+  if (!Number.isSafeInteger(clienteId) || clienteId <= 0 || req.body?.confirmo !== true ||
+      Boolean(telefoneInformado) === Boolean(telefoneFinal) || (telefoneFinal && telefoneFinal.length !== 4)) {
+    res.status(400).json({ error: "Informe um único telefone completo ou os quatro últimos dígitos autorizados e confirme a origem." }); return;
+  }
+  let telefone = telefoneInformado ? telefoneCanonico(telefoneInformado) : null;
+  if (telefoneFinal) {
+    const matches = contatosAutorizados().filter((item) => item.endsWith(telefoneFinal));
+    if (matches.length !== 1) {
+      res.status(409).json({ error: "Os quatro últimos dígitos não identificam um único contato autorizado." }); return;
+    }
+    telefone = matches[0]!;
+  }
+  if (!telefone) {
+    res.status(400).json({ error: "O telefone completo não é válido." }); return;
+  }
+  if (!contatoAutorizado(telefone)) {
+    res.status(403).json({ error: "O telefone não está na lista de homologação autorizada." }); return;
+  }
+  await garantirTabelasEvolution();
+  const cliente = await pool.query(
+    `SELECT id FROM clients WHERE id=$1 AND empresa_id=$2 AND status='active' AND deleted_at IS NULL`,
+    [clienteId, empresaId]);
+  if (!cliente.rows.length) { res.status(404).json({ error: "Cliente ativo não encontrado nesta clínica." }); return; }
+  const conflito = await pool.query(
+    `SELECT cliente_id FROM evolution_vinculos_cliente WHERE empresa_id=$1 AND telefone=$2 AND cliente_id<>$3
+     LIMIT 1`, [empresaId, telefone, clienteId]);
+  // Telefone repetido na coluna de outro cadastro não é alterado; o vínculo confirmado pelo administrador desfaz a colisão.
+  if (conflito.rows.length) { res.status(409).json({ error: "Este telefone já tem vínculo confirmado para outro cadastro." }); return; }
+  await pool.query(
+    `INSERT INTO evolution_vinculos_cliente (empresa_id, cliente_id, telefone, origem, confirmado_por)
+     VALUES ($1,$2,$3,'confirmacao_administrador_homologacao',$4)
+     ON CONFLICT (empresa_id, cliente_id) DO UPDATE SET
+       telefone=EXCLUDED.telefone, origem=EXCLUDED.origem, confirmado_por=EXCLUDED.confirmado_por,
+       confirmado_em=NOW(), atualizado_em=NOW()`,
+    [empresaId, clienteId, telefone, usuarioDe(req)]);
+  res.json({ ok: true, telefoneMascarado: mascararContato(telefone) });
+});
+
+router.post("/evolution/homologacao/planejar", requireCollaborator, async (req, res) => {
+  const empresaId = exigeAdmin(req, res); if (empresaId === null) return;
+  const clienteId = Number(req.body?.clienteId);
+  const pergunta = typeof req.body?.pergunta === "string" ? req.body.pergunta.trim() : "";
+  if (!Number.isSafeInteger(clienteId) || clienteId <= 0 || !pergunta || pergunta.length > 1000) {
+    res.status(400).json({ error: "Informe o cadastro e uma pergunta de teste de até 1000 caracteres." }); return;
+  }
+  await garantirTabelasEvolution();
+  const r = await pool.query(
+    `SELECT c.name, c.phone, v.telefone AS telefone_vinculado
+       FROM clients c LEFT JOIN evolution_vinculos_cliente v
+         ON v.empresa_id=c.empresa_id AND v.cliente_id=c.id
+      WHERE c.id=$1 AND c.empresa_id=$2 AND c.status='active' AND c.deleted_at IS NULL`,
+    [clienteId, empresaId]);
+  const cliente = r.rows[0] as { name: string | null; phone: string | null; telefone_vinculado: string | null } | undefined;
+  if (!cliente) { res.status(404).json({ error: "Cliente ativo não encontrado nesta clínica." }); return; }
+  const destino = cliente.telefone_vinculado ?? telefoneCanonico(cliente.phone);
+  if (!destino || !contatoAutorizado(destino)) {
+    res.status(403).json({ error: "Este cadastro ainda não tem telefone autorizado para homologação." }); return;
+  }
+  if ((await resolverIdentidadeWhatsapp(db, empresaId, destino))?.id !== clienteId) {
+    res.status(409).json({ error: "Identidade do contato ambígua ou não confirmada. Nada foi enviado." }); return;
+  }
+  const uso = { interprete: false, conferente: false };
+  const entrada = {
+    inboxMessageId: 0,
+    empresaId,
+    clienteId,
+    clienteNome: cliente.name ?? "",
+    chatId: destino,
+    texto: pergunta,
+    canal: "whatsapp" as const,
+    simulacao: true,
+  };
+  try {
+    const deps = depsReaisAtendimento(empresaId, undefined, uso);
+    if (await deps.modoDoCliente(clienteId) === "humano") {
+      res.status(409).json({ error: "Atendimento humano ativo. A conversa não foi reativada automaticamente e nada foi enviado.", desfecho: "pausado_humano" }); return;
+    }
+    const plano = await planejarAtendimento(deps, entrada);
+    if ((await resolverIdentidadeWhatsapp(db, empresaId, destino))?.id !== clienteId ||
+        !await fonteAtendimentoAindaAutorizada(db, entrada, plano)) {
+      res.status(409).json({ error: "Identidade ou autorização mudou durante o planejamento. Nada foi enviado." }); return;
+    }
+    res.json({
+      simulacao: true,
+      mensagemDeEntradaRegistrada: false,
+      resposta: plano.resposta,
+      desfecho: plano.desfecho,
+      caminhoResolucao: plano.caminhoResolucao ?? "equipe",
+      orientacaoId: plano.orientacaoId,
+      motor: {
+        decisao: "atendimento PAXMED",
+        interpretadorChamado: uso.interprete,
+        conferidorChamado: uso.conferente,
+        modeloSelecionado: Boolean(await getModeloAtendimento(empresaId, "selecao")),
+      },
+      efeitosExecutados: uso.interprete || uso.conferente
+        ? ["inferência de IA contabilizada no motor de mensageria"]
+        : [],
+    });
+  } catch (error) {
+    logger.error({ empresaId, clienteId, errorType: error instanceof Error ? error.constructor.name : typeof error }, "[evolution] falha no plano supervisionado");
+    res.status(500).json({ error: "O motor não conseguiu montar o plano. Nenhuma mensagem foi enviada." });
+  }
+});
+
+router.post("/evolution/homologacao/enviar-resposta", requireCollaborator, async (req, res) => {
+  const empresaId = exigeAdmin(req, res); if (empresaId === null) return;
+  if (req.body?.confirmo !== true) { res.status(400).json({ error: "Confirme o envio individual da resposta do motor." }); return; }
+  await garantirTabelasEvolution();
+  const conf = await pool.query(`SELECT texto_teste FROM evolution_homologacao_config WHERE empresa_id=$1`, [empresaId]);
+  const textoTeste = String((conf.rows[0] as { texto_teste?: string } | undefined)?.texto_teste ?? "").trim();
+  if (!textoTeste) { res.status(409).json({ error: "Cadastre e salve o texto de teste editável antes de enviar." }); return; }
+  const clienteId = Number(req.body?.clienteId);
+  const pergunta = typeof req.body?.pergunta === "string" ? req.body.pergunta.trim() : "";
+  const contexto = typeof req.body?.contexto === "string" && /^[a-z0-9_]{1,60}$/.test(req.body.contexto)
+    ? `simulacao_motor_${req.body.contexto}` : "simulacao_motor";
+  if (!Number.isSafeInteger(clienteId) || clienteId <= 0 || !pergunta || pergunta.length > 1000) {
+    res.status(400).json({ error: "Informe o cadastro e uma pergunta de teste de até 1000 caracteres." }); return;
+  }
+  const r = await pool.query(
+    `SELECT c.name, c.phone, v.telefone AS telefone_vinculado
+       FROM clients c LEFT JOIN evolution_vinculos_cliente v
+         ON v.empresa_id=c.empresa_id AND v.cliente_id=c.id
+      WHERE c.id=$1 AND c.empresa_id=$2 AND c.status='active' AND c.deleted_at IS NULL`,
+    [clienteId, empresaId]);
+  const cliente = r.rows[0] as { name: string | null; phone: string | null; telefone_vinculado: string | null } | undefined;
+  if (!cliente) { res.status(404).json({ error: "Cliente ativo não encontrado nesta clínica." }); return; }
+  const destino = cliente.telefone_vinculado ?? telefoneCanonico(cliente.phone);
+  if (!destino || !contatoAutorizado(destino)) {
+    res.status(403).json({ error: "Este cadastro ainda não tem telefone autorizado para homologação." }); return;
+  }
+  if ((await resolverIdentidadeWhatsapp(db, empresaId, destino))?.id !== clienteId) {
+    res.status(409).json({ error: "Identidade do contato ambígua ou não confirmada. Nada foi enviado." }); return;
+  }
+  const uso = { interprete: false, conferente: false };
+  try {
+    const entrada: EntradaAtendimento = {
+      inboxMessageId: 0, empresaId, clienteId, clienteNome: cliente.name ?? "", chatId: destino,
+      texto: pergunta, canal: "whatsapp", simulacao: true,
+    };
+    const deps = depsReaisAtendimento(empresaId, undefined, uso);
+    if (await deps.modoDoCliente(clienteId) === "humano") {
+      res.status(409).json({ error: "Atendimento humano ativo. A conversa não foi reativada automaticamente e nada foi enviado.", desfecho: "pausado_humano" }); return;
+    }
+    const plano = await planejarAtendimento(deps, entrada);
+    if (!plano.resposta) {
+      res.status(409).json({ error: "O motor não produziu resposta. Nenhuma mensagem foi enviada.", desfecho: plano.desfecho }); return;
+    }
+    const corpo = textoTeste
+      .replaceAll("{cliente}", cliente.name ?? "")
+      .replaceAll("{pergunta}", pergunta)
+      .replaceAll("{resposta}", plano.resposta);
+    if (corpo.length > 4000) { res.status(400).json({ error: "A mensagem final excedeu o limite do canal." }); return; }
+    if ((await resolverIdentidadeWhatsapp(db, empresaId, destino))?.id !== clienteId ||
+        !await fonteAtendimentoAindaAutorizada(db, entrada, plano)) {
+      res.status(409).json({ error: "Identidade ou autorização mudou durante o planejamento. Nada foi enviado." }); return;
+    }
+    const envio = await enviarUma(empresaId, destino, corpo, contexto, usuarioDe(req));
+    res.status(envio.http).json({
+      ...envio.corpo as Record<string, unknown>,
+      simulacao: true,
+      perguntaRegistradaComoEntrada: false,
+      respostaGeradaPor: "motor PAXMED",
+      desfecho: plano.desfecho,
+      caminhoResolucao: plano.caminhoResolucao ?? "equipe",
+      inferenciaIA: uso.interprete || uso.conferente,
+    });
+  } catch (error) {
+    logger.error({ empresaId, clienteId, errorType: error instanceof Error ? error.constructor.name : typeof error }, "[evolution] falha no envio supervisionado");
+    res.status(500).json({ error: "Falha ao gerar ou enviar. Confira o histórico antes de repetir." });
+  }
 });
 
 // ── Webhook público (autenticidade = token secreto da clínica) ─────────────
@@ -213,6 +625,9 @@ publico.post("/evolution/webhook/:empresaId/:token", async (req, res) => {
     const evento = normalizarEvento(corpo.event);
     const itens: any[] = Array.isArray(corpo.data) ? corpo.data : corpo.data ? [corpo.data] : [];
     if (evento === "messages.upsert") {
+      const motorConfig = await pool.query(
+        `SELECT motor_ativo FROM evolution_homologacao_config WHERE empresa_id=$1`, [empresaId]);
+      const motorAtivo = Boolean((motorConfig.rows[0] as { motor_ativo?: boolean } | undefined)?.motor_ativo);
       for (const d of itens) {
         const jid = String(d?.key?.remoteJid ?? "");
         const id = typeof d?.key?.id === "string" ? d.key.id : null;
@@ -221,22 +636,50 @@ publico.post("/evolution/webhook/:empresaId/:token", async (req, res) => {
         if (!contatoAutorizado(c.contato)) { logger.info({ empresaId, contato: mascararContato(c.contato) }, "[evolution] recebida ignorada: contato fora da homologação"); continue; }
         const texto = textoDaMensagem(d?.message);
         if (!texto) continue; // mídia e outros tipos: não registrados nesta versão
-        await pool.query(
+        const saved = await pool.query(
           `INSERT INTO evolution_mensagens (empresa_id, instancia, direcao, contato, corpo, provider_id, status, contexto)
-           VALUES ($1,$2,'entrada',$3,$4,$5,'recebida','inbound') ON CONFLICT DO NOTHING`,
+           VALUES ($1,$2,'entrada',$3,$4,$5,'recebida','inbound') ON CONFLICT DO NOTHING RETURNING id`,
           [empresaId, cfg.instanceName, c.contato, texto, id]);
+        if (!saved.rows.length) continue;
+        const mensagemId = Number(saved.rows[0].id);
+        if (!motorAtivo) continue;
+        const identidade = await pool.query(
+          `SELECT c.id,c.name FROM clients c
+           LEFT JOIN evolution_vinculos_cliente v
+             ON v.empresa_id=c.empresa_id AND v.cliente_id=c.id
+           WHERE c.empresa_id=$1 AND c.status='active' AND c.deleted_at IS NULL
+             AND (v.telefone=$2 OR regexp_replace(COALESCE(c.phone,''),'\\D','','g') IN ($2,substring($2 from 3)))
+           ORDER BY c.id LIMIT 2`,
+          [empresaId, c.contato]);
+        if (identidade.rows.length !== 1) {
+          const alertou = await depsReaisAtendimento(empresaId).alertarEquipe(
+            `WhatsApp: identificação ${identidade.rows.length ? "ambígua" : "não confirmada"} no atendimento ${mensagemId}. Confira o contato no painel protegido antes de responder; nenhum documento foi enviado.`,
+          );
+          const frase = (await carregarFrases())(alertou
+            ? "whatsapp_identidade_nao_confirmada" : "whatsapp_identidade_alerta_indisponivel");
+          const aviso = await enviarUma(empresaId, c.contato, frase, "identidade_nao_confirmada", null);
+          await pool.query(
+            `UPDATE evolution_mensagens SET processamento=$3,plano_atendimento=$4::jsonb WHERE id=$1 AND empresa_id=$2`,
+            [mensagemId, empresaId, identidade.rows.length ? "identidade_ambigua" : "identidade_nao_confirmada",
+              JSON.stringify({ alertaEquipeAceito: alertou, avisoAoContatoAceito: Boolean(aviso.corpo.ok), dadosClinicosConsultados: false })]);
+          continue;
+        }
+        const cliente = identidade.rows[0] as { id: number | string; name: string | null };
+        await processarEntradaEvolution({
+          empresaId,
+          mensagemId,
+          telefone: c.contato,
+          texto,
+          clienteId: Number(cliente.id),
+          clienteNome: cliente.name ?? "",
+        });
       }
     } else if (evento === "messages.update") {
       for (const d of itens) {
         const id = d?.keyId ?? d?.key?.id;
         const novo = statusDoProvedor(d?.status);
         if (typeof id !== "string" || !novo) continue;
-        const atual = await pool.query(`SELECT status FROM evolution_mensagens WHERE empresa_id=$1 AND provider_id=$2 AND direcao='saida'`, [empresaId, id]);
-        const st = atual.rows[0]?.status as string | undefined;
-        if (st && statusEvolutionPodeAvancar(st, novo)) {
-          await pool.query(`UPDATE evolution_mensagens SET status=$3, erro=$4, atualizado_em=NOW() WHERE empresa_id=$1 AND provider_id=$2`,
-            [empresaId, id, novo, novo === "falha" ? "provedor_reportou_erro" : null]);
-        }
+        await registrarStatusEvolution(empresaId, id, novo);
       }
     }
   } catch (err) {

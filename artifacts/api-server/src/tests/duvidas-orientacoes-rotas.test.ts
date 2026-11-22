@@ -40,6 +40,7 @@ beforeAll(async () => {
     CREATE TABLE empresas (id INTEGER PRIMARY KEY, ativa BOOLEAN, status TEXT, nome TEXT);
     CREATE TABLE professionals (id INTEGER PRIMARY KEY, empresa_id INTEGER, active BOOLEAN, credential_version INTEGER DEFAULT 0, professional_type TEXT);
     CREATE TABLE clients (id INTEGER PRIMARY KEY, name TEXT, empresa_id INTEGER);
+    CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
     INSERT INTO empresas VALUES (5,true,'ATIVO','Instituto Padua'),(7,true,'ATIVO','Instituto Barakat');
     INSERT INTO professionals VALUES (1,5,true,0,'medico'),(2,5,true,0,'enfermeira'),(3,7,true,0,'medico'),(4,5,false,0,'medico');
     INSERT INTO clients VALUES (10,'Paciente 5',5),(20,'Paciente 7',7);

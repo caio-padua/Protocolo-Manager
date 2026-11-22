@@ -1,5 +1,5 @@
 /**
- * Frases do assistente de agendamento no Telegram. O texto mora no banco (tabela telegram_frases);
+ * Textos editáveis do atendimento automático. O conteúdo mora no banco (tabela telegram_frases);
  * esta tela lista, valida variáveis e grava. Só o CEO grava.
  */
 import { useEffect, useState } from "react";
@@ -104,8 +104,8 @@ export function FrasesAssistente() {
       <div className="bevel-3d flex items-center gap-3 px-5 py-3" style={{ borderLeft: "4px solid #b8924d" }}>
         <MessageSquareText className="h-5 w-5 text-[#b8924d]" />
         <div>
-          <p className="text-[13px] font-bold uppercase tracking-wide">Frases do assistente de agendamento</p>
-          <p className="text-[10px] text-muted-foreground">Texto cadastrado no banco. Use as variáveis entre chaves, como {"{nome1}"} e {"{lista}"}.</p>
+          <p className="text-[13px] font-bold uppercase tracking-wide">Textos do atendimento automático</p>
+          <p className="text-[10px] text-muted-foreground">Textos cadastrados e editáveis para Telegram e WhatsApp. Use as variáveis entre chaves, como {"{nome_linha}"} e {"{lista}"}.</p>
         </div>
       </div>
       <div className="space-y-5 p-5">

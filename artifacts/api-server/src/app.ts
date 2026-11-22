@@ -6,6 +6,7 @@ import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { caminhoSeguroParaLog } from "./lib/redact";
 import { checkAiSetup } from "./lib/ai-central";
 import { tenantContextMiddleware } from "./middleware/tenantContext";
 import { corsMiddleware, helmetMiddleware, rateLimitMiddleware } from "./middleware/securityConfig";
@@ -35,7 +36,7 @@ app.use(
         return {
           id: req.id,
           method: req.method,
-          url: req.url?.split("?")[0],
+          url: caminhoSeguroParaLog(req.url),
         };
       },
       res(res) {

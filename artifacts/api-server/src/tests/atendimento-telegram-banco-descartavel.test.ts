@@ -1,7 +1,7 @@
 /** Atendimento por IA com SQL real em BANCO DESCARTÁVEL (socket em /tmp; nunca toca DATABASE_URL). Dados sintéticos. */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import pg from "pg";
@@ -86,6 +86,7 @@ vi.mock("../lib/clinical-document-share", () => ({
 
 import { aplicarMigracaoAtendimento, depsReaisAtendimento, pausarParaHumano, devolverParaIA, lerConfigAtendimento,
   atenderMensagemTelegram,processarAtendimentosPendentes,pausarAtendimentoDuravel } from "../lib/atendimento-telegram-store";
+import { getModeloAtendimento } from "../lib/atendimento-ia-config";
 import { processarAtendimento, type PlanoAtendimento } from "../lib/atendimento-telegram";
 import { responderSobreDocumentoTelegram, respostaDocumentoAindaAtual } from "../lib/atendimento-telegram-documentos";
 import {
@@ -110,7 +111,9 @@ beforeAll(async () => {
   for (let i = 0; i < 60; i++) { if (existsSync(join(dir, ".s.PGSQL.5432"))) break; await new Promise((r) => setTimeout(r, 250)); }
   pool = new pg.Pool({ host: dir, user: "teste", database: "postgres", max: 30 });
   for (let i = 0; i < 80; i++) { try { await pool.query("SELECT 1"); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
-  await pool.query(`CREATE TABLE clients(
+  await pool.query(`CREATE TABLE empresas(id integer primary key,nome text);
+    INSERT INTO empresas(id,nome) VALUES(5,'Clínica de teste'),(7,'Outra clínica de teste');
+    CREATE TABLE clients(
       id integer primary key,empresa_id integer,location_id integer DEFAULT 10,name text,
       telegram_chat_id text,asaas_customer_id text,cpf text,email text,phone text,
       status text NOT NULL DEFAULT 'active',deleted_at timestamptz
@@ -119,6 +122,7 @@ beforeAll(async () => {
       VALUES(1,5,'Cliente sintético','12345678901','asaas-customer-synthetic','C1'),
             (2,5,'Cliente alternativo','12345678902',NULL,'C2'),
             (3,7,'Outro cliente','12345678903',NULL,'C3');
+    CREATE TABLE app_settings(key text primary key,value text,updated_at timestamptz DEFAULT NOW());
     CREATE TABLE prescriptions(id integer primary key,client_id integer,empresa_id integer,status text,emitted_at timestamptz);
     CREATE TABLE prescription_items(id serial primary key,prescription_id integer,name text,dose text,order_index integer DEFAULT 0);
     CREATE TABLE recipes(id integer primary key,title text,prescription_id integer,pdf_data text);
@@ -132,7 +136,11 @@ beforeAll(async () => {
     INSERT INTO protocols(id,client_id,empresa_id,title,status,start_date,end_date)
       VALUES(7001,1,5,'Protocolo de suporte','active','2020-01-01','2099-12-31');
     CREATE TABLE telegram_inbox_messages (id SERIAL PRIMARY KEY, empresa_id INTEGER NOT NULL DEFAULT 0, cliente_id INTEGER NOT NULL,
-    chat_id TEXT NOT NULL, texto TEXT NOT NULL, recebida_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), lida_em TIMESTAMPTZ, direcao TEXT NOT NULL DEFAULT 'entrada', update_id BIGINT)`);
+    chat_id TEXT NOT NULL, texto TEXT NOT NULL, recebida_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), lida_em TIMESTAMPTZ, direcao TEXT NOT NULL DEFAULT 'entrada', update_id BIGINT);
+    CREATE TABLE evolution_vinculos_cliente (
+      empresa_id INTEGER NOT NULL, cliente_id INTEGER NOT NULL, telefone TEXT NOT NULL, origem TEXT NOT NULL,
+      confirmado_por INTEGER, confirmado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (empresa_id,cliente_id), UNIQUE (empresa_id,telefone))`);
   await pool.query(`CREATE TABLE payments(
     id SERIAL PRIMARY KEY,client_id INTEGER,protocol_id INTEGER,amount REAL,method TEXT,status TEXT,
     due_date TEXT,paid_at TEXT,description TEXT,installments INTEGER,card_label TEXT,provider TEXT,
@@ -148,6 +156,9 @@ beforeAll(async () => {
     VALUES(5,10,TRUE,FALSE,FALSE,15.00)`);
   await aplicarMigracaoUpdateId(h.db);
   await aplicarMigracaoAtendimento(h.db);
+  await pool.query(`INSERT INTO evolution_homologacao_config
+    (empresa_id,modelo_selecao,modelo_interprete,modelo_conferente,modelo_aprendiz,nome_assistente)
+    VALUES(5,'modelo-teste','modelo-teste','modelo-teste','modelo-teste','Assistente de teste')`);
   await pool.query(`INSERT INTO orientacoes_aprovadas (empresa_id,tema,perguntas_exemplo,resposta,status) VALUES
     (5,'Jejum antes do exame','preciso de jejum para exame de sangue, quantas horas de jejum','APROVADA: jejum de 8 horas.','aprovada'),
     (5,'Jejum rascunho','jejum exame sangue horas rascunho','RASCUNHO NAO PODE SAIR','rascunho'),
@@ -174,6 +185,10 @@ const run = (id: number, texto: string, over: Partial<typeof base> = {}) =>
 
 describe("SQL real", () => {
   it("migração é idempotente", async () => { await aplicarMigracaoAtendimento(h.db); await aplicarMigracaoAtendimento(h.db); });
+  it("modelos e assistente ficam isolados por clínica e sem valor padrão fixo", async () => {
+    expect(await getModeloAtendimento(5, "interprete")).toBe("modelo-teste");
+    expect(await getModeloAtendimento(7, "interprete")).toBeNull();
+  });
 
   it("aprende só após três perguntas seguras, repete sem duplicar e não cruza clínicas", async () => {
     const orient = await pool.query(`INSERT INTO orientacoes_aprovadas
@@ -302,6 +317,41 @@ describe("documentos clínicos no Telegram", () => {
       documento: { acao: "ofertar_reenvio", documentType: "prescricao", documentId: 6001, receitaId: 6001 },
     });
     expect(resultado?.texto).toContain("responda somente “sim” ou “pode enviar”");
+  });
+  it.each(["Quero uma nova receita", "Quero segunda via mas alterar a dose da receita", "Preciso renovar minha prescrição"])(
+    "nova emissão ou alteração exige decisão médica sem iniciar segunda via: %s", async texto => {
+      const antes = await pool.query("SELECT COUNT(*)::int AS total FROM clinical_document_reissue_requests");
+      const result = await responderSobreDocumentoTelegram(h.db, entradaDocumento(texto));
+      expect(result).toMatchObject({ tipo: "encaminhar", motivo: "nova_ou_alteracao_de_prescricao_exige_medico" });
+      expect(result?.texto).toContain("assinatura do médico");
+      const depois = await pool.query("SELECT COUNT(*)::int AS total FROM clinical_document_reissue_requests");
+      expect(depois.rows[0].total).toBe(antes.rows[0].total);
+      expect(h.enviados).toHaveLength(0);
+      expect(h.asaasChargeCount).toBe(0);
+    },
+  );
+
+  it("segunda via simulada no WhatsApp consulta o próprio cadastro sem criar solicitação", async () => {
+    await pool.query("UPDATE clients SET phone='11 99999-1234' WHERE id=1");
+    try {
+      const antes = await pool.query("SELECT COUNT(*)::int AS total FROM clinical_document_reissue_requests WHERE client_id=1");
+      const resultado = await responderSobreDocumentoTelegram(h.db, {
+        ...entradaDocumento("Quero segunda via do meu receituário"),
+        chatId: "5511999991234",
+        canal: "whatsapp",
+        simulacao: true,
+      });
+      expect(resultado).toMatchObject({
+        tipo: "resposta",
+        desfecho: "reenvio_receita_ofertado",
+        documento: { acao: "ofertar_reenvio", documentType: "prescricao", documentId: 6001 },
+      });
+      expect(resultado?.texto).toContain("Esta simulação não criou solicitação");
+      const depois = await pool.query("SELECT COUNT(*)::int AS total FROM clinical_document_reissue_requests WHERE client_id=1");
+      expect(depois.rows[0].total).toBe(antes.rows[0].total);
+    } finally {
+      await pool.query("UPDATE clients SET phone=NULL WHERE id=1");
+    }
   });
 
   it("explica protocolo apenas com a orientação aprovada de título correspondente", async () => {
@@ -457,6 +507,89 @@ describe("documentos clínicos no Telegram", () => {
       if (baseAnterior === undefined) delete process.env.PUBLIC_BASE_URL;
       else process.env.PUBLIC_BASE_URL = baseAnterior;
     }
+  });
+});
+
+describe("confirmações de entrega de segunda via por WhatsApp em banco descartável", () => {
+  it("vínculo explícito não vence telefone principal divergente; revalida antes de ler documento", async () => {
+    const { resolverIdentidadeWhatsapp } = await import("../lib/evolution-client-identity");
+    const telefone = "5500000000000";
+    await pool.query(`INSERT INTO evolution_vinculos_cliente (empresa_id,cliente_id,telefone,origem)
+      VALUES(5,1,$1,'teste_sintetico')`, [telefone]);
+    try {
+      expect(await resolverIdentidadeWhatsapp(h.db, 5, telefone)).toEqual({ id: 1, locationId: 10 });
+      await pool.query("UPDATE clients SET phone=$1 WHERE id=2", [telefone]);
+      expect(await resolverIdentidadeWhatsapp(h.db, 5, telefone)).toBeNull();
+      const response = await responderSobreDocumentoTelegram(h.db, {
+        ...base, canal: "whatsapp", chatId: telefone, inboxMessageId: 99010,
+        texto: "Quero segunda via da receita", simulacao: true,
+      });
+      expect(response?.tipo).toBe("encaminhar");
+      await pool.query("UPDATE clients SET phone=NULL WHERE id=2");
+      await pool.query("UPDATE clients SET phone=$1 WHERE id=3", [telefone]);
+      expect(await resolverIdentidadeWhatsapp(h.db, 5, telefone)).toEqual({ id: 1, locationId: 10 });
+      expect(await resolverIdentidadeWhatsapp(h.db, 5, "0000")).toBeNull();
+    } finally {
+      await pool.query("UPDATE clients SET phone=NULL WHERE id IN (2,3)");
+      await pool.query("DELETE FROM evolution_vinculos_cliente WHERE empresa_id=5 AND cliente_id=1");
+    }
+    expect(h.enviados).toHaveLength(0);
+  });
+
+  it("migração repete sem perda; entrega e leitura persistem uma vez e não cruzam clínicas", async () => {
+    await pool.query(`CREATE TABLE IF NOT EXISTS evolution_mensagens (
+      id SERIAL PRIMARY KEY, empresa_id INTEGER NOT NULL, provider_id TEXT, direcao TEXT,
+      status TEXT, erro TEXT, atualizado_em TIMESTAMPTZ DEFAULT NOW())`);
+    const migration = readFileSync(
+      new URL("../../../../scripts/migrations/20261122_whatsapp_document_delivery_status.sql", import.meta.url), "utf8",
+    );
+    await pool.query(migration);
+    await pool.query(migration);
+    const { createReissueRequest } = await import("../lib/clinical-document-reissue-policy");
+    const { registrarStatusEvolution, reconciliarStatusEvolution } = await import("../lib/evolution-document-delivery-status");
+    const request = await createReissueRequest({
+      clientId: 1, empresaId: 5, locationId: 10, documentType: "prescricao", documentId: 6001,
+      requestedByChannel: "whatsapp", clientConsent: false,
+      operationKey: "00000000-0000-4000-8000-000000000909",
+    });
+    await pool.query(`UPDATE clinical_document_reissue_requests SET
+      request_status='delivery_pending',delivery_status='queued',delivery_channel='whatsapp' WHERE id=$1`, [request.id]);
+    await pool.query(`INSERT INTO evolution_mensagens
+      (empresa_id,provider_id,direcao,status,reissue_request_id) VALUES
+      (5,'PDF-STATUS-1','saida','aceito',$1),(7,'PDF-OUTRA-CLINICA','saida','aceito',$1)`, [request.id]);
+    await registrarStatusEvolution(7, "PDF-OUTRA-CLINICA", "lido");
+    const initial = await pool.query("SELECT delivery_status FROM clinical_document_reissue_requests WHERE id=$1", [request.id]);
+    expect(initial.rows[0].delivery_status).toBe("queued");
+    await Promise.all([
+      registrarStatusEvolution(5, "PDF-STATUS-1", "entregue"),
+      registrarStatusEvolution(5, "PDF-STATUS-1", "entregue"),
+    ]);
+    const delivered = await pool.query("SELECT request_status,delivery_status FROM clinical_document_reissue_requests WHERE id=$1", [request.id]);
+    expect(delivered.rows[0]).toMatchObject({ request_status: "provider_accepted", delivery_status: "delivered" });
+    await registrarStatusEvolution(5, "PDF-STATUS-1", "lido");
+    await registrarStatusEvolution(5, "PDF-STATUS-1", "falha");
+    await registrarStatusEvolution(5, "PDF-STATUS-1", "entregue");
+    const final = await pool.query("SELECT request_status,delivery_status FROM clinical_document_reissue_requests WHERE id=$1", [request.id]);
+    expect(final.rows[0]).toMatchObject({ request_status: "provider_accepted", delivery_status: "read" });
+    const events = await pool.query(`SELECT event_type,empresa_id,location_id
+      FROM clinical_document_reissue_events WHERE request_id=$1 AND event_type LIKE 'delivery_provider_%' ORDER BY id`, [request.id]);
+    expect(events.rows).toEqual([
+      { event_type: "delivery_provider_entregue", empresa_id: 5, location_id: 10 },
+      { event_type: "delivery_provider_lido", empresa_id: 5, location_id: 10 },
+    ]);
+    await registrarStatusEvolution(5, "PDF-PRECOCE", "lido");
+    await pool.query(`INSERT INTO evolution_mensagens
+      (empresa_id,provider_id,direcao,status) VALUES(5,'PDF-PRECOCE','saida','aceito')`);
+    await reconciliarStatusEvolution(5, "PDF-PRECOCE");
+    expect((await pool.query("SELECT status FROM evolution_mensagens WHERE provider_id='PDF-PRECOCE'")).rows[0].status).toBe("lido");
+    await pool.query(`INSERT INTO evolution_mensagens
+      (empresa_id,provider_id,direcao,status) VALUES(5,'PDF-CONCORRENTE','saida','aceito')`);
+    await Promise.all([
+      registrarStatusEvolution(5, "PDF-CONCORRENTE", "entregue"),
+      registrarStatusEvolution(5, "PDF-CONCORRENTE", "lido"),
+    ]);
+    expect((await pool.query("SELECT status FROM evolution_mensagens WHERE provider_id='PDF-CONCORRENTE'")).rows[0].status).toBe("lido");
+    expect(h.asaasChargeCount).toBe(0);
   });
 });
 

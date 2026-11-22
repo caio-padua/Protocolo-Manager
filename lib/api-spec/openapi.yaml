@@ -41,6 +41,8 @@ tags:
     description: Agenda Configuração — agendas de atendimento, janelas, exceções e liberação anti-ilha
   - name: telegram
     description: Atendimento e histórico do Telegram com escopo por clínica
+  - name: evolution
+    description: Integração WhatsApp, identidade e homologação supervisionada
 
 paths:
   /cockpit/{clientId}/telegram-inbox:
@@ -4105,6 +4107,149 @@ paths:
               schema:
                 $ref: "#/components/schemas/FinancialGoalsSummary"
 
+  /evolution/homologacao/config:
+    get:
+      operationId: getEvolutionHomologacaoConfig
+      tags: [evolution]
+      security: [{ collaboratorBearer: [] }]
+      summary: Lê parâmetros editáveis da homologação do WhatsApp
+      responses:
+        "200":
+          description: Modelos, texto supervisionado, assistente e estado do motor
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvolutionHomologacaoConfig" }
+        "401": { description: Sessão sem clínica identificada. }
+        "403": { description: Somente administrador da clínica. }
+    put:
+      operationId: updateEvolutionHomologacaoConfig
+      tags: [evolution]
+      security: [{ collaboratorBearer: [] }]
+      summary: Salva parâmetros editáveis da homologação
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EvolutionHomologacaoConfigUpdate" }
+      responses:
+        "200":
+          description: Configuração salva
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvolutionHomologacaoConfigSaved" }
+        "400": { description: Campos inválidos. }
+        "401": { description: Sessão sem clínica identificada. }
+        "403": { description: Somente administrador da clínica. }
+        "500": { description: Falha ao salvar os parâmetros. }
+
+  /evolution/teste:
+    post:
+      operationId: sendEvolutionIsolatedTest
+      tags: [evolution]
+      security: [{ collaboratorBearer: [] }]
+      summary: Envia um texto escrito pela equipe para um único contato autorizado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EvolutionIsolatedTestInput" }
+      responses:
+        "200":
+          description: Envio aceito ou resultado por partes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvolutionIsolatedTestResult" }
+        "400": { description: "Número, confirmação ou texto inválidos." }
+        "401": { description: Sessão sem clínica identificada. }
+        "403": { description: Número não autorizado. }
+        "502": { description: Uma das partes do envio falhou. }
+
+  /evolution/homologacao/clientes:
+    get:
+      operationId: getEvolutionHomologacaoClients
+      tags: [evolution]
+      security: [{ collaboratorBearer: [] }]
+      summary: Lista clientes ativos com telefone protegido
+      responses:
+        "200":
+          description: Cadastros da clínica com números mascarados
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvolutionHomologacaoClients" }
+        "401": { description: Sessão sem clínica identificada. }
+        "403": { description: Somente administrador da clínica. }
+
+  /evolution/homologacao/vinculo:
+    put:
+      operationId: updateEvolutionHomologacaoLink
+      tags: [evolution]
+      security: [{ collaboratorBearer: [] }]
+      summary: Confirma vínculo explícito entre cliente e telefone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EvolutionHomologacaoLinkUpdate" }
+      responses:
+        "200":
+          description: Vínculo salvo sem alterar o telefone cadastral
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvolutionHomologacaoLinkResult" }
+        "400": { description: "Cliente, telefone ou confirmação inválidos." }
+        "401": { description: Sessão sem clínica identificada. }
+        "403": { description: Telefone não autorizado ou usuário sem permissão. }
+        "404": { description: Cliente ativo não encontrado nesta clínica. }
+        "409": { description: Telefone associado a outro cadastro. }
+
+  /evolution/homologacao/planejar:
+    post:
+      operationId: planEvolutionHomologacaoResponse
+      tags: [evolution]
+      security: [{ collaboratorBearer: [] }]
+      summary: Executa o motor real sem registrar nem enviar pergunta simulada
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EvolutionHomologacaoPlanInput" }
+      responses:
+        "200":
+          description: Resposta e fonte de decisão do motor
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvolutionHomologacaoPlanResult" }
+        "400": { description: Cadastro ou pergunta inválidos. }
+        "401": { description: Sessão sem clínica identificada. }
+        "403": { description: Telefone não autorizado ou usuário sem permissão. }
+        "404": { description: Cliente ativo não encontrado nesta clínica. }
+        "500": { description: O motor não conseguiu montar o plano. }
+
+  /evolution/homologacao/enviar-resposta:
+    post:
+      operationId: sendEvolutionHomologacaoResponse
+      tags: [evolution]
+      security: [{ collaboratorBearer: [] }]
+      summary: Envia individualmente a resposta do motor com aviso de simulação
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EvolutionHomologacaoSendInput" }
+      responses:
+        "200":
+          description: Provedor aceitou a mensagem individual
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvolutionHomologacaoSendResult" }
+        "400": { description: "Confirmação, cadastro ou pergunta inválidos." }
+        "401": { description: Sessão sem clínica identificada. }
+        "403": { description: Telefone não autorizado ou usuário sem permissão. }
+        "404": { description: Cliente ativo não encontrado nesta clínica. }
+        "409": { description: Motor sem resposta ou texto de teste ausente. }
+        "502": { description: Provedor recusou o envio. }
+        "500": { description: Falha ao gerar ou enviar; conferir o histórico antes de repetir. }
+
 components:
   securitySchemes:
     collaboratorBearer:
@@ -4122,6 +4267,163 @@ components:
           items: { $ref: "#/components/schemas/TelegramInboxMessage" }
         naoLidas: { type: integer, minimum: 0 }
         temMais: { type: boolean }
+    EvolutionHomologacaoConfig:
+      type: object
+      additionalProperties: false
+      required: [empresaId, modelos, textoTeste, motorAtivo, nomeAssistente]
+      properties:
+        empresaId: { type: integer, minimum: 1 }
+        modelos:
+          type: object
+          additionalProperties: false
+          required: [selecao, interprete, conferente, aprendizagem]
+          properties:
+            selecao: { type: string }
+            interprete: { type: string }
+            conferente: { type: string }
+            aprendizagem: { type: string }
+        textoTeste: { type: string }
+        motorAtivo: { type: boolean }
+        nomeAssistente: { type: string }
+    EvolutionHomologacaoConfigSaved:
+      type: object
+      additionalProperties: false
+      required: [ok]
+      properties:
+        ok: { type: boolean, enum: [true] }
+    EvolutionIsolatedTestInput:
+      type: object
+      additionalProperties: false
+      required: [numero, texto, confirmo]
+      properties:
+        numero: { type: string, minLength: 8, maxLength: 20 }
+        texto: { type: string, minLength: 1, maxLength: 4000 }
+        contexto: { type: string, maxLength: 60 }
+        confirmo: { type: boolean, enum: [true] }
+    EvolutionIsolatedTestPart:
+      type: object
+      additionalProperties: false
+      required: [parte, de, caracteres, http]
+      properties:
+        parte: { type: integer, minimum: 1 }
+        de: { type: integer, minimum: 1 }
+        caracteres: { type: integer, minimum: 0 }
+        http: { type: integer }
+        ok: { type: boolean }
+        id: { type: integer }
+        status: { type: string }
+        erro: { type: ["string", "null"] }
+    EvolutionIsolatedTestResult:
+      type: object
+      additionalProperties: true
+      required: [partes]
+      properties:
+        ok: { type: boolean }
+        partesTotal: { type: integer, minimum: 1 }
+        partes:
+          type: array
+          items: { $ref: "#/components/schemas/EvolutionIsolatedTestPart" }
+    EvolutionHomologacaoConfigUpdate:
+      type: object
+      additionalProperties: false
+      required: [modelos, textoTeste, nomeAssistente, motorAtivo]
+      properties:
+        modelos:
+          type: object
+          additionalProperties: false
+          required: [selecao, interprete, conferente, aprendizagem]
+          properties:
+            selecao: { type: string, maxLength: 100 }
+            interprete: { type: string, maxLength: 100 }
+            conferente: { type: string, maxLength: 100 }
+            aprendizagem: { type: string, maxLength: 100 }
+        textoTeste: { type: string, maxLength: 4000 }
+        nomeAssistente: { type: string, maxLength: 80 }
+        motorAtivo: { type: boolean }
+    EvolutionHomologacaoClient:
+      type: object
+      additionalProperties: false
+      required: [id, nome, telefone, telefoneMascarado, vinculoExplicito]
+      properties:
+        id: { type: integer, minimum: 1 }
+        nome: { type: string }
+        telefone: { type: ["string", "null"] }
+        telefoneMascarado: { type: ["string", "null"] }
+        vinculoExplicito: { type: boolean }
+    EvolutionHomologacaoClients:
+      type: object
+      additionalProperties: false
+      required: [clientes]
+      properties:
+        clientes:
+          type: array
+          items: { $ref: "#/components/schemas/EvolutionHomologacaoClient" }
+    EvolutionHomologacaoLinkUpdate:
+      type: object
+      additionalProperties: false
+      required: [clienteId, confirmo]
+      properties:
+        clienteId: { type: integer, minimum: 1 }
+        telefone: { type: string, minLength: 8, maxLength: 20 }
+        telefoneFinal: { type: string, pattern: '^\d{4}$' }
+        confirmo: { type: boolean, enum: [true] }
+    EvolutionHomologacaoLinkResult:
+      type: object
+      additionalProperties: false
+      required: [ok, telefoneMascarado]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        telefoneMascarado: { type: string }
+    EvolutionHomologacaoPlanInput:
+      type: object
+      additionalProperties: false
+      required: [clienteId, pergunta]
+      properties:
+        clienteId: { type: integer, minimum: 1 }
+        pergunta: { type: string, minLength: 1, maxLength: 1000 }
+    EvolutionHomologacaoPlanResult:
+      type: object
+      additionalProperties: false
+      required: [simulacao, mensagemDeEntradaRegistrada, resposta, desfecho, caminhoResolucao, motor, efeitosExecutados]
+      properties:
+        simulacao: { type: boolean, enum: [true] }
+        mensagemDeEntradaRegistrada: { type: boolean, enum: [false] }
+        resposta: { type: ["string", "null"] }
+        desfecho: { type: string }
+        caminhoResolucao: { type: string }
+        orientacaoId: { type: integer, minimum: 1 }
+        motor:
+          type: object
+          additionalProperties: false
+          required: [decisao, interpretadorChamado, conferidorChamado, modeloSelecionado]
+          properties:
+            decisao: { type: string }
+            interpretadorChamado: { type: boolean }
+            conferidorChamado: { type: boolean }
+            modeloSelecionado: { type: boolean }
+        efeitosExecutados:
+          type: array
+          items: { type: string }
+    EvolutionHomologacaoSendInput:
+      type: object
+      additionalProperties: false
+      required: [clienteId, pergunta, confirmo]
+      properties:
+        clienteId: { type: integer, minimum: 1 }
+        pergunta: { type: string, minLength: 1, maxLength: 1000 }
+        contexto: { type: string, maxLength: 60 }
+        confirmo: { type: boolean, enum: [true] }
+    EvolutionHomologacaoSendResult:
+      type: object
+      additionalProperties: true
+      required: [simulacao, perguntaRegistradaComoEntrada, respostaGeradaPor, desfecho, caminhoResolucao, inferenciaIA]
+      properties:
+        simulacao: { type: boolean, enum: [true] }
+        perguntaRegistradaComoEntrada: { type: boolean, enum: [false] }
+        respostaGeradaPor: { type: string, enum: ["motor PAXMED"] }
+        desfecho: { type: string }
+        caminhoResolucao: { type: string }
+        inferenciaIA: { type: boolean }
     TelegramInboxMessage:
       type: object
       additionalProperties: false

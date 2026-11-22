@@ -557,25 +557,29 @@ publicRouter.get("/clinical-documents/share/:token", async (req, res) => {
         state: "provider_accepted",
       };
     } else {
-      const requestShare = await db.execute(sql`SELECT document_type,document_id,client_id,empresa_id,
-          document_pdf_sha256,delivery_share_expires_at
+      const requestShare = await db.execute(sql`SELECT id,document_type,document_id,client_id,empresa_id,
+          location_id,document_pdf_sha256,delivery_share_expires_at
         FROM clinical_document_reissue_requests
         WHERE delivery_share_token_hash=${tokenHash}
           AND delivery_share_expires_at>NOW()
           AND request_status='provider_accepted'
-          AND delivery_status='provider_accepted'
+          AND delivery_status IN ('provider_accepted','delivered','read')
         LIMIT 1`);
       const requestRow = requestShare.rows[0] as {
+        id: string | number;
         document_type: string; document_id: string;
         client_id: number | string; empresa_id: number | string;
+        location_id: number | string;
         document_pdf_sha256: string; delivery_share_expires_at: Date | string;
       } | undefined;
       if (requestRow) {
         detail = {
+          requestId: Number(requestRow.id),
           documentType: requestRow.document_type,
           documentId: Number(requestRow.document_id),
           clientId: Number(requestRow.client_id),
           empresaId: Number(requestRow.empresa_id),
+          locationId: Number(requestRow.location_id),
           pdfSha256: requestRow.document_pdf_sha256,
           expiresAt: requestRow.delivery_share_expires_at instanceof Date
             ? requestRow.delivery_share_expires_at.toISOString()
@@ -606,6 +610,8 @@ publicRouter.get("/clinical-documents/share/:token", async (req, res) => {
   if (!document || document.status !== "emitted" || !document.pdfData ||
     document.clientId !== Number(detail.clientId) ||
     document.empresaId !== Number(detail.empresaId) ||
+    (Object.prototype.hasOwnProperty.call(detail, "locationId") &&
+      document.locationId !== Number(detail.locationId)) ||
     ((documentType === "prescricao" || documentType === "documento_assinado") &&
       document.signatureStatus !== "signed")) {
     res.status(404).json({ error: "Documento indisponível." });
@@ -616,11 +622,40 @@ publicRouter.get("/clinical-documents/share/:token", async (req, res) => {
   const hasExpectedProfessionalId = Object.prototype.hasOwnProperty.call(detail, "professionalId");
   const expectedProfessionalId = detail.professionalId === null || detail.professionalId === undefined
     ? null : Number(detail.professionalId);
-  if (!bytes.length || (hasExpectedProfessionalId && document.professionalId !== expectedProfessionalId) ||
+  if (bytes.subarray(0, 5).toString("ascii") !== "%PDF-" ||
+    (hasExpectedProfessionalId && document.professionalId !== expectedProfessionalId) ||
     pdfSha256 !== detail.pdfSha256 ||
     document.empresaId !== Number(detail.empresaId)) {
     res.status(404).json({ error: "Documento indisponível." });
     return;
+  }
+  const reissueRequestId = Number(detail.requestId);
+  if (Number.isSafeInteger(reissueRequestId) && reissueRequestId > 0) {
+    const access = await db.execute(sql`
+      WITH opened AS (
+        UPDATE clinical_document_reissue_requests
+           SET document_accessed_at=COALESCE(document_accessed_at,NOW()),
+               delivery_result='Acesso ao PDF registrado pelo link protegido; não comprova leitura pela titular.',
+               updated_at=NOW()
+         WHERE id=${reissueRequestId} AND client_id=${Number(detail.clientId)}
+           AND empresa_id=${Number(detail.empresaId)} AND location_id=${Number(detail.locationId)}
+           AND delivery_share_token_hash=${tokenHash}
+           AND delivery_share_expires_at>NOW()
+           AND request_status='provider_accepted'
+           AND delivery_status IN ('provider_accepted','delivered','read')
+         RETURNING id,empresa_id,location_id,document_type,document_id
+      )
+      INSERT INTO clinical_document_reissue_events
+        (request_id,empresa_id,location_id,event_type,details)
+      SELECT id,empresa_id,location_id,'document_accessed',
+        jsonb_build_object('documentType',document_type,'documentId',document_id)
+      FROM opened
+      RETURNING request_id
+    `);
+    if (!access.rows.length) {
+      res.status(404).json({ error: "Link indisponível ou expirado." });
+      return;
+    }
   }
   res.type("application/pdf");
   res.setHeader("Content-Disposition", `inline; filename="${safeFilename(document.fileName || `${document.label}.pdf`)}"`);

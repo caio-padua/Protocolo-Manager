@@ -9,9 +9,7 @@ import { requireAiTenant } from "./ai-central";
 import { logger } from "./logger";
 import { registrarCustoProvedor } from "./mensageria-credito";
 import { randomUUID } from "node:crypto";
-
-const MODELO = "claude-haiku-5-5";
-const MODELO_CONFERENTE = "claude-sonnet-5-5";
+import { getModeloAtendimento } from "./atendimento-ia-config";
 const PRAZO_MS = 9000;
 
 export type TarefaInterpretacao =
@@ -92,6 +90,8 @@ export function criarInterpretador(empresaId: number, inboxMessageId?: number, o
   return async (t) => {
     const textoSeguro = textoSeguroParaInterpretar(t.texto);
     if (!textoSeguro) return null;
+    const modelo = await getModeloAtendimento(empresaId, "interprete");
+    if (!modelo) return null;
     let etapaIniciada = false;
     let chaveCusto = "";
     try {
@@ -106,7 +106,7 @@ export function criarInterpretador(empresaId: number, inboxMessageId?: number, o
         chaveCusto = inboxMessageId ? `telegram:${inboxMessageId}:interprete:${t.tipo}:${chamadas}` : `telegram:interprete:${randomUUID()}`;
         onUso?.("interprete");
         const msg = await c.messages.create(
-          { model: MODELO, max_tokens: 180, system: instrucao(t, textoSeguro), messages: [{ role: "user", content: "Classifique somente a mensagem e devolva o JSON solicitado." }] },
+          { model: modelo, max_tokens: 180, system: instrucao(t, textoSeguro), messages: [{ role: "user", content: "Classifique somente a mensagem e devolva o JSON solicitado." }] },
           { headers, signal: ctrl.signal },
         );
         await registrarCustoProvedor({
@@ -114,7 +114,7 @@ export function criarInterpretador(empresaId: number, inboxMessageId?: number, o
           chave: chaveCusto,
           etapa: "telegram_interprete",
           provedor: "anthropic",
-          modelo: MODELO,
+          modelo,
           inputTokens: msg.usage.input_tokens,
           outputTokens: msg.usage.output_tokens,
         });
@@ -126,7 +126,7 @@ export function criarInterpretador(empresaId: number, inboxMessageId?: number, o
       } finally { clearTimeout(timer); }
     } catch (err) {
       if (etapaIniciada) await registrarCustoProvedor({
-        empresaId, chave: chaveCusto, etapa: "telegram_interprete", provedor: "anthropic", modelo: MODELO,
+        empresaId, chave: chaveCusto, etapa: "telegram_interprete", provedor: "anthropic", modelo,
       });
       logger.warn({ errorType: err instanceof Error ? err.constructor.name : typeof err }, "[telegram-interprete] IA indisponível; usando leitura por regras");
       return null;
@@ -148,6 +148,8 @@ export function criarConferenteLeitura(empresaId: number, inboxMessageId?: numbe
   return async (p) => {
     const textoSeguro = textoSeguroParaInterpretar(p.texto);
     if (!textoSeguro || !p.proposta || p.proposta.length > 300 || p.opcoes.length > 8) return false;
+    const modelo = await getModeloAtendimento(empresaId, "conferente");
+    if (!modelo) return false;
     let etapaIniciada = false;
     let chaveCusto = "";
     try {
@@ -163,7 +165,7 @@ export function criarConferenteLeitura(empresaId: number, inboxMessageId?: numbe
         onUso?.("conferente");
         const msg = await c.messages.create(
           {
-            model: MODELO_CONFERENTE,
+            model: modelo,
             max_tokens: 80,
             system: `Você confere, sem reinterpretar dados pessoais, se a leitura proposta corresponde à mensagem da pessoa. Responda somente JSON {"confirma":true} ou {"confirma":false}. Se houver dúvida, recusa, ambiguidade ou divergência, use false. Opções disponíveis: ${p.opcoes.map((opcao, i) => `${i + 1}) ${opcao}`).join("\n")}. Leitura proposta: ${p.proposta}.`,
             messages: [{ role: "user", content: `Mensagem sem dados pessoais: """${textoSeguro}"""` }],
@@ -175,7 +177,7 @@ export function criarConferenteLeitura(empresaId: number, inboxMessageId?: numbe
           chave: chaveCusto,
           etapa: "telegram_conferente",
           provedor: "anthropic",
-          modelo: MODELO_CONFERENTE,
+          modelo,
           inputTokens: msg.usage.input_tokens,
           outputTokens: msg.usage.output_tokens,
         });
@@ -187,7 +189,7 @@ export function criarConferenteLeitura(empresaId: number, inboxMessageId?: numbe
       }
     } catch (err) {
       if (etapaIniciada) await registrarCustoProvedor({
-        empresaId, chave: chaveCusto, etapa: "telegram_conferente", provedor: "anthropic", modelo: MODELO_CONFERENTE,
+        empresaId, chave: chaveCusto, etapa: "telegram_conferente", provedor: "anthropic", modelo,
       });
       logger.warn({ errorType: err instanceof Error ? err.constructor.name : typeof err }, "[telegram-conferente] falha; ação bloqueada");
       return false;

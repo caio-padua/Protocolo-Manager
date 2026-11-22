@@ -79,14 +79,14 @@ describe("quem e a pessoa", () => {
   });
 });
 
-describe("Helena: apresentacao, nome, paragrafos e link", () => {
-  it("cliente vinculado pedindo consulta recebe saudacao com o nome, Helena, link e assinatura", async () => {
+describe("apresentacao, nome, paragrafos e link", () => {
+  it("cliente vinculado recebe saudacao editável, link e assinatura", async () => {
     const d = deps({ frase: comGlobais(criarFrase(mapaPadrao()), { clinica: "Instituto Padua", primeiroNome: "Carlucia" }), linkMarcacao: () => "https://x.test/agendar" });
     const r = await conduzirAgendamento(null, "Quero marcar uma consulta", { ehCliente: true, primeiroNome: "Carlucia", nomeClinica: "Instituto Padua" }, d, new Date().toISOString());
     expect(r.desfecho).toBe("link_marcacao_enviado");
-    expect(r.resposta!.startsWith("Carlucia,\n\nEu me chamo Helena, assistente de Instituto Padua.\n\nTudo bem?\n\n")).toBe(true);
+    expect(r.resposta!.startsWith("Carlucia,\n\nSou a assistente virtual de Instituto Padua.\n\nTudo bem?\n\n")).toBe(true);
     expect(r.resposta).toContain("https://x.test/agendar");
-    expect(r.resposta!.endsWith("Helena\nAssistente de Instituto Padua")).toBe(true);
+    expect(r.resposta!.endsWith("Assistente virtual de Instituto Padua")).toBe(true);
     expect(r.resposta).not.toMatch(/\{\w+\}/);
   });
   it("nenhuma frase padrao deixa variavel solta quando renderizada com os globais", () => {

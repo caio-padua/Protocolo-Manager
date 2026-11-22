@@ -49,6 +49,178 @@ export interface TelegramInboxResponse {
   temMais: boolean;
 }
 
+export type EvolutionHomologacaoConfigModelos = {
+  selecao: string;
+  interprete: string;
+  conferente: string;
+  aprendizagem: string;
+};
+
+export interface EvolutionHomologacaoConfig {
+  /** @minimum 1 */
+  empresaId: number;
+  modelos: EvolutionHomologacaoConfigModelos;
+  textoTeste: string;
+  motorAtivo: boolean;
+  nomeAssistente: string;
+}
+
+export interface EvolutionHomologacaoConfigSaved {
+  ok: boolean;
+}
+
+export interface EvolutionIsolatedTestInput {
+  /**
+   * @minLength 8
+   * @maxLength 20
+   */
+  numero: string;
+  /**
+   * @minLength 1
+   * @maxLength 4000
+   */
+  texto: string;
+  /** @maxLength 60 */
+  contexto?: string;
+  confirmo: boolean;
+}
+
+export interface EvolutionIsolatedTestPart {
+  /** @minimum 1 */
+  parte: number;
+  /** @minimum 1 */
+  de: number;
+  /** @minimum 0 */
+  caracteres: number;
+  http: number;
+  ok?: boolean;
+  id?: number;
+  status?: string;
+  /** @nullable */
+  erro?: string | null;
+}
+
+export interface EvolutionIsolatedTestResult {
+  ok?: boolean;
+  /** @minimum 1 */
+  partesTotal?: number;
+  partes: EvolutionIsolatedTestPart[];
+  [key: string]: unknown;
+}
+
+export type EvolutionHomologacaoConfigUpdateModelos = {
+  /** @maxLength 100 */
+  selecao: string;
+  /** @maxLength 100 */
+  interprete: string;
+  /** @maxLength 100 */
+  conferente: string;
+  /** @maxLength 100 */
+  aprendizagem: string;
+};
+
+export interface EvolutionHomologacaoConfigUpdate {
+  modelos: EvolutionHomologacaoConfigUpdateModelos;
+  /** @maxLength 4000 */
+  textoTeste: string;
+  /** @maxLength 80 */
+  nomeAssistente: string;
+  motorAtivo: boolean;
+}
+
+export interface EvolutionHomologacaoClient {
+  /** @minimum 1 */
+  id: number;
+  nome: string;
+  /** @nullable */
+  telefone: string | null;
+  /** @nullable */
+  telefoneMascarado: string | null;
+  vinculoExplicito: boolean;
+}
+
+export interface EvolutionHomologacaoClients {
+  clientes: EvolutionHomologacaoClient[];
+}
+
+export interface EvolutionHomologacaoLinkUpdate {
+  /** @minimum 1 */
+  clienteId: number;
+  /**
+   * @minLength 8
+   * @maxLength 20
+   */
+  telefone?: string;
+  /** @pattern ^\d{4}$ */
+  telefoneFinal?: string;
+  confirmo: boolean;
+}
+
+export interface EvolutionHomologacaoLinkResult {
+  ok: boolean;
+  telefoneMascarado: string;
+}
+
+export interface EvolutionHomologacaoPlanInput {
+  /** @minimum 1 */
+  clienteId: number;
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  pergunta: string;
+}
+
+export type EvolutionHomologacaoPlanResultMotor = {
+  decisao: string;
+  interpretadorChamado: boolean;
+  conferidorChamado: boolean;
+  modeloSelecionado: boolean;
+};
+
+export interface EvolutionHomologacaoPlanResult {
+  simulacao: boolean;
+  mensagemDeEntradaRegistrada: boolean;
+  /** @nullable */
+  resposta: string | null;
+  desfecho: string;
+  caminhoResolucao: string;
+  /** @minimum 1 */
+  orientacaoId?: number;
+  motor: EvolutionHomologacaoPlanResultMotor;
+  efeitosExecutados: string[];
+}
+
+export interface EvolutionHomologacaoSendInput {
+  /** @minimum 1 */
+  clienteId: number;
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  pergunta: string;
+  /** @maxLength 60 */
+  contexto?: string;
+  confirmo: boolean;
+}
+
+export type EvolutionHomologacaoSendResultRespostaGeradaPor =
+  (typeof EvolutionHomologacaoSendResultRespostaGeradaPor)[keyof typeof EvolutionHomologacaoSendResultRespostaGeradaPor];
+
+export const EvolutionHomologacaoSendResultRespostaGeradaPor = {
+  motor_PAXMED: "motor PAXMED",
+} as const;
+
+export interface EvolutionHomologacaoSendResult {
+  simulacao: boolean;
+  perguntaRegistradaComoEntrada: boolean;
+  respostaGeradaPor: EvolutionHomologacaoSendResultRespostaGeradaPor;
+  desfecho: string;
+  caminhoResolucao: string;
+  inferenciaIA: boolean;
+  [key: string]: unknown;
+}
+
 export type TelegramClientAtendimentoStatusModoGlobal =
   (typeof TelegramClientAtendimentoStatusModoGlobal)[keyof typeof TelegramClientAtendimentoStatusModoGlobal];
 

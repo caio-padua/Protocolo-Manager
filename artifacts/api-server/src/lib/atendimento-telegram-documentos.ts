@@ -5,6 +5,8 @@ import { vinculoTelegramAtualUnico } from "./telegram-vinculo-atual";
 import { listIssuedDocumentsForClient, type IssuedDocumentSummary } from "./clinical-document-share";
 import { createReissueRequest } from "./clinical-document-reissue-policy";
 import { createHash } from "node:crypto";
+import { carregarFrases } from "./telegram-frases";
+import { resolverIdentidadeWhatsapp } from "./evolution-client-identity";
 
 interface ExecutorDocumentos {
   execute(query: SQL): Promise<{ rows: unknown[] }>;
@@ -136,12 +138,7 @@ async function ofertaAtual(exec: ExecutorDocumentos, e: EntradaAtendimento) {
 
 async function verificarIdentidade(exec: ExecutorDocumentos, e: EntradaAtendimento): Promise<boolean> {
   if (e.canal === "whatsapp") {
-    const r = await exec.execute(sql`SELECT 1
-      FROM evolution_vinculos_cliente v
-      JOIN clients c ON c.id=v.cliente_id AND c.empresa_id=v.empresa_id
-      WHERE v.cliente_id=${e.clienteId} AND v.empresa_id=${e.empresaId}
-        AND v.telefone=${e.chatId} AND c.status='active' AND c.deleted_at IS NULL`);
-    return r.rows.length === 1;
+    return (await resolverIdentidadeWhatsapp(exec, e.empresaId, e.chatId))?.id === e.clienteId;
   }
   if (!await vinculoTelegramAtualUnico(exec, { clienteId: e.clienteId, empresaId: e.empresaId, chatId: e.chatId })) return false;
   const r = await exec.execute(sql`SELECT id FROM clients
@@ -178,9 +175,13 @@ async function localizarDocumentosParaSegundaVia(
   texto: string,
 ): Promise<RespostaDocumento> {
   if (!await verificarIdentidade(exec, e)) return handoff("identidade_telegram_nao_confirmada");
-  const location = await exec.execute(sql`SELECT location_id FROM clients
-    WHERE id=${e.clienteId} AND empresa_id=${e.empresaId} AND status='active'
-      AND deleted_at IS NULL AND telegram_chat_id=${e.chatId} LIMIT 1`);
+  const location = e.canal === "whatsapp"
+    ? await exec.execute(sql`SELECT location_id FROM clients
+        WHERE id=${e.clienteId} AND empresa_id=${e.empresaId} AND status='active'
+          AND deleted_at IS NULL LIMIT 1`)
+    : await exec.execute(sql`SELECT location_id FROM clients
+        WHERE id=${e.clienteId} AND empresa_id=${e.empresaId} AND status='active'
+          AND deleted_at IS NULL AND telegram_chat_id=${e.chatId} LIMIT 1`);
   const locationId = Number((location.rows[0] as { location_id?: number | string } | undefined)?.location_id);
   if (!Number.isSafeInteger(locationId) || locationId <= 0) {
     return handoff("clinica_do_cadastro_nao_confirmada");
@@ -193,7 +194,7 @@ async function localizarDocumentosParaSegundaVia(
   });
   const operationKey = (messageId: number) => {
     const hex = createHash("sha256")
-      .update(`telegram-reissue:${e.empresaId}:${e.clienteId}:${messageId}`)
+      .update(`${e.canal ?? "telegram"}-reissue:${e.empresaId}:${e.clienteId}:${messageId}`)
       .digest("hex").slice(0, 32).split("");
     hex[12] = "5";
     hex[16] = ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
@@ -211,9 +212,10 @@ async function localizarDocumentosParaSegundaVia(
       requestedByChannel: e.canal ?? "telegram",
       clientConsent: false,
     });
-    return handoff("documento_emitido_original_nao_encontrado");
+    return handoff("documento_emitido_original_nao_encontrado", (await carregarFrases())("documento_original_nao_encontrado"));
   }
 
+  const frases = await carregarFrases();
   const normalized = normalizarTitulo(texto);
   const dateMatch = texto.match(/\b(\d{1,2})[/.](\d{1,2})[/.](\d{4})\b/);
   const isoDate = dateMatch
@@ -236,6 +238,22 @@ async function localizarDocumentosParaSegundaVia(
   );
   const byDate = isoDate ? docs.filter((doc) => doc.issuedAt === isoDate) : [];
   let candidates = byDate.length ? byDate : byText;
+  const tipoCitado = Object.values(typeTerms).some((terms) =>
+    terms.some((term) => normalized.includes(normalizarTitulo(term))));
+  // Pediu um tipo de documento que não está disponível: nunca oferecer outro tipo no lugar.
+  if (!candidates.length && tipoCitado && !isoDate) {
+    if (!e.simulacao) await createReissueRequest({
+      operationKey: operationKey(e.inboxMessageId),
+      clientId: e.clienteId,
+      empresaId: e.empresaId,
+      locationId,
+      documentType: "nao_identificado",
+      documentId: null,
+      requestedByChannel: e.canal ?? "telegram",
+      clientConsent: false,
+    });
+    return handoff("documento_emitido_original_nao_encontrado", frases("documento_original_nao_encontrado"));
+  }
   if (!candidates.length && explicitlyRecent) candidates = [docs[0]];
   if (!candidates.length && docs.length === 1) candidates = [docs[0]];
   if (candidates.length !== 1) {
@@ -254,10 +272,7 @@ async function localizarDocumentosParaSegundaVia(
       requestedByChannel: e.canal ?? "telegram",
       clientConsent: false,
     });
-    return resposta(
-      `Encontrei mais de um documento emitido para você:\n${list}\nQual tipo ou data você quer receber?`,
-      "clarificacao_documento",
-    );
+    return resposta(frases("documento_lista_reenvio", { lista: `\n${list}` }), "clarificacao_documento");
   }
 
   const selected = candidates[0];
@@ -275,22 +290,25 @@ async function localizarDocumentosParaSegundaVia(
   });
   if (e.simulacao) {
     return resposta(
-      `Encontrei ${actionLabel}. A segunda via exige uma confirmação explícita e as verificações de liberação. Esta simulação não criou solicitação, não enviou documento e não gerou cobrança.`,
+      frases("documento_simulacao_reenvio", { titulo: actionLabel }),
       isPrescription ? "reenvio_receita_ofertado" : "reenvio_documento_ofertado",
       { documento: { acao: "ofertar_reenvio", documentType: selected.documentType, documentId: selected.documentId, titulo: selected.label } },
     );
   }
+  if (!reissue) return handoff("solicitacao_de_segunda_via_nao_foi_criada");
   if (reissue.status !== "awaiting_confirmation" || !reissue.documentHash) {
     return resposta(
-      `Encontrei ${actionLabel} e registrei sua solicitação. A equipe precisa confirmar a vigência do tratamento ou a situação da assinatura antes de informar eventual cobrança ou liberar o documento. Não vou enviar nem cobrar agora.`,
+      frases("documento_revisao_reenvio", { titulo: actionLabel }),
       isPrescription ? "reenvio_receita_ofertado" : "reenvio_documento_ofertado",
     );
   }
-  const feeText = reissue.eligibility === "fee_required"
-    ? ` A taxa administrativa é de R$ ${Number(reissue.feeAmount ?? 0).toFixed(2).replace(".", ",")}. Ainda não houve cobrança; o envio depende da confirmação do pagamento.`
-    : " A segunda via está sem cobrança, sujeita às verificações de liberação.";
   return resposta(
-    `Encontrei ${actionLabel}.${feeText} Para confirmar a solicitação, responda somente “sim” ou “pode enviar”.`,
+    reissue.eligibility === "fee_required"
+      ? frases("documento_oferta_reenvio_taxa", {
+        titulo: actionLabel,
+        taxa: ` A taxa administrativa é de R$ ${Number(reissue.feeAmount ?? 0).toFixed(2).replace(".", ",")}. Ainda não houve cobrança; o envio depende da confirmação do pagamento.`,
+      })
+      : frases("documento_oferta_reenvio_sem_taxa", { titulo: actionLabel }),
     isPrescription ? "reenvio_receita_ofertado" : "reenvio_documento_ofertado",
     {
       documento: {
@@ -315,6 +333,10 @@ function ofertaDeReenvio(receita: ReceitaEmitida): { acao: "ofertar_reenvio"; re
  */
 export async function responderSobreDocumentoTelegram(exec: ExecutorDocumentos, e: EntradaAtendimento): Promise<RespostaDocumento | null> {
   const texto = normalizar(e.texto);
+  if (PERGUNTA_FORMULA.test(texto) &&
+      /\b(nova receita|nova prescricao|renovar|renovacao|alterar|mudar|trocar|aumentar|reduzir|incluir|retirar)\b/.test(texto)) {
+    return handoff("nova_ou_alteracao_de_prescricao_exige_medico", (await carregarFrases())("documento_novo_ou_alteracao"));
+  }
   const afirmativo = SIM_EXATO.has(texto);
   const negativo = NAO_EXATO.has(texto);
 
@@ -326,7 +348,7 @@ export async function responderSobreDocumentoTelegram(exec: ExecutorDocumentos, 
         const documentId = Number(oferta.document_id ?? oferta.recipe_id);
         const isPrescription = documentType === "prescricao";
         return resposta(
-          "Confirmado. Vou encaminhar seu pedido de segunda via para as verificações necessárias.",
+          (await carregarFrases())("documento_reenvio_confirmado"),
           isPrescription ? "reenvio_receita_confirmado" : "reenvio_documento_confirmado",
           { documento: {
             acao: "confirmar_reenvio",
@@ -341,7 +363,7 @@ export async function responderSobreDocumentoTelegram(exec: ExecutorDocumentos, 
       const documentType = oferta.document_type || "prescricao";
       const isPrescription = documentType === "prescricao";
       return resposta(
-        "Tudo bem. Não vou enviar a segunda via.",
+        (await carregarFrases())("documento_reenvio_cancelado"),
         isPrescription ? "reenvio_receita_cancelado" : "reenvio_documento_cancelado",
         { documento: {
           acao: "cancelar_reenvio",
@@ -353,7 +375,7 @@ export async function responderSobreDocumentoTelegram(exec: ExecutorDocumentos, 
       );
     }
     if (afirmativo && oferta) {
-      return handoff("confirmacao_de_reenvio_sem_oferta_vigente", "Não encontrei uma oferta válida aguardando confirmação. Vou pedir para a equipe conferir sua solicitação antes de enviar qualquer documento.");
+      return handoff("confirmacao_de_reenvio_sem_oferta_vigente", (await carregarFrases())("documento_confirmacao_reenvio_invalida"));
     }
   }
 
@@ -384,11 +406,11 @@ export async function responderSobreDocumentoTelegram(exec: ExecutorDocumentos, 
     if (!pedeExplicacao && (PERGUNTA_NOMES.test(texto) || nomes.length === 1)) {
       const lista = nomes.map((nome) => `• ${nome}`).join("\n");
       const oferta = unicaReceita
-        ? `\n\nSe quiser a segunda via deste receituário, responda somente “quero a segunda via”.`
+        ? `\n\n${(await carregarFrases())("documento_oferta_formula_reenvio")}`
         : "";
       if (lista.length + oferta.length > 3800) return handoff("lista_de_itens_excede_limite_seguro");
       return resposta(
-        `Seu receituário emitido mais recente contém:\n${lista}${oferta}`,
+        (await carregarFrases())("documento_lista_itens_receita", { lista: `\n${lista}`, oferta }),
         "clarificacao_documento",
         { ...(unicaReceita ? { documento: ofertaDeReenvio(unicaReceita) } : {}) },
       );
@@ -397,14 +419,14 @@ export async function responderSobreDocumentoTelegram(exec: ExecutorDocumentos, 
       const lista = nomes.map((nome) => `• ${nome}`).join("\n");
       if (lista.length > 3800) return handoff("lista_de_itens_excede_limite_seguro");
       return resposta(
-        `Encontrei mais de uma fórmula no seu receituário:\n${lista}\nQual delas você quer que eu explique?`,
+        (await carregarFrases())("documento_lista_formulas_receita", { lista: `\n${lista}` }),
         "clarificacao_documento",
       );
     }
     const fonte = orientacaoExata(orientacoes, "formula_explicacao", "Fórmula", itemSelecionado);
     if (!fonte) return handoff("explicacao_de_formula_sem_fonte_exata_aprovada");
     const textoOferta = unicaReceita
-      ? "\n\nSe quiser a segunda via deste receituário, responda somente “quero a segunda via”."
+      ? `\n\n${(await carregarFrases())("documento_oferta_formula_reenvio")}`
       : "";
     if (fonte.resposta.length + textoOferta.length > 4000) {
       return resposta(fonte.resposta, "orientacao_enviada", { orientacaoId: fonte.id });
@@ -422,7 +444,7 @@ export async function responderSobreDocumentoTelegram(exec: ExecutorDocumentos, 
   if (!protocolo) {
     const lista = protocolos.map((item) => `• ${item.title}`).join("\n");
     if (lista.length > 3800) return handoff("lista_de_protocolos_excede_limite_seguro");
-    return resposta(`Encontrei mais de um protocolo ativo ou validado:\n${lista}\nQual deles você quer que eu explique?`, "clarificacao_documento");
+    return resposta((await carregarFrases())("protocolo_lista_documentos", { lista: `\n${lista}` }), "clarificacao_documento");
   }
   const fonte = orientacaoExata(orientacoes, "protocolo_explicacao", "Protocolo", protocolo.title);
   if (!fonte) return handoff("explicacao_de_protocolo_sem_fonte_exata_aprovada");

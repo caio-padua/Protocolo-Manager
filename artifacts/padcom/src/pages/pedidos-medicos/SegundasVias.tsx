@@ -127,6 +127,15 @@ const paymentStatusLabel: Record<string, string> = {
   cancelled: "Cancelado",
   unverified: "Não confirmado",
 };
+const deliveryStatusLabel: Record<string, string> = {
+  not_started: "Não iniciada",
+  queued: "Aguardando envio",
+  provider_accepted: "Mensagem aceita pelo canal — entrega não confirmada",
+  delivered: "Mensagem entregue — confirmação do provedor",
+  read: "Mensagem lida — confirmação do provedor",
+  failed: "Falha de entrega",
+  unknown: "Resultado incerto — não reenviar automaticamente",
+};
 
 export function SegundasVias() {
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -402,7 +411,7 @@ export function SegundasVias() {
                   <div><dt className="text-muted-foreground">Direito gratuito</dt><dd>{item.eligibility_status === "free_treatment" ? "Tratamento vigente" : item.eligibility_status === "free_member" ? "PaxMed Members verificado" : item.eligibility_status === "fee_required" ? "Taxa aplicável" : "Conferência humana"}</dd></div>
                   <div><dt className="text-muted-foreground">Pagamento</dt><dd>{item.payment_status === "paid" ? `Pago em ${brDate(item.paid_at)}` : paymentStatusLabel[item.payment_status] ?? item.payment_status}</dd></div>
                   <div><dt className="text-muted-foreground">Canal da solicitação</dt><dd>{item.requested_by_channel}</dd></div>
-                  <div><dt className="text-muted-foreground">Entrega</dt><dd>{item.delivery_status === "unknown" ? "Resultado incerto — não reenviar automaticamente" : item.delivery_status}</dd></div>
+                  <div><dt className="text-muted-foreground">Entrega</dt><dd>{deliveryStatusLabel[item.delivery_status] ?? "Estado não reconhecido — conferir registro"}</dd></div>
                 </dl>
                 <p className="text-xs text-muted-foreground">{item.eligibility_reason}</p>
                 {item.membership_verification === "unavailable" && (

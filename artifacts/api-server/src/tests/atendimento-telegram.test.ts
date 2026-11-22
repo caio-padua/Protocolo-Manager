@@ -1,8 +1,8 @@
 /** Atendimento por IA: só orientação aprovada, queixa clínica vai para pessoa, pausa humana, uma resposta por mensagem. */
 import { describe, it, expect, vi } from "vitest";
 import {
-  processarAtendimento, classificarQueixa, candidatas, escolhaDeterministica, normalizar,
-  TEXTO_ENCAMINHADO, TEXTOS_QUEIXA_PARA_REVISAO,
+  processarAtendimento, planejarAtendimento, classificarQueixa, candidatas, escolhaDeterministica, normalizar,
+  TEXTOS_QUEIXA_PARA_REVISAO,
   type DepsAtendimento, type ConfigAtendimentoIA, type OrientacaoAprovada, type EntradaAtendimento,
 } from "../lib/atendimento-telegram";
 
@@ -11,6 +11,7 @@ const ORI: OrientacaoAprovada[] = [
   { id: 2, tema: "Jejum antes do exame", perguntasExemplo: "preciso estar em jejum para o exame de sangue, quantas horas de jejum", resposta: "RESPOSTA APROVADA 2: jejum de 8 horas." },
 ];
 const CFG: ConfigAtendimentoIA = { modo: "ligado", permitidos: new Set(), queixaRevisada: false };
+const TEXTO_ENCAMINHADO_TESTE = "A equipe responderá por aqui.";
 const E = (texto: string, over: Partial<EntradaAtendimento> = {}): EntradaAtendimento =>
   ({ inboxMessageId: 10, empresaId: 5, clienteId: 7, clienteNome: "Paciente Teste", chatId: "555", texto, ...over });
 
@@ -27,6 +28,7 @@ function deps(over: Partial<DepsAtendimento> & { cfg?: ConfigAtendimentoIA; modo
     registrarSaida: vi.fn(async () => {}),
     passarParaHumano: vi.fn(async () => {}),
     alertarEquipe: vi.fn(async () => true),
+    textoEncaminhado: vi.fn(async () => TEXTO_ENCAMINHADO_TESTE),
     registrarDesfecho: vi.fn(async () => {}),
     ...over,
   };
@@ -58,6 +60,38 @@ describe("escolha de orientação", () => {
 });
 
 describe("fluxo de atendimento", () => {
+  it("simulação supervisionada usa a decisão real sem gravar entrada nem executar efeitos", async () => {
+    const { d } = deps({ modo: "humano" });
+    const plano = await planejarAtendimento(d, E("quantas horas de jejum para o exame de sangue?", {
+      canal: "whatsapp",
+      simulacao: true,
+    }));
+    expect(plano.resposta).toBe(ORI[1].resposta);
+    expect(plano.orientacaoId).toBe(2);
+    expect(plano.desfecho).toBe("orientacao_enviada");
+    expect(d.enviarAoPaciente).not.toHaveBeenCalled();
+    expect(d.registrarSaida).not.toHaveBeenCalled();
+    expect(d.registrarDesfecho).not.toHaveBeenCalled();
+    expect(d.passarParaHumano).not.toHaveBeenCalled();
+    expect(d.alertarEquipe).not.toHaveBeenCalled();
+  });
+  it.each([
+    "Qual foi o resultado dos meus exames?",
+    "Pode me lembrar da última prescrição?",
+    "Quero registrar meu Pulso Diário.",
+    "Quero marcar uma consulta.",
+  ])("pergunta sem motor integrado não inventa resposta: %s", async (texto) => {
+    const { d } = deps();
+    const plano = await planejarAtendimento(d, E(texto, { canal: "whatsapp", simulacao: true }));
+    expect(plano.desfecho).toBe("encaminhado_humano");
+    expect(plano.resposta).toBe(TEXTO_ENCAMINHADO_TESTE);
+    expect(plano.pausa).toBe("sem_orientacao_aprovada");
+    expect(d.enviarAoPaciente).not.toHaveBeenCalled();
+    expect(d.registrarSaida).not.toHaveBeenCalled();
+    expect(d.registrarDesfecho).not.toHaveBeenCalled();
+    expect(d.passarParaHumano).not.toHaveBeenCalled();
+    expect(d.alertarEquipe).not.toHaveBeenCalled();
+  });
   it("desligado: não responde, não reivindica, não alerta", async () => {
     const { d } = deps({ cfg: { ...CFG, modo: "desligado" } });
     expect(await processarAtendimento(d, E("onde guardar a medicação no frasco"))).toBe("desligado");
@@ -99,7 +133,7 @@ describe("fluxo de atendimento", () => {
     const { d } = deps();
     const r = await processarAtendimento(d, E("para que serve a minha vitamina X? qual o motivo de eu tomar"));
     expect(r).toBe("encaminhado_humano");
-    expect(d.enviarAoPaciente).toHaveBeenCalledWith("555", TEXTO_ENCAMINHADO);
+    expect(d.enviarAoPaciente).toHaveBeenCalledWith("555", TEXTO_ENCAMINHADO_TESTE);
     expect(d.passarParaHumano).toHaveBeenCalledWith(7, "sem_orientacao_aprovada");
     expect(d.alertarEquipe).toHaveBeenCalledTimes(1);
   });
@@ -154,7 +188,7 @@ describe("fluxo de atendimento", () => {
   it("discordância do Conferente bloqueia a orientação escolhida pela IA", async () => {
     const { d } = deps({ escolherComIA: async () => 2, conferirComIA: async () => false });
     expect(await processarAtendimento(d, E("frasco geladeira jejum exame"))).toBe("encaminhado_humano");
-    expect(d.enviarAoPaciente).toHaveBeenCalledWith("555", TEXTO_ENCAMINHADO);
+    expect(d.enviarAoPaciente).toHaveBeenCalledWith("555", TEXTO_ENCAMINHADO_TESTE);
     expect(d.enviarAoPaciente).not.toHaveBeenCalledWith("555", ORI[1].resposta);
   });
 });

@@ -42,6 +42,9 @@ vi.mock("@workspace/db", async () => {
     ...schema,
     db: {
       select: () => ({ from: (table: unknown) => selectRowsFor(table) }),
+      execute: vi.fn().mockResolvedValue({
+        rows: [{ issued_empresa_id: 21, issued_location_id: 31 }],
+      }),
       transaction: async (callback: (tx: any) => Promise<unknown>) => callback(makeTx()),
       update: () => ({
         set: (values: any) => ({
@@ -73,7 +76,7 @@ vi.mock("../routes/prescription-delivery", () => ({ authorizedPrescription: mock
 
 import router, { clinicalDocumentShareRouter } from "../routes/clinical-document-delivery";
 import {
-  medicalCertificatesTable, clientsTable, examRequestPdfsTable,
+  db, medicalCertificatesTable, clientsTable, examRequestPdfsTable,
   prescriptionsTable, recipesTable, referralsTable,
 } from "@workspace/db";
 import { ClinicalIdentityError } from "../lib/clinical-emitter";
@@ -95,7 +98,7 @@ const client = {
 };
 const issued = {
   id: 51, clientId: 71, professionalId: 41, status: "emitted", tipo: "comparecimento",
-  pdfData: Buffer.from("PDF CLINICO SINTETICO").toString("base64"),
+  pdfData: Buffer.from("%PDF-1.4\nDOCUMENTO SINTETICO PARA TESTE\n%%EOF").toString("base64"),
   fileName: "atestado-sintetico.pdf", emittedAt: new Date("2026-10-30T12:00:00Z"),
 };
 
@@ -246,6 +249,51 @@ describe("reenvio de documentos clínicos, sem contato real com provedores", () 
     });
     const response = await request(app).get(`/api/clinical-documents/share/${token}`);
     expect(response.status).toBe(404);
+  });
+
+  it("acesso protegido da segunda via registra acesso sem inferir leitura humana", async () => {
+    const token = "R".repeat(43);
+    const execute = vi.mocked(db.execute);
+    execute.mockResolvedValueOnce({ rows: [] } as any); // não é link antigo do Telegram
+    execute.mockResolvedValueOnce({ rows: [{
+      id: 901, document_type: "atestado", document_id: 51, client_id: 71,
+      empresa_id: 21, location_id: 31,
+      document_pdf_sha256: createHash("sha256").update(Buffer.from(issued.pdfData, "base64")).digest("hex"),
+      delivery_share_expires_at: new Date(Date.now() + 60_000),
+    }] } as any);
+    execute.mockResolvedValueOnce({ rows: [{ issued_empresa_id: 21, issued_location_id: 31 }] } as any);
+    execute.mockResolvedValueOnce({ rows: [{ request_id: 901 }] } as any);
+    const response = await request(app).get(`/api/clinical-documents/share/${token}`);
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(Buffer.from(issued.pdfData, "base64"));
+    expect(response.headers["cache-control"]).toContain("no-store");
+    expect(mock.send).not.toHaveBeenCalled();
+    const { PgDialect } = await import("drizzle-orm/pg-core");
+    const query = new PgDialect().sqlToQuery(execute.mock.calls.at(-1)![0] as any);
+    expect(query.sql).toContain("'document_accessed'");
+    expect(query.sql).toContain("document_accessed_at=COALESCE");
+    expect(query.sql).toContain("delivery_status IN ('provider_accepted','delivered','read')");
+    expect(query.params).not.toContain(token);
+  });
+
+  it.each([
+    { location_id: 999 },
+    { client_id: 999 },
+    { empresa_id: 999 },
+    { document_pdf_sha256: "f".repeat(64) },
+  ])("recusa acesso da segunda via quando o escopo ou o arquivo diverge: %j", async mismatch => {
+    const execute = vi.mocked(db.execute);
+    execute.mockResolvedValueOnce({ rows: [] } as any);
+    execute.mockResolvedValueOnce({ rows: [{
+      id: 901, document_type: "atestado", document_id: 51, client_id: 71,
+      empresa_id: 21, location_id: 31,
+      document_pdf_sha256: createHash("sha256").update(Buffer.from(issued.pdfData, "base64")).digest("hex"),
+      delivery_share_expires_at: new Date(Date.now() + 60_000), ...mismatch,
+    }] } as any);
+    execute.mockResolvedValueOnce({ rows: [{ issued_empresa_id: 21, issued_location_id: 31 }] } as any);
+    expect((await request(app).get(`/api/clinical-documents/share/${"R".repeat(43)}`)).status).toBe(404);
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(mock.send).not.toHaveBeenCalled();
   });
 
   it("o QR antigo não entrega receita sem login", async () => {

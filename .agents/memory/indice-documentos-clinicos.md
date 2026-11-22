@@ -15,3 +15,8 @@ description: Índice das decisões para emissão e entrega de documentos clínic
 - [Destinatários implícitos em documentos clínicos](recibos-clinicos-copia-implicita.md) — conferir destinatários herdados para evitar vazamento entre clínicas.
 - [Paginação bloco inteiro](paginacao-bloco-integro-documentos.md) — itens e fórmulas não devem ser cortados entre páginas.
 - [Dose prescrita em protocolo e RAS FAP](dose-prescrita-protocolo.md) — mostrar dose inequívoca; manter concentração, volume e ampolas fora dos documentos.
+- [Paginação do PDF](pdf-cursor-quebra-pagina.md) — reservar espaço e criar página antes de desenhar.
+- [Fontes do PDF](pdf-woff-subset-obrigatorio.md) — usar a fonte com os caracteres necessários.
+- [Sanitização](pdf-sanitizer-latin1.md) — preservar caracteres sem corromper texto.
+- [Vetores](pdflib-drawsvgpath-y-flip.md) — coordenadas de caminho exigem inversão do eixo vertical.
+- [Rodapés](rodape-html-multipagina.md) — manter rodapé consistente em documentos com várias páginas.

@@ -1,29 +1,23 @@
-- [Evolution API (QR Code)](evolution-whatsapp-qr.md) — canal provisório por clínica; sem teste real ainda; webhook só registra.
-- [WhatsApp — segurança da entrada](whatsapp-seguranca-entrada.md) — assinatura obrigatória, identidade exata+clínica, modo teste de 1 contato, modelo aprovado.
+- [WhatsApp por Evolution](evolution-whatsapp-qr.md) — identidade exata, homologação supervisionada e confirmações de entrega fora de ordem.
+- [WhatsApp: segurança de entrada](whatsapp-seguranca-entrada.md) — prova de posse, vínculo único e preservação dos limites da homologação.
 - [Redes sociais cliente/profissional](redes-sociais-submenu.md) — aba própria; Instagram do cliente fica na coluna; demais na tabela redes_sociais.
-- [Pulso — uma nota por período](pulso-uma-nota-por-periodo.md) — manhã=sono, tarde=energia, noite=libido; pendentes reaparecem; telegram pendente.
-- [Gráfico de linha — padrão do Pulso](grafico-linha-padrao-pulso.md) — espessura/faixas/ponto ativo de graficoPadrao.ts; setas movem o ponto.
+- **Pulso** — [uma nota por período](pulso-uma-nota-por-periodo.md) · [padrão do gráfico](grafico-linha-padrao-pulso.md) — janelas manhã/tarde/noite; pendentes reaparecem; setas movem o ponto.
 - [Forro risca de giz parado + painéis oficiais](forro-risca-de-giz-parado.md) — leva-fabric-fixo em fundo de página; panel-3d-sub/bevel-3d oficiais; barra inferior com touch-action pan-x.
-- [PaxCare planos B2C](paxcare-planos-b2c.md) — previa admin separada do token do paciente; plano nasce vazio; aceite com hash; franquia idempotente.
-- [PAX FINANCE domínio isolado](pax-finance-dominio.md) — fases 1-2 prontas; fronteira em src/pax-finance; tenant.ts único acoplamento; 3-8 pendentes.
-- [PAX FINANCE painel tributário e crédito](pax-finance-painel-tributario-credito.md) — fontes oficiais em código, validação do CEO dispensada, vazio com motivo.
-- [Prioridades pós-pausa do PAX FINANCE](pax-finance-pausa-e-prioridades.md) — anamnese→motor+IA→monetização; achados de segurança de sessões.
-- [PaxCare cofre e vínculos](paxcare-cofre-vinculos.md) — cofre do paciente; compartilhamento por clínica checado em toda leitura; revogação imediata.
+- **PaxCare B2C** — [planos](paxcare-planos-b2c.md) · [cofre e vínculos](paxcare-cofre-vinculos.md) — aceite com hash, compartilhamento por clínica e revogação imediata.
+- **PAX FINANCE** — [domínio](pax-finance-dominio.md) · [tributos](pax-finance-painel-tributario-credito.md) · [prioridades](pax-finance-pausa-e-prioridades.md) — isolamento, fontes e sequência.
 - [Anexos de mensagem + Curadoria Clínica](anexos-mensagem-curadoria-clinica.md) — biblioteca com interruptor; aviso de pedido + oferta do PAM (modo teste por padrão).
 - [Homologação com participantes presentes](homologacao-presenca-dr-caio.md) — Dr. Caio ao lado do participante = identidade validada; não repetir confirmação.
 - **Fotos** — [upload e histórico](foto-upload-historico.md) · [nome no Drive](drive-foto-nomenclatura.md) · [arquivo vazio](multer-zero-bytes.md).
 - [Previa de link — padrao Receituario](previa-link-padrao-receituario.md) — cartao aprovado; ler skill-layout-paxter/references/previa-de-link.md; nome novo + ?v=N; og:image URL absoluta.
 - [CORS auto REPLIT_DOMAINS + env doc por artefato](cors-replit-domains-env-doc.md) — CORS deve unir ALLOWED_ORIGINS+REPLIT_DOMAINS; cada artefato precisa de .env.railway.example próprio (não só na ra
-- **Drive watcher** — [guard global bloqueia rotas abaixo](drive-watcher-guard-global.md) · [empresa_id + vision multimodal](drive-watcher-empresa-id.md) · [PK e file_id, nao id](drive-watcher-files-pk.md) · [so DELETE reprocessa](drive-watcher-reprocessar.md) · [copia vai p/ pasta do paciente](drive-watcher-copia-pasta-paciente.md) · [import 4h + planilha comparativa](drive-watcher-analitos.md)
+- [Drive: watcher e importação](drive-watcher-index.md) — identidade, chaves, cópias, reprocessamento e analitos.
 - [Filtros nulos em SQL drizzle — fragmentos condicionais](sql-null-int-filter.md) — ${null}::int explode no Postgres; usar frag condicional: `faseMin !== null ? sql\`AND col >= ${faseMin}\` : sql\`\`
-- [AI Central — guard de clone + CF AI Gateway](ai-central-guard.md) — PADAXOR_AI_BYPASS=true (CEO) ou PADAXOR_TENANT_TOKEN (clone); 11 call sites cobertos; CF_AI_GATEWAY_URL ativa headers cf-aig-meta
-- [Deploy 4 Ondas PADAXOR — Railway go-live](deploy-ondas-status.md) — basicAuth dev=bypass/prod=fail-closed; api-worker separado (4 jobs); moduleGuard em 15 rotas; menu dinâmico Layout.tsx; .env.rail
+- **AI Central e implantação PADAXOR** — [guard e gateway](ai-central-guard.md) · [quatro ondas](deploy-ondas-status.md) — acesso CEO/clone; worker separado; configuração por ambiente.
 - [Identidade: PaxMed=sistema, clínica=nome próprio](identidade-paxmed-sistema-clinica.md) — Paxter extinto; assistente usa empresas.nome; histórico em rebrand-padaxor.md.
 - [Multi-IA pipeline + reprocessar — padrão de colunas ALTER TABLE](multi-ia-pipeline-reprocessar.md) — colunas reprocessamento_count/reprocessado_at/llm_pipeline adicionadas via ALTER TABLE (fora do
 - [BRT centralizado — fonte única de data/hora](brt-centralizado.md) — lib/brt.ts é a ÚNICA fonte de data BRT; nunca usar new Date() nu para arquivo/exibição; GET /api/brt prova o fuso ao vivo (públic
-- ProcedenciaDocumentosBloco — Kaizen-001 — ClassificationPanel bevel-3d 5 canais fixos; ZONA 1 sem LED/origem; Col 1 bi-line (canônico/extraído); Col 3 = leitura original quando convertido; watcher 5min+boot.
-- **Exames — catalogo, faixas e triagem** — [direcao mora em direcao_favoravel_exame](direcao-exame-fonte-verdade.md) · [synonyms ja ensina o scanner](aliases-unidades-exames.md) · [filtrar por zone.key, nunca zone.name](exames-faixa-filtro-por-key.md) · [hormonio sexo-dependente nao aceita faixa unica](curadoria-faixas-classe.md) · [chaveFaixa compara, slugInterno gera](exame-code-identidade-slug.md) · [active=false polissemico](exam-catalog-active-polissemico.md) · [resolver carimba o cluster inteiro](exames-triagem-resolucao.md) · [zerar fila nao zera exam_results](triagem-fila-vs-crus.md) · [2 fases C1/C2, maior-id-vence](conferencia-humana-exames.md) · [Gemini+pdf-parse, 70-106s, UI assincrona](exam-extraction-motor.md) · [isHistory + lab name so por vision](motor-extracao-v2-ishistory.md)
-- [Documentos clínicos e faixas do Instituto](indice-documentos-clinicos.md) — emissão, fontes, assinatura, entrega, segurança e apresentação da dose prescrita.
+- ProcedênciaDocumentosBloco — Kaizen-001 — cinco canais; zona 1 sem LED; colunas canônico/extraído e leitura original; watcher a cada cinco minutos e no início.
+- [Exames: catálogo, triagem e identidade](exames-indice-memoria.md) — faixas, extração e confirmação humana.
 - [Regra de Ouro — Nunca Destruir](regra-de-ouro-preservar.md) — preservar dados, arquivos e menus; desativar funções sem retirá-las do menu.
 - [Lei do Numeral — "O Mostrador"](lei-do-numeral-mostrador.md) — numero é expressão (símbolo+inteiro+centavos+unidade) e nasce de components/numeral/Numeral.tsx; a gaveta unicode-range NUNCA conserta
 - [Lei das 4 fontes do Paxter](fonte-unica-eb-garamond.md) — EB Garamond principal (max 800), Inter operacional, Lora PERMANENTE na anamnese, Cardo secundaria so em PDF; Cormorant aposentado 13/08/202
@@ -35,9 +29,8 @@
 - [Asaas integration quirks](asaas-integration-quirks.md) — header access_token (não Bearer); base prod /v3 vs sandbox /api/v3; criar customer antes do payment; saque bloqueado por padrão (insufficien
 - [NULL nao colide em UNIQUE (Postgres)](postgres-null-unique-idempotencia.md) — onConflictDoNothing falha em coluna nullable do indice unico; idempotencia exige guarda de existencia manual.
 - [PUT/PATCH descarta campos fora do contrato](substancias-put-contrato.md) — campo editavel deve estar no OpenAPI body; zod.object faz strip, 200 nao prova persistencia; nao marcar nullable em coluna
-- **PDF clínico** — [paginação](pdf-cursor-quebra-pagina.md) · [fontes](pdf-woff-subset-obrigatorio.md) · [sanitização](pdf-sanitizer-latin1.md) · [vetores](pdflib-drawsvgpath-y-flip.md) · [rodapés](rodape-html-multipagina.md).
+- [Documentos clínicos e PDF](indice-documentos-clinicos.md) — emissão, assinatura, segurança, paginação, fontes e layout.
 - [Testes de banco descartável](testes-banco-descartavel.md) — migração e escrita em banco próprio isolado, nunca na conexão configurada da aplicação.
-- [Multi-local do medico + endereco no lembrete](multi-local-agenda-endereco.md) — quadro de Clinicas NUNCA aposentar; agenda virtual por cidade espelha no Google e endereco do local entra automatico
 - [Governança multiclínica autorizada](governanca-multiclinica-parada.md) — isolamento completo autorizado em 30/10/2026; executar sequencialmente; sem alterar cobranças.
 - **Acesso profissional** — [transição de login](login-transicao-email-cpf.md) · [solicitação depende de aprovação](login-solicitacao-acesso-aprovacao.md).
 - [Autorização na fronteira de envio](envio-autorizacao-fronteira.md) — testes preservam a cadeia real de autenticação; vínculo administrativo não se infere de cargo ou agenda.
@@ -45,36 +38,35 @@
 - [Seed runner mata servidor no boot](seed-runner-bundle-exit.md) — arquivo de seed com bloco `import.meta.url===argv[1]`+`process.exit` NÃO pode ser importado no entry (esbuild empacota e derruba o b
 - [Profissionais estratificados + Entrada 4](profissionais-estratificacao.md) — Entrada 4 = "Corpo Clínico", inclui não-médicos agendáveis; catálogo só ativo p/ paciente; 4 entradas nunca se misturam.
 - [Marca navy/ouro nas telas (padcom)](paxter-navy-gold-marca-telas.md) — chrome=navy/ouro (mata teal/#3D7A7A); STATUS sobrevive (verde=done, emerald NAO trocar em massa); toggle tema useScreenTheme.
-- [Agenda — índice de decisões](indice-agenda.md) — fuso, vínculos, integração Google e configuração.
+- **Agenda** — [decisões](indice-agenda.md) · [multi-local e endereço](multi-local-agenda-endereco.md) — preservar quadro de clínicas; agenda virtual por cidade espelha no Google.
 - [Object Storage — servir exige prefixo](object-storage-serve-prefixo.md) — rota publica que serve PRIVATE_OBJECT_DIR deve limitar prefixo (uploads/); dir e compartilhado; upload presigned em 2 passo
 - [Documentos clínicos no Drive por empresa](documentos-drive-tenant.md) — emissão clínica usa a raiz de clientes da empresa explicitamente; raiz ausente bloqueia a cópia, nunca cai na pasta global.
 - [Rebrand: marca x identificadores tecnicos](rebrand-marca-vs-identificadores.md) — trocar texto/marca visivel (wordmark, calName, SUMMARY, PRODID, filenames .ics); PRESERVAR UID .ics, colunas (codig
 - [Drive uploadFileToDrive apaga homonimos](drive-upload-homonimos.md) — deleta homonimos por padrao; arquivos que coexistem precisam de nome unico (id) + allowDuplicates=true; inserir-no-banco-primei
 - [Grade Imaginaria — modelo mental de card](grade-imaginaria-skill.md) — 5 zonas canonicas (top bar / titulo / identidade / meta grid / conteudo); badge de status ao lado do ID nunca do nome; LED pro
-- **Anamnese** — [LINHA VERMELHA em 3 camadas + flush](anamnese-v2-linha-vermelha.md) · [client_id so por token verificado](anamnese-acesso-revisao.md) · [perguntaId REPETE, identidade e o id](anamnese-perguntaid-nao-unico.md) · [selecao OURO, foco ciano](anamnese-v2-pele-escura.md) · [.dark no MESMO no](anamnese-tema-seletor-mesmo-elemento.md)
+- [Anamnese: acesso, identidade e seleção](anamnese-indice-memoria.md) — regras clínicas, tema e persistência.
 - [Orcamentos "Console Clinico" + relevo 3D](orcamentos-console-clinico.md) — dose exibida (catalogo) != dose salva (r.dose) e proposital; classes 3D UNLAYERED vencem utilitarios Tailwind/shadcn.
 - Painel de Domínios — padrões visuais — LED sempre à esquerda do card selecionado; bevel-3d badge flutuante para subtítulos de seção; painel comercial = KPIs+modelo+tabela de preços.
 - [LoginScreen: classes de tema (login-card-topbar/body/btn-3d-gold)](login-screen-classes-tema.md) — painel de login usa 3 classes próprias no index.css; sharp=true no PaxterSymbolGlass elimina curva
 - [Webhook assinatura: idempotencia + invalido](webhook-assinatura-idempotencia.md) — eventId determinístico (nunca new Date()); assinatura inválida NÃO marca processado=true; só expor provedor cabead
-- **Concierge** — [gate server-only + HMAC](concierge-pagamento-gate-servidor.md) · [trava de escassez por CPF](concierge-penalidade.md) · [peso por desfecho v2](concierge-penalidade-arquitetura.md) · [piso de 3 meses so na vaga da fila](concierge-janela-natural.md)
+- **Concierge** — [pagamento](concierge-pagamento-gate-servidor.md) · [trava CPF](concierge-penalidade.md) · [peso](concierge-penalidade-arquitetura.md) · [fila](concierge-janela-natural.md).
 - [Cockpit DTO burro + mensageria](onda-e-cockpit-mensageria.md) — cockpit re-deriva doenças com gatilhoBate (não toca motor); agendarLembretes apaga todo status=agendado do cliente (escopar por orige
 - [Inicialização do preview e da API](api-preview-startup-race.md) — serviços independentes podem deixar o login sem API no primeiro instante; aguardar saúde antes de enviar credenciais, sem repetir o
 - [Reinício seguro e importações](boot-servidor-efeitos-importacao.md) — inicialização também ocorre ao importar rotas; teste isolado da migração não comprova todo o reinício.
 - [Webhook vincula canal a paciente](webhook-vinculo-canal-paciente.md) — 3 camadas: segredo de origem fail-closed + prova de posse + match ÚNICO (colisão nunca vincula).
 - [Cadastro público por voz + CEP auto](cadastro-publico-voz-cep.md) — voz em campo mascarado normaliza fala→dígitos (pt-BR); auto-fill (ViaCEP) passa valor EXPLÍCITO, guarda corrida por seq.
 - [Painel de status honesto (erro != desligado)](comunicacao-status-honesto.md) — console de status real distingue 3 estados (pending/erro/on); status=null por fetch falho NÃO pode virar "não configur
-- **Envios Paxter** — [formato do e-mail](email-paxter-v2-terno-tabela.md) · [assets públicos](email-marca-assets-rota-publica.md) · [janela WhatsApp](twilio-whatsapp-janela-24h.md) · [limite de caracteres](whatsapp-limite-1600-paxmed.md).
+- **Envios** — [e-mail](email-paxter-v2-terno-tabela.md) · [assets](email-marca-assets-rota-publica.md) · [janela WhatsApp](twilio-whatsapp-janela-24h.md) · [limite](whatsapp-limite-1600-paxmed.md).
 - [Movimentacao de dinheiro: travas antes do provedor](transferencia-travas-whitelist.md) — ordem confirm→whitelist→min→max ANTES do Asaas; confirm no backend (não só UI); auditoria com destino mascar
 - [ZapSign token amarra ambiente (sandbox×prod)](zapsign-ambiente-sandbox-prod.md) — token de produção dá 403 no sandbox; prod publicada funciona auto; override ZAPSIGN_BASE_URL.
 - [Cofre de integracoes — contrato de chaves](cofre-integracoes-contrato-chaves.md) — motor declarativo /api/integrations; `key` do campo é contrato com libs (getSecret) — só ADICIONAR, nunca renomear
 - [Tela autossuficiente p/ credenciais](config-tela-autossuficiente.md) — toda chave/token tem campo na própria tela; GET só metadado mascarado; rota que vaza máscara exige requireCollaborator + Beare
 - [Marcacao de consulta: pele por tema](marcacao-pele-por-tema.md) — travado 01/07/2026: CLARO=Editorial (marcacao-fusao), ESCURO=Carteira concierge (marcacao-concierge); detalhe em specs/marcacao-con
 - [Idempotencia doc clinico por paciente](idempotencia-documento-clinico-por-paciente.md) — hash global mistura prontuarios: chave e (cliente,hash); consumo clinico so le docs conferidos.
-- [Token de colaborador p/ curl](collab-token-curl-regen.md) — token = base64url("collab:id:role:exp:sig") com sig HMAC em HEX; some no restart, regerar; ler createCollaboratorToken antes.
+- [Autenticação operacional em testes](collab-token-curl-regen.md) — usar o login normal; nunca fabricar tokens para contornar a jornada protegida.
 - [Senha profissional nunca é exibida](acesso-profissional-senha-nao-reversivel.md) — mostrar apenas usuário e existência de senha; qualquer redefinição exige fluxo próprio, autorizado e sem alvo esco
 - [Política global de senhas](politica-global-senhas.md) — credenciais próprias: 10–128 caracteres, maiúscula inicial, número e símbolo; validar em cada criação, troca e recuperação.
 - [Histórico de alterações de acesso](historico-acesso-profissional.md) — valores comuns anteriores ficam visíveis somente ao titular; CPF e e-mail são protegidos; credenciais nunca entram no históric
-- [Importacao em massa do Drive](drive-import-migracao-massa.md) — homonimo=mesma pessoa salvo CPF diferente; tirar CPF do nome antes de casar; porteiro fail-open.
 - [Emissão de documento substitui variáveis no servidor](emissao-documento-variaveis-servidor.md) — /emitir aplica {{...}} e grava corpo final no back (idempotente); rotas gêmeas com contrato idêntico
 - [Fusão mestre-detalhe (exames)](fusao-mestre-detalhe-exames.md) — detalhe async exige guard de corrida por reqId em useRef; lista por merge tem de ser UNIÃO (left-join esconde linhas).
 - [Postgres upper() não remove acento](postgres-upper-nao-remove-acento.md) — match por nome entre rotas gêmeas exige normalização igual dos 2 lados (removeDiacritics em JS); upper() cru vs valor sem
@@ -94,7 +86,7 @@
 - [recharts connectNulls não compacta o eixo](recharts-connectnulls-eixo-esticado.md) — gráfico de matriz esparsa estica com datas vazias; filtrar a série por curva ANTES do recharts.
 - [SVG id unico + eixos de variante](svg-id-e-eixos-variantes.md) — gradiente SVG repetido colide entre instancias (use useId()); eixo de variante so existe se TODO shell ramifica por ele.
 - [Botoes validados Paxter + armadilha text-gold](paxter-botoes-validados.md) — botao validado = bevel-3d/btn-3d-soft/btn-3d do skill-layout-paxter; .text-gold (clip) some sobre fundo 3D concorrente,
-- **Marca PAXTER/PADAXOR** — [wordmark segue a logo aprovada](paxter-wordmark-logo-oficial.md) · [arte oficial PNG, nunca potrace](paxter-wordmark-png-vs-potrace.md) · [conjunto so por PaxterLockup](paxter-lockup-fonte-unica.md) · [um unico motor de luz](paxter-glint-motor-unico.md) · [zero filtro, header navy](padaxor-wordmark-regras.md) · [conferir DATA do arquivo antes de usar](brand-asset-versao-mais-recente.md) · [banner = compor PNG oficial](banner-marca-arte-oficial.md)
+- [Marca PAXTER/PADAXOR](paxter-marca-indice.md) — logo, wordmark, lockup e iluminação oficiais.
 - [Marca PADCON = desenho oficial recortado](padcon-marca-desenho-oficial.md) — PADCON e a ARTE oficial (PNG transparente, flutuante, sem placa), nunca texto digitado; no PDF a capa e a regua e as int
 - [Workspace travando = peso do repo](workspace-lento-peso-repo.md) — medir antes de culpar codigo: anexos versionados, size-pack do git e servidores simultaneos; nunca apagar sem ordem escrita.
 - [Área do cliente](area-cliente.md) — telas e orientações usam “App do Cliente”; produto “PaxMed Members”; preservar identificadores internos.
@@ -187,7 +179,6 @@
 - [Grupo VIP e Conexão Milionária](grupo-vip-conexao-milionaria.md) — independente da categoria; convite só registro; efetivado só com comprovante; cobrança Asaas só leitura; CAIXA pendente.
 - [Webhook órfão ZapSign + vínculo cobrança×bolão por titular](assinatura-webhook-orfao-e-cobranca-bolao-titular.md) — órfão fica pendente (200); cobrança só vincula a bolão se o titular for o mesmo c
 - [Meus Jogos individuais](meus-jogos-individuais.md) — separado dos bolões; sem aposta/pagamento real automático; Caixa só com canal oficial autorizado; calendário por concurso e margem de quatro hor
-- **Depuração e identidade de Exames** — [porteiro](depuracao-exames-identidade-tenant.md) · [regras por clínica](depuracao-exames-regras-identidade.md) · [marcos](envios-marcos-explicitos.md) · [exibição segura no portal](identidade-divergente-portal.md) — quarentena sem identidade confirmada; clínica vem do cliente; sem CPF só preliminar.
 - [Código de Renomeação de Exames](codigo-renomeacao-exames.md) — regra única aprovada: `LABOR`, siglas históricas, cintilografia por extenso e preservação contra homônimos.
 - [Segunda via de documentos](segunda-via-documentos-politica.md) — Members só verificado; webhook confere no provedor; recusa bloqueada com cobrança; um só caminho de entrega.
 - [Conversa unificada WWP+TG](comunicacao-unificada-wwp-tg.md) — conversa única, backup e categorias versionadas; trilhas financeiras separadas.

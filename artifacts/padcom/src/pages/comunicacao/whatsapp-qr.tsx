@@ -1,7 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { QrCode, RefreshCw, Send, Settings2, MessageSquare } from "lucide-react";
 import { ConsoleShell, BlockTitle, BASE } from "./_shared";
 import { collabAuthHeaders } from "@/lib/collab-auth";
+import type {
+  EvolutionHomologacaoClient,
+  EvolutionHomologacaoConfig,
+  EvolutionHomologacaoConfigUpdate,
+  EvolutionHomologacaoLinkResult,
+  EvolutionHomologacaoPlanResult,
+  EvolutionHomologacaoSendResult,
+  EvolutionIsolatedTestInput,
+  EvolutionIsolatedTestResult,
+} from "@workspace/api-client-react";
 
 // ============================================================================
 // WHATSAPP POR QR CODE (Evolution API) — alternativa PROVISÓRIA, não oficial.
@@ -12,6 +22,9 @@ import { collabAuthHeaders } from "@/lib/collab-auth";
 type Config = { homologacao?: boolean; contatosAutorizados?: string[];  configurado: boolean; baseUrl: string | null; instanceName: string | null; chaveDefinida: boolean; webhookTokenDefinido: boolean; podeEditar: boolean };
 type Conversa = { contato: string; exibicao: string; ultimaDirecao: string; ultimoTrecho: string; status: string; em: string };
 type Msg = { id: number; direcao: string; corpo: string; status: string; erro: string | null; criado_em: string };
+type ClienteTeste = EvolutionHomologacaoClient;
+type ConfigMotor = EvolutionHomologacaoConfigUpdate;
+type PlanoTeste = EvolutionHomologacaoPlanResult;
 
 const ESTADOS: Record<string, string> = {
   nao_configurado: "Instância não configurada",
@@ -33,6 +46,7 @@ const STATUS_MSG: Record<string, string> = {
   entregue: "Entregue",
   lido: "Lido",
   falha: "Falhou",
+  incerto: "Resultado incerto — conferir antes de repetir",
   recebida: "Recebida",
 };
 
@@ -54,7 +68,16 @@ export default function ComunicacaoWhatsappQr() {
   const [sel, setSel] = useState<string | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [texto, setTexto] = useState("");
-  const [teste, setTeste] = useState({ numero: "", confirmo: false });
+  const [teste, setTeste] = useState<EvolutionIsolatedTestInput>({ numero: "", texto: "", confirmo: false });
+  const [clientesTeste, setClientesTeste] = useState<ClienteTeste[]>([]);
+  const [clienteTesteId, setClienteTesteId] = useState("");
+  const [configMotor, setConfigMotor] = useState<ConfigMotor>({ modelos: { selecao: "", interprete: "", conferente: "", aprendizagem: "" }, textoTeste: "", nomeAssistente: "", motorAtivo: false });
+  const [perguntaTeste, setPerguntaTeste] = useState("");
+  const [contextoTeste, setContextoTeste] = useState("");
+  const [planoTeste, setPlanoTeste] = useState<PlanoTeste | null>(null);
+  const [resultadoTeste, setResultadoTeste] = useState<string | null>(null);
+  const [vinculoTeste, setVinculoTeste] = useState({ telefone: "", confirmo: false });
+  const clienteEscolhidoRef = useRef(false);
 
   const carregar = useCallback(async () => {
     const c = await api<Config>("/evolution/config");
@@ -63,6 +86,21 @@ export default function ComunicacaoWhatsappQr() {
     setEstado(k.ok ? k.dados.estado : k.status === 401 ? "sessao_expirada" : "erro_do_provedor");
     const v = await api<{ conversas: Conversa[] }>("/evolution/conversas");
     if (v.ok) setConversas(v.dados.conversas);
+    const [hc, cc] = await Promise.all([
+      api<EvolutionHomologacaoConfig>("/evolution/homologacao/config"),
+      api<{ clientes: ClienteTeste[] }>("/evolution/homologacao/clientes"),
+    ]);
+    if (hc.ok) {
+      const { modelos, textoTeste, nomeAssistente, motorAtivo } = hc.dados;
+      setConfigMotor({ modelos, textoTeste, nomeAssistente, motorAtivo });
+    }
+    if (cc.ok) {
+      setClientesTeste(cc.dados.clientes);
+      if (!clienteEscolhidoRef.current && cc.dados.clientes.length) {
+        setClienteTesteId(String(cc.dados.clientes[0]!.id));
+        clienteEscolhidoRef.current = true;
+      }
+    }
   }, []);
   useEffect(() => { void carregar(); }, [carregar]);
   useEffect(() => {
@@ -93,9 +131,47 @@ export default function ComunicacaoWhatsappQr() {
     if (m.ok) setMsgs(m.dados.mensagens);
   }
   async function enviarTeste() {
-    const r = await api<{ error?: string; estado?: string; status?: string }>("/evolution/teste", { method: "POST", body: JSON.stringify(teste) });
+    const r = await api<EvolutionIsolatedTestResult & { error?: string; estado?: string; status?: string }>("/evolution/teste", { method: "POST", body: JSON.stringify(teste) });
     setAviso(r.ok ? "Teste aceito pelo servidor (não é confirmação de entrega)." : (r.dados.error ?? "Falha") + (r.dados.estado ? ` (${ESTADOS[r.dados.estado] ?? r.dados.estado})` : ""));
     await carregar();
+  }
+  async function salvarConfigMotor() {
+    const r = await api<{ error?: string }>("/evolution/homologacao/config", { method: "PUT", body: JSON.stringify(configMotor) });
+    setAviso(r.ok ? "Parâmetros do motor salvos." : r.dados.error ?? "Não foi possível salvar os parâmetros.");
+    if (r.ok) await carregar();
+  }
+  async function salvarVinculoTeste() {
+    const digitos = vinculoTeste.telefone.replace(/\D/g, "");
+    const r = await api<EvolutionHomologacaoLinkResult & { error?: string }>("/evolution/homologacao/vinculo", {
+      method: "PUT",
+      body: JSON.stringify({
+        clienteId: Number(clienteTesteId),
+        ...(digitos.length === 4 ? { telefoneFinal: digitos } : { telefone: vinculoTeste.telefone }),
+        confirmo: vinculoTeste.confirmo,
+      }),
+    });
+    setAviso(r.ok ? "Vínculo de homologação registrado." : r.dados.error ?? "Não foi possível registrar o vínculo.");
+    if (r.ok) { setVinculoTeste({ telefone: "", confirmo: false }); await carregar(); }
+  }
+  async function planejarTeste() {
+    setResultadoTeste(null);
+    const r = await api<PlanoTeste & { error?: string }>("/evolution/homologacao/planejar", {
+      method: "POST",
+      body: JSON.stringify({ clienteId: Number(clienteTesteId), pergunta: perguntaTeste }),
+    });
+    if (!r.ok) { setResultadoTeste(r.dados.error ?? "O motor não gerou um plano."); setPlanoTeste(null); return; }
+    setPlanoTeste(r.dados);
+  }
+  async function enviarRespostaTeste() {
+    if (!planoTeste?.resposta) return;
+    const r = await api<EvolutionHomologacaoSendResult & { error?: string; status?: string }>("/evolution/homologacao/enviar-resposta", {
+      method: "POST",
+      body: JSON.stringify({ clienteId: Number(clienteTesteId), pergunta: perguntaTeste, contexto: contextoTeste, confirmo: true }),
+    });
+    setResultadoTeste(r.ok
+      ? `Envio ${r.dados.status ?? "registrado"}; origem: motor PAXMED; pergunta mantida como simulada.`
+      : r.dados.error ?? "Falha no envio.");
+    if (r.ok) await carregar();
   }
 
   return (
@@ -143,12 +219,68 @@ export default function ComunicacaoWhatsappQr() {
         <section className="panel-3d p-5 space-y-3">
           <BlockTitle icon={Send}>Teste isolado (um destinatário)</BlockTitle>
           <input className={campo} placeholder="Número escolhido (DDD + número)" value={teste.numero} onChange={(e) => setTeste({ ...teste, numero: e.target.value })} />
+          <textarea className={campo} rows={3} maxLength={4000} placeholder="Texto editável do teste" value={teste.texto} onChange={(e) => setTeste({ ...teste, texto: e.target.value })} />
           <label className="flex items-center gap-2 text-[13px]">
             <input type="checkbox" checked={teste.confirmo} onChange={(e) => setTeste({ ...teste, confirmo: e.target.checked })} />
             Confirmo que esta pessoa autorizou receber o teste.
           </label>
-          <button type="button" className={botao} disabled={!teste.confirmo || !teste.numero} onClick={() => void enviarTeste()}>Enviar teste</button>
+          <button type="button" className={botao} disabled={!teste.confirmo || !teste.numero || !teste.texto.trim()} onClick={() => void enviarTeste()}>Enviar teste</button>
         </section>
+      )}
+
+      {cfg?.podeEditar && (
+        <>
+          <section className="panel-3d p-5 space-y-3">
+            <BlockTitle icon={Settings2}>Parâmetros editáveis do motor</BlockTitle>
+            <p className="text-[12px] text-muted-foreground">Campos vazios deixam a etapa de inteligência artificial indisponível. Não há modelo ou texto de teste substituto escondido.</p>
+            <label className="block text-[12px]">Modelo de seleção de orientação<input className={campo} value={configMotor.modelos.selecao} onChange={(e) => setConfigMotor({ ...configMotor, modelos: { ...configMotor.modelos, selecao: e.target.value } })} /></label>
+            <label className="block text-[12px]">Modelo de interpretação<input className={campo} value={configMotor.modelos.interprete} onChange={(e) => setConfigMotor({ ...configMotor, modelos: { ...configMotor.modelos, interprete: e.target.value } })} /></label>
+            <label className="block text-[12px]">Modelo de conferência<input className={campo} value={configMotor.modelos.conferente} onChange={(e) => setConfigMotor({ ...configMotor, modelos: { ...configMotor.modelos, conferente: e.target.value } })} /></label>
+            <label className="block text-[12px]">Modelo de aprendizagem<input className={campo} value={configMotor.modelos.aprendizagem} onChange={(e) => setConfigMotor({ ...configMotor, modelos: { ...configMotor.modelos, aprendizagem: e.target.value } })} /></label>
+            <label className="block text-[12px]">Nome editável da assistente<input className={campo} maxLength={80} value={configMotor.nomeAssistente} onChange={(e) => setConfigMotor({ ...configMotor, nomeAssistente: e.target.value })} /></label>
+            <label className="block text-[12px]">Modelo de mensagem de teste
+              <textarea className={campo} rows={5} maxLength={4000} value={configMotor.textoTeste} onChange={(e) => setConfigMotor({ ...configMotor, textoTeste: e.target.value })} placeholder="Use {cliente}, {pergunta} e {resposta}; deixe explícito que a pergunta é simulada." />
+            </label>
+            <label className="flex items-start gap-2 text-[12px]">
+              <input type="checkbox" checked={configMotor.motorAtivo} onChange={(e) => setConfigMotor({ ...configMotor, motorAtivo: e.target.checked })} />
+              <span>Permitir que mensagens reais recebidas por este WhatsApp sejam avaliadas pelo motor. O padrão permanece desligado até a ativação explícita.</span>
+            </label>
+            <button type="button" className={botao} onClick={() => void salvarConfigMotor()}>Salvar parâmetros do motor</button>
+          </section>
+
+          <section className="panel-3d p-5 space-y-3">
+            <BlockTitle icon={MessageSquare}>Teste supervisionado pelo motor</BlockTitle>
+            <label className="block text-[12px]">Cliente autorizado
+              <select className={campo} value={clienteTesteId} onChange={(e) => { clienteEscolhidoRef.current = true; setClienteTesteId(e.target.value); setPlanoTeste(null); }}>
+                {clientesTeste.map((c) => <option key={c.id} value={c.id}>{c.nome} · {c.telefoneMascarado ?? "sem telefone autorizado"}{c.vinculoExplicito ? " · vínculo confirmado" : ""}</option>)}
+              </select>
+            </label>
+            <div className="concave-3d p-3 space-y-2">
+               <p className="text-[12px]">Se o contato autorizado não for o telefone principal do cadastro, informe o número completo ou os quatro últimos dígitos visíveis na lista de contatos autorizados. O servidor só aceita um resultado único e não altera o telefone principal do cliente.</p>
+               <input className={campo} placeholder="Telefone autorizado ou quatro últimos dígitos" value={vinculoTeste.telefone} onChange={(e) => setVinculoTeste({ ...vinculoTeste, telefone: e.target.value })} />
+              <label className="flex items-center gap-2 text-[12px]"><input type="checkbox" checked={vinculoTeste.confirmo} onChange={(e) => setVinculoTeste({ ...vinculoTeste, confirmo: e.target.checked })} />Confirmo que este número pertence ao cadastro escolhido.</label>
+              <button type="button" className={botao} disabled={!vinculoTeste.confirmo || !vinculoTeste.telefone || !clienteTesteId} onClick={() => void salvarVinculoTeste()}>Salvar vínculo de homologação</button>
+            </div>
+            <label className="block text-[12px]">Pergunta imaginada para o teste
+              <textarea className={campo} rows={3} maxLength={1000} value={perguntaTeste} onChange={(e) => { setPerguntaTeste(e.target.value); setPlanoTeste(null); }} />
+            </label>
+            <label className="block text-[12px]">Identificador do cenário, sem dado pessoal<input className={campo} maxLength={60} value={contextoTeste} onChange={(e) => setContextoTeste(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"))} /></label>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className={botao} disabled={!clienteTesteId || !perguntaTeste.trim()} onClick={() => void planejarTeste()}>Executar motor sem enviar</button>
+              <button type="button" className={botao} disabled={!planoTeste?.resposta || !configMotor.textoTeste.trim()} onClick={() => void enviarRespostaTeste()}>Enviar resposta simulada</button>
+            </div>
+            {resultadoTeste && <p className="concave-3d p-3 text-[13px]" role="status">{resultadoTeste}</p>}
+            {planoTeste && (
+              <div className="concave-3d space-y-2 p-3" data-testid="plano-motor">
+                <p className="text-[12px]"><b>Origem:</b> motor real do atendimento PAXMED</p>
+                <p className="text-[12px]"><b>Desfecho:</b> {planoTeste.desfecho} · <b>caminho:</b> {planoTeste.caminhoResolucao}</p>
+                <p className="text-[12px]"><b>Orientação utilizada:</b> {planoTeste.orientacaoId ?? "nenhuma"}</p>
+                <p className="whitespace-pre-wrap text-[13px]"><b>Resposta produzida:</b><br />{planoTeste.resposta ?? "O motor não produziu resposta."}</p>
+                <p className="text-[11px] text-muted-foreground">A pergunta não foi gravada como mensagem recebida. O envio externo só ocorre ao clicar em “Enviar resposta simulada”.</p>
+              </div>
+            )}
+          </section>
+        </>
       )}
 
       <section className="panel-3d p-5 space-y-3">
