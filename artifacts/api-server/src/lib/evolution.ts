@@ -47,6 +47,21 @@ export function garantirTabelasEvolution(): Promise<void> {
       ON evolution_mensagens (empresa_id, provider_id) WHERE provider_id IS NOT NULL`);
     await pool.query(`CREATE INDEX IF NOT EXISTS evolution_mensagens_contato
       ON evolution_mensagens (empresa_id, contato, criado_em DESC)`);
+    await pool.query(`ALTER TABLE evolution_mensagens
+      ADD COLUMN IF NOT EXISTS processamento TEXT,
+      ADD COLUMN IF NOT EXISTS desfecho_atendimento TEXT,
+      ADD COLUMN IF NOT EXISTS orientacao_id BIGINT`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS evolution_vinculos_cliente (
+      empresa_id INTEGER NOT NULL,
+      cliente_id INTEGER NOT NULL,
+      telefone TEXT NOT NULL,
+      origem TEXT NOT NULL,
+      confirmado_por INTEGER,
+      confirmado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (empresa_id, cliente_id),
+      UNIQUE (empresa_id, telefone)
+    )`);
   })().catch((e) => { pronto = null; throw e; });
   return pronto;
 }

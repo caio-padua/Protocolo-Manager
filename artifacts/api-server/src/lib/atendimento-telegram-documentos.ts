@@ -135,6 +135,14 @@ async function ofertaAtual(exec: ExecutorDocumentos, e: EntradaAtendimento) {
 }
 
 async function verificarIdentidade(exec: ExecutorDocumentos, e: EntradaAtendimento): Promise<boolean> {
+  if (e.canal === "whatsapp") {
+    const r = await exec.execute(sql`SELECT 1
+      FROM evolution_vinculos_cliente v
+      JOIN clients c ON c.id=v.cliente_id AND c.empresa_id=v.empresa_id
+      WHERE v.cliente_id=${e.clienteId} AND v.empresa_id=${e.empresaId}
+        AND v.telefone=${e.chatId} AND c.status='active' AND c.deleted_at IS NULL`);
+    return r.rows.length === 1;
+  }
   if (!await vinculoTelegramAtualUnico(exec, { clienteId: e.clienteId, empresaId: e.empresaId, chatId: e.chatId })) return false;
   const r = await exec.execute(sql`SELECT id FROM clients
     WHERE id=${e.clienteId} AND empresa_id=${e.empresaId} AND telegram_chat_id=${e.chatId}
@@ -193,14 +201,14 @@ async function localizarDocumentosParaSegundaVia(
     return `${raw.slice(0, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}-${raw.slice(16, 20)}-${raw.slice(20)}`;
   };
   if (docs.length === 0) {
-    await createReissueRequest({
+    if (!e.simulacao) await createReissueRequest({
       operationKey: operationKey(e.inboxMessageId),
       clientId: e.clienteId,
       empresaId: e.empresaId,
       locationId,
       documentType: "nao_identificado",
       documentId: null,
-      requestedByChannel: "telegram",
+      requestedByChannel: e.canal ?? "telegram",
       clientConsent: false,
     });
     return handoff("documento_emitido_original_nao_encontrado");
@@ -236,14 +244,14 @@ async function localizarDocumentosParaSegundaVia(
       `• ${doc.label} — ${DOCUMENT_TYPE_LABEL[doc.documentType]} — ${dataBR(doc.issuedAt)}`,
     ).join("\n");
     if (list.length > 3500) return handoff("lista_de_documentos_excede_limite_seguro");
-    await createReissueRequest({
+    if (!e.simulacao) await createReissueRequest({
       operationKey: operationKey(e.inboxMessageId),
       clientId: e.clienteId,
       empresaId: e.empresaId,
       locationId,
       documentType: "nao_identificado",
       documentId: null,
-      requestedByChannel: "telegram",
+      requestedByChannel: e.canal ?? "telegram",
       clientConsent: false,
     });
     return resposta(
@@ -255,16 +263,23 @@ async function localizarDocumentosParaSegundaVia(
   const selected = candidates[0];
   const isPrescription = selected.documentType === "prescricao";
   const actionLabel = `${DOCUMENT_TYPE_LABEL[selected.documentType]} emitido em ${dataBR(selected.issuedAt)}`;
-  const reissue = await createReissueRequest({
+  const reissue = e.simulacao ? null : await createReissueRequest({
     operationKey: operationKey(e.inboxMessageId),
     clientId: e.clienteId,
     empresaId: e.empresaId,
     locationId,
     documentType: selected.documentType,
     documentId: selected.documentId,
-    requestedByChannel: "telegram",
+    requestedByChannel: e.canal ?? "telegram",
     clientConsent: false,
   });
+  if (e.simulacao) {
+    return resposta(
+      `Encontrei ${actionLabel}. A segunda via exige uma confirmação explícita e as verificações de liberação. Esta simulação não criou solicitação, não enviou documento e não gerou cobrança.`,
+      isPrescription ? "reenvio_receita_ofertado" : "reenvio_documento_ofertado",
+      { documento: { acao: "ofertar_reenvio", documentType: selected.documentType, documentId: selected.documentId, titulo: selected.label } },
+    );
+  }
   if (reissue.status !== "awaiting_confirmation" || !reissue.documentHash) {
     return resposta(
       `Encontrei ${actionLabel} e registrei sua solicitação. A equipe precisa confirmar a vigência do tratamento ou a situação da assinatura antes de informar eventual cobrança ou liberar o documento. Não vou enviar nem cobrar agora.`,

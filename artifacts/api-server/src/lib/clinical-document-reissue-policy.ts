@@ -35,7 +35,7 @@ export interface CreateReissueRequestInput {
   locationId: number;
   documentType: ClinicalDocumentType | "protocolo" | "ras_fap" | "carta_tratamento" | "documento_assinado" | "nao_identificado";
   documentId: number | null;
-  requestedByChannel: "telegram" | "client_portal" | "staff";
+  requestedByChannel: "telegram" | "whatsapp" | "client_portal" | "staff";
   clientConsent: boolean;
   membershipVerification?: MembershipVerification;
   operationKey: string;

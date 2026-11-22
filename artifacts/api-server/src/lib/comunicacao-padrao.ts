@@ -12,6 +12,7 @@ import { sendTelegram, sendTelegramPhotoBuffer } from "./telegram.js";
 import { enviarAnexosDaMensagem } from "./anexos-mensagem.js";
 import { vinculoTelegramAtualUnico } from "./telegram-vinculo-atual.js";
 import { renderFlyerPaxmed } from "./flyer-paxmed.js";
+import { getSetting } from "./secure-settings.js";
 
 export type Categoria = "link_pagamento" | "boleto" | "documento" | "pedido_exame" | "orcamento" | "lembrete_formal" | "oferta_pam" | "duvida_cliente" | "pedido_recebido" | "anamnese_nova";
 export interface DefCategoria {
@@ -75,8 +76,6 @@ export const CATEGORIAS: Record<Categoria, DefCategoria> = {
 };
 export const VARIAVEIS_GLOBAIS = ["nome", "assistente", "clinica"];
 export const FLYER_VERSAO = 1; // versao do molde (layout travado em flyer-paxmed.ts)
-export const ASSISTENTE_PADRAO = "Helena";
-export const TESTE_PERMITIDOS_PADRAO = [11, 12, 1924];
 export const TESTE_MAX_CENTAVOS = 500;
 export const PRODUCAO_MAX_CENTAVOS = 10_000_000;
 export const ehCategoria = (c: unknown): c is Categoria => typeof c === "string" && c in CATEGORIAS;
@@ -183,8 +182,11 @@ export async function gravarRegraClinica(empresaId: number, cat: Categoria, envi
 }
 async function permitidosTeste(): Promise<number[]> {
   const r = (await db.execute(sql`SELECT value FROM app_settings WHERE key='comunicacao.teste.permitidos'`)).rows[0] as any;
-  if (!r?.value) return TESTE_PERMITIDOS_PADRAO;
-  try { const v = JSON.parse(r.value); return Array.isArray(v) ? v.filter((n) => Number.isInteger(n)) : TESTE_PERMITIDOS_PADRAO; } catch { return TESTE_PERMITIDOS_PADRAO; }
+  if (!r?.value) return [];
+  try {
+    const v: unknown = JSON.parse(r.value);
+    return Array.isArray(v) && v.every((n) => Number.isSafeInteger(n) && n > 0) ? [...new Set(v as number[])] : [];
+  } catch { return []; }
 }
 
 // ───────────── Envio ─────────────
@@ -214,8 +216,10 @@ export async function enviarComunicacao(p: PedidoEnvio): Promise<ResultadoEnvio>
   if (!emp?.nome) throw new ErroComunicacao("clínica sem nome cadastrado");
   const valor = def.variaveis.includes("valor") ? brl(validarValor(p.valorCentavos, p.ambiente)) : (p.valorCentavos != null ? brl(validarValor(p.valorCentavos, p.ambiente)) : null);
   const venc = dataBR(p.vencimento);
+  const assistente = (await getSetting("comunicacao.assistente.nome"))?.trim();
+  if (!assistente) throw new ErroComunicacao("Nome da assistente não configurado na tela de comunicação.");
   const vars: Record<string, string> = {
-    nome: primeiroNome(c.name), assistente: ASSISTENTE_PADRAO, clinica: String(emp.nome),
+    nome: primeiroNome(c.name), assistente, clinica: String(emp.nome),
     ...(valor ? { valor } : {}), ...(p.referencia ? { referencia: p.referencia } : {}), ...(p.link ? { link: p.link } : {}),
     ...(p.documento ? { documento: p.documento } : {}), ...(venc ? { vencimento: venc } : {}),
     ...(dataBR(p.data) ? { data: dataBR(p.data) as string } : {}), ...(p.horario ? { horario: p.horario } : {}),

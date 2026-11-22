@@ -68,7 +68,7 @@ export async function ensureClinicalDocumentReissuesTable(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       CONSTRAINT clinical_document_reissue_channel_ck
-        CHECK (requested_by_channel IN ('telegram','client_portal','staff')),
+        CHECK (requested_by_channel IN ('telegram','whatsapp','client_portal','staff')),
       CONSTRAINT clinical_document_reissue_status_ck
         CHECK (request_status IN (
           'requested','awaiting_confirmation','awaiting_payment','awaiting_review',

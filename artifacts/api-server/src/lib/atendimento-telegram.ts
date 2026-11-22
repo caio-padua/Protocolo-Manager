@@ -176,6 +176,10 @@ export interface EntradaAtendimento {
   clienteNome: string;
   chatId: string;
   texto: string;
+  /** Canal autenticado da conversa. O valor antigo permanece Telegram. */
+  canal?: "telegram" | "whatsapp";
+  /** Plano supervisionado: nunca cria entrada, reserva, cobrança ou entrega. */
+  simulacao?: boolean;
 }
 
 export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAtendimento): Promise<Desfecho> {
@@ -331,8 +335,13 @@ export async function planejarAtendimento(deps: DepsAtendimento, e: EntradaAtend
     pausa: null, alerta: null, resposta: null, orientacaoId: null, faqId: null, desfecho: "desligado",
     caminhoResolucao: "equipe", interpreteChamado: false, conferenteChamado: false, aprendizChamado: false,
   };
+  // Simulação supervisionada pode testar a classificação sem devolver ao vivo
+  // uma conversa que a equipe assumiu. Nenhuma alteração de estado é persistida.
+  const depsDoPlano = e.simulacao
+    ? { ...deps, modoDoCliente: async () => "ia" as const }
+    : deps;
   plano.desfecho = await processarAtendimento({
-    ...deps,
+    ...depsDoPlano,
     responderDocumento: deps.responderDocumento ? async (entrada) => {
       const resposta = await deps.responderDocumento!(entrada);
       if (resposta?.tipo === "resposta" && resposta.documento) plano.documento = resposta.documento;

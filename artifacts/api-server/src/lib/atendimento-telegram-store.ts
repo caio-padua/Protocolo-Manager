@@ -195,7 +195,8 @@ Pergunta sem dados pessoais: """${textoSeguro}"""
 Orientações:
 ${lista}`;
   // Modelo escolhido pela clínica (só modelos realmente conectados); sem escolha, o padrão atual.
-  const modelo = "claude-haiku-5-5";
+  const modelo = (await getSetting("atendimento.ia.modelo.selecao"))?.trim();
+  if (!modelo) return null;
   const chave = inboxMessageId ? `telegram:${inboxMessageId}:interprete:orientacao` : `ia:${randomUUID()}`;
   onUso?.();
   let msg: Awaited<ReturnType<typeof anthropic.messages.create>>;
