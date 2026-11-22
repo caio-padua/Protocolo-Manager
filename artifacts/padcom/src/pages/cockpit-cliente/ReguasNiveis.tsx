@@ -20,31 +20,26 @@ function Regua({ titulo, unidade, linhas, atual, rotuloAtual, dica, onDiretriz }
           <BookOpen size={14} aria-hidden="true" />
         </button>
       }>
-      <div className="pn-regua">
-        {NIVEIS.map((n) => {
-          const aqui = atual === n.id && rotuloAtual;
-          return (
-            <div key={n.id} className="pn-col" data-nivel={n.id} data-atual={atual === n.id}>
-              <div className="pn-pino">
-                {aqui ? (
-                  <>
-                    <div className="bevel-3d pn-pino-placa"><span>Média atual</span><b><Numeral peso={800}>{rotuloAtual}</Numeral></b></div>
-                    <i className="pn-seta" aria-hidden="true" />
-                  </>
-                ) : null}
-              </div>
-              <div className="bevel-3d pn-seg">{n.nome}</div>
-              <div className="pn-vals">
-                {linhas.map((l) => (
-                  <p key={l.nome}>
-                    {linhas.length > 1 && <small>{l.nome}</small>}
-                    <span><Numeral peso={700}>{l.valores[n.id]}</Numeral></span>
-                  </p>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+      {atual && rotuloAtual && (
+        <div className="pn-media-atual" data-nivel={atual}>
+          <span className="pn-media-atual-rot">Sua média</span>
+          <b className="bevel-3d pn-pino-placa"><Numeral peso={800}>{rotuloAtual}</Numeral></b>
+          <span className="bevel-3d pn-chip" data-nivel={atual}>{NIVEIS.find((n) => n.id === atual)?.nome}</span>
+        </div>
+      )}
+      <div className="pn-lista" style={{ ["--pn-n" as string]: linhas.length }}>
+        <div className="pn-lista-cab" aria-hidden="true">
+          <span />
+          {linhas.map((l) => <span key={l.nome}>{l.nome.split(" (")[0]}</span>)}
+        </div>
+        {NIVEIS.map((n) => (
+          <div key={n.id} className="pn-lin" data-nivel={n.id} data-atual={atual === n.id}>
+            <div className="bevel-3d pn-seg">{n.nome}</div>
+            {linhas.map((l) => (
+              <p key={l.nome} className="pn-caixa" aria-label={`${n.nome}, ${l.nome}`}><Numeral peso={700}>{l.valores[n.id]}</Numeral></p>
+            ))}
+          </div>
+        ))}
       </div>
       <p className="pn-dica">{dica}</p>
     </PainelPulso>

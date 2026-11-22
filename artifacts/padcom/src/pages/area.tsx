@@ -360,8 +360,8 @@ export default function Area() {
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
-                style={{ minWidth: 72 }}
-                className={`flex flex-col items-center py-2 px-0.5 transition-colors ${
+                style={{ width: 84 }}
+                className={`flex flex-col items-center py-2 px-1.5 transition-colors ${
                   active ? "text-accent" : "text-muted-foreground hover:text-accent"
                 }`}
               >
@@ -375,7 +375,7 @@ export default function Area() {
                     gap: 2,
                     padding: "5px 10px 4px",
                     borderRadius: 7,
-                    minWidth: 58,
+                    width: 70,
                     transition: "all 0.15s ease",
                     /* Up-bevel nas tabs inativas: placa que sai da superfície */
                     ...(active ? {} : {
@@ -397,8 +397,6 @@ export default function Area() {
         </div>
       </nav>
 
-      {/* Carimbo discreto PADCON — fixo bottom-right, acima da nav */}
-      <PadconWatermark bottom="76px" />
       </div>
     </div>
   );

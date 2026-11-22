@@ -47,7 +47,7 @@ function Linha({ titulo, unidade, datas, series, faixa }: {
     <PainelPulso titulo={cab}><p className="py-3 text-center text-xs" style={{ color: "var(--pn-mudo)" }}>Ainda não há registros suficientes para o gráfico.</p></PainelPulso>
   );
   const lo = Math.min(...todos, faixa?.[0] ?? Infinity) - 5, hi = Math.max(...todos, faixa?.[1] ?? -Infinity) + 5;
-  const W = 320, H = 118, TOPO = 8, BASE = 24, ESQ = 30, DIR = 8, n = datas.length;
+  const W = 320, H = 150, TOPO = 8, BASE = 24, ESQ = 30, DIR = 8, n = datas.length;
   const x = (i: number) => (n === 1 ? (ESQ + W - DIR) / 2 : ESQ + (i / (n - 1)) * (W - ESQ - DIR));
   const y = (v: number) => H - BASE - ((v - lo) / (hi - lo)) * (H - BASE - TOPO);
   const passo = Math.max(1, Math.ceil(n / 6));
@@ -56,18 +56,18 @@ function Linha({ titulo, unidade, datas, series, faixa }: {
   return (
     <PainelPulso titulo={cab} rotulo={`Gráfico de ${titulo}`}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`Gráfico de ${titulo} por dia`} style={{ color: "var(--pn-tinta)" }}>
-        {faixa && <rect x={ESQ} y={y(faixa[1])} width={W - ESQ - DIR} height={Math.max(0, y(faixa[0]) - y(faixa[1]))} fill="var(--n-n)" opacity=".16" />}
+        {faixa && <rect x={ESQ} y={y(faixa[1])} width={W - ESQ - DIR} height={Math.max(0, y(faixa[0]) - y(faixa[1]))} fill="var(--n-n)" opacity=".24" />}
         {niveisY.map((v) => (
           <g key={v}>
-            <line x1={ESQ} x2={W - DIR} y1={y(v)} y2={y(v)} stroke="currentColor" opacity=".12" strokeDasharray="2 3" />
-            <text x={ESQ - 4} y={y(v) + 3} textAnchor="end" fontSize="8.5" fill="currentColor" opacity=".7">{v}</text>
+            <line x1={ESQ} x2={W - DIR} y1={y(v)} y2={y(v)} stroke="currentColor" opacity=".22" strokeDasharray="3 4" />
+            <text x={ESQ - 4} y={y(v) + 3} textAnchor="end" fontSize="9.5" fontWeight="700" fill="currentColor" opacity=".85">{v}</text>
           </g>
         ))}
         <line x1={ESQ} x2={W - DIR} y1={H - BASE} y2={H - BASE} stroke="currentColor" opacity=".35" />
         {ticks.map((i) => (
           <g key={datas[i]}>
             <line x1={x(i)} x2={x(i)} y1={H - BASE} y2={H - BASE + 3} stroke="currentColor" opacity=".5" />
-            <text x={x(i)} y={H - 8} textAnchor={i === n - 1 && n > 1 ? "end" : "middle"} fontSize="9" fill="currentColor" opacity=".85">{dataCurta(datas[i]!)}</text>
+            <text x={x(i)} y={H - 8} textAnchor={i === n - 1 && n > 1 ? "end" : "middle"} fontSize="10" fontWeight="700" fill="currentColor" opacity=".95">{dataCurta(datas[i]!)}</text>
           </g>
         ))}
         {series.map((s) => {
@@ -76,8 +76,8 @@ function Linha({ titulo, unidade, datas, series, faixa }: {
           const d = pts.map((p) => { if (!p) { ativo = false; return ""; } const t = `${ativo ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`; ativo = true; return t; }).join("");
           return (
             <g key={s.nome}>
-              <path d={d} fill="none" stroke={s.cor} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-              {pts.map((p, i) => (p ? <circle key={i} cx={p[0]} cy={p[1]} r="2.6" fill={s.cor} /> : null))}
+              <path d={d} fill="none" stroke={s.cor} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+              {pts.map((p, i) => (p ? <circle key={i} cx={p[0]} cy={p[1]} r="3.6" fill={s.cor} stroke="#fff" strokeWidth="1.5" /> : null))}
             </g>
           );
         })}
@@ -304,9 +304,9 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
       <ReguasNiveis mediaPA={m.pa} mediaGlicemia={inteiro(m.g)} nivelPA={m.nPA} nivelGlicemia={m.nG} janelaTexto={`${dias} dias`} escuro={escuro} />
 
       <Linha titulo="Pressão por dia" unidade="mmHg" datas={porDia.map((d) => d.dia)} faixa={[LIMITES.pressao.baixa.d, LIMITES.pressao.alta.s - 1]}
-        series={[{ nome: "Máxima", cor: "#3b6fd8", pontos: porDia.map((d) => d.sis) }, { nome: "Mínima", cor: "#0aa5c8", pontos: porDia.map((d) => d.dias) }]} />
+        series={[{ nome: "Máxima", cor: "#1e40af", pontos: porDia.map((d) => d.sis) }, { nome: "Mínima", cor: "#0891b2", pontos: porDia.map((d) => d.dias) }]} />
       <Linha titulo="Glicemia por dia" unidade="mg/dL" datas={porDia.map((d) => d.dia)} faixa={[LIMITES.glicemia.baixa, LIMITES.glicemia.alta - 1]}
-        series={[{ nome: "Glicemia", cor: "#e08a12", pontos: porDia.map((d) => d.gli) }]} />
+        series={[{ nome: "Glicemia", cor: "#d97706", pontos: porDia.map((d) => d.gli) }]} />
 
       <PainelPulso titulo="Meus registros" rotulo="Meus registros">
         {historico.length === 0 ? (
@@ -314,9 +314,9 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
         ) : (
           <div className="overflow-x-auto">
             <table className="pn-tab">
-              <colgroup><col style={{ width: "17%" }} /><col style={{ width: "8%" }} /><col style={{ width: "19%" }} /><col style={{ width: "13%" }} /><col style={{ width: "10%" }} /><col style={{ width: "11%" }} /><col style={{ width: "11%" }} /><col style={{ width: "11%" }} /></colgroup>
+              <colgroup><col style={{ width: "13%" }} /><col style={{ width: "17%" }} /><col style={{ width: "13%" }} /><col style={{ width: "11.5%" }} /><col style={{ width: "11.5%" }} /><col style={{ width: "11.5%" }} /><col style={{ width: "11.5%" }} /><col style={{ width: "11.5%" }} /></colgroup>
               <thead>
-                <tr><th>Dia</th><th aria-label="Período" /><th>Pressão</th><th>Glic.</th><th>FC</th><th>Ener.</th><th>Disp.</th><th>Sono</th></tr>
+                <tr><th>Dia</th><th>Período</th><th>Pressão</th><th>Glic.</th><th>FC</th><th>Ener.</th><th>Disp.</th><th>Sono</th></tr>
               </thead>
               <tbody>
                 {historico.map(({ dia, reg }) => PERIODOS.map(({ id, nome, Icone }, idx) => {
@@ -333,7 +333,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
                           </div>
                         </td>
                       )}
-                      <td className="per" title={nome}><Icone size={13} aria-label={nome} /></td>
+                      <td className="per"><span className="pn-per"><Icone size={12} aria-hidden="true" />{nome}</span></td>
                       <td>{r && r.pressaoSistolica != null && r.pressaoDiastolica != null
                         ? <Medida v={`${r.pressaoSistolica}/${r.pressaoDiastolica}`} nivel={nivelPressao(r.pressaoSistolica, r.pressaoDiastolica)} /> : <span className="vazio">—</span>}</td>
                       <td>{r && r.glicemia != null ? <Medida v={String(r.glicemia)} nivel={nivelGlicemia(r.glicemia)} /> : <span className="vazio">—</span>}</td>

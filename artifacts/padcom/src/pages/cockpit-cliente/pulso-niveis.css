@@ -143,3 +143,32 @@
 .pn-nota button[aria-checked="false"] { box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -2px 0 rgba(0,0,0,.12), 0 2px 3px -1px rgba(0,0,0,.28); }
 .pn-escopo .pn-medida { border-radius: 3px; }
 .pn-nota button[aria-checked="false"] { color: color-mix(in srgb, var(--pn-mudo) 82%, var(--pn-tinta)); }
+
+/* ===== Reguas em lista vertical: cinco niveis, cada um com sua faixa minima e maxima, bem separados ===== */
+.pn-media-atual { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; padding: 10px 12px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--c, var(--pn-fio)) 55%, transparent); background: var(--pn-campo); }
+.pn-media-atual[data-nivel="muitobaixo"] { --c: var(--n-mb); } .pn-media-atual[data-nivel="baixo"] { --c: var(--n-b); } .pn-media-atual[data-nivel="normal"] { --c: var(--n-n); }
+.pn-media-atual[data-nivel="alto"] { --c: var(--n-a); } .pn-media-atual[data-nivel="muitoalto"] { --c: var(--n-ma); }
+.pn-media-atual-rot { font: 800 10px/1 Inter,sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--pn-mudo); }
+.pn-media-atual .pn-pino-placa { display: inline-block; padding: 5px 10px; font: 800 14px/1 "EB Garamond",serif; --c: var(--pn-tinta); }
+.pn-lista { display: grid; gap: 12px; }
+.pn-lista-cab, .pn-lin { display: grid; grid-template-columns: 116px repeat(var(--pn-n, 1), minmax(0,1fr)); gap: 12px; align-items: center; }
+.pn-lista-cab span { text-align: center; font: 800 9px/1.1 Inter,sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--pn-mudo); }
+.pn-lin .bevel-3d.pn-seg { padding: 0 4px; height: 38px; display: flex; align-items: center; justify-content: center; font-size: 10.5px; letter-spacing: .06em; border-radius: 3px; }
+.pn-caixa { margin: 0; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 3px; font: 700 16px/1 "EB Garamond",serif; color: var(--pn-tinta);
+  background: var(--pn-campo); border: 1px solid color-mix(in srgb, var(--c) 40%, transparent); box-shadow: inset 0 3px 5px rgba(0,0,0,.2), inset 0 -1px 0 rgba(255,255,255,.5); }
+.pn-lin[data-nivel="muitobaixo"] { --c: var(--n-mb); } .pn-lin[data-nivel="baixo"] { --c: var(--n-b); } .pn-lin[data-nivel="normal"] { --c: var(--n-n); }
+.pn-lin[data-nivel="alto"] { --c: var(--n-a); } .pn-lin[data-nivel="muitoalto"] { --c: var(--n-ma); }
+.pn-lin[data-atual="true"] .pn-caixa { border-color: var(--c); border-width: 2px; }
+
+/* Tabela: todos os retangulos rebaixados com o MESMO tamanho (nao proporcional ao valor), bem separados */
+.pn-tab { border-spacing: 5px 0; width: calc(100% + 10px); margin: 0 -5px; }
+.pn-tab td { padding: 8px 0; }
+.pn-tab .pn-medida { display: block; box-sizing: border-box; width: 100%; min-width: 0; height: 28px; line-height: 26px; padding: 0; font-size: 12.5px; }
+.pn-tab .pn-medida[data-nivel] { border-width: 2px; line-height: 24px; }
+.pn-tab .vazio { display: block; height: 28px; line-height: 28px; }
+.pn-tab .per { text-align: left; padding-left: 8px; }
+.pn-per { display: inline-flex; align-items: center; gap: 4px; font: 700 10.5px/1 Inter,sans-serif; color: var(--pn-tinta); }
+.pn-per svg { color: var(--pn-tinta); opacity: .75; }
+.pn-tab th { font-size: 8.5px; letter-spacing: .03em; color: var(--pn-tinta); opacity: .8; }
+.pn-escopo .pn-medida { font-weight: 800; }
+@media (max-width: 460px) { .pn-lista-cab, .pn-lin { grid-template-columns: 96px repeat(var(--pn-n, 1), minmax(0,1fr)); gap: 10px; } .pn-lin .bevel-3d.pn-seg { font-size: 9.5px; letter-spacing: .02em; } }
