@@ -1,3 +1,4 @@
+- [WhatsApp — segurança da entrada](whatsapp-seguranca-entrada.md) — assinatura obrigatória, identidade exata+clínica, modo teste de 1 contato, modelo aprovado.
 - [Redes sociais cliente/profissional](redes-sociais-submenu.md) — aba própria; Instagram do cliente fica na coluna; demais na tabela redes_sociais.
 - [Pulso — uma nota por período](pulso-uma-nota-por-periodo.md) — manhã=sono, tarde=energia, noite=libido; pendentes reaparecem; telegram pendente.
 - [Gráfico de linha — padrão do Pulso](grafico-linha-padrao-pulso.md) — espessura/faixas/ponto ativo de graficoPadrao.ts; setas movem o ponto.

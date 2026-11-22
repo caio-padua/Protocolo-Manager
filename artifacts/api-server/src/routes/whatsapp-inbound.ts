@@ -6,161 +6,120 @@
  * verificada via assinatura X-Twilio-Signature).
  */
 import { Router, type IRouter } from "express";
-import crypto from "node:crypto";
-import { db } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { pool } from "@workspace/db";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { sendWhatsapp, registrarLogMensagem } from "../lib/whatsapp";
 import { getSecret } from "../lib/secure-settings";
 import { logger } from "../lib/logger";
 import { requireAiTenant } from "../lib/ai-central";
+import { assinaturaTwilioValida, autorespostaHabilitada, mascararTelefone } from "../lib/whatsapp-seguranca";
+import { contextoClinico, identificarRemetente, type RemetenteIdentificado } from "../lib/whatsapp-identidade";
+import { requireCollaborator } from "./collaborator";
+import { requirePlatformOwner } from "../middleware/tenantContext.js";
 
 const router: IRouter = Router();
 
-// ── Assinatura Twilio (igual ao webhook de status) ────────────────────────────
-function assinaturaEsperada(
-  authToken: string,
-  url: string,
-  params: Record<string, unknown>,
-): string {
-  const chaves = Object.keys(params).sort();
-  let data = url;
-  for (const k of chaves) data += k + String(params[k] ?? "");
-  return crypto
-    .createHmac("sha1", authToken)
-    .update(Buffer.from(data, "utf-8"))
-    .digest("base64");
-}
-
-function assinaturaConfere(assinada: string, esperada: string): boolean {
-  try {
-    const a = Buffer.from(assinada);
-    const b = Buffer.from(esperada);
-    if (a.length !== b.length) return false;
-    return crypto.timingSafeEqual(a, b);
-  } catch {
-    return false;
-  }
-}
-
 // ── Normaliza telefone vindo do Twilio (whatsapp:+5562...) ────────────────────
 function normalizePhone(raw: string): string {
-  // Remove "whatsapp:" prefix e "+", mantém só dígitos
   return raw.replace(/^whatsapp:/i, "").replace(/\D/g, "");
 }
 
-// ── Busca contexto do remetente (cliente ou profissional) ─────────────────────
-async function buscarRemetente(phone: string) {
-  const digits = normalizePhone(phone);
-  // Remove código do Brasil (55) se presente
-  const sem55 = digits.startsWith("55") && digits.length > 11 ? digits.slice(2) : digits;
-
-  // Tenta cliente primeiro
-  const cR = await db.execute(sql`
-    SELECT c.id, c.name, c.phone,
-           p.id as pid, p.title as ptitle, p.status as pstatus,
-           p.start_date,
-           (SELECT COUNT(*) FROM sessions s WHERE s.protocol_id = p.id AND s.status = 'completed')::int as sessoes_feitas,
-           (SELECT COUNT(*) FROM sessions s WHERE s.protocol_id = p.id)::int as total_sessoes
-    FROM clients c
-    LEFT JOIN protocols p ON p.client_id = c.id AND p.status = 'active'
-    WHERE c.phone ILIKE ${'%' + sem55.slice(-8)}
-    ORDER BY p.created_at DESC
-    LIMIT 1
-  `);
-  if (cR.rows.length > 0) {
-    const r = cR.rows[0] as Record<string, unknown>;
-    return { tipo: "cliente" as const, nome: String(r.name ?? ""), protocolo: r.ptitle ? String(r.ptitle) : null, sessoesFeitas: Number(r.sessoes_feitas ?? 0), totalSessoes: Number(r.total_sessoes ?? 0) };
-  }
-
-  // Tenta profissional
-  const pR = await db.execute(sql`
-    SELECT id, name, role FROM professionals WHERE phone ILIKE ${'%' + sem55.slice(-8)} LIMIT 1
-  `);
-  if (pR.rows.length > 0) {
-    const r = pR.rows[0] as Record<string, unknown>;
-    return { tipo: "profissional" as const, nome: String(r.name ?? ""), cargo: String(r.role ?? "") };
-  }
-
-  return null;
-}
-
-/**
- * Cliente atribuivel a um telefone recebido: SOMENTE quando exatamente um cadastro bate.
- * Telefone ambiguo nao e atribuido a nenhuma clinica (a mensagem fica fora da leitura das clinicas).
- */
-async function clienteUnicoPorTelefone(phone: string): Promise<number | null> {
-  const digits = normalizePhone(phone);
-  const sufixo = digits.slice(-8);
-  if (sufixo.length < 8) return null;
-  const r = await db.execute(sql`SELECT id FROM clients WHERE regexp_replace(COALESCE(phone,''), '\\D', '', 'g') LIKE ${'%' + sufixo} LIMIT 2`);
-  return r.rows.length === 1 ? Number((r.rows[0] as Record<string, unknown>).id) : null;
-}
-
 // ── Monta system prompt contextualizado ───────────────────────────────────────
-function montarSystemPrompt(remetente: Awaited<ReturnType<typeof buscarRemetente>>): string {
+// Dado clínico (protocolo/sessões) só entra quando identidade E clínica foram confirmadas.
+type ContextoSeguro =
+  | { nivel: "clinico"; nome: string; protocolo: string | null; feitas: number; total: number }
+  | { nivel: "cliente_sem_clinica_confirmada" }
+  | { nivel: "profissional"; nome: string; cargo: string }
+  | { nivel: "anonimo" };
+
+function montarSystemPrompt(ctx: ContextoSeguro): string {
   const base = `Você é Aurora ADM, Assistente Administrativa Sênior do sistema PaxMed (Padcon Conect). Você NUNCA chama a clínica de PaxMed: a clínica tem o próprio nome.
 TOM: Formal, acolhedor, eficiente. Respostas curtas (máximo 4 parágrafos). Nunca diagnostica.
 CANAL: WhatsApp — use texto simples, *negrito* para destaques, emojis com moderação.
 VOCÊ NUNCA FAZ: Diagnósticos, prescrições, alterar dados do sistema.
 SEMPRE TERMINA: Convidando para a próxima ação ou perguntando se pode ajudar em mais algo.`;
 
-  if (!remetente) {
-    return base + "\n\nObs: Remetente não identificado no sistema. Seja cordial e oriente a entrar em contato pela recepção.";
-  }
-
-  if (remetente.tipo === "cliente") {
-    const progresso = remetente.protocolo
-      ? `\nProtocolo ativo: ${remetente.protocolo} — ${remetente.sessoesFeitas}/${remetente.totalSessoes} sessões concluídas.`
+  if (ctx.nivel === "clinico") {
+    const progresso = ctx.protocolo
+      ? `\nProtocolo ativo: ${ctx.protocolo} — ${ctx.feitas}/${ctx.total} sessões concluídas.`
       : "\nSem protocolo ativo no momento.";
-    return base + `\n\nContexto: Falando com ${remetente.nome} (cliente da clínica).${progresso}`;
+    return base + `\n\nContexto: Falando com ${ctx.nome} (cliente da clínica).${progresso}`;
   }
-
-  return base + `\n\nContexto: Falando com ${remetente.nome} (${remetente.cargo} — equipe interna PaxMed). Pode ser mais técnico e direto.`;
+  if (ctx.nivel === "profissional") {
+    return base + `\n\nContexto: Falando com ${ctx.nome} (${ctx.cargo} — equipe interna). Não há dado clínico de clientes neste contexto.`;
+  }
+  return base + "\n\nObs: Identidade e clínica NÃO confirmadas. NÃO revele nenhuma informação clínica, de agenda, de protocolo ou de cadastro, nem confirme que a pessoa é cliente. Seja cordial e oriente a falar com a recepção da clínica.";
 }
+
+async function montarContexto(r: RemetenteIdentificado): Promise<ContextoSeguro> {
+  if (r.tipo === "profissional") return { nivel: "profissional", nome: r.nome, cargo: r.cargo };
+  if (r.tipo === "cliente") {
+    if (!r.clinicaConfirmada || r.empresaId === null) return { nivel: "cliente_sem_clinica_confirmada" };
+    const c = await contextoClinico(r.clienteId, r.empresaId);
+    return { nivel: "clinico", nome: r.nome, protocolo: c?.protocolo ?? null, feitas: c?.feitas ?? 0, total: c?.total ?? 0 };
+  }
+  return { nivel: "anonimo" };
+}
+
+const TWIML_VAZIO = "<?xml version=\"1.0\"?><Response></Response>";
 
 // ── POST /api/whatsapp/inbound — recebe mensagem do usuário ───────────────────
 router.post("/whatsapp/inbound", async (req, res): Promise<void> => {
   const authToken = await getSecret("twilio.authToken");
-
-  // Em desenvolvimento (sem authToken no cofre), aceita sem verificar assinatura
-  // para facilitar testes via ngrok/tunnel. Em produção, bloqueia sem assinatura.
-  if (authToken) {
-    const assinada = req.header("x-twilio-signature") ?? "";
-    const params = (req.body ?? {}) as Record<string, unknown>;
-    const proto = (req.header("x-forwarded-proto") || "https").split(",")[0]?.trim();
-    const host  = (req.header("x-forwarded-host") || req.header("host") || "").split(",")[0]?.trim();
-    const candidatos: string[] = [];
-    if (host) candidatos.push(`${proto}://${host}/api/whatsapp/inbound`);
-    const domain = (process.env.REPLIT_DOMAINS ?? "").split(",")[0]?.trim();
-    if (domain) candidatos.push(`https://${domain}/api/whatsapp/inbound`);
-
-    const valida = candidatos.some((url) =>
-      assinaturaConfere(assinada, assinaturaEsperada(authToken, url, params))
-    );
-    if (!valida && assinada) {
-      logger.warn({ event: "twilio_inbound_signature_invalid" }, "assinatura inválida no inbound WhatsApp");
-      // Em sandbox/dev pode chegar sem assinatura válida — não bloquear ainda
-    }
-  }
-
-  const params = (req.body ?? {}) as Record<string, string>;
-  const from   = params.From ?? "";
-  const body   = (params.Body ?? "").trim();
-
-  if (!from || !body) {
-    res.status(200).send("<?xml version=\"1.0\"?><Response></Response>");
+  // Sem token não há como provar a origem: recusa (fail-closed), em qualquer ambiente.
+  if (!authToken) {
+    res.status(503).json({ error: "twilio nao configurado" });
     return;
   }
 
-  logger.info({ from, bodyLen: body.length }, "[whatsapp/inbound] mensagem recebida");
+  const params = (req.body ?? {}) as Record<string, string>;
+  const proto = (req.header("x-forwarded-proto") || "https").split(",")[0]?.trim();
+  const host = (req.header("x-forwarded-host") || req.header("host") || "").split(",")[0]?.trim();
+  const candidatos: string[] = [];
+  if (host) candidatos.push(`${proto}://${host}/api/whatsapp/inbound`);
+  const domain = (process.env.REPLIT_DOMAINS ?? "").split(",")[0]?.trim();
+  if (domain) candidatos.push(`https://${domain}/api/whatsapp/inbound`);
 
-  // Grava a mensagem RECEBIDA (direcao entrada) para a conversa unificada e a auditoria.
-  const clienteIdRecebida = await clienteUnicoPorTelefone(from).catch(() => null);
+  // Assinatura ausente ou inválida: 403, sem gravar nada, sem consultar paciente, sem responder.
+  if (!assinaturaTwilioValida(authToken, req.header("x-twilio-signature"), candidatos, params)) {
+    logger.warn({ event: "twilio_inbound_signature_invalid" }, "assinatura ausente ou inválida no inbound WhatsApp");
+    res.status(403).json({ error: "assinatura invalida" });
+    return;
+  }
+
+  const from = params.From ?? "";
+  const to = params.To ?? "";
+  const body = (params.Body ?? "").trim();
+  const sid = params.MessageSid ?? null;
+
+  if (!from || !body) {
+    res.status(200).type("text/xml").send(TWIML_VAZIO);
+    return;
+  }
+
+  logger.info({ from: mascararTelefone(from), bodyLen: body.length }, "[whatsapp/inbound] mensagem recebida");
+
+  // Reenvio do Twilio (mesmo MessageSid): não grava de novo nem responde de novo.
+  if (sid) {
+    const dup = await pool.query(
+      `SELECT 1 FROM whatsapp_mensagens_log WHERE sid = $1 AND direcao = 'entrada' LIMIT 1`, [sid],
+    ).catch(() => null);
+    if (dup && dup.rows.length > 0) {
+      res.status(200).type("text/xml").send(TWIML_VAZIO);
+      return;
+    }
+  }
+
+  // Identidade: número completo e único; clínica pelo canal que recebeu.
+  const remetente = await identificarRemetente(from, to).catch((): RemetenteIdentificado => ({ tipo: "desconhecido" }));
+  const clienteIdRecebida = remetente.tipo === "cliente" ? remetente.clienteId : null;
+
+  // Grava a mensagem RECEBIDA (conversa unificada e auditoria). O vínculo com o cliente só
+  // existe quando a identidade é única; ambíguo/desconhecido fica sem cliente.
   await registrarLogMensagem({
     telefone: normalizePhone(from),
     corpo: body,
-    sid: params.MessageSid ?? null,
+    sid,
     status: "received",
     contexto: "inbound",
     clienteId: clienteIdRecebida ?? undefined,
@@ -168,12 +127,16 @@ router.post("/whatsapp/inbound", async (req, res): Promise<void> => {
     direcao: "entrada",
   });
 
-  // Busca contexto do remetente
-  const remetente = await buscarRemetente(from).catch(() => null);
-  const systemPrompt = montarSystemPrompt(remetente);
+  // Resposta automática DESLIGADA por padrão (testes): só registra. Liga com
+  // WHATSAPP_INBOUND_AUTORESPOSTA=true. Mesmo ligada, o modo teste limita o destino.
+  if (!autorespostaHabilitada()) {
+    res.status(200).type("text/xml").send(TWIML_VAZIO);
+    return;
+  }
 
-  // Gera resposta via Aurora ADM
-  let resposta = "Olá! Recebi sua mensagem. Nossa equipe retornará em breve. 😊";
+  const systemPrompt = montarSystemPrompt(await montarContexto(remetente));
+
+  let resposta = "Olá! Recebi sua mensagem. Nossa equipe retornará em breve.";
   const { headers: aiHeaders } = requireAiTenant(0, "whatsapp");
   try {
     const aiR = await anthropic.messages.create({
@@ -188,19 +151,21 @@ router.post("/whatsapp/inbound", async (req, res): Promise<void> => {
     logger.error({ err: err instanceof Error ? err.message : String(err) }, "[whatsapp/inbound] erro ao gerar resposta");
   }
 
-  // Envia resposta (best-effort — não bloqueia o 200 ao Twilio)
-  const toPhone = normalizePhone(from);
-  sendWhatsapp(toPhone, resposta, { contexto: "inbound_reply", clienteId: clienteIdRecebida ?? undefined }).catch((e: unknown) => {
+  // Nunca espelha no Telegram: a resposta volta só ao canal em que a pessoa escreveu.
+  sendWhatsapp(normalizePhone(from), resposta, {
+    contexto: "inbound_reply",
+    clienteId: clienteIdRecebida ?? undefined,
+    mirrorTelegram: false,
+  }).catch((e: unknown) => {
     logger.warn({ err: e instanceof Error ? e.message : String(e) }, "[whatsapp/inbound] falha ao enviar resposta");
   });
 
-  // Responde ao Twilio com TwiML vazio (evita mensagem duplicada)
-  res.status(200).type("text/xml").send("<?xml version=\"1.0\"?><Response></Response>");
+  res.status(200).type("text/xml").send(TWIML_VAZIO);
 });
 
 // ── GET /api/whatsapp/inbound/setup — configura a Inbound URL no sandbox ──────
-// Deve ser chamado UMA vez pelo admin após deploy para registrar o webhook.
-router.get("/whatsapp/inbound/setup", async (req, res): Promise<void> => {
+// Altera conta EXTERNA (Twilio): exige colaborador autenticado e dono da plataforma.
+router.get("/whatsapp/inbound/setup", requireCollaborator, requirePlatformOwner, async (req, res): Promise<void> => {
   const [accountSid, authToken] = await Promise.all([
     getSecret("twilio.accountSid"),
     getSecret("twilio.authToken"),

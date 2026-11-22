@@ -7,35 +7,13 @@
 // gente atualiza a linha correspondente em whatsapp_mensagens_log por SID.
 // Nunca logamos o token.
 import { Router, type IRouter } from "express";
-import crypto from "node:crypto";
 import { db, whatsappMensagensLogTable, lembreteEnviosTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { getSecret } from "../lib/secure-settings";
 import { statusCallbackUrl } from "../lib/whatsapp";
+import { assinaturaTwilioValida, statusPodeAvancar } from "../lib/whatsapp-seguranca";
 
 const router: IRouter = Router();
-
-// Reconstrói a string canônica do Twilio: URL + (para cada chave em ordem
-// alfabética) chave concatenada com valor, sem separadores. HMAC-SHA1 base64.
-function assinaturaEsperada(authToken: string, url: string, params: Record<string, unknown>): string {
-  const chaves = Object.keys(params).sort();
-  let data = url;
-  for (const k of chaves) {
-    data += k + String(params[k] ?? "");
-  }
-  return crypto.createHmac("sha1", authToken).update(Buffer.from(data, "utf-8")).digest("base64");
-}
-
-function assinaturaConfere(assinada: string, esperada: string): boolean {
-  try {
-    const a = Buffer.from(assinada);
-    const b = Buffer.from(esperada);
-    if (a.length !== b.length) return false;
-    return crypto.timingSafeEqual(a, b);
-  } catch {
-    return false;
-  }
-}
 
 router.post("/whatsapp/status", async (req, res): Promise<void> => {
   const authToken = await getSecret("twilio.authToken");
@@ -58,7 +36,7 @@ router.post("/whatsapp/status", async (req, res): Promise<void> => {
   const host = (req.header("x-forwarded-host") || req.header("host") || "").split(",")[0]?.trim();
   if (host) candidatos.push(`${proto}://${host}/api/whatsapp/status`);
 
-  const valida = candidatos.some((url) => assinaturaConfere(assinada, assinaturaEsperada(authToken, url, params)));
+  const valida = assinaturaTwilioValida(authToken, assinada, candidatos, params);
   if (!valida) {
     req.log?.warn?.({ event: "twilio_status_signature_invalid" }, "assinatura invalida no webhook Twilio");
     res.status(403).json({ error: "assinatura invalida" });
@@ -81,6 +59,17 @@ router.post("/whatsapp/status", async (req, res): Promise<void> => {
       patch.errorCode = errorCode ?? `twilio_${messageStatus}`;
     } else if (errorCode) {
       patch.errorCode = errorCode;
+    }
+    // Callbacks chegam fora de ordem: nunca retrocede o estado (delivered não volta a sent;
+    // falha atrasada não apaga entrega já confirmada).
+    const [atual] = await db
+      .select({ id: whatsappMensagensLogTable.id, status: whatsappMensagensLogTable.status })
+      .from(whatsappMensagensLogTable)
+      .where(eq(whatsappMensagensLogTable.sid, sid))
+      .limit(1);
+    if (atual && !statusPodeAvancar(atual.status, messageStatus)) {
+      res.status(200).json({ ok: true, ignored: "fora_de_ordem" });
+      return;
     }
     const [logRow] = await db
       .update(whatsappMensagensLogTable)
