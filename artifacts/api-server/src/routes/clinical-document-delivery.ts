@@ -11,6 +11,7 @@ import { absoluteBaseUrl } from "../lib/messaging/base-url";
 import { enviarMensagemPaxter, type PaxterCanal, type PaxterDoc } from "../lib/messaging/index.js";
 import { authorizedPrescription } from "./prescription-delivery";
 import { finishStaffResend, gateStaffResend } from "../lib/clinical-document-reissue-review";
+import { destinoEvolutionDocumento, enviarDocumentoEvolution } from "../lib/clinical-document-evolution";
 import {
   criarTokenClinicalShare,
   getIssuedDocument,
@@ -168,9 +169,16 @@ router.get("/clinical-documents/delivery-targets/:clientId", async (req, res) =>
     res.status(403).json({ error: "O cliente não pertence à clínica autenticada." });
     return;
   }
+  let whatsapp = client.phone?.trim() || "";
+  try {
+    whatsapp = await destinoEvolutionDocumento(identity.clinic.empresaId, identity.client.id, identity.clinic.id) ?? whatsapp;
+  } catch (error) {
+    res.status(409).json({ error: error instanceof Error ? error.message : "Destino WhatsApp não confirmado." });
+    return;
+  }
   const targets = [
     client.email?.trim() ? { channel: "EMAIL", recipient: client.email.trim() } : null,
-    client.phone?.trim() ? { channel: "WHATSAPP", recipient: client.phone.trim() } : null,
+    whatsapp ? { channel: "WHATSAPP", recipient: whatsapp } : null,
     client.telegramChatId?.trim() ? { channel: "TELEGRAM", recipient: client.telegramChatId.trim() } : null,
   ].filter((target): target is { channel: Channel; recipient: string } => target !== null);
   res.json({ targets, manual: { instagram: client.instagram?.trim() || null } });
@@ -287,6 +295,24 @@ router.post("/clinical-documents/resend", async (req, res) => {
     }
   }
 
+  let evolutionDestination: string | null = null;
+  if (input.channels.includes("WHATSAPP")) {
+    try {
+      evolutionDestination = await destinoEvolutionDocumento(
+        identity.clinic.empresaId, identity.client.id, identity.clinic.id);
+    } catch (error) {
+      res.status(409).json({ error: error instanceof Error ? error.message : "Destino WhatsApp não confirmado." });
+      return;
+    }
+    if (evolutionDestination && (document.empresaId !== identity.clinic.empresaId ||
+        document.locationId !== identity.clinic.id ||
+        ((input.documentType === "prescricao" || input.documentType === "documento_assinado") &&
+          document.signatureStatus !== "signed"))) {
+      res.status(409).json({ error: "A clínica de emissão ou assinatura do original não pôde ser confirmada. Nada foi enviado." });
+      return;
+    }
+  }
+
   const staffGate = await gateStaffResend({
     clientId: identity.client.id,
     empresaId: identity.clinic.empresaId,
@@ -312,7 +338,7 @@ router.post("/clinical-documents/resend", async (req, res) => {
   }
   const destinations = {
     EMAIL: client.email?.trim() || "",
-    WHATSAPP: client.phone?.trim() || "",
+    WHATSAPP: evolutionDestination ?? client.phone?.trim() ?? "",
     TELEGRAM: client.telegramChatId?.trim() || "",
   };
   const missing = input.channels.filter((channel) => !destinations[channel]);
@@ -456,7 +482,31 @@ router.post("/clinical-documents/resend", async (req, res) => {
     const channel = detail.channel as Channel;
     let state: ResendState = "unknown";
     let error: string | undefined;
+    let evolutionMessageId: number | undefined;
+    let providerId: string | undefined;
     try {
+      if (channel === "WHATSAPP" && evolutionDestination && publicUrl) {
+        // Re-read the original immediately before sending; the protected access
+        // independently checks the same digest when the recipient opens it.
+        const current = await getIssuedDocument(input.documentType, input.documentId);
+        if (!current || current.clientId !== identity.client.id ||
+            current.empresaId !== identity.clinic.empresaId || current.locationId !== identity.clinic.id ||
+            current.professionalId !== document.professionalId || current.status !== "emitted" ||
+            !current.pdfData ||
+            createHash("sha256").update(Buffer.from(current.pdfData, "base64")).digest("hex") !== pdfSha256) {
+          throw new Error("Documento alterado antes do envio.");
+        }
+        const outcome = await enviarDocumentoEvolution({
+          empresaId: identity.clinic.empresaId, clientId: identity.client.id,
+          locationId: identity.clinic.id, destination: evolutionDestination,
+          title: document.label, url: publicUrl, professionalId: identity.professional.id,
+          ...(staffGate.mode === "allowed" ? { reissueRequestId: staffGate.requestId } : {}),
+        });
+        state = outcome.accepted ? "provider_accepted" : "unknown";
+        error = outcome.error ?? undefined;
+        evolutionMessageId = outcome.id ?? undefined;
+        providerId = outcome.providerId ?? undefined;
+      } else {
       const delivery = await enviarMensagemPaxter(doc, {
         email: client.email,
         telefone: client.phone,
@@ -481,13 +531,15 @@ router.post("/clinical-documents/resend", async (req, res) => {
         state = "unknown";
         error = outcome?.error || "O provedor não confirmou se recebeu a solicitação.";
       }
+      }
     } catch {
       state = "unknown";
       error = "Falha de comunicação; confira o histórico antes de tentar novamente.";
     }
     try {
       await db.update(collaboratorAuditTable).set({
-        detail: { ...detail, state, completedAt: new Date().toISOString() },
+        detail: { ...detail, state, ...(evolutionMessageId ? { evolutionMessageId } : {}),
+          ...(providerId ? { providerId } : {}), completedAt: new Date().toISOString() },
       }).where(eq(collaboratorAuditTable.id, row.id));
     } catch {
       state = "unknown";

@@ -52,12 +52,18 @@ const EMERGENCIA = [
 const QUEIXA = [
   /mal[- ]?estar/, /passei mal/, /me sinto mal/, /estou mal/, /enjoo/, /nausea/, /vomit/, /tontura/, /\bdor\b/, /dores/,
   /palpitac/, /coracao/, /coceira/, /vermelhid/, /manchas?/, /inchac/, /inchad/, /febre/, /reacao/, /tremor/, /formigamento/,
-  /pressao/, /sangramento/, /diarreia/, /dor de cabeca/, /\bpiorei\b/, /efeito colateral/, /nao estou bem/,
+  /pressao/, /sangramento/, /diarreia/, /dor de cabeca/, /\bpiorei\b/, /efeitos? colatera(?:l|is)/, /nao estou bem/,
 ];
 
 export function classificarQueixa(texto: string): "emergencia" | "queixa" | null {
   const n = normalizar(texto);
   if (EMERGENCIA.some((r) => r.test(n))) return "emergencia";
+  // General education is not a report of symptoms. Any other symptom or
+  // first-person symptom report retains the existing human safety path.
+  const informativa = /\b(?:quais|qual|quero saber|gostaria de saber|informacoes sobre)\b/.test(n) &&
+    /\befeitos? colatera(?:l|is)\b/.test(n) &&
+    !/\b(?:estou|sinto|senti|tive|tenho|apresento|apresentei|sofri|sentindo|sentir|aconteceu|causou|deu|ocorreu)\b/.test(n);
+  if (informativa && !QUEIXA.filter(r => r.source !== "efeitos? colatera(?:l|is)").some(r => r.test(n))) return null;
   if (QUEIXA.some((r) => r.test(n))) return "queixa";
   return null;
 }
@@ -153,7 +159,7 @@ export interface DepsAtendimento {
   passarParaHumano: (clienteId: number, motivo: string) => Promise<void>;
   alertarEquipe: (texto: string) => Promise<boolean>;
   /** Texto de encaminhamento carregado do banco editável da clínica. */
-  textoEncaminhado: (empresaId: number, clienteNome: string) => Promise<string>;
+  textoEncaminhado: (empresaId: number, clienteNome: string, motivo?: "sem_orientacao_aprovada") => Promise<string>;
   registrarDesfecho: (inboxMessageId: number, d: Desfecho, orientacaoId: number | null, meta?: {
     caminho: "cardapio" | "regra" | "interprete" | "conferente" | "documento" | "equipe";
     faqId: number | null; interpreteChamado: boolean; conferenteChamado: boolean; aprendizChamado: boolean;
@@ -299,7 +305,7 @@ export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAten
   caminhoResolucao = "equipe";
   await deps.passarParaHumano(e.clienteId, "sem_orientacao_aprovada");
   if (!await deps.alertarEquipe(`Atendimento #${e.inboxMessageId}, cliente #${e.clienteId}, requer equipe. Abra a conversa no Cockpit protegido.`)) return fechar("falha_alerta");
-  const textoEnc = await deps.textoEncaminhado(e.empresaId, e.clienteNome);
+  const textoEnc = await deps.textoEncaminhado(e.empresaId, e.clienteNome, "sem_orientacao_aprovada");
   const ok = await deps.enviarAoPaciente(e.chatId, textoEnc);
   if (ok) await deps.registrarSaida({ empresaId: e.empresaId, clienteId: e.clienteId, chatId: e.chatId, texto: textoEnc });
   return fechar(ok ? "encaminhado_humano" : "falha_envio");

@@ -20,6 +20,7 @@ export interface DefinicaoFrase {
 }
 
 export const FRASES_PADRAO = {
+  orientacao_aprovada_indisponivel: { grupo: "Equipe", descricao: "Lacuna explícita quando nenhuma orientação clínica aprovada responde à pergunta.", variaveis: [], texto: "{nome_linha}Não encontrei uma orientação aprovada pela equipe clínica que responda à sua pergunta. Para não passar informação sem conferência, encaminhei sua dúvida à equipe de {clinica}. Nenhuma prescrição ou tratamento foi alterado." },
   apresentacao: { grupo: "Abertura", descricao: "Primeira frase: assistente virtual e clínica.", variaveis: [], texto: "{nome_linha}Sou a assistente virtual de {clinica}.\n\nTudo bem?" },
   apresentacao_sem_clinica: { grupo: "Abertura", descricao: "Primeira frase quando a clínica não tem nome cadastrado.", variaveis: [], texto: "{nome_linha}Sou a assistente virtual da clínica.\n\nTudo bem?" },
   assinatura: { grupo: "Abertura", descricao: "Assinatura no fim das mensagens importantes.", variaveis: [], texto: "Assistente virtual de {clinica}" },

@@ -268,12 +268,12 @@ export function depsReaisAtendimento(
     },
     responderDocumento: (e) => responderSobreDocumentoTelegram(db, e),
     buscarFaq: (texto, eid) => buscarFaqAprendida(eid, texto),
-    textoEncaminhado: async (eid, clienteNome) => {
+    textoEncaminhado: async (eid, clienteNome, motivo) => {
       const r = await db.execute(sql`SELECT nome FROM empresas WHERE id=${eid}`);
       const nomeClinica = (r.rows[0] as { nome?: string } | undefined)?.nome ?? null;
       const primeiroNome = clienteNome.trim().split(/\s+/)[0] ?? "";
       const frases = comGlobais(await carregarFrases(), { clinica: nomeClinica, primeiroNome });
-      return frases("sem_orientacao_encaminhada");
+      return frases(motivo === "sem_orientacao_aprovada" ? "orientacao_aprovada_indisponivel" : "sem_orientacao_encaminhada");
     },
     escolherComIA: (texto, cand) => escolherOrientacaoComIA(texto, cand, empresaId, inboxMessageId, () => {
       if (uso) uso.interprete = true;

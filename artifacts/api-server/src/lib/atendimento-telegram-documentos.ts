@@ -7,6 +7,7 @@ import { createReissueRequest } from "./clinical-document-reissue-policy";
 import { createHash } from "node:crypto";
 import { carregarFrases } from "./telegram-frases";
 import { resolverIdentidadeWhatsapp } from "./evolution-client-identity";
+import { selectClinicalDocuments } from "./clinical-document-selection";
 
 interface ExecutorDocumentos {
   execute(query: SQL): Promise<{ rows: unknown[] }>;
@@ -25,7 +26,7 @@ interface ReceitaEmitida {
 
 const SIM_EXATO = new Set(["sim", "sim por favor", "pode", "pode enviar", "pode reenviar", "quero", "quero a segunda via", "quero segunda via", "confirmo"]);
 const NAO_EXATO = new Set(["nao", "nao precisa", "nao quero", "deixa", "cancela", "cancelar"]);
-const PEDIDO_REENVIO = /\b(segunda via|reenviar|reenvia|reenviem|reenvio|enviar novamente|mandar novamente|copia da receita|copia do receituario)\b/;
+const PEDIDO_REENVIO = /\b(segunda via|reenviar|reenvia|reenviem|reenvio|enviar novamente|mandar novamente|copia da receita|copia do receituario)\b|\b(?:envia|envie|enviar|manda|mande|mandar|receber|baixar)\b.*\b(?:receitas?|receituario|prescricao|pedido de exames|protocolo|atestado|encaminhamento|carta de tratamento|documento)\b/;
 const PEDIDO_EXPLICACAO = /\b(explica|explicar|explique|entender|para que serve|serve para|o que faz|funcao|me fale sobre)\b/;
 const PERGUNTA_NOMES = /\b(quais|nomes|nome|itens|conteudo|contem|tenho|receita mais recente|ultimo receituario)\b/;
 const PERGUNTA_FORMULA = /\b(receita|receituario|prescricao|formula|formulas)\b/;
@@ -65,7 +66,8 @@ async function lerReceitaMaisRecente(exec: ExecutorDocumentos, e: EntradaAtendim
     JOIN clients c ON c.id=p.client_id AND c.empresa_id=p.empresa_id
     WHERE p.client_id=${e.clienteId} AND p.empresa_id=${e.empresaId}
       AND p.status='emitted' AND p.emitted_at IS NOT NULL
-      AND c.status='active' AND c.deleted_at IS NULL AND c.telegram_chat_id=${e.chatId}
+      AND c.status='active' AND c.deleted_at IS NULL
+      ${e.canal === "whatsapp" ? sql`` : sql`AND c.telegram_chat_id=${e.chatId}`}
     ORDER BY p.emitted_at DESC,p.id DESC LIMIT 1`);
   const p = r.rows[0] as { id: number | string; emitted_at: unknown } | undefined;
   if (!p) return null;
@@ -216,32 +218,9 @@ async function localizarDocumentosParaSegundaVia(
   }
 
   const frases = await carregarFrases();
-  const normalized = normalizarTitulo(texto);
-  const dateMatch = texto.match(/\b(\d{1,2})[/.](\d{1,2})[/.](\d{4})\b/);
-  const isoDate = dateMatch
-    ? `${dateMatch[3]}-${dateMatch[2].padStart(2, "0")}-${dateMatch[1].padStart(2, "0")}`
-    : null;
-  const explicitlyRecent = /\b(ultimo|ultima|mais recente|recente)\b/.test(normalized);
-  const typeTerms: Record<string, string[]> = {
-    prescricao: ["receita", "receituario", "prescricao", "formula"],
-    pedido_exames: ["pedido de exames", "exames"],
-    atestado: ["atestado"],
-    encaminhamento: ["encaminhamento"],
-    protocolo: ["protocolo"],
-    ras_fap: ["ras fap", "relatorio"],
-    carta_tratamento: ["carta de tratamento", "carta tratamento"],
-    documento_assinado: ["documento assinado", "consentimento", "termo assinado"],
-  };
-  const byText = docs.filter((doc) =>
-    mencionarNome(texto, doc.label) ||
-    (typeTerms[doc.documentType] ?? []).some((term) => normalized.includes(normalizarTitulo(term))),
-  );
-  const byDate = isoDate ? docs.filter((doc) => doc.issuedAt === isoDate) : [];
-  let candidates = byDate.length ? byDate : byText;
-  const tipoCitado = Object.values(typeTerms).some((terms) =>
-    terms.some((term) => normalized.includes(normalizarTitulo(term))));
-  // Pediu um tipo de documento que não está disponível: nunca oferecer outro tipo no lugar.
-  if (!candidates.length && tipoCitado && !isoDate) {
+  // Keep date punctuation for the selector; normalized text loses date separators.
+  const candidates = selectClinicalDocuments(docs, e.texto);
+  if (!candidates.length) {
     if (!e.simulacao) await createReissueRequest({
       operationKey: operationKey(e.inboxMessageId),
       clientId: e.clienteId,
@@ -254,12 +233,9 @@ async function localizarDocumentosParaSegundaVia(
     });
     return handoff("documento_emitido_original_nao_encontrado", frases("documento_original_nao_encontrado"));
   }
-  if (!candidates.length && explicitlyRecent) candidates = [docs[0]];
-  if (!candidates.length && docs.length === 1) candidates = [docs[0]];
   if (candidates.length !== 1) {
-    const visible = candidates.length ? candidates : docs;
-    const list = visible.slice(0, 8).map((doc) =>
-      `• ${doc.label} — ${DOCUMENT_TYPE_LABEL[doc.documentType]} — ${dataBR(doc.issuedAt)}`,
+    const list = candidates.slice(0, 8).map((doc) =>
+      `• ${doc.label} — ${DOCUMENT_TYPE_LABEL[doc.documentType]} — ${dataBR(doc.issuedAt)} — documento ${doc.documentId}`,
     ).join("\n");
     if (list.length > 3500) return handoff("lista_de_documentos_excede_limite_seguro");
     if (!e.simulacao) await createReissueRequest({
@@ -333,8 +309,13 @@ function ofertaDeReenvio(receita: ReceitaEmitida): { acao: "ofertar_reenvio"; re
  */
 export async function responderSobreDocumentoTelegram(exec: ExecutorDocumentos, e: EntradaAtendimento): Promise<RespostaDocumento | null> {
   const texto = normalizar(e.texto);
-  if (PERGUNTA_FORMULA.test(texto) &&
-      /\b(nova receita|nova prescricao|renovar|renovacao|alterar|mudar|trocar|aumentar|reduzir|incluir|retirar)\b/.test(texto)) {
+  // An examination order is not its result; the latter has no verified source
+  // in this resolver and must never silently select an order instead.
+  if (/\bresultados?\b/.test(texto) && /\bexames?\b/.test(texto)) {
+    return handoff("resultado_de_exame_sem_fonte_de_entrega", (await carregarFrases())("documento_original_nao_encontrado"));
+  }
+  if ((PERGUNTA_FORMULA.test(texto) || /\b(receitas|prescricoes|pedido de exames|protocolo|atestado|encaminhamento|documento)\b/.test(texto)) &&
+      /\b(nova|novo|novas|novos|renovar|renovacao|alterar|mudar|trocar|aumentar|reduzir|incluir|retirar)\b/.test(texto)) {
     return handoff("nova_ou_alteracao_de_prescricao_exige_medico", (await carregarFrases())("documento_novo_ou_alteracao"));
   }
   const afirmativo = SIM_EXATO.has(texto);

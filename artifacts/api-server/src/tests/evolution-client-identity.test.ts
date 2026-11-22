@@ -9,10 +9,10 @@ describe("identidade por telefone completo", () => {
     expect(await resolverIdentidadeWhatsapp(exec([
       { id: 11, location_id: 30, explicito: null }, { id: 3482, location_id: 30, explicito: null }]), 5, T)).toBeNull();
   });
-  it("um único vínculo confirmado resolve a colisão", async () => {
+  it("vínculo administrativo não sobrepõe telefone de outra pessoa", async () => {
     expect(await resolverIdentidadeWhatsapp(exec([
       { id: 11, location_id: 30, explicito: true }, { id: 3482, location_id: 30, explicito: null }]), 5, T))
-      .toEqual({ id: 11, locationId: 30 });
+      .toBeNull();
   });
   it("dois vínculos confirmados continuam ambíguos", async () => {
     expect(await resolverIdentidadeWhatsapp(exec([

@@ -459,9 +459,12 @@ router.put("/evolution/homologacao/vinculo", requireCollaborator, async (req, re
   if (!cliente.rows.length) { res.status(404).json({ error: "Cliente ativo não encontrado nesta clínica." }); return; }
   const conflito = await pool.query(
     `SELECT cliente_id FROM evolution_vinculos_cliente WHERE empresa_id=$1 AND telefone=$2 AND cliente_id<>$3
+     UNION ALL
+     SELECT id AS cliente_id FROM clients
+      WHERE empresa_id=$1 AND id<>$3 AND status='active' AND deleted_at IS NULL
+        AND regexp_replace(COALESCE(phone,''),'\\D','','g') IN ($2, substring($2 from 3))
      LIMIT 1`, [empresaId, telefone, clienteId]);
-  // Telefone repetido na coluna de outro cadastro não é alterado; o vínculo confirmado pelo administrador desfaz a colisão.
-  if (conflito.rows.length) { res.status(409).json({ error: "Este telefone já tem vínculo confirmado para outro cadastro." }); return; }
+  if (conflito.rows.length) { res.status(409).json({ error: "Este telefone já está associado a outro cadastro ativo." }); return; }
   await pool.query(
     `INSERT INTO evolution_vinculos_cliente (empresa_id, cliente_id, telefone, origem, confirmado_por)
      VALUES ($1,$2,$3,'confirmacao_administrador_homologacao',$4)

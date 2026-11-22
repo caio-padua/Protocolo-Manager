@@ -8,6 +8,26 @@ das perguntas de homologação.
 
 ## Escopo aprovado
 
+### Complemento resolutivo autorizado
+
+- Localizar e entregar documentos já emitidos às próprias clientes autorizadas, inclusive por ação do profissional autenticado, sem fabricar mensagem de entrada.
+- O reenvio profissional reutiliza a política de segunda via e a auditoria existentes; WhatsApp configurado na Evolution usa esse canal, sem cair silenciosamente em outro provedor.
+- O destino vem do vínculo confirmado ou do cadastro; qualquer colisão entre pessoas bloqueia. Não prevalecer silenciosamente o vínculo administrativo sobre outro cadastro.
+- O documento precisa ter titular, profissional e clínica de emissão verificáveis. Legados sem procedência não recebem clínica por inferência.
+- Seleção combina tipo, data e identificador explícito. Data inexistente não pode selecionar outro dia; “mais recente” só resolve quando resta um documento na data mais recente. Empates são apresentados com identificadores distintos.
+- Dúvida geral sobre efeitos colaterais pode usar orientação aprovada. Relato de sintoma, emergência e mudança de tratamento continuam com a equipe médica.
+- O teste externo é individual, primeiro Carlúcia e depois Dayana; sem cobrança, emissão nova ou alteração de prontuário. Registrar separadamente aceite, entrega e leitura.
+
+### Impacto e falhas adicionais
+
+| Área | Barreira |
+|---|---|
+| Seleção documental | Interseção dos filtros; nunca trocar tipo ou data solicitados por alternativa disponível |
+| Dúvida versus sintoma | Exceção informativa conservadora; sintomas atuais e alarmes prevalecem |
+| Reenvio profissional Evolution | Mesmo documento original, política e auditoria; vínculo revalidado antes da rede |
+| Resultado incerto | Manter auditoria e identificador do provedor; não repetir automaticamente |
+| Texto do link | Frase existente no editor por clínica; nenhum novo texto clínico criado pelo agente |
+
 1. Receber mensagens reais do webhook da Evolution, deduplicar por identificador
    do provedor e encaminhar somente mensagens de clientes identificados e da
    clínica dona do canal ao motor de atendimento existente.
@@ -108,7 +128,29 @@ alterar modo humano, criar solicitação clínica ou efetuar entrega documental.
 
 ## Estado
 
-EM TESTE; HOMOLOGAÇÃO BLOQUEADA POR DADOS DE IDENTIDADE, PROCEDÊNCIA LEGADA E PAUSA HUMANA.
+EM TESTE — entrega supervisionada comprovada; automação completa ainda não homologada.
+
+### Evidência da execução supervisionada de 22/11/2026
+
+- Primeiro destinatário: pedido de exames 40, mensagem Evolution 29, auditoria 390, entregue pelo provedor.
+- Segundo destinatário: prescrição 96, mensagem Evolution 30, auditoria 392, aceita/enviada; entrega e leitura ainda não confirmadas na última consulta.
+- Os dois PDFs tiveram titular confirmado no texto antes do envio. Os acessos protegidos retornaram 200 e bytes idênticos aos originais, conferidos por SHA-256.
+- Impressões digitais: exame 40 `b700a851e161171744468b0b757196f7288de5232786adbd6cd35870747184d7`; prescrição 96 `f6150dc4d1e12286bcd7e49a3b355ea2772ed830061da2397c0404baaa2628e6`.
+- Os acessos de conferência foram realizados pelo operador; não comprovam que a cliente abriu ou leu o arquivo.
+- Envio pela ação de reenvio do profissional autenticado, sem fabricar entrada da cliente, com vínculo revalidado e texto do link proveniente do editor existente.
+- O vínculo do primeiro destinatário foi alinhado ao número exato da captura autorizada, sem modificar telefones de terceiros nem aceitar precedência silenciosa sobre cadastro conflitante.
+- O motor Evolution está ativado; ambas as conversas estavam em modo automatizado durante o planejamento supervisionado. A ação profissional não altera o modo humano.
+- O número de solicitações de segunda via dos dois cadastros permaneceu em um antes e depois; os dois testes não criaram cobrança nem novo pedido clínico.
+- Testes: 176 verificações passaram em oito arquivos, incluindo PostgreSQL descartável, seleção com interseção de filtros, identidade ambígua, revalidação de destino, acesso ao PDF, incerteza de envio, urgência e decisão médica.
+- Compilação do servidor passou. A conferência de tipos continua bloqueada somente pelo erro preexistente TS7022 em `pax-finance/laboratorio-calc.ts`.
+- Registro do servidor confirmou reinício e chamadas de reenvio/acesso/webhook; links e segredo de webhook aparecem ocultos. Há avisos de agenda preexistentes, sem erro de envio observado nessa sequência.
+- Consulta de orientações: 21 registros de efeitos colaterais em rascunho e nenhum aprovado nessa categoria. Não foram aprovados nem enviados como orientação clínica.
+- Os testes de planejamento de ambos os cadastros retornaram lacuna explícita para efeitos colaterais, falta de arquivo de protocolo e exigência de decisão/assinatura médica para receita nova; nenhuma dessas simulações enviou mensagem ou criou pedido.
+- Não há protocolo emitido no arquivo clínico desses cadastros. Isso não afirma inexistência de protocolo operacional em outras tabelas nem autoriza gerar um novo arquivo como segunda via.
+- Limitações: não foi fabricada uma nova mensagem recebida para demonstrar o ciclo externo de pedido e confirmação da cliente; entrega supervisionada não substitui essa evidência. A revisão independente sequencial continua pendente.
+- A captura da aplicação mostrou o painel inicial carregado, mas não verificou visualmente o painel autenticado de reenvio nesta rodada.
+
+### Histórico da execução anterior
 
 - O webhook de mensagens escritas encaminha texto ao planejador real de dúvidas
   e orientações somente com o motor habilitado, identidade única e clínica

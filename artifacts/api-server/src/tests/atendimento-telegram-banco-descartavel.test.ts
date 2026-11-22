@@ -318,7 +318,8 @@ describe("documentos clínicos no Telegram", () => {
     });
     expect(resultado?.texto).toContain("responda somente “sim” ou “pode enviar”");
   });
-  it.each(["Quero uma nova receita", "Quero segunda via mas alterar a dose da receita", "Preciso renovar minha prescrição"])(
+  it.each(["Quero uma nova receita", "Me envie uma receita nova", "Me envie um novo pedido de exames",
+    "Quero segunda via mas alterar a dose da receita", "Preciso renovar minha prescrição"])(
     "nova emissão ou alteração exige decisão médica sem iniciar segunda via: %s", async texto => {
       const antes = await pool.query("SELECT COUNT(*)::int AS total FROM clinical_document_reissue_requests");
       const result = await responderSobreDocumentoTelegram(h.db, entradaDocumento(texto));
@@ -330,6 +331,23 @@ describe("documentos clínicos no Telegram", () => {
       expect(h.asaasChargeCount).toBe(0);
     },
   );
+
+  it("pedido direto de receita reutiliza a segunda via sem emitir documento", async () => {
+    const result = await responderSobreDocumentoTelegram(h.db, {
+      ...entradaDocumento("Pode me enviar minha receita?"), simulacao: true,
+    });
+    expect(result).toMatchObject({ tipo: "resposta", desfecho: "reenvio_receita_ofertado",
+      documento: { documentId: 6001 } });
+    expect(h.enviados).toHaveLength(0);
+    expect(h.asaasChargeCount).toBe(0);
+  });
+
+  it("resultado de exame não é substituído por pedido de exames", async () => {
+    const result = await responderSobreDocumentoTelegram(h.db,
+      { ...entradaDocumento("Quero a segunda via dos resultados dos exames"), simulacao: true });
+    expect(result).toMatchObject({ tipo: "encaminhar", motivo: "resultado_de_exame_sem_fonte_de_entrega" });
+    expect(h.enviados).toHaveLength(0);
+  });
 
   it("segunda via simulada no WhatsApp consulta o próprio cadastro sem criar solicitação", async () => {
     await pool.query("UPDATE clients SET phone='11 99999-1234' WHERE id=1");

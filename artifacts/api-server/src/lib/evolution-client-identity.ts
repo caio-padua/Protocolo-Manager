@@ -14,12 +14,10 @@ export async function resolverIdentidadeWhatsapp(
       AND (v.telefone=${telefone}
         OR regexp_replace(COALESCE(c.phone,''),'\\D','','g') IN (${telefone},substring(${telefone} from 3)))
     ORDER BY c.id LIMIT 5`);
-  // Vínculo confirmado por administrador resolve a colisão com telefone de cadastro
-  // de outra pessoa, desde que exista exatamente um vínculo explícito para o número.
-  const explicitos = (result.rows as Array<{ explicito: boolean | null }>).filter(r => r.explicito === true);
-  const candidatos = explicitos.length === 1 ? explicitos : result.rows;
-  if (candidatos.length !== 1) return null;
-  const row = candidatos[0] as { id: number | string; location_id: number | string };
+  // A confirmação administrativa não autoriza atribuir à pessoa mensagens
+  // de um número que também consta no cadastro de outra pessoa.
+  if (result.rows.length !== 1) return null;
+  const row = result.rows[0] as { id: number | string; location_id: number | string };
   const id = Number(row.id), locationId = Number(row.location_id);
   return Number.isSafeInteger(id) && id > 0 && Number.isSafeInteger(locationId) && locationId > 0
     ? { id, locationId } : null;

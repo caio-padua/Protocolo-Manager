@@ -44,10 +44,26 @@ describe("detecção de queixa clínica", () => {
     ["meu rosto está com inchaço no rosto", "emergencia"],
     ["qual o horário da clínica", null],
     ["onde guardar o frasco", null],
+    ["Qual o efeito colateral?", null],
+    ["Quais são os efeitos colaterais?", null],
+    ["Quero saber quais efeitos colaterais existem", null],
+    ["Quais efeitos colaterais? Estou com tontura", "queixa"],
+    ["Tive efeitos colaterais", "queixa"],
+    ["Qual efeito colateral causou isso?", "queixa"],
+    ["Quais efeitos colaterais causam falta de ar?", "emergencia"],
   ])("%s => %s", (t, esperado) => expect(classificarQueixa(t)).toBe(esperado));
 });
 
 describe("escolha de orientação", () => {
+  it("dúvida informativa usa apenas texto aprovado, sem decisão médica", async () => {
+    const orientation = { id: 101, tema: "Efeitos colaterais gerais", perguntasExemplo: "qual efeito colateral",
+      resposta: "TEXTO SINTÉTICO APROVADO, NÃO CLÍNICO" };
+    const { d } = deps({ carregarOrientacoes: async () => [orientation] });
+    const result = await planejarAtendimento(d, E("Qual o efeito colateral?"));
+    expect(result.resposta).toBe(orientation.resposta);
+    expect(result.orientacaoId).toBe(101);
+    expect(result.pausa).toBeNull();
+  });
   it("normaliza acento e caixa", () => expect(normalizar("Médicação, JEJUM!")).toBe("medicacao jejum"));
   it("pergunta que casa forte escolhe a orientação certa", () => {
     const c = candidatas("quantas horas de jejum para o exame de sangue?", ORI);

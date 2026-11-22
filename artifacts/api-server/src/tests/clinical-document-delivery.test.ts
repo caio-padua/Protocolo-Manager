@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 const mock = vi.hoisted(() => ({
   identity: vi.fn(), send: vi.fn(), selectRows: new Map<unknown, unknown[]>(),
   authorizedPrescription: vi.fn(),
+  evolutionDestination: vi.fn(), evolutionSend: vi.fn(),
   auditRows: [] as Array<{ id: number; action: string; professionalId: number; detail: Record<string, unknown> }>,
   txAuditQueue: [] as unknown[][], nextId: 900,
 }));
@@ -73,6 +74,9 @@ vi.mock("../lib/clinical-emitter", async () => {
 });
 vi.mock("../lib/messaging/index.js", () => ({ enviarMensagemPaxter: mock.send }));
 vi.mock("../routes/prescription-delivery", () => ({ authorizedPrescription: mock.authorizedPrescription }));
+vi.mock("../lib/clinical-document-evolution", () => ({
+  destinoEvolutionDocumento: mock.evolutionDestination, enviarDocumentoEvolution: mock.evolutionSend,
+}));
 
 import router, { clinicalDocumentShareRouter } from "../routes/clinical-document-delivery";
 import {
@@ -117,6 +121,8 @@ beforeEach(() => {
   mock.txAuditQueue = [[], []];
   mock.nextId = 900;
   mock.identity.mockResolvedValue(identity);
+  mock.evolutionDestination.mockResolvedValue(null);
+  mock.evolutionSend.mockResolvedValue({ accepted: true, id: 1001, providerId: "synthetic-provider-id" });
   mock.authorizedPrescription.mockResolvedValue({ pres: { id: 82, clientId: 71 }, identity });
   mock.send.mockImplementation(async (doc: any, _destination: any, channels: string[]) => ({
     resultados: [{ canal: channels[0], sent: true, via: "synthetic-provider", doc }],
@@ -134,6 +140,42 @@ describe("reenvio de documentos clínicos, sem contato real com provedores", () 
     expect(response.status).toBe(401);
     expect(mock.identity).not.toHaveBeenCalled();
     expect(mock.send).not.toHaveBeenCalled();
+  });
+
+  it("usa Evolution configurada e registra seu identificador, sem trocar de provedor", async () => {
+    mock.evolutionDestination.mockResolvedValue("5500000000000");
+    const response = await request(app).post("/api/clinical-documents/resend").set(auth)
+      .send({ ...body, channels: ["WHATSAPP"] });
+    expect(response.status).toBe(200);
+    expect(mock.send).not.toHaveBeenCalled();
+    expect(mock.evolutionSend).toHaveBeenCalledTimes(1);
+    expect(mock.auditRows[0].detail).toMatchObject({
+      state: "provider_accepted", evolutionMessageId: 1001, providerId: "synthetic-provider-id",
+    });
+    const url = mock.evolutionSend.mock.calls[0][0].url;
+    const download = await request(app).get(new URL(url).pathname);
+    expect(download.status).toBe(200);
+    expect(download.body).toEqual(Buffer.from(issued.pdfData, "base64"));
+  });
+
+  it("identidade ambígua bloqueia antes de envio, sem fallback para outro provedor", async () => {
+    mock.evolutionDestination.mockRejectedValue(new Error("Destino ambíguo"));
+    const response = await request(app).post("/api/clinical-documents/resend").set(auth)
+      .send({ ...body, channels: ["WHATSAPP"] });
+    expect(response.status).toBe(409);
+    expect(mock.evolutionSend).not.toHaveBeenCalled();
+    expect(mock.send).not.toHaveBeenCalled();
+    expect(mock.auditRows).toHaveLength(0);
+  });
+
+  it("falha Evolution permanece incerta sem repetir em outro canal", async () => {
+    mock.evolutionDestination.mockResolvedValue("5500000000000");
+    mock.evolutionSend.mockResolvedValue({ accepted: false, id: 1001, error: "timeout" });
+    const response = await request(app).post("/api/clinical-documents/resend").set(auth)
+      .send({ ...body, channels: ["WHATSAPP"] });
+    expect(response.body.results[0].state).toBe("unknown");
+    expect(mock.send).not.toHaveBeenCalled();
+    expect(mock.auditRows[0].detail.state).toBe("unknown");
   });
 
   it("bloqueia cliente sem vínculo autorizado, sem mensagem externa", async () => {

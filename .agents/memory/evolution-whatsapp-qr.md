@@ -32,3 +32,11 @@ Links protegidos precisam ser ocultados nos registros, mas preservados na respos
 **Why:** a transformação do objeto pode ocorrer antes da serialização da requisição; nessa ordem, um segredo no caminho do endereço ainda pode aparecer no registro final.
 
 **How to apply:** verificar o registro final com credencial sintética e testar separadamente que a resposta da aplicação mantém o link funcional.
+
+## Assistente resolutiva e limite médico
+
+A assistente deve resolver pedidos de documentos já emitidos e explicar somente orientações clínicas aplicáveis já aprovadas, em vez de encaminhar por padrão quando os recursos existentes permitem resolver.
+
+**Why:** o responsável autorizou expressamente esse comportamento; a autorização não permite inventar fatos, aprovar rascunhos clínicos nem decidir nova prescrição ou mudança de tratamento.
+
+**How to apply:** procurar o recurso correto da própria pessoa e clínica, preservar textos editáveis e registrar aceite, entrega e leitura separadamente. Na ausência de arquivo verificável ou orientação aprovada, informar a lacuna. Número exato confirmado não se substitui por variante com dígito adicional por conveniência.
