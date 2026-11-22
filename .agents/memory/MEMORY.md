@@ -197,3 +197,4 @@
 - [PAX FINANCE documentos oficiais](pax-finance-documentos-oficiais.md) — slots CNPJ/JUCESP/contrato; sensíveis cifrados; aplicar com confirmação; visão de IA p/ digitalizado.
 - [Pulso Diário — níveis e Área do Cliente](pulso-diario-niveis-area-cliente.md) — limites em arquivo único; edição (opção A) pendente; POST do portal só do próprio cliente.
 - [Frequência cardíaca do Pulso — 3 níveis](pulso-frequencia-cardiaca-niveis.md) — baixa <50, normal 50–99, alta ≥100 (SBC 2022); demo 60 dias só sobrescreve origem demo.
+- [Ajuda "?" da antropometria exige referências](antropometria-ajuda-referencias.md) — nacionais+internacionais, mais recente marcada; lista única em .ts; spec em specs/.

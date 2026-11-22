@@ -270,6 +270,7 @@ const navigation: NavEntry[] = [
       { name: "Portas de Pagamento", href: "/configuracoes/pagamentos", icon: CreditCard },
       { name: "CEO da Pax Med", href: "/configuracoes/medico", icon: Stethoscope },
       { name: "Perfil do Administrador", href: "/professionals?selfAccess=1", icon: UserRound },
+      { name: "Parâmetros de Saúde", href: "/configuracoes/parametros-saude", icon: Stethoscope },
       { name: "Faixas do Receituário", href: "/configuracoes/receituario", icon: LayoutTemplate },
       { name: "Modelo de Receituários", href: "/modelo-receituario", icon: LayoutTemplate },
       { name: "Vitrine (Pública)", href: "/vitrine", icon: Sparkles },

@@ -434,6 +434,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
 
 -- Medicoes corporais do cliente (avaliacoes do Cockpit).
 \ir migrations/20261124_client_avaliacoes.sql
+\ir migrations/20261125_antropometria_figuras.sql
 
 -- Niveis do cliente: Prata, Ouro, Platinum e Diamond. So bronze vira prata; os demais valores antigos
 -- ficam preservados como 'legado:<valor>' (A REVISAR). Execucao unica; rollback manual em migrations/rollback/.

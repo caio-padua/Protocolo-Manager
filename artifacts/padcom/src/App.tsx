@@ -73,6 +73,7 @@ import ConfigAssinatura from "@/pages/configuracoes/assinatura";
 import ConfigPagamentos from "@/pages/configuracoes/pagamentos";
 import ConfigReceituario from "@/pages/configuracoes/receituario";
 import ConfigMedico from "@/pages/configuracoes/medico";
+import ConfigParametrosSaude from "@/pages/configuracoes/parametros-saude";
 import ModeloReceituario from "@/pages/modelo-receituario";
 import FinanceiroConciliacao from "@/pages/financeiro/conciliacao";
 import PaxGoals from "@/pages/financeiro/pax-goals";
@@ -332,6 +333,7 @@ function Router() {
                   <Route path="/configuracoes/pagamentos" component={ConfigPagamentos} />
                   <Route path="/configuracoes/receituario" component={ConfigReceituario} />
                   <Route path="/configuracoes/medico" component={ConfigMedico} />
+                  <Route path="/configuracoes/parametros-saude" component={ConfigParametrosSaude} />
                   <Route path="/configuracoes/meu-acesso">
                     <Redirect to="/professionals?selfAccess=1" />
                   </Route>

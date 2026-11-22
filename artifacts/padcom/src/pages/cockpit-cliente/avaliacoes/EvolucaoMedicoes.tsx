@@ -119,7 +119,7 @@ export function EvolucaoMedicoes({ clientId, tipo, medicoes, maximizado, nascime
             referencia={faixasPermitidas || faixasPeso ? "referência geral para adultos" : undefined}
             pontos={pontos.map((p) => ({ iso: p.data, data: p.rotulo, valor: p.valor }))}
             zonas={faixasPermitidas ? [...FAIXAS_IMC] : faixasPeso}
-            cantoExtra={<AjudaAntropometria nome={ativa.label} imc={ehImc} escuro={escuro} />}
+            cantoExtra={<AjudaAntropometria nome={ativa.label} metrica={ativa.key} faixasPeso={faixasPeso} alturaCm={alturaM ? alturaM * 100 : null} adulto={adultoEmTodas} escuro={escuro} />}
             formatarValor={ehImc ? formatarImc : (valor) => fmt(ativa, valor)}
             rotuloContagem="medições"
             semSituacao="Sem faixa"

@@ -1,6 +1,11 @@
 // Figuras simples (esquemáticas) de cada região medida com fita.
 // Só apresentação: não altera dados nem contrato de gravação.
 
+import { useState } from "react";
+import { ZoomIn } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { useFigurasMeta, useFiguraUrl } from "./api";
+
 type Regiao = "pescoco" | "torax" | "cintura" | "abdomen" | "quadril" | "braco" | "coxa" | "panturrilha";
 
 const REGIAO_POR_CAMPO: Record<string, { regiao: Regiao; lado?: "D" | "E" }> = {
@@ -70,17 +75,55 @@ function Desenho({ regiao }: { regiao: Regiao }) {
   }
 }
 
+export const REGIOES_FITA: { regiao: Regiao; titulo: string; dica: string }[] = [
+  { regiao: "pescoco", titulo: "Pescoço", dica: "Logo abaixo da laringe (pomo de Adão)." },
+  { regiao: "torax", titulo: "Tórax", dica: "Na altura dos mamilos, ao fim de uma expiração normal." },
+  { regiao: "cintura", titulo: "Cintura", dica: "Ponto mais estreito do tronco, entre as costelas e o osso do quadril." },
+  { regiao: "abdomen", titulo: "Abdômen", dica: "Na altura do umbigo." },
+  { regiao: "quadril", titulo: "Quadril", dica: "Maior circunferência dos glúteos." },
+  { regiao: "braco", titulo: "Braço (direito e esquerdo)", dica: "Ponto médio entre o ombro e o cotovelo, braço relaxado." },
+  { regiao: "coxa", titulo: "Coxa (direita e esquerda)", dica: "Terço proximal, logo abaixo da dobra do glúteo." },
+  { regiao: "panturrilha", titulo: "Panturrilha (direita e esquerda)", dica: "Maior circunferência da panturrilha, com a pessoa em pé." },
+];
+
 export function FiguraFita({ campo }: { campo: string }) {
   const info = REGIAO_POR_CAMPO[campo];
+  const { data: metas } = useFigurasMeta();
+  const meta = info ? metas?.find((m) => m.regiao === info.regiao) : undefined;
+  const { data: url } = useFiguraUrl(meta ? info!.regiao : null, meta?.atualizadoEm ?? null);
+  const [aberta, setAberta] = useState(false);
   if (!info) return null;
+  const titulo = REGIOES_FITA.find((r) => r.regiao === info.regiao)?.titulo ?? "";
+  const lado = info.lado && (
+    <span className="bevel-3d absolute -bottom-1.5 -right-1.5 px-1 text-[9px] font-black leading-4">{info.lado}</span>
+  );
+  if (!url) {
+    return (
+      <span className="concave-3d relative flex h-14 w-14 shrink-0 items-center justify-center text-foreground" aria-hidden="true">
+        <svg viewBox="0 0 60 60" className="h-11 w-11"><Desenho regiao={info.regiao} /></svg>
+        {lado}
+      </span>
+    );
+  }
   return (
-    <span className="concave-3d relative flex h-14 w-14 shrink-0 items-center justify-center text-foreground" aria-hidden="true">
-      <svg viewBox="0 0 60 60" className="h-11 w-11">
-        <Desenho regiao={info.regiao} />
-      </svg>
-      {info.lado && (
-        <span className="bevel-3d absolute -bottom-1.5 -right-1.5 px-1 text-[9px] font-black leading-4">{info.lado}</span>
-      )}
-    </span>
+    <>
+      {/* O botão fica fora do rótulo do campo: clicar na foto nunca foca nem altera o campo. */}
+      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setAberta(true); }}
+        className="concave-3d relative flex h-14 w-14 shrink-0 cursor-zoom-in items-center justify-center overflow-visible p-0"
+        aria-label={`Ampliar foto de como medir ${titulo}`} title="Clique para ampliar">
+        <img src={url} alt="" className="h-full w-full rounded-[inherit] object-cover" />
+        <span className="bevel-3d absolute -left-1.5 -top-1.5 flex h-4 w-4 items-center justify-center"><ZoomIn className="h-2.5 w-2.5" /></span>
+        {lado}
+      </button>
+      <Dialog open={aberta} onOpenChange={setAberta}>
+        <DialogContent className="panel-3d max-h-[94vh] w-[min(96vw,1000px)] max-w-none overflow-auto border-none p-4 text-foreground">
+          <DialogTitle className="text-base font-black uppercase tracking-wide">Como medir: {titulo}</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">
+            {REGIOES_FITA.find((r) => r.regiao === info.regiao)?.dica}
+          </DialogDescription>
+          <img src={url} alt={`Posição da fita para medir ${titulo}`} className="mx-auto max-h-[78vh] w-auto max-w-full rounded-[6px]" />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

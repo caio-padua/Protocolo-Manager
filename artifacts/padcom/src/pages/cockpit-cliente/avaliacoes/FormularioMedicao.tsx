@@ -95,9 +95,9 @@ export function FormularioMedicao({ clientId, tipo, ultima, aoSalvar }: {
           <legend className="bevel-3d absolute -top-3 left-4 px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest">{grupo}</legend>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {campos.map((c) => (
-              <label key={c.key} className={temFigura(c.key) ? "flex min-w-0 items-center gap-3" : "block min-w-0"}>
+              <div key={c.key} className={temFigura(c.key) ? "flex min-w-0 items-center gap-3" : "block min-w-0"}>
                 {temFigura(c.key) && <FiguraFita campo={c.key} />}
-                <span className="block min-w-0 flex-1">
+                <label className="block min-w-0 flex-1">
                 <span className="block truncate text-[11px] font-bold text-muted-foreground" title={c.label}>{c.label}</span>
                 {c.kind === "number" ? (
                   <span className="relative mt-1 block">
@@ -112,8 +112,8 @@ export function FormularioMedicao({ clientId, tipo, ultima, aoSalvar }: {
                     {c.opcoes.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 )}
-                </span>
-              </label>
+                </label>
+              </div>
             ))}
           </div>
         </fieldset>

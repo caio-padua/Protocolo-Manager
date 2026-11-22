@@ -88,6 +88,7 @@ export const RESUMO_ABA: Record<string, string> = {
   "/configuracoes/pagamentos": "Formas de receber",
   "/configuracoes/medico": "CEO da Pax Med e profissional médico",
   "/professionals?selfAccess=1": "Seus dados e acesso",
+  "/configuracoes/parametros-saude": "Fotos de como medir na antropometria",
   "/configuracoes/receituario": "Faixas do receituário",
   "/modelo-receituario": "Aparência do receituário",
   "/vitrine": "Vitrine pública",
