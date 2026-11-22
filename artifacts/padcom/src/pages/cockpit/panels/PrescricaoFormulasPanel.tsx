@@ -48,6 +48,7 @@ import { BASE } from "../../comunicacao/_shared";
 import { useProtocolosSalvos } from "../../prescricao/useProtocolosSalvos";
 import { PrescricoesEmitidas, PrescriptionPdfLink } from "../../prescricao/PrescricoesEmitidas";
 import PainelRecolhivel from "@/components/PainelRecolhivel";
+import AtivosLinhas from "./AtivosLinhas";
 import { chaveTexto } from "@/lib/comparar-receitas";
 import { HistoricoReceitasExpandido, type FormulaParaEdicao } from "../../prescricao/HistoricoReceitasExpandido";
 import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
@@ -145,6 +146,9 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch] = useState("");
   const [leftTab, setLeftTab] = useState<"cat" | "proto">("cat");
+  const [catalogoAberto, setCatalogoAberto] = useState(false);
+  /** Depois de adicionar, devolve a tela à receita: fecha a gaveta e limpa a busca. */
+  const recolherCatalogo = () => { setCatalogoAberto(false); setSearch(""); };
 
   const [previewPlans, setPreviewPlans] = useState<RecipePlan[] | null>(null);
   const [emitResult, setEmitResult] = useState<EmitResult | null>(null);
@@ -272,6 +276,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
       const { ativos, tomadas } = parseBody(f.body);
       return [...prev, { id: f.id, cat: f.cat, name: f.name, ativos, tomadas, preco: getPrecoMedio(f) }];
     });
+    recolherCatalogo();
     setPreviewPlans(null);
     setEmitResult(null);
   };
@@ -289,6 +294,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
       }
       return next;
     });
+    recolherCatalogo();
     setPreviewPlans(null);
     setEmitResult(null);
   };
@@ -340,18 +346,12 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
   };
   useEffect(() => {
     if (!focoPedido) return;
-    const el = document.querySelector<HTMLTextAreaElement>(`textarea[data-ativos-id="${CSS.escape(focoPedido.id)}"]`);
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
-    el.focus({ preventScroll: true });
-    if (focoPedido.ativo) {
-      const linhas = el.value.split("\n");
-      const i = linhas.findIndex((l) => chaveTexto(l).includes(chaveTexto(focoPedido.ativo!)));
-      if (i >= 0) {
-        const ini = linhas.slice(0, i).join("\n").length + (i > 0 ? 1 : 0);
-        el.setSelectionRange(ini, ini + linhas[i].length);
-      }
-    }
+    const campos = Array.from(document.querySelectorAll<HTMLInputElement>(`input[data-ativos-id="${CSS.escape(focoPedido.id)}"]`));
+    if (!campos.length) return;
+    const alvo = (focoPedido.ativo && campos.find((c) => chaveTexto(c.value).includes(chaveTexto(focoPedido.ativo!)))) || campos[0];
+    alvo.scrollIntoView({ behavior: "smooth", block: "center" });
+    alvo.focus({ preventScroll: true });
+    alvo.select();
     setFocoPedido(null);
   }, [focoPedido, selected]);
 
@@ -748,7 +748,8 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
+      <div className="space-y-4" data-testid="bloco-prescricao">
+      <div className="grid gap-4">
         {/* Catálogo e Protocolos — mesmo visual da tela Prescrição (menu) */}
         <section className="panel-3d min-w-0 space-y-3 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -759,6 +760,27 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
               {leftTab === "cat" ? `${filtered.length} disponíveis` : `${allProtocolos.length} protocolos`}
             </span>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[240px] flex-1">
+              <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                className={`w-full pl-9 ${inputCls}`}
+                placeholder="Buscar fórmula, ativo ou protocolo…"
+                value={search}
+                data-testid="busca-catalogo"
+                onChange={(e) => { setSearch(e.target.value); setLeftTab("cat"); }}
+              />
+            </div>
+            <button
+              type="button" aria-expanded={catalogoAberto} data-testid="explorar-categorias"
+              onClick={() => setCatalogoAberto((v) => !v)}
+              className={`${catalogoAberto ? "btn-3d-apertado" : "btn-3d-soft"} flex items-center gap-2 !rounded-[3px] px-4 py-2 text-xs font-bold uppercase tracking-wide`}
+            >
+              <Layers className="h-4 w-4" /> Explorar categorias
+            </button>
+          </div>
+          {(catalogoAberto || search.trim() !== "") && (
+          <div className="space-y-3">
           <div className="concave-3d grid max-w-md grid-cols-2 gap-1 p-1">
             <button
               onClick={() => setLeftTab("cat")}
@@ -775,15 +797,6 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
           </div>
           {leftTab === "cat" ? (
             <>
-              <div className="relative max-w-md">
-                <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  className={`w-full pl-9 ${inputCls}`}
-                  placeholder="Buscar fórmula…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setActiveCategory("all")}
@@ -809,7 +822,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                   );
                 })}
               </div>
-              <div className="grid max-h-[560px] grid-cols-1 gap-3 overflow-y-auto pr-1 2xl:grid-cols-2">
+              <div className="grid max-h-[420px] grid-cols-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
                 {filtered.map((f) => {
                   const cat = CATEGORIES.find((c) => c.id === f.cat);
                   const isSel = !!selected.find((s) => s.id === f.id);
@@ -891,6 +904,8 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
               ))}
             </div>
           )}
+          </div>
+          )}
         </section>
 
         {/* Receita selecionada + roteamento + emissão */}
@@ -924,10 +939,10 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
 
           {selected.length === 0 ? (
             <div className="concave-3d flex items-center justify-center rounded-md py-10 text-center text-sm text-muted-foreground">
-              Adicione fórmulas do catálogo ao lado.
+              Busque uma fórmula acima ou abra "Explorar categorias".
             </div>
           ) : (
-            <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+            <div className="space-y-3">
               {selected.map((f, idx) => (
                 <div key={f.id} className="panel-3d-sub overflow-hidden rounded-md">
                   <div className="concave-3d flex items-center justify-between gap-2 px-3 py-2">
@@ -942,15 +957,9 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                   <div className="space-y-3 p-3">
                     <div>
                       <label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                        Ativos (edite mg / adicione / retire)
+                        Ativos
                       </label>
-                      <textarea
-                        value={f.ativos}
-                        data-ativos-id={f.id}
-                        onChange={(e) => updateAtivos(f.id, e.target.value)}
-                        className={`mt-1 w-full resize-y font-mono text-xs ${inputCls}`}
-                        rows={Math.min(f.ativos.split("\n").length + 1, 12)}
-                      />
+                      <AtivosLinhas formulaId={f.id} valor={f.ativos} onChange={(v) => updateAtivos(f.id, v)} />
                     </div>
                     <div>
                       <div className="mb-1 flex items-center justify-between">
@@ -1056,26 +1065,6 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                 </div>
               ) : (
                 <>
-                  <div className="concave-3d flex flex-wrap items-center gap-2 rounded-md px-3 py-2">
-                    <label className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                      <Building2 className="h-3.5 w-3.5" />
-                      Farmácia padrão:
-                    </label>
-                    <select
-                      className="concave-3d rounded-md bg-transparent px-3 py-1.5 text-sm text-foreground"
-                      value={defaultPharmacyId ?? ""}
-                      onChange={(e) => changeDefaultPharmacy(e.target.value ? Number(e.target.value) : null)}
-                    >
-                      <option value="" className="bg-background text-foreground">
-                        — selecione —
-                      </option>
-                      {pharmacies.map((p) => (
-                        <option key={p.id} value={p.id} className="bg-background text-foreground">
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
 
                   <div className="space-y-2">
                     {selected.map((f, idx) => {
@@ -1161,77 +1150,6 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
               )}
             </div>
           )}
-                  {identity.data?.canPrescribe && selected.length > 0 && (
-                    <DestinosEmissao clientId={clientId} marcados={destinos} onChange={setDestinos} disabled={emitMutation.isPending} onContatos={setContatos} />
-                  )}
-                  <div className="panel-3d-sub sticky bottom-2 z-20 flex flex-wrap items-center gap-2 !rounded-[3px] p-2" data-testid="barra-emissao">
-                    <button
-                      onClick={() => void handlePreviewPdf()}
-                      disabled={previaLoading || selected.length === 0 || !identity.data?.canPrescribe}
-                      data-testid="button-previa-pdf"
-                      className="mr-auto flex items-center gap-2 rounded-[2px] border border-current/30 px-3 py-2 text-xs font-semibold disabled:opacity-40"
-                      style={{ color: GOLD }}
-                    >
-                      {previaLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-                      {previaLoading ? "Gerando…" : "Visualizar PDF"}
-                    </button>
-                    {identity.data?.canPrescribe ? (
-                      <>
-                      <button
-                        onClick={() => handleEmit("unsigned_expired")}
-                        disabled={emitMutation.isPending || envioAuto?.enviando || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
-                        data-testid="button-emit-unsigned"
-                        className="btn-3d-soft flex items-center justify-center gap-2 !rounded-[2px] px-4 py-2 text-xs font-semibold disabled:opacity-40"
-                      >
-                        <FileSignature className="h-4 w-4" />
-                        Gerar sem Assinar
-                      </button>
-                      <button
-                        onClick={() => handleEmit()}
-                        disabled={emitMutation.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
-                        data-testid="button-emit-prescriptions"
-                        className="btn-3d-soft flex items-center justify-center gap-2 !rounded-[2px] px-4 py-2 text-xs font-semibold disabled:opacity-40"
-                        style={{ color: GOLD }}
-                      >
-                        {emitMutation.isPending && !envioAuto ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                        Apenas Emitir
-                      </button>
-                      <button
-                        onClick={() => handleEmit("signed", destinos)}
-                        disabled={emitMutation.isPending || envioAuto?.enviando || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length || destinos.length === 0}
-                        data-testid="button-emit-and-send"
-                        title={destinos.length === 0 ? "Marque ao menos um destino." : undefined}
-                        className="btn-3d flex items-center justify-center gap-2 !rounded-[2px] px-5 py-2 text-sm font-bold disabled:opacity-40"
-                      >
-                        {emitMutation.isPending || envioAuto?.enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        {emitMutation.isPending ? "Emitindo…" : envioAuto?.enviando ? "Enviando…" : "Assinar e Enviar"}
-                      </button>
-                      </>
-                    ) : identity.data?.canPreparePrescription ? (
-                      <button
-                        onClick={handleSubmitForReview}
-                        disabled={createApproval.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
-                        data-testid="button-submit-prescription-review"
-                        className="btn-3d flex items-center justify-center gap-2 !rounded-[2px] px-5 py-2 text-sm font-bold disabled:opacity-40"
-                      >
-                        {createApproval.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                        {createApproval.isPending ? "Enviando para revisão…" : "Enviar ao médico responsável"}
-                      </button>
-                    ) : null}
-                  </div>
-                  {envioAuto && (
-                    <div className="bevel-3d space-y-2 !rounded-[3px] p-3 text-sm" role="status" data-testid="resultado-envio-emissao">
-                      {envioAuto.enviando && <p className="text-xs font-bold">Enviando…</p>}
-                      {envioAuto.itens.map((it, i) => (
-                        <div key={i}>
-                          <p className="font-semibold">{it.titulo}</p>
-                          <ul className="space-y-0.5">
-                            {it.linhas.map((l, j) => <li key={j} className={l.ok ? "text-emerald-800" : "font-bold text-destructive"}>{l.texto}</li>)}
-                          </ul>
-                        </div>
-                      ))}
-                    </div>
-                  )}
 
                   {/* Prévia */}
                   {previewPlans && !emitResult && (
@@ -1347,6 +1265,104 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                     <p className="concave-3d !rounded-[3px] px-3 py-3 text-xs text-muted-foreground" data-testid="emissao-vazia" role="status">Cadastre uma farmácia para liberar a emissão.</p>
                   )}
       </PainelRecolhivel>
+      {(selected.length > 0 || envioAuto) && <div className="md:sticky md:bottom-0 md:z-30" data-testid="dock-envio">
+        <div className="panel-3d-sub space-y-2 !rounded-[3px] p-2 shadow-lg">
+          {selected.length > 0 && !!pharmacies?.length && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                      <Building2 className="h-3.5 w-3.5" />
+                      Farmácia padrão:
+                    </label>
+                    <select
+                      className="concave-3d rounded-md bg-transparent px-3 py-1.5 text-sm text-foreground"
+                      value={defaultPharmacyId ?? ""}
+                      onChange={(e) => changeDefaultPharmacy(e.target.value ? Number(e.target.value) : null)}
+                    >
+                      <option value="" className="bg-background text-foreground">
+                        — selecione —
+                      </option>
+                      {pharmacies.map((p) => (
+                        <option key={p.id} value={p.id} className="bg-background text-foreground">
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+          )}
+                  {identity.data?.canPrescribe && selected.length > 0 && (
+                    <DestinosEmissao clientId={clientId} marcados={destinos} onChange={setDestinos} disabled={emitMutation.isPending} onContatos={setContatos} />
+                  )}
+                  {envioAuto && (
+                    <div className="bevel-3d space-y-2 !rounded-[3px] p-3 text-sm" role="status" data-testid="resultado-envio-emissao">
+                      {envioAuto.enviando && <p className="text-xs font-bold">Enviando…</p>}
+                      {envioAuto.itens.map((it, i) => (
+                        <div key={i}>
+                          <p className="font-semibold">{it.titulo}</p>
+                          <ul className="space-y-0.5">
+                            {it.linhas.map((l, j) => <li key={j} className={l.ok ? "text-emerald-800" : "font-bold text-destructive"}>{l.texto}</li>)}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2" data-testid="barra-emissao">
+                    <button
+                      onClick={() => void handlePreviewPdf()}
+                      disabled={previaLoading || selected.length === 0 || !identity.data?.canPrescribe}
+                      data-testid="button-previa-pdf"
+                      className="mr-auto flex items-center gap-2 rounded-[2px] border border-current/30 px-3 py-2 text-xs font-semibold disabled:opacity-40"
+                      style={{ color: GOLD }}
+                    >
+                      {previaLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                      {previaLoading ? "Gerando…" : "Visualizar PDF"}
+                    </button>
+                    {identity.data?.canPrescribe ? (
+                      <>
+                      <button
+                        onClick={() => handleEmit("unsigned_expired")}
+                        disabled={emitMutation.isPending || envioAuto?.enviando || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
+                        data-testid="button-emit-unsigned"
+                        className="btn-3d-soft flex items-center justify-center gap-2 !rounded-[2px] px-4 py-2 text-xs font-semibold disabled:opacity-40"
+                      >
+                        <FileSignature className="h-4 w-4" />
+                        Gerar sem Assinar
+                      </button>
+                      <button
+                        onClick={() => handleEmit()}
+                        disabled={emitMutation.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
+                        data-testid="button-emit-prescriptions"
+                        className="btn-3d-soft flex items-center justify-center gap-2 !rounded-[2px] px-4 py-2 text-xs font-semibold disabled:opacity-40"
+                        style={{ color: GOLD }}
+                      >
+                        {emitMutation.isPending && !envioAuto ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                        Apenas Emitir
+                      </button>
+                      <button
+                        onClick={() => handleEmit("signed", destinos)}
+                        disabled={emitMutation.isPending || envioAuto?.enviando || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length || destinos.length === 0}
+                        data-testid="button-emit-and-send"
+                        title={destinos.length === 0 ? "Marque ao menos um destino." : undefined}
+                        className="btn-3d flex items-center justify-center gap-2 !rounded-[2px] px-5 py-2 text-sm font-bold disabled:opacity-40"
+                      >
+                        {emitMutation.isPending || envioAuto?.enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        {emitMutation.isPending ? "Emitindo…" : envioAuto?.enviando ? "Enviando…" : "Assinar e Enviar"}
+                      </button>
+                      </>
+                    ) : identity.data?.canPreparePrescription ? (
+                      <button
+                        onClick={handleSubmitForReview}
+                        disabled={createApproval.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
+                        data-testid="button-submit-prescription-review"
+                        className="btn-3d flex items-center justify-center gap-2 !rounded-[2px] px-5 py-2 text-sm font-bold disabled:opacity-40"
+                      >
+                        {createApproval.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                        {createApproval.isPending ? "Enviando para revisão…" : "Enviar ao médico responsável"}
+                      </button>
+                    ) : null}
+                  </div>
+        </div>
+      </div>}
+      </div>
       <PainelRecolhivel titulo="Prescrições — Histórico" testId="painel-historico">
         <div className="flex gap-2">
           <button type="button" onClick={() => setAbaHistorico("emitidas")} data-testid="aba-emitidas"

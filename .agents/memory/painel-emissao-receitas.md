@@ -10,3 +10,9 @@ description: Regras de design e comportamento do painel Emissão do Cockpit (des
 - Nome no Drive: `AA.MM.DD RECEITA MANIPULADA NOME DO CLIENTE.pdf`, nada depois. Colisão no mesmo dia vira " (2)"; vínculo fica em recipes.drive_file_id.
 **Why:** CEO pediu botões não redundantes, histórico comparável e nome padronizado.
 **How to apply:** a frase do CEO sobre o nome estava ambígua ("receita manipulada / receita / fórmula manipulada"); adotado "RECEITA MANIPULADA" — confirmar com ele.
+
+## Layout atual (coluna única, aprovado pelo CEO: opções A + B + C)
+- Tela de prescrição em coluna única: busca larga no topo + "Explorar categorias" (gaveta que recolhe e limpa a busca ao adicionar); receita em largura total; histórico fica NO FINAL (decisão do CEO, não mover para aba).
+- Ativos em linhas [nome|dose|unidade|remover] (AtivosLinhas + lib/ativos-linhas.ts): o dado segue sendo o texto de ativos; edição reescreve só o trecho alterado; linha sem dose reconhecida fica inteira no nome.
+- Dock de envio (farmácia padrão + 4 destinos + botões + resultado do envio) fica sticky no rodapé SÓ em md+ (no celular rola junto, por altura). Botões finais: Visualizar PDF | Gerar sem Assinar | Apenas Emitir | Assinar e Enviar (último).
+**Why:** `.cc-panel-body` tem overflow-x:auto (vira contêiner de rolagem sem altura) e quebrava o sticky; corrigido com `:has(.cockpit-prescricao-visual){overflow:visible}` em cockpit-identidade.css.
