@@ -5,6 +5,7 @@ import { db, pulsoDiarioTable, clientsTable } from "@workspace/db";
 import { sendTelegramBotaoWebApp } from "../lib/telegram";
 import { verifyPatientToken, verifyPortalToken } from "../lib/portal-token";
 import { brtISODate, parseBrtParts } from "../lib/brt";
+import { gravarLibidoOntem } from "../lib/pulso-perguntas";
 
 // ============================================================================
 // PULSO DIÁRIO — acompanhamento diário reportado pelo cliente.
@@ -149,7 +150,7 @@ router.post("/pulso-diario/:clientId/enviar-telegram", async (req, res): Promise
   const nome = primeiro ? primeiro.charAt(0).toUpperCase() + primeiro.slice(1).toLowerCase() : "";
   const r = await sendTelegramBotaoWebApp(
     c.chat,
-    `Olá${nome ? `, ${nome}` : ""}. Toque no botão abaixo para registrar como você está agora. Leva menos de um minuto.`,
+    `Olá${nome ? `, ${nome}` : ""}. Toque no botão abaixo para registrar o seu pulso. Leva menos de um minuto.`,
     { texto: "Registrar meu pulso", url: `https://${dominio}/pulso-telegram` },
   );
   if (!r.sent) { res.status(502).json({ error: r.error ?? "falha no envio" }); return; }
@@ -195,6 +196,8 @@ const autoRegistroSchema = z.object({
   pressaoDiastolica: z.number().int().min(30).max(200).nullable().optional(),
   frequenciaCardiaca: z.number().int().min(20).max(300).nullable().optional(),
   glicemia: z.number().int().min(20).max(800).nullable().optional(),
+  /** Libido de ontem à noite, respondida na manhã seguinte (único prazo permitido). */
+  libidoOntem: z.number().int().min(0).max(10).nullable().optional(),
 }).strict();
 
 router.post("/area-paciente/pulso-diario", async (req, res): Promise<void> => {
@@ -206,7 +209,10 @@ router.post("/area-paciente/pulso-diario", async (req, res): Promise<void> => {
   const v = p.data;
   const campos = ["energia", "disposicao", "libido", "sono", "pressaoSistolica", "pressaoDiastolica", "frequenciaCardiaca", "glicemia"] as const;
   const enviados = campos.filter((c) => v[c] != null);
-  if (enviados.length === 0) { res.status(400).json({ error: "Preencha pelo menos uma medida." }); return; }
+  const libidoOntem = v.libidoOntem ?? null;
+  const periodoAgoraBrt = periodoDaHora(Number(parseBrtParts().hour));
+  if (libidoOntem != null && periodoAgoraBrt !== "manha") { res.status(400).json({ error: "A libido de ontem só pode ser avaliada pela manhã." }); return; }
+  if (enviados.length === 0 && libidoOntem == null) { res.status(400).json({ error: "Preencha pelo menos uma medida." }); return; }
   if ((v.pressaoSistolica != null) !== (v.pressaoDiastolica != null)) {
     res.status(400).json({ error: "Informe os dois números da pressão (máxima e mínima)." }); return;
   }
@@ -214,6 +220,8 @@ router.post("/area-paciente/pulso-diario", async (req, res): Promise<void> => {
     res.status(400).json({ error: "A pressão mínima deve ser menor que a máxima." }); return;
   }
   const data = brtISODate();
+  if (libidoOntem != null) await gravarLibidoOntem(clientId, data, libidoOntem, "app");
+  if (enviados.length === 0) { res.status(201).json({ ok: true, data, periodo: "noite", ontem: true }); return; }
   const periodo = v.periodo ?? periodoDaHora(Number(parseBrtParts().hour));
   const [atual] = await db.select().from(pulsoDiarioTable)
     .where(and(eq(pulsoDiarioTable.clienteId, clientId), eq(pulsoDiarioTable.data, data), eq(pulsoDiarioTable.periodo, periodo)));

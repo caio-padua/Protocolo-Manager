@@ -4,7 +4,7 @@ import { getSetting } from "./secure-settings";
 import { sendTelegramBotaoWebApp } from "./telegram";
 import { parseBrtParts } from "./brt";
 import { logger } from "./logger";
-import { jaRespondeuAPrincipal, NOTA_DO_PERIODO, ROTULO_NOTA, type PeriodoPulso } from "./pulso-perguntas";
+import { enunciadoPrincipal, jaRespondeuAPrincipal, NOTA_DO_PERIODO, type PeriodoPulso } from "./pulso-perguntas";
 
 /**
  * Lembrete automático do Pulso Diário pelo Telegram (um por período, no horário marcado).
@@ -39,15 +39,9 @@ export async function lerConfigPulso(): Promise<{ modo: "desligado" | "lista" | 
   }
 }
 
-export function textoLembretePulso(nome: string, periodo: PeriodoPulso): string {
-  const campo = NOTA_DO_PERIODO[periodo];
-  const pedido = {
-    sono: "Como foi o seu sono esta noite? Dê uma nota de 0 a 10.",
-    energia: "Como está a sua energia hoje? Dê uma nota de 0 a 10.",
-    libido: "Como foi o seu desejo nos últimos dias? Dê uma nota de 0 a 10. Responder é opcional.",
-  }[campo];
+export function textoLembretePulso(nome: string, periodo: PeriodoPulso, hoje: string): string {
   const saudacao = periodo === "manha" ? "Bom dia" : periodo === "tarde" ? "Boa tarde" : "Boa noite";
-  return `${saudacao}${nome ? `, ${nome}` : ""}. ${pedido} Toque no botão abaixo; leva menos de um minuto. (${ROTULO_NOTA[campo]})`;
+  return `${saudacao}${nome ? `, ${nome}` : ""}. ${enunciadoPrincipal(NOTA_DO_PERIODO[periodo], hoje)} Toque no botão abaixo; leva menos de um minuto.`;
 }
 
 export function dominioMiniApp(): string | null {
@@ -61,7 +55,7 @@ export async function enviarLembretePulso(clienteId: number, periodo: PeriodoPul
   if (!c?.chat) return { ok: false, erro: "cliente sem Telegram vinculado" };
   const dominio = dominioMiniApp();
   if (!dominio) return { ok: false, erro: "domínio público indisponível" };
-  const r = await sendTelegramBotaoWebApp(c.chat, textoLembretePulso(primeiroNome(c.nome), periodo), { texto: "Registrar meu pulso", url: `https://${dominio}/pulso-telegram` });
+  const r = await sendTelegramBotaoWebApp(c.chat, textoLembretePulso(primeiroNome(c.nome), periodo, `${parseBrtParts().year}-${parseBrtParts().month}-${parseBrtParts().day}`), { texto: "Registrar meu pulso", url: `https://${dominio}/pulso-telegram` });
   if (!r.sent) return { ok: false, erro: r.error ?? "falha no envio" };
   if (r.mock) return { ok: false, erro: "telegram_sem_token", simulado: true };
   return { ok: true };

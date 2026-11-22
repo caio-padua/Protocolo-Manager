@@ -6,7 +6,7 @@ import { getSecret } from "../lib/secure-settings";
 import { validarInitData } from "../lib/telegram-webapp-auth";
 import { parseBrtParts } from "../lib/brt";
 import { logger } from "../lib/logger";
-import { perguntasDoPeriodo } from "../lib/pulso-perguntas";
+import { gravarLibidoOntem, perguntasDoPeriodo } from "../lib/pulso-perguntas";
 
 // ============================================================================
 // PULSO DIÁRIO pelo Telegram — mini aplicativo (web_app). PÚBLICO (antes do portão):
@@ -50,6 +50,7 @@ const valoresSchema = z.object({
   disposicao: inteiro(0, 10),
   libido: inteiro(0, 10),
   sono: inteiro(0, 10),
+  libidoOntem: inteiro(0, 10),
   pressaoSistolica: inteiro(50, 260),
   pressaoDiastolica: inteiro(30, 160),
   frequenciaCardiaca: inteiro(30, 220),
@@ -94,7 +95,15 @@ router.post("/pulso-telegram/registrar", async (req, res): Promise<void> => {
     pressaoSistolica: sis, pressaoDiastolica: dia,
     frequenciaCardiaca: v.frequenciaCardiaca ?? null, glicemia: v.glicemia ?? null,
   };
-  if (Object.values(valores).every((x) => x === null)) { res.status(400).json({ error: "Preencha ao menos um campo." }); return; }
+  const libidoOntem = v.libidoOntem ?? null;
+  if (libidoOntem != null) {
+    if (periodo !== "manha") { res.status(400).json({ error: "A libido de ontem só pode ser avaliada pela manhã." }); return; }
+    await gravarLibidoOntem(quem.id, data, libidoOntem, "telegram");
+  }
+  if (Object.values(valores).every((x) => x === null)) {
+    if (libidoOntem != null) { res.status(201).json({ ok: true, data, periodo }); return; }
+    res.status(400).json({ error: "Preencha ao menos um campo." }); return;
+  }
 
   // Só entram os campos enviados; o que já estava registrado no período é preservado.
   const [atual] = await db.select().from(pulsoDiarioTable).where(and(

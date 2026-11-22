@@ -80,8 +80,12 @@ const ROTULO_NOTA = { energia: "Energia", libido: "Libido", sono: "Sono" } as co
 type CampoNota = keyof typeof ROTULO_NOTA;
 /** Uma nota por período (regra do Dr. Caio, 22/11/2026): manhã = sono, tarde = energia, noite = libido. */
 const NOTA_DO_PERIODO: Record<Reg["periodo"], CampoNota> = { manha: "sono", tarde: "energia", noite: "libido" };
-const ARTIGO: Record<CampoNota, string> = { sono: "O", energia: "A", libido: "A" };
-const QUANDO: Record<CampoNota, string> = { sono: "de manhã", energia: "à tarde", libido: "à noite" };
+/** Mesmos textos do servidor (api-server/src/lib/pulso-perguntas.ts); regra em docs/parametrizacoes-gerais/pulso-diario.md. */
+const enunciadoPrincipal = (k: CampoNota, hoje: string): string => {
+  if (k === "sono") return `Como foi o seu sono na noite passada (de ${dataCurta(somaDias(hoje, -1))} para ${dataCurta(hoje)})? Dê uma nota de 0 a 10.`;
+  if (k === "energia") return `Como está a sua energia hoje à tarde (${dataCurta(hoje)})? Dê uma nota de 0 a 10.`;
+  return `Como está a sua libido hoje, ${dataCurta(hoje)}? Dê uma nota de 0 a 10. Responder é opcional.`;
+};
 
 /** Data de hoje e período do dia no fuso de São Paulo (usado quando o consultório abre o pulso de um cliente). */
 const agoraSP = (): { hoje: string; periodoAgora: Reg["periodo"] } => {
@@ -149,7 +153,7 @@ export default function MeuPulsoCliente({ token = "", clienteId, escuro = false 
   const enviar = async () => {
     setResultado(null);
     // Só vão as notas que a tela perguntou neste período (a do período + as pendentes).
-    const mostradas = Object.fromEntries(perguntas.map((q) => [q.k, notas[q.k]]));
+    const mostradas = Object.fromEntries(perguntas.map((q) => [q.gravaEm === "ontem_noite" ? "libidoOntem" : q.k, notas[q.k]]));
     const body = {
       periodo, pressaoSistolica: num(f.sis), pressaoDiastolica: num(f.dia), frequenciaCardiaca: num(f.fc), glicemia: num(f.gli), ...mostradas,
     };
@@ -174,13 +178,16 @@ export default function MeuPulsoCliente({ token = "", clienteId, escuro = false 
   if (!dados) return <div className="flex justify-center py-12 text-muted-foreground" role="status"><Loader2 className="h-6 w-6 animate-spin" /></div>;
 
   // Qual nota perguntar agora: a do período + as que ficaram sem resposta (sono até a noite; energia à noite; libido de ontem à noite, pergunta-se de manhã).
-  const perguntas: Array<{ k: CampoNota; pendente: string | null }> = (() => {
+  const perguntas: Array<{ k: CampoNota; pendente: string | null; enunciado: string; gravaEm: "hoje" | "ontem_noite" }> = (() => {
     if (!periodo) return [];
-    const tem = (d: string, c: CampoNota, per?: Reg["periodo"]) => dados.registros.some((r) => r.data === d && r[c] != null && (!per || r.periodo === per));
-    const lista: Array<{ k: CampoNota; pendente: string | null }> = [{ k: NOTA_DO_PERIODO[periodo], pendente: null }];
-    if (periodo !== "manha" && !tem(dados.hoje, "sono")) lista.push({ k: "sono", pendente: "Você não respondeu sobre o sono de manhã. Responda agora." });
-    if (periodo === "noite" && !tem(dados.hoje, "energia")) lista.push({ k: "energia", pendente: "Você não respondeu sobre a energia à tarde. Responda agora." });
-    if (periodo === "manha" && !tem(somaDias(dados.hoje, -1), "libido") && !tem(dados.hoje, "libido", "manha")) lista.push({ k: "libido", pendente: "Você não respondeu sobre a libido ontem à noite. Responda agora." });
+    const ontem = somaDias(dados.hoje, -1);
+    const tem = (d: string, c: CampoNota) => dados.registros.some((r) => r.data === d && r[c] != null);
+    const q = (k: CampoNota, pendente: string | null, gravaEm: "hoje" | "ontem_noite" = "hoje", enunciado?: string) => ({ k, pendente, gravaEm, enunciado: enunciado ?? enunciadoPrincipal(k, dados.hoje) });
+    const lista = [q(NOTA_DO_PERIODO[periodo], null)];
+    if (periodo !== "manha" && !tem(dados.hoje, "sono")) lista.push(q("sono", `Você não avaliou o sono da noite passada (de ${dataCurta(ontem)} para ${dataCurta(dados.hoje)}). Avalie agora.`));
+    if (periodo === "noite" && !tem(dados.hoje, "energia")) lista.push(q("energia", `Você não avaliou a sua energia desta tarde (${dataCurta(dados.hoje)}). Avalie agora.`));
+    if (periodo === "manha" && !tem(ontem, "libido")) lista.push(q("libido", `Você não avaliou a sua libido de ontem à noite (${dataCurta(ontem)}). Avalie agora: depois desta manhã esse prazo termina.`, "ontem_noite",
+      `Como foi a sua libido ontem à noite, ${dataCurta(ontem)}? Dê uma nota de 0 a 10. Responder é opcional.`));
     return lista;
   })();
 
@@ -268,14 +275,14 @@ export default function MeuPulsoCliente({ token = "", clienteId, escuro = false 
           <BotaoAjudaComJanela tipo="glicemia" rotulo="Glicemia" escuro={escuro} />
         </div>
 
-        {perguntas.map(({ k, pendente }) => { const rot = ROTULO_NOTA[k]; return (
+        {perguntas.map(({ k, pendente, enunciado }) => { const rot = ROTULO_NOTA[k]; return (
           <div key={k} className="pn-grupo-notas">
             <div className="pn-notas-cab">
               <span className="pn-notas-tit"><b>{rot}</b><i className="pn-apelido">{SIGNIFICADO[k]!.apelido}</i></span>
               <span className="ml-auto text-[11px]" style={{ color: "var(--pn-mudo)" }}>{notas[k] == null ? "toque na nota" : <>nota <Numeral peso={700}>{String(notas[k])}</Numeral></>}</span>
               <BotaoAjuda aberto={escala === k} onClick={() => setEscala((e) => (e === k ? null : k))} rotulo={rot} />
             </div>
-            <p className="pn-texto mb-1" style={{ color: "var(--pn-mudo)" }}>{pendente ?? `${ARTIGO[k]} ${rot.toLowerCase()} se avalia ${QUANDO[k]}.`}</p>
+            <p className="pn-texto mb-1" style={{ color: "var(--pn-mudo)" }}>{pendente ? <><b>{pendente}</b><br />{enunciado}</> : enunciado}</p>
             <div role="radiogroup" aria-label={rot} className="pn-nota">
               {Array.from({ length: 11 }, (_, i) => (
                 <button key={i} type="button" role="radio" aria-checked={notas[k] === i} onClick={() => setNotas((p) => ({ ...p, [k]: p[k] === i ? null : i }))}>{i}</button>
