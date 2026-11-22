@@ -815,7 +815,11 @@ router.post("/collaborator/login", async (req, res): Promise<void> => {
       detail: { reason: matches.length > 1 ? "ambiguous_identifier" : "invalid_credentials" },
       ip: clientIp(req),
     });
-    res.status(401).json({ error: "Credenciais inválidas" });
+    const motivo = matches.length > 1 ? "Credenciais inválidas"
+      : !prof ? (cpfDigits ? "CPF errado." : "Usuário ou e-mail errado.")
+      : !senhaConfere ? "Senha errada."
+      : "Credenciais inválidas";
+    res.status(401).json({ error: motivo });
     return;
   }
   await recordAudit({

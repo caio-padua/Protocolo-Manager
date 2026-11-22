@@ -191,7 +191,7 @@ function buildMiddleware() {
 
     if (!userMatch || !passMatch) {
       res.setHeader("WWW-Authenticate", 'Basic realm="Padaxor"');
-      res.status(401).json({ error: "Credenciais inválidas." });
+      res.status(401).json({ error: !userMatch ? "Usuário errado." : "Senha errada." });
       return;
     }
 

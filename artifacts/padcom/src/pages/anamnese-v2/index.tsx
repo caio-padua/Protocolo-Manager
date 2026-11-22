@@ -1565,7 +1565,7 @@ function IdentifyGate({
       });
       const data = await res.json();
       if (!res.ok || !data.token) {
-        setError("CPF ou data de nascimento incorretos");
+        setError(typeof data?.error === "string" && data.error ? data.error : "CPF ou data de nascimento incorretos");
         return;
       }
       onStart(data.token as string);

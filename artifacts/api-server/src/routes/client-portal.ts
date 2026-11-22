@@ -90,7 +90,7 @@ router.post("/client-portal/identify", async (req: Request, res: Response) => {
 
     const cleanCpf = cpf.replace(/\D/g, "");
     if (cleanCpf.length !== 11) {
-      res.status(400).json({ error: "CPF inválido" });
+      res.status(400).json({ error: "CPF errado." });
       return;
     }
 
@@ -102,14 +102,14 @@ router.post("/client-portal/identify", async (req: Request, res: Response) => {
       .where(eq(clientsTable.cpf, formattedCpf));
 
     if (clients.length === 0) {
-      res.status(401).json({ error: "CPF ou data de nascimento incorretos" });
+      res.status(401).json({ error: "CPF errado." });
       return;
     }
 
     const client = clients[0];
 
     if (!client.birthDate) {
-      res.status(401).json({ error: "CPF ou data de nascimento incorretos" });
+      res.status(401).json({ error: "Data de nascimento errada." });
       return;
     }
 
@@ -122,7 +122,7 @@ router.post("/client-portal/identify", async (req: Request, res: Response) => {
     }
 
     if (storedNorm !== inputDigits) {
-      res.status(401).json({ error: "CPF ou data de nascimento incorretos" });
+      res.status(401).json({ error: "Data de nascimento errada." });
       return;
     }
 

@@ -58,8 +58,12 @@ function todayISO(): string {
 
 // Erro GENERICO de acesso (linha vermelha 4 — anti-enumeracao: nunca revela se o
 // CPF existe ou se a senha e que esta errada).
-function badCredentials(res: Response) {
-  res.status(401).json({ error: "CPF ou senha incorretos." });
+// Decisao do CEO (21/11/2026): a tela diz exatamente o que esta errado (CPF ou senha).
+function badCredentials(res: Response, motivo: "cpf" | "senha" = "cpf") {
+  res.status(401).json({ error: motivo === "senha" ? "Senha errada." : "CPF errado." });
+}
+function semSenhaCadastrada(res: Response) {
+  res.status(401).json({ error: "Este CPF ainda não tem senha. Entre com a data de nascimento." });
 }
 
 // Acha o cadastro por CPF comparando so DIGITOS (independe de mascara). Retorna
@@ -70,7 +74,7 @@ async function findClientByCpf(cpfRaw: string) {
   const [client] = await db
     .select()
     .from(clientsTable)
-    .where(sql`regexp_replace(coalesce(${clientsTable.cpf}, ''), '\D', '', 'g') = ${digits}`)
+    .where(sql`regexp_replace(coalesce(${clientsTable.cpf}, ''), '[^0-9]', '', 'g') = ${digits}`)
     .limit(1);
   return client ?? null;
 }
@@ -89,8 +93,9 @@ router.post("/area-paciente/login", async (req: Request, res: Response): Promise
     if (!cpf || !password) { badCredentials(res); return; }
 
     const client = await findClientByCpf(cpf);
-    if (!client || !client.passwordHash) { badCredentials(res); return; }
-    if (!verifyPassword(password, client.passwordHash)) { badCredentials(res); return; }
+    if (!client) { badCredentials(res); return; }
+    if (!client.passwordHash) { semSenhaCadastrada(res); return; }
+    if (!verifyPassword(password, client.passwordHash)) { badCredentials(res, "senha"); return; }
 
     if (client.mustChangePassword) {
       // Senha provisoria valida: exige troca antes de liberar a Area (sem token).
@@ -121,8 +126,9 @@ router.post("/area-paciente/trocar-senha", async (req: Request, res: Response): 
     if (!cpf || !currentPassword) { badCredentials(res); return; }
 
     const client = await findClientByCpf(cpf);
-    if (!client || !client.passwordHash) { badCredentials(res); return; }
-    if (!verifyPassword(currentPassword, client.passwordHash)) { badCredentials(res); return; }
+    if (!client) { badCredentials(res); return; }
+    if (!client.passwordHash) { semSenhaCadastrada(res); return; }
+    if (!verifyPassword(currentPassword, client.passwordHash)) { badCredentials(res, "senha"); return; }
 
     if (!isAppPasswordValid(newPassword)) {
       res.status(400).json({ error: PASSWORD_POLICY_MESSAGE });
