@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { BotaoTelaCheia } from "../BotaoTelaCheia";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AVALIACOES, calculaDerivados } from "@workspace/avaliacoes-corporais";
 import type { TipoAvaliacao } from "@workspace/avaliacoes-corporais";
@@ -93,6 +94,7 @@ export function EvolucaoMedicoes({ clientId, tipo, medicoes, maximizado }: {
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">{ativa.grupo}</p>
             <h3 className="text-lg font-black leading-tight text-foreground">{ativa.label}</h3>
           </div>
+          <BotaoTelaCheia className="btn-3d-soft flex h-8 w-8 items-center justify-center" />
           <p className="text-3xl font-black text-foreground">
             {fmt(ativa, ultimo.valor)}<span className="ml-1 text-xs font-bold text-muted-foreground">{ativa.unit}</span>
           </p>

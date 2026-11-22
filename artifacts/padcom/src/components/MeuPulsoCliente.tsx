@@ -9,7 +9,7 @@ import { BotaoAjuda, BotaoAjudaComJanela } from "@/pages/cockpit-cliente/BotaoAj
 import { EscalaDialog, SIGNIFICADO } from "@/pages/cockpit-cliente/NotaDialog";
 import { AjudaPainelDialog } from "@/pages/cockpit-cliente/AjudaPainelDialog";
 import { GraficoZonas, type PontoGrafico, type ZonaGrafico } from "@/pages/cockpit-cliente/GraficoZonas";
-import { LIMITES, NIVEIS, nivelFrequencia, nivelGlicemia, nivelPressao, type Nivel } from "@/pages/cockpit-cliente/pulso-faixas";
+import { COR_NOTA, NOME_NOTA, faixaNota, LIMITES, NIVEIS, nivelFrequencia, nivelGlicemia, nivelPressao, type Nivel } from "@/pages/cockpit-cliente/pulso-faixas";
 import "@/pages/cockpit-cliente/pulso-niveis.css";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -204,7 +204,7 @@ export default function MeuPulsoCliente({ token = "", clienteId, escuro = false 
             <div key={rot} className="text-center">
               <p className="whitespace-nowrap text-[9px] font-extrabold uppercase tracking-[.08em]">{rot}</p>
               <p className="mb-1 text-[8px] font-semibold uppercase tracking-wider" style={{ color: "var(--pn-mudo)" }}>{un}</p>
-              <p className="pn-medida !block w-full py-1 text-base font-bold">{val == null ? "—" : val.includes(" / ") ? <PressaoTexto texto={val} /> : <Numeral peso={700}>{val}</Numeral>}</p>
+              <p className="pn-medida !block w-full py-1 text-base font-bold" {...(() => { const fx = nivel ? null : faixaNota(val == null ? null : Number(val.replace(",", "."))); return fx ? { style: { borderColor: COR_NOTA[fx], borderWidth: 3 }, title: NOME_NOTA[fx] } : nivel ? { style: { borderColor: nivel === "normal" ? COR_NIVEL.normal : undefined, borderWidth: 3 } } : {}; })()} data-nivel={nivel && nivel !== "normal" ? nivel : undefined}>{val == null ? "—" : val.includes(" / ") ? <PressaoTexto texto={val} /> : <Numeral peso={700}>{val}</Numeral>}</p>
               <p className="mt-1.5 min-h-[26px]">{nivel ? <span className="bevel-3d pn-chip" data-nivel={nivel}>{NOME_NIVEL[nivel]}</span> : null}</p>
             </div>
           ))}

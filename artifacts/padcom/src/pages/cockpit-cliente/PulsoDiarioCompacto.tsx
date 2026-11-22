@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Activity, ChevronDown, Gauge, Moon, Sun, Sunrise } from "lucide-react";
 import { PressaoTexto } from "@/components/PressaoTexto";
 import { Numeral } from "@/components/numeral/Numeral";
-import { nivelFrequencia, nivelGlicemia, nivelPressao, type Nivel } from "./pulso-faixas";
+import { COR_NOTA, NOME_NOTA, faixaNota, nivelFrequencia, nivelGlicemia, nivelPressao, type Nivel } from "./pulso-faixas";
 import { BASE } from "@/pages/comunicacao/_shared";
 
 // Pulso Diário no cockpit: um botão da mesma altura dos demais (médias do último mês)
@@ -147,7 +147,11 @@ export function PulsoDiarioBotao({ clientId, aberto, onToggle, janela, onJanela 
         {!isError && !isLoading && m.n > 0 && (
           <span className="cc-pulso-medias" aria-label={`Médias dos últimos ${dias} dias`}>
             {itens.map(([rot, val, tom]) => (
-              <span key={rot} className="cc-pulso-media"><small>{rot}</small><b data-tom={val == null || tom === "ok" || tom === "neutro" ? undefined : tom} title={DICA_TOM[tom]}>{val == null ? "—" : val.includes(" / ") ? <PressaoTexto texto={val} /> : <Numeral peso={700}>{val}</Numeral>}</b></span>
+              <span key={rot} className="cc-pulso-media"><small>{rot}</small><b {...(() => {
+                const fx = tom === "neutro" && val != null ? faixaNota(Number(val.replace(",", "."))) : null;
+                if (fx) return { "data-tom": "nota", style: { "--m": COR_NOTA[fx] } as React.CSSProperties, title: NOME_NOTA[fx] };
+                return { "data-tom": val == null || tom === "neutro" ? undefined : tom, title: tom === "ok" ? "Normal" : DICA_TOM[tom] };
+              })()}>{val == null ? "—" : val.includes(" / ") ? <PressaoTexto texto={val} /> : <Numeral peso={700}>{val}</Numeral>}</b></span>
             ))}
           </span>
         )}

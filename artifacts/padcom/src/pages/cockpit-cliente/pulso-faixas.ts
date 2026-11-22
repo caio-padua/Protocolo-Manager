@@ -68,3 +68,11 @@ export function faixasFrequencia(): Partial<Record<Nivel, string>> {
   const F = LIMITES.frequencia;
   return { baixo: `menor que ${F.baixa}`, normal: `${F.baixa} a ${F.alta - 1}`, alto: `${F.alta} ou mais` };
 }
+
+/** Notas de 0 a 10 (energia, libido, sono): cinco faixas, quanto maior melhor. Mesmos cortes dos gráficos. */
+export const COR_NOTA = { n1: "#dc2626", n2: "#d97706", n3: "#ca8a04", n4: "#65a30d", n5: "#15803d" } as const;
+export const NOME_NOTA = { n1: "Muito mal", n2: "Ruim", n3: "Regular", n4: "Bom", n5: "Ótimo" } as const;
+export function faixaNota(v: number | null): keyof typeof COR_NOTA | null {
+  if (v == null || !Number.isFinite(v)) return null;
+  return v < 3 ? "n1" : v < 5 ? "n2" : v < 7 ? "n3" : v < 9 ? "n4" : "n5";
+}

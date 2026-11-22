@@ -1,10 +1,11 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { BotaoTelaCheia } from "./BotaoTelaCheia";
 import "./pulso-niveis.css";
 
 // Painel calmo (recuado) com botão para minimizar e maximizar. Usado na Área do Cliente e nas réguas de níveis.
-export function PainelPulso({ titulo, acoes, canto, children, style, className = "", iniciaAberto = true, rotulo }: {
-  titulo: ReactNode; acoes?: ReactNode; canto?: ReactNode; children: ReactNode; style?: CSSProperties; className?: string; iniciaAberto?: boolean; rotulo?: string;
+export function PainelPulso({ titulo, acoes, canto, children, style, className = "", iniciaAberto = true, rotulo, ampliavel = false }: {
+  titulo: ReactNode; acoes?: ReactNode; canto?: ReactNode; children: ReactNode; style?: CSSProperties; className?: string; iniciaAberto?: boolean; rotulo?: string; ampliavel?: boolean;
 }) {
   const [aberto, setAberto] = useState(iniciaAberto);
   return (
@@ -17,6 +18,7 @@ export function PainelPulso({ titulo, acoes, canto, children, style, className =
           {aberto ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
         </button>
         {canto}
+        {ampliavel && aberto && <BotaoTelaCheia />}
       </header>
       {aberto && <div className="pn-painel-corpo">{children}</div>}
     </section>

@@ -1,3 +1,4 @@
+import { BotaoTelaCheia } from "@/pages/cockpit-cliente/BotaoTelaCheia";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Loader2,
@@ -657,6 +658,7 @@ function CartaoGrafico({
           </div>
         </div>
         <div className="flex items-start gap-2">
+          <BotaoTelaCheia className="flex h-6 w-6 items-center justify-center rounded-[5px] text-[color:var(--evo-muted)]" />
           <button
             type="button"
             onClick={onRemover}

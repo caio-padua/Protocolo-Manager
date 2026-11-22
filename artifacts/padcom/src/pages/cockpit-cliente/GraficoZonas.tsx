@@ -117,7 +117,7 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
   const caixa = "screen-3d flex flex-col items-center px-1 py-1.5";
   const cx7 = "text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]";
   return (
-    <PainelPulso titulo={cab} canto={canto} rotulo={`Gráfico de ${titulo}`}>
+    <PainelPulso titulo={cab} canto={canto} ampliavel rotulo={`Gráfico de ${titulo}`}>
       <div className="screen-tv-3d p-2">
         <div ref={rolagem} className="scroll-gold overflow-x-auto pb-1" style={{ overscrollBehaviorX: "contain" }}>
           <div style={{ minWidth: larguraMinima, width: "100%", height: 240 }}>

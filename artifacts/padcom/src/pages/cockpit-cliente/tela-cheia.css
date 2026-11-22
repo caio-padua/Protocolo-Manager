@@ -1,0 +1,5 @@
+/* Gráfico em tela inteira: fundo sólido, rolagem, gráfico alto. */
+.tela-cheia-alvo:fullscreen, .tela-cheia-alvo.tela-cheia-fallback { background: hsl(var(--card)); padding: 20px 24px; overflow: auto; margin: 0; max-width: none; width: 100%; height: 100%; box-sizing: border-box; border-radius: 0; }
+.tela-cheia-alvo.tela-cheia-fallback { position: fixed; inset: 0; z-index: 2147483000; width: auto; height: auto; }
+.tela-cheia-alvo:fullscreen [style*="height: 240px"], .tela-cheia-alvo:fullscreen [style*="height: 260px"], .tela-cheia-alvo:fullscreen .h-56, .tela-cheia-alvo:fullscreen .h-\[46vh\],
+.tela-cheia-alvo.tela-cheia-fallback [style*="height: 240px"], .tela-cheia-alvo.tela-cheia-fallback [style*="height: 260px"], .tela-cheia-alvo.tela-cheia-fallback .h-56 { height: 68vh !important; min-height: 320px; }
