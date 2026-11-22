@@ -3,14 +3,14 @@ import { BookOpen } from "lucide-react";
 import { Numeral } from "@/components/numeral/Numeral";
 import { DiretrizesDialog } from "./DiretrizesDialog";
 import { PainelPulso } from "./PainelPulso";
-import { NIVEIS, faixasGlicemia, faixasPressao, type Nivel } from "./pulso-faixas";
+import { NIVEIS, NIVEIS_FC, faixasFrequencia, faixasGlicemia, faixasPressao, type Nivel } from "./pulso-faixas";
 import "./pulso-niveis.css";
 
 // As duas réguas (pressão e glicemia). Usada na janela do cockpit e na Área do Cliente.
 // O marcador mostra em qual nível está a média atual do cliente. O botão do canto abre os parâmetros e diretrizes.
 
-function Regua({ titulo, unidade, linhas, atual, rotuloAtual, dica, onDiretriz }: {
-  titulo: string; unidade: string; linhas: Array<{ nome: string; valores: Record<Nivel, string> }>;
+function Regua({ titulo, unidade, linhas, atual, rotuloAtual, dica, onDiretriz, niveis = NIVEIS }: {
+  niveis?: Array<{ id: Nivel; nome: string }>; titulo: string; unidade: string; linhas: Array<{ nome: string; valores: Record<Nivel, string> }>;
   atual: Nivel | null; rotuloAtual: string | null; dica: string; onDiretriz: () => void;
 }) {
   return (
@@ -24,7 +24,7 @@ function Regua({ titulo, unidade, linhas, atual, rotuloAtual, dica, onDiretriz }
         <div className="pn-media-atual" data-nivel={atual}>
           <span className="pn-media-atual-rot">Sua média</span>
           <b className="bevel-3d pn-pino-placa"><Numeral peso={800}>{rotuloAtual}</Numeral></b>
-          <span className="bevel-3d pn-chip" data-nivel={atual}>{NIVEIS.find((n) => n.id === atual)?.nome}</span>
+          <span className="bevel-3d pn-chip" data-nivel={atual}>{niveis.find((n) => n.id === atual)?.nome}</span>
         </div>
       )}
       <div className="pn-lista" style={{ ["--pn-n" as string]: linhas.length }}>
@@ -32,11 +32,11 @@ function Regua({ titulo, unidade, linhas, atual, rotuloAtual, dica, onDiretriz }
           <span />
           {linhas.map((l) => <span key={l.nome}>{l.nome.split(" (")[0]}</span>)}
         </div>
-        {NIVEIS.map((n) => (
+        {niveis.map((n) => (
           <div key={n.id} className="pn-lin" data-nivel={n.id} data-atual={atual === n.id}>
             <div className="bevel-3d pn-seg">{n.nome}</div>
             {linhas.map((l) => (
-              <p key={l.nome} className="pn-caixa" aria-label={`${n.nome}, ${l.nome}`}><Numeral peso={700}>{l.valores[n.id]}</Numeral></p>
+              <p key={l.nome} className="pn-caixa" aria-label={`${n.nome}, ${l.nome}`}><Numeral peso={700}>{l.valores[n.id] ?? "—"}</Numeral></p>
             ))}
           </div>
         ))}
@@ -46,11 +46,12 @@ function Regua({ titulo, unidade, linhas, atual, rotuloAtual, dica, onDiretriz }
   );
 }
 
-export function ReguasNiveis({ mediaPA, mediaGlicemia, nivelPA, nivelGlicemia, janelaTexto, escuro = false }: {
-  mediaPA: string | null; mediaGlicemia: string | null; nivelPA: Nivel | null; nivelGlicemia: Nivel | null; janelaTexto: string; escuro?: boolean;
+export function ReguasNiveis({ mediaPA, mediaGlicemia, nivelPA, nivelGlicemia, mediaFC, nivelFC, janelaTexto, escuro = false }: {
+  mediaPA: string | null; mediaGlicemia: string | null; nivelPA: Nivel | null; nivelGlicemia: Nivel | null;
+  mediaFC?: string | null; nivelFC?: Nivel | null; janelaTexto: string; escuro?: boolean;
 }) {
-  const [diretriz, setDiretriz] = useState<"pressao" | "glicemia" | null>(null);
-  const fp = faixasPressao(), fg = faixasGlicemia();
+  const [diretriz, setDiretriz] = useState<"pressao" | "glicemia" | "frequencia" | null>(null);
+  const fp = faixasPressao(), fg = faixasGlicemia(), ff = faixasFrequencia();
   const col = (i: 0 | 1) => Object.fromEntries(NIVEIS.map((n) => [n.id, fp[n.id][i]])) as Record<Nivel, string>;
   return (
     <div className="pn-escopo space-y-7">
@@ -60,6 +61,11 @@ export function ReguasNiveis({ mediaPA, mediaGlicemia, nivelPA, nivelGlicemia, j
       <Regua titulo="Glicemia de jejum" unidade="mg/dL" atual={nivelGlicemia} rotuloAtual={mediaGlicemia ? `${mediaGlicemia} · ${janelaTexto}` : null}
         linhas={[{ nome: "Glicemia", valores: fg }]}
         dica="Valor alto ou muito alto precisa ser confirmado em outro dia, com exame de laboratório." onDiretriz={() => setDiretriz("glicemia")} />
+      {mediaFC !== undefined && (
+        <Regua titulo="Frequência cardíaca" unidade="bpm" atual={nivelFC ?? null} rotuloAtual={mediaFC ? `${mediaFC} · ${janelaTexto}` : null} niveis={NIVEIS_FC}
+          linhas={[{ nome: "Em repouso", valores: ff as Record<Nivel, string> }]}
+          dica="Medida em repouso, sentado e calmo. Alta ou baixa com tontura, falta de ar ou dor no peito: procure atendimento." onDiretriz={() => setDiretriz("frequencia")} />
+      )}
       <DiretrizesDialog tipo={diretriz} escuro={escuro} onClose={() => setDiretriz(null)} />
     </div>
   );

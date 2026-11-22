@@ -9,6 +9,10 @@ export const LIMITES = {
   pressao: { baixa: { s: 90, d: 60 }, muitoBaixa: { s: 80, d: 50 }, alta: { s: 130, d: 80 }, muitoAlta: { s: 160, d: 100 } },
   // Glicemia de jejum (mg/dL).
   glicemia: { muitoBaixa: 54, baixa: 70, alta: 100, muitoAlta: 126 },
+  // Frequência cardíaca em repouso, adultos acordados (bpm). Três níveis, como na Diretriz da Sociedade Brasileira de
+  // Cardiologia sobre laudos de eletrocardiograma (2022): abaixo de 50 = bradicardia sinusal; 50 a 99 = faixa normal;
+  // 100 ou mais = taquicardia sinusal. O nível do meio ("normal") é o "médio" pedido pelo médico.
+  frequencia: { baixa: 50, alta: 100 },
 } as const;
 
 export function nivelPressao(s: number | null, d: number | null): Nivel | null {
@@ -26,6 +30,16 @@ export function nivelGlicemia(g: number | null): Nivel | null {
   const G = LIMITES.glicemia;
   return g < G.muitoBaixa ? "muitobaixo" : g < G.baixa ? "baixo" : g >= G.muitoAlta ? "muitoalto" : g >= G.alta ? "alto" : "normal";
 }
+
+export function nivelFrequencia(f: number | null): Nivel | null {
+  if (f == null) return null;
+  const F = LIMITES.frequencia;
+  return f < F.baixa ? "baixo" : f >= F.alta ? "alto" : "normal";
+}
+
+export const NIVEIS_FC: Array<{ id: Nivel; nome: string }> = [
+  { id: "baixo", nome: "Baixa" }, { id: "normal", nome: "Normal" }, { id: "alto", nome: "Alta" },
+];
 
 export const NIVEIS: Array<{ id: Nivel; nome: string }> = [
   { id: "muitobaixo", nome: "Muito baixo" }, { id: "baixo", nome: "Baixo" }, { id: "normal", nome: "Normal" },
@@ -49,4 +63,8 @@ export function faixasGlicemia(): Record<Nivel, string> {
     muitobaixo: `menor que ${G.muitoBaixa}`, baixo: `${G.muitoBaixa} a ${G.baixa - 1}`, normal: `${G.baixa} a ${G.alta - 1}`,
     alto: `${G.alta} a ${G.muitoAlta - 1}`, muitoalto: `${G.muitoAlta} ou mais`,
   };
+}
+export function faixasFrequencia(): Partial<Record<Nivel, string>> {
+  const F = LIMITES.frequencia;
+  return { baixo: `menor que ${F.baixa}`, normal: `${F.baixa} a ${F.alta - 1}`, alto: `${F.alta} ou mais` };
 }

@@ -5,7 +5,7 @@ import { PainelPulso } from "@/pages/cockpit-cliente/PainelPulso";
 import { Numeral } from "@/components/numeral/Numeral";
 import { ReguasNiveis } from "@/pages/cockpit-cliente/ReguasNiveis";
 import { GraficoZonas, type PontoGrafico, type ZonaGrafico } from "@/pages/cockpit-cliente/GraficoZonas";
-import { LIMITES, NIVEIS, nivelGlicemia, nivelPressao, type Nivel } from "@/pages/cockpit-cliente/pulso-faixas";
+import { LIMITES, NIVEIS, nivelFrequencia, nivelGlicemia, nivelPressao, type Nivel } from "@/pages/cockpit-cliente/pulso-faixas";
 import "@/pages/cockpit-cliente/pulso-niveis.css";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -53,6 +53,12 @@ const zonasDe = (cortes: [number, number, number, number]): ZonaGrafico[] => {
 const P = LIMITES.pressao, G = LIMITES.glicemia;
 const ZONAS_SIS = zonasDe([P.muitoBaixa.s, P.baixa.s, P.alta.s, P.muitoAlta.s]);
 const ZONAS_DIA = zonasDe([P.muitoBaixa.d, P.baixa.d, P.alta.d, P.muitoAlta.d]);
+const F = LIMITES.frequencia;
+const ZONAS_FC: ZonaGrafico[] = [
+  { key: "baixo", name: "Baixa", color: COR_NIVEL.baixo, low: null, high: F.baixa },
+  { key: "normal", name: "Normal", color: COR_NIVEL.normal, low: F.baixa, high: F.alta },
+  { key: "alto", name: "Alta", color: COR_NIVEL.alto, low: F.alta, high: null },
+];
 const ZONAS_GLI = zonasDe([G.muitoBaixa, G.baixa, G.alta, G.muitoAlta]);
 /** Notas de 0 a 10 (mesma escala da janela "como dar a nota"). */
 const ZONAS_NOTA: ZonaGrafico[] = [
@@ -126,12 +132,13 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
     return dados.registros.filter((r) => r.data >= ini);
   }, [dados, dias]);
   const m = useMemo(() => {
-    const s = media(janela.map((r) => r.pressaoSistolica)), d = media(janela.map((r) => r.pressaoDiastolica)), g = media(janela.map((r) => r.glicemia));
+    const s = media(janela.map((r) => r.pressaoSistolica)), d = media(janela.map((r) => r.pressaoDiastolica)), g = media(janela.map((r) => r.glicemia)), f = media(janela.map((r) => r.frequenciaCardiaca));
     return {
       energia: media(janela.map((r) => r.energia)), disposicao: media(janela.map((r) => r.disposicao)), sono: media(janela.map((r) => r.sono)),
       fc: media(janela.map((r) => r.frequenciaCardiaca)), s, d, g,
       pa: s != null && d != null ? `${Math.round(s)}/${Math.round(d)}` : null,
       nPA: nivelPressao(s == null ? null : Math.round(s), d == null ? null : Math.round(d)), nG: nivelGlicemia(g == null ? null : Math.round(g)),
+      nFC: nivelFrequencia(f == null ? null : Math.round(f)),
     };
   }, [janela]);
 
@@ -179,7 +186,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
 
   const cartoes: Array<[string, string, string | null, Nivel | null]> = [
     ["Energia", "0 a 10", um(m.energia), null], ["Disposição", "0 a 10", um(m.disposicao), null], ["Sono", "0 a 10", um(m.sono), null],
-    ["Pressão", "mmHg", m.pa, m.nPA], ["Freq. card.", "bpm", inteiro(m.fc), null], ["Glicemia", "mg/dL", inteiro(m.g), m.nG],
+    ["Pressão", "mmHg", m.pa, m.nPA], ["Freq. card.", "bpm", inteiro(m.fc), m.nFC], ["Glicemia", "mg/dL", inteiro(m.g), m.nG],
   ];
 
   return (
@@ -277,12 +284,12 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
         <p className="mt-3 text-[11px]" style={{ color: "var(--pn-mudo)" }}>Preencha só o que você mediu. Ao salvar de novo no mesmo período, o que já estava registrado é mantido.</p>
       </PainelPulso>
 
-      <ReguasNiveis mediaPA={m.pa} mediaGlicemia={inteiro(m.g)} nivelPA={m.nPA} nivelGlicemia={m.nG} janelaTexto={`${dias} dias`} escuro={escuro} />
+      <ReguasNiveis mediaPA={m.pa} mediaGlicemia={inteiro(m.g)} nivelPA={m.nPA} nivelGlicemia={m.nG} mediaFC={inteiro(m.fc)} nivelFC={m.nFC} janelaTexto={`${dias} dias`} escuro={escuro} />
 
       <GraficoZonas titulo="Pressão máxima (sistólica)" unidade="mmHg" referencia={`normal ${P.baixa.s} a ${P.alta.s - 1}`} pontos={serie((d) => d.sis)} zonas={ZONAS_SIS} />
       <GraficoZonas titulo="Pressão mínima (diastólica)" unidade="mmHg" referencia={`normal ${P.baixa.d} a ${P.alta.d - 1}`} pontos={serie((d) => d.dias)} zonas={ZONAS_DIA} />
       <GraficoZonas titulo="Glicemia" unidade="mg/dL" referencia={`normal ${G.baixa} a ${G.alta - 1}`} pontos={serie((d) => d.gli)} zonas={ZONAS_GLI} />
-      <GraficoZonas titulo="Frequência cardíaca" unidade="bpm" pontos={serie((d) => d.fc)} zonas={null} />
+      <GraficoZonas titulo="Frequência cardíaca" unidade="bpm" referencia={`normal ${F.baixa} a ${F.alta - 1}`} pontos={serie((d) => d.fc)} zonas={ZONAS_FC} />
       <GraficoZonas titulo="Energia" unidade="nota 0 a 10" pontos={serie((d) => d.en)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
       <GraficoZonas titulo="Disposição" unidade="nota 0 a 10" pontos={serie((d) => d.di)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
       <GraficoZonas titulo="Sono" unidade="nota 0 a 10" pontos={serie((d) => d.so)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
@@ -316,7 +323,7 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
                       <td>{r && r.pressaoSistolica != null && r.pressaoDiastolica != null
                         ? <Medida v={`${r.pressaoSistolica}/${r.pressaoDiastolica}`} nivel={nivelPressao(r.pressaoSistolica, r.pressaoDiastolica)} /> : <span className="vazio">—</span>}</td>
                       <td>{r && r.glicemia != null ? <Medida v={String(r.glicemia)} nivel={nivelGlicemia(r.glicemia)} /> : <span className="vazio">—</span>}</td>
-                      <td>{nota(r?.frequenciaCardiaca)}</td>
+                      <td>{r && r.frequenciaCardiaca != null ? <Medida v={String(r.frequenciaCardiaca)} nivel={nivelFrequencia(r.frequenciaCardiaca)} /> : <span className="vazio">—</span>}</td>
                       <td>{nota(r?.energia)}</td>
                       <td>{nota(r?.disposicao)}</td>
                       <td>{nota(r?.sono)}</td>
