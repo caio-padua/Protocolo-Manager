@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { PainelPulso } from "@/pages/cockpit-cliente/PainelPulso";
 import { Numeral } from "@/components/numeral/Numeral";
 import { ReguasNiveis } from "@/pages/cockpit-cliente/ReguasNiveis";
+import { GraficoZonas, type PontoGrafico, type ZonaGrafico } from "@/pages/cockpit-cliente/GraficoZonas";
 import { LIMITES, NIVEIS, nivelGlicemia, nivelPressao, type Nivel } from "@/pages/cockpit-cliente/pulso-faixas";
 import "@/pages/cockpit-cliente/pulso-niveis.css";
 
@@ -37,58 +38,28 @@ function Medida({ v, nivel }: { v: string | null; nivel: Nivel | null }) {
   return <span className="pn-medida" data-nivel={nivel && nivel !== "normal" ? nivel : undefined} title={nivel ? NOME_NIVEL[nivel] : undefined}><Numeral peso={700}>{v}</Numeral></span>;
 }
 
-/** Linha do tempo simples (sem biblioteca): pontos por dia, datas embaixo e a faixa "normal" sombreada. */
-function Linha({ titulo, unidade, datas, series, faixa }: {
-  titulo: string; unidade: string; datas: string[]; series: Array<{ nome: string; cor: string; pontos: Array<number | null> }>; faixa?: [number, number];
-}) {
-  const todos = series.flatMap((s) => s.pontos).filter((n): n is number => n != null);
-  const cab = <>{titulo} <span style={{ color: "var(--pn-mudo)", letterSpacing: ".08em" }}>· {unidade}</span></>;
-  if (todos.length < 2) return (
-    <PainelPulso titulo={cab}><p className="py-3 text-center text-xs" style={{ color: "var(--pn-mudo)" }}>Ainda não há registros suficientes para o gráfico.</p></PainelPulso>
-  );
-  const lo = Math.min(...todos, faixa?.[0] ?? Infinity) - 5, hi = Math.max(...todos, faixa?.[1] ?? -Infinity) + 5;
-  const W = 320, H = 150, TOPO = 8, BASE = 24, ESQ = 30, DIR = 8, n = datas.length;
-  const x = (i: number) => (n === 1 ? (ESQ + W - DIR) / 2 : ESQ + (i / (n - 1)) * (W - ESQ - DIR));
-  const y = (v: number) => H - BASE - ((v - lo) / (hi - lo)) * (H - BASE - TOPO);
-  const passo = Math.max(1, Math.ceil(n / 6));
-  const ticks = datas.map((_, i) => i).filter((i) => (n - 1 - i) % passo === 0);
-  const niveisY = [lo + (hi - lo) * 0.1, (lo + hi) / 2, hi - (hi - lo) * 0.1].map((v) => Math.round(v));
-  return (
-    <PainelPulso titulo={cab} rotulo={`Gráfico de ${titulo}`}>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`Gráfico de ${titulo} por dia`} style={{ color: "var(--pn-tinta)" }}>
-        {faixa && <rect x={ESQ} y={y(faixa[1])} width={W - ESQ - DIR} height={Math.max(0, y(faixa[0]) - y(faixa[1]))} fill="var(--n-n)" opacity=".24" />}
-        {niveisY.map((v) => (
-          <g key={v}>
-            <line x1={ESQ} x2={W - DIR} y1={y(v)} y2={y(v)} stroke="currentColor" opacity=".22" strokeDasharray="3 4" />
-            <text x={ESQ - 4} y={y(v) + 3} textAnchor="end" fontSize="9.5" fontWeight="700" fill="currentColor" opacity=".85">{v}</text>
-          </g>
-        ))}
-        <line x1={ESQ} x2={W - DIR} y1={H - BASE} y2={H - BASE} stroke="currentColor" opacity=".35" />
-        {ticks.map((i) => (
-          <g key={datas[i]}>
-            <line x1={x(i)} x2={x(i)} y1={H - BASE} y2={H - BASE + 3} stroke="currentColor" opacity=".5" />
-            <text x={x(i)} y={H - 8} textAnchor={i === n - 1 && n > 1 ? "end" : "middle"} fontSize="10" fontWeight="700" fill="currentColor" opacity=".95">{dataCurta(datas[i]!)}</text>
-          </g>
-        ))}
-        {series.map((s) => {
-          const pts = s.pontos.map((v, i) => (v == null ? null : [x(i), y(v)] as const));
-          let ativo = false;
-          const d = pts.map((p) => { if (!p) { ativo = false; return ""; } const t = `${ativo ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`; ativo = true; return t; }).join("");
-          return (
-            <g key={s.nome}>
-              <path d={d} fill="none" stroke={s.cor} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
-              {pts.map((p, i) => (p ? <circle key={i} cx={p[0]} cy={p[1]} r="3.6" fill={s.cor} stroke="#fff" strokeWidth="1.5" /> : null))}
-            </g>
-          );
-        })}
-      </svg>
-      <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10.5px]" style={{ color: "var(--pn-mudo)" }}>
-        {series.map((s) => <span key={s.nome} className="inline-flex items-center gap-1.5"><i className="inline-block h-2 w-2 rounded-full" style={{ background: s.cor }} />{s.nome}</span>)}
-        {faixa && <span className="inline-flex items-center gap-1.5"><i className="inline-block h-2 w-3 rounded-sm" style={{ background: "var(--n-n)", opacity: 0.5 }} />faixa normal</span>}
-      </p>
-    </PainelPulso>
-  );
-}
+const COR_NIVEL = { muitobaixo: "#1e40af", baixo: "#0891b2", normal: "#15803d", alto: "#d97706", muitoalto: "#dc2626" } as const;
+/** Cinco faixas coloridas do fundo do gráfico, a partir dos limites oficiais (fonte única: pulso-faixas). */
+const zonasDe = (cortes: [number, number, number, number]): ZonaGrafico[] => {
+  const [a, b, c, d] = cortes;
+  return [
+    { key: "muitobaixo", name: "Muito baixo", color: COR_NIVEL.muitobaixo, low: null, high: a },
+    { key: "baixo", name: "Baixo", color: COR_NIVEL.baixo, low: a, high: b },
+    { key: "normal", name: "Normal", color: COR_NIVEL.normal, low: b, high: c },
+    { key: "alto", name: "Alto", color: COR_NIVEL.alto, low: c, high: d },
+    { key: "muitoalto", name: "Muito alto", color: COR_NIVEL.muitoalto, low: d, high: null },
+  ];
+};
+const P = LIMITES.pressao, G = LIMITES.glicemia;
+const ZONAS_SIS = zonasDe([P.muitoBaixa.s, P.baixa.s, P.alta.s, P.muitoAlta.s]);
+const ZONAS_DIA = zonasDe([P.muitoBaixa.d, P.baixa.d, P.alta.d, P.muitoAlta.d]);
+const ZONAS_GLI = zonasDe([G.muitoBaixa, G.baixa, G.alta, G.muitoAlta]);
+/** Notas de 0 a 10 (mesma escala da janela "como dar a nota"). */
+const ZONAS_NOTA: ZonaGrafico[] = [
+  { key: "n1", name: "Muito mal", color: "#dc2626", low: null, high: 3 }, { key: "n2", name: "Ruim", color: "#d97706", low: 3, high: 5 },
+  { key: "n3", name: "Regular", color: "#ca8a04", low: 5, high: 7 }, { key: "n4", name: "Bom", color: "#65a30d", low: 7, high: 9 },
+  { key: "n5", name: "Ótimo", color: "#15803d", low: 9, high: null },
+];
 
 const ESCALA = [
   { de: 0, ate: 2, nome: "Muito mal", cor: "muitoalto" }, { de: 3, ate: 4, nome: "Ruim", cor: "alto" }, { de: 5, ate: 6, nome: "Regular", cor: "baixo" },
@@ -170,7 +141,8 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
     for (let i = dias - 1; i >= 0; i--) dd.push(somaDias(dados.hoje, -i));
     return dd.map((dia) => {
       const l = janela.filter((r) => r.data === dia);
-      return { dia, sis: media(l.map((r) => r.pressaoSistolica)), dias: media(l.map((r) => r.pressaoDiastolica)), gli: media(l.map((r) => r.glicemia)), reg: l };
+      return { dia, sis: media(l.map((r) => r.pressaoSistolica)), dias: media(l.map((r) => r.pressaoDiastolica)), gli: media(l.map((r) => r.glicemia)), fc: media(l.map((r) => r.frequenciaCardiaca)),
+        en: media(l.map((r) => r.energia)), di: media(l.map((r) => r.disposicao)), so: media(l.map((r) => r.sono)), reg: l };
     });
   }, [dados, dias, janela]);
   const historico = useMemo(() => [...porDia].reverse().filter((d) => d.reg.length > 0).slice(0, 30), [porDia]);
@@ -200,6 +172,10 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
     <div className="concave-3d flex items-center gap-2 rounded-lg px-4 py-4 text-sm text-destructive" role="alert"><AlertCircle className="h-4 w-4 shrink-0" />{erro}</div>
   );
   if (!dados) return <div className="flex justify-center py-12 text-muted-foreground" role="status"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+
+  const dataGrafico = (iso: string) => { const [a, m, d] = iso.split("-"); return `${d}/${m}/${a!.slice(2)}`; };
+  const serie = (f: (d: (typeof porDia)[number]) => number | null): PontoGrafico[] =>
+    porDia.flatMap((d) => { const v = f(d); return v == null ? [] : [{ iso: d.dia, data: dataGrafico(d.dia), valor: Math.round(v * 10) / 10 }]; });
 
   const cartoes: Array<[string, string, string | null, Nivel | null]> = [
     ["Energia", "0 a 10", um(m.energia), null], ["Disposição", "0 a 10", um(m.disposicao), null], ["Sono", "0 a 10", um(m.sono), null],
@@ -303,10 +279,13 @@ export default function MeuPulsoCliente({ token, escuro = false }: { token: stri
 
       <ReguasNiveis mediaPA={m.pa} mediaGlicemia={inteiro(m.g)} nivelPA={m.nPA} nivelGlicemia={m.nG} janelaTexto={`${dias} dias`} escuro={escuro} />
 
-      <Linha titulo="Pressão por dia" unidade="mmHg" datas={porDia.map((d) => d.dia)} faixa={[LIMITES.pressao.baixa.d, LIMITES.pressao.alta.s - 1]}
-        series={[{ nome: "Máxima", cor: "#1e40af", pontos: porDia.map((d) => d.sis) }, { nome: "Mínima", cor: "#0891b2", pontos: porDia.map((d) => d.dias) }]} />
-      <Linha titulo="Glicemia por dia" unidade="mg/dL" datas={porDia.map((d) => d.dia)} faixa={[LIMITES.glicemia.baixa, LIMITES.glicemia.alta - 1]}
-        series={[{ nome: "Glicemia", cor: "#d97706", pontos: porDia.map((d) => d.gli) }]} />
+      <GraficoZonas titulo="Pressão máxima (sistólica)" unidade="mmHg" referencia={`normal ${P.baixa.s} a ${P.alta.s - 1}`} pontos={serie((d) => d.sis)} zonas={ZONAS_SIS} />
+      <GraficoZonas titulo="Pressão mínima (diastólica)" unidade="mmHg" referencia={`normal ${P.baixa.d} a ${P.alta.d - 1}`} pontos={serie((d) => d.dias)} zonas={ZONAS_DIA} />
+      <GraficoZonas titulo="Glicemia" unidade="mg/dL" referencia={`normal ${G.baixa} a ${G.alta - 1}`} pontos={serie((d) => d.gli)} zonas={ZONAS_GLI} />
+      <GraficoZonas titulo="Frequência cardíaca" unidade="bpm" pontos={serie((d) => d.fc)} zonas={null} />
+      <GraficoZonas titulo="Energia" unidade="nota 0 a 10" pontos={serie((d) => d.en)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
+      <GraficoZonas titulo="Disposição" unidade="nota 0 a 10" pontos={serie((d) => d.di)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
+      <GraficoZonas titulo="Sono" unidade="nota 0 a 10" pontos={serie((d) => d.so)} zonas={ZONAS_NOTA} dominioFixo={[0, 10]} />
 
       <PainelPulso titulo="Meus registros" rotulo="Meus registros">
         {historico.length === 0 ? (
