@@ -24,3 +24,7 @@ Todo botão "?" do gráfico de antropometria deve mostrar, nesta ordem:
 ## Pendências conhecidas
 - Faixas do gráfico usam pontos de corte gerais de adultos. Para idosos (60 anos ou mais) o Ministério da Saúde adota pontos de corte próprios (SISVAN); a tela ainda não os aplica e avisa na ajuda.
 - Cintura, quadril, dobras e relação cintura/quadril ainda não têm faixa colorida no gráfico.
+
+## Molde visual (22/11/2026)
+O layout da janela é o do "?" do Pulso Diário, copiado igual. Molde escrito em
+`.agents/skills/skill-layout-paxter/references/botao-ajuda-interrogacao.md`. Não criar layout próprio.

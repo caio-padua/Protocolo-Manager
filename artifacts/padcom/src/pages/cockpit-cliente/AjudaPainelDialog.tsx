@@ -1,26 +1,40 @@
 import { useState, type ReactNode } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { BotaoAjuda } from "./BotaoAjuda";
+import { JanelaAjuda } from "./JanelaAjuda";
+import { ReferenciaLista } from "./ReferenciaLista";
+import { NIVEIS } from "./pulso-faixas";
+import { REFERENCIAS } from "./pulso-referencias";
 import "./pulso-niveis.css";
 
-// "?" dos painéis que resumem os outros (médias e tabela de registros). Não tem artigo próprio:
-// as referências nacional e internacional ficam no "?" de cada medida, e a janela avisa isso.
+const SENTIDO: Record<string, string> = {
+  muitobaixo: "Bem abaixo do esperado.", baixo: "Abaixo do esperado.", normal: "Dentro do esperado.",
+  alto: "Acima do esperado.", muitoalto: "Bem acima do esperado.",
+};
+const TODAS = (["pressao", "frequencia", "glicemia", "energia", "libido", "sono"] as const).flatMap((t) => REFERENCIAS[t]);
+
+// "?" dos painéis que resumem os outros (médias e tabela de registros). Mesmo molde de todo "?":
+// botões coloridos em cima, explicação no meio e as referências bibliográficas das medidas embaixo.
 export function AjudaPainelDialog({ titulo, escuro, children }: { titulo: string; escuro: boolean; children: ReactNode }) {
   const [aberto, setAberto] = useState(false);
   return (
     <>
       <BotaoAjuda aberto={aberto} onClick={() => setAberto((a) => !a)} rotulo={titulo} />
       {aberto && (
-        <Dialog open onOpenChange={(o) => { if (!o) setAberto(false); }}>
-          <DialogContent className={`${escuro ? "dark " : ""}pn-escopo !top-[8vh] !translate-y-0 max-h-[84vh] w-[min(94vw,480px)] max-w-none overflow-y-auto border border-border bg-background p-5`} style={{ color: "var(--pn-tinta)" }}>
-            <DialogTitle className="pr-8 text-base font-black uppercase tracking-wide">{titulo}</DialogTitle>
-            <DialogDescription className="sr-only">Como ler este painel</DialogDescription>
-            <h4 className="pn-sec-rotulo mt-4">Como ler</h4>
-            <div className="grid gap-3 pn-texto">{children}</div>
-            <h4 className="pn-sec-rotulo mt-5">Referências</h4>
-            <p className="pn-texto">As referências científicas, nacional e internacional, estão no "?" de cada medida: Pressão arterial, Glicemia, Frequência cardíaca, Energia, Libido e Sono.</p>
-          </DialogContent>
-        </Dialog>
+        <JanelaAjuda onClose={() => setAberto(false)} escuro={escuro} titulo={titulo}
+          rotuloTopo="Níveis"
+          topo={
+            <ul className="space-y-2.5">
+              {NIVEIS.map((n) => (
+                <li key={n.id} className="grid grid-cols-[84px_1fr] items-center gap-3">
+                  <span className="bevel-3d pn-chip text-center" data-nivel={n.id}>{n.nome}</span>
+                  <span className="pn-texto">{SENTIDO[n.id]}</span>
+                </li>
+              ))}
+            </ul>
+          }
+          rotuloPorque="Como ler e por que medimos"
+          porque={<div className="grid gap-3 pn-texto">{children}</div>}
+          referencias={<ReferenciaLista itens={TODAS} />} />
       )}
     </>
   );

@@ -3,6 +3,7 @@ import { CartesianGrid, Line, LineChart, ReferenceArea, ResponsiveContainer, Too
 import { PainelPulso } from "./PainelPulso";
 import { BotaoAjudaComJanela } from "./BotaoAjuda";
 import type { TipoReferencia } from "./pulso-referencias";
+import { GRAFICO } from "./graficoPadrao";
 import "./pulso-niveis.css";
 
 // Gráfico do Meu Pulso no MESMO padrão do gráfico de exames do Pax Care (EvolucaoExamesPanel > CartaoGrafico):
@@ -39,13 +40,12 @@ const medir = (rotulos: string[]): number => {
 };
 
 const MARGEM = 1 / 3;
-const LARGURA_POR_PONTO = 56;
 
-export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, dominioFixo, vazio, ajuda, escuro = false, cantoExtra, rodape, formatarValor, rotuloContagem = "dias", semSituacao = "—", padraoExames = false }: {
+export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, dominioFixo, vazio, ajuda, escuro = false, cantoExtra, rodape, formatarValor, rotuloContagem = "dias", semSituacao = "—" }: {
   ajuda?: TipoReferencia; escuro?: boolean;
   titulo: string; unidade: string; referencia?: string; pontos: PontoGrafico[]; zonas: ZonaGrafico[] | null;
   dominioFixo?: [number, number]; vazio?: string; cantoExtra?: ReactNode; rodape?: ReactNode;
-  formatarValor?: (valor: number) => string; rotuloContagem?: string; semSituacao?: string; padraoExames?: boolean;
+  formatarValor?: (valor: number) => string; rotuloContagem?: string; semSituacao?: string;
 }) {
   const data = useMemo(() => pontos.map((p) => {
     const z = zonaDe(p.valor, zonas);
@@ -92,7 +92,7 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
     ];
   }, [data, ultimoX]);
 
-  const larguraMinima = Math.round((ultimoX + 2 * MARGEM) * (padraoExames ? 64 : LARGURA_POR_PONTO)) + 56;
+  const larguraMinima = Math.round((ultimoX + 2 * MARGEM) * GRAFICO.larguraPorPonto) + 56;
   const rolagem = useRef<HTMLDivElement | null>(null);
   useEffect(() => { const el = rolagem.current; if (el) el.scrollLeft = el.scrollWidth; }, [serie.length]);
   const fmtEixo = (v: number) => (dominio.max - dominio.min >= 10 ? String(Math.round(v)) : v.toFixed(1).replace(".", ","));
@@ -101,6 +101,17 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
     [dominio, data]);
 
   const [ponteiro, setPonteiro] = useState<(typeof data)[number] | null>(null);
+
+  // Teclado (padrão do gráfico): setas esquerda/direita percorrem os pontos; Esc limpa. Mesmo efeito do mouse.
+  const aoTeclar = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") { setPonteiro(null); return; }
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    if (!data.length) return;
+    const i = ponteiro ? data.indexOf(ponteiro) : -1;
+    const alvo = i < 0 ? data.length - 1 : Math.min(data.length - 1, Math.max(0, i + (e.key === "ArrowLeft" ? -1 : 1)));
+    setPonteiro(data[alvo] ?? null);
+  };
   const ativo = ponteiro ?? ultimo;
   const corAtiva = ativo?.cor ?? MUTED;
   const rotuloAtivo = ativo?.zona ? ativo.zona.toUpperCase() : semSituacao;
@@ -120,8 +131,8 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
   return (
     <PainelPulso titulo={cab} canto={canto} ampliavel rotulo={`Gráfico de ${titulo}`}>
       <div className="screen-tv-3d p-2">
-        <div ref={rolagem} className="scroll-gold overflow-x-auto pb-1" style={{ overscrollBehaviorX: "contain" }}>
-          <div style={{ minWidth: larguraMinima, width: "100%", height: padraoExames ? 260 : 240 }}>
+        <div tabIndex={0} role="group" aria-label="Gráfico: use as setas esquerda e direita para percorrer os pontos" onKeyDown={aoTeclar} ref={rolagem} className="scroll-gold overflow-x-auto pb-1" style={{ overscrollBehaviorX: "contain" }}>
+          <div style={{ minWidth: larguraMinima, width: "100%", height: GRAFICO.alturaPx }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={serie} margin={{ top: 12, right: 12, left: 0, bottom: 4 }}
                 onMouseMove={(st) => {
@@ -132,7 +143,7 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
                 onMouseLeave={() => setPonteiro(null)}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(22,41,74,0.10)" />
                 {zonas?.map((z) => (
-                  <ReferenceArea key={z.key} y1={z.low ?? dominio.min} y2={z.high ?? dominio.max} fill={z.color} fillOpacity={padraoExames ? 0.16 : 0.18} stroke={z.color} strokeOpacity={padraoExames ? 0.22 : 0.25} />
+                  <ReferenceArea key={z.key} y1={z.low ?? dominio.min} y2={z.high ?? dominio.max} fill={z.color} fillOpacity={GRAFICO.faixaPreenchimento} stroke={z.color} strokeOpacity={GRAFICO.faixaContorno} />
                 ))}
                 <XAxis type="number" dataKey="x" domain={[-MARGEM, ultimoX + MARGEM]} ticks={data.map((_, i) => i)}
                   tickFormatter={(i: number) => data[Math.round(i)]?.data ?? ""} interval={0}
@@ -140,20 +151,23 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
                 <YAxis tick={{ fill: MUTED, fontSize: 10 }} tickLine={false} axisLine={{ stroke: "rgba(22,41,74,0.15)" }}
                   width={larguraEixoY} tickSize={2} tickMargin={2} tickFormatter={fmtEixo} domain={[dominio.min, dominio.max]} />
                 <Tooltip content={() => null} cursor={{ stroke: "rgba(184,146,77,0.55)", strokeDasharray: "4 3" }} />
-                <Line type="linear" dataKey="ext" stroke={NAVY} strokeOpacity={0.35} strokeWidth={padraoExames ? 1.5 : 1} strokeDasharray="4 4" isAnimationActive={false} activeDot={false}
+                <Line type="linear" dataKey="ext" stroke={NAVY} strokeOpacity={0.35} strokeWidth={GRAFICO.linhaFantasma} strokeDasharray="4 4" isAnimationActive={false} activeDot={false}
                   dot={(props: { cx?: number; cy?: number; payload?: Ponto; index?: number }) => {
                     const { cx, cy, payload, index } = props;
                     if (cx == null || cy == null || !payload?.fantasma) return <g key={`f-${index}`} />;
-                    return <rect key={`f-${index}`} x={cx - 4} y={cy - 4} width={8} height={8} fill="none" stroke={NAVY} strokeOpacity={0.45} strokeWidth={1} strokeDasharray="2 2" />;
+                    return <rect key={`f-${index}`} x={cx - GRAFICO.fantasmaLado / 2} y={cy - GRAFICO.fantasmaLado / 2} width={GRAFICO.fantasmaLado} height={GRAFICO.fantasmaLado} fill="none" stroke={NAVY} strokeOpacity={0.45} strokeWidth={1} strokeDasharray="2 2" />;
                   }} />
-                <Line type="linear" dataKey="valor" stroke={NAVY} strokeWidth={padraoExames ? 2.5 : 1.25} strokeLinejoin="miter" strokeLinecap="butt" strokeMiterlimit={10} isAnimationActive={false}
+                <Line type="linear" dataKey="valor" stroke={NAVY} strokeWidth={GRAFICO.linhaPrincipal} strokeLinejoin="miter" strokeLinecap="butt" strokeMiterlimit={10} isAnimationActive={false}
                   dot={(props: { cx?: number; cy?: number; payload?: Ponto; index?: number }) => {
                     const { cx, cy, payload, index } = props;
                     if (cx == null || cy == null || !payload || payload.fantasma || payload.valor == null) return <g key={`d-${index}`} />;
+                    const marcado = ponteiro != null && index != null && data[index - 1] === ponteiro;
+
                     const txt = formatarValor ? formatarValor(payload.valor) : rotuloPonto(payload.valor), w = txt.length * 5.8 + 10, h = 15;
                     const acima = cy - h - 8 >= 0, ry = acima ? cy - h - 7 : cy + 7;
                     return (
                       <g key={`d-${index}`} pointerEvents="none">
+                        {marcado && <rect x={cx - GRAFICO.ativoLado / 2} y={cy - GRAFICO.ativoLado / 2} width={GRAFICO.ativoLado} height={GRAFICO.ativoLado} fill="none" stroke={GRAFICO.ativoCor} strokeWidth={GRAFICO.ativoContorno} />}
                         <rect x={cx - w / 2} y={ry} width={w} height={h} fill={payload.cor} fillOpacity={0.95} stroke="#fff" strokeWidth={1} />
                         <text x={cx} y={ry + h / 2 + 3.2} textAnchor="middle" fontSize={9.5} fontWeight={700} fill={textoSobre(payload.cor)}>{txt}</text>
                         </g>
@@ -162,7 +176,7 @@ export function GraficoZonas({ titulo, unidade, referencia, pontos, zonas, domin
                   activeDot={(props: { cx?: number; cy?: number }) => {
                     const { cx, cy } = props;
                     if (cx == null || cy == null) return <g />;
-                    return <rect x={cx - 5} y={cy - 5} width={10} height={10} fill="none" stroke="#000" strokeWidth={1.5} />;
+                    return <rect x={cx - GRAFICO.ativoLado / 2} y={cy - GRAFICO.ativoLado / 2} width={GRAFICO.ativoLado} height={GRAFICO.ativoLado} fill="none" stroke={GRAFICO.ativoCor} strokeWidth={GRAFICO.ativoContorno} />;
                   }} />
               </LineChart>
             </ResponsiveContainer>

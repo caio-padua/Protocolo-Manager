@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { JanelaAjuda } from "./JanelaAjuda";
 import { ReferenciaLista } from "./ReferenciaLista";
 import { EscalaDialog } from "./NotaDialog";
 import type { TipoReferencia } from "./pulso-referencias";
@@ -13,23 +13,11 @@ export function DiretrizesDialog({ tipo, escuro, onClose }: { tipo: TipoReferenc
   const freq = tipo === "frequencia";
   const fp = faixasPressao(), fg = faixasGlicemia(), ff = faixasFrequencia();
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className={`${escuro ? "dark " : ""}pn-escopo !top-[6vh] !translate-y-0 max-h-[88vh] w-[min(94vw,560px)] max-w-none overflow-y-auto border border-border bg-background p-5 text-foreground`}
-        style={{ color: "var(--pn-tinta)" }}>
-        <div className="flex items-center gap-3 pr-8">
-          <div>
-            <DialogTitle className="text-base font-black uppercase tracking-wide">{pressao ? "Pressão arterial: parâmetros" : freq ? "Frequência cardíaca: parâmetros" : "Glicemia de jejum: parâmetros"}</DialogTitle>
-            <DialogDescription className="pn-texto" style={{ color: "var(--pn-mudo)" }}>Adultos. Valores usados por este consultório.</DialogDescription>
-          </div>
-        </div>
-        <h4 className="pn-sec-rotulo mt-4">Por que medimos</h4>
-        <p className="pn-texto">{pressao
-          ? "A pressão alta costuma não dar sintoma e, com o tempo, lesa o coração, os rins e o cérebro. Medir em casa mostra como ela se comporta no dia a dia."
-          : freq
-            ? "A frequência cardíaca em repouso mostra como o coração responde ao corpo, ao estresse, aos remédios e ao condicionamento físico."
-            : "A glicemia de jejum mostra como o corpo controla o açúcar. Acompanhar ajuda a perceber o pré-diabetes e o diabetes cedo."}</p>
-        <div className="mt-5"><ReferenciaLista tipo={tipo} /></div>
-        <h4 className="pn-sec-rotulo mt-5">Níveis</h4>
+    <JanelaAjuda onClose={onClose} escuro={escuro}
+      titulo={pressao ? "Pressão arterial: parâmetros" : freq ? "Frequência cardíaca: parâmetros" : "Glicemia de jejum: parâmetros"}
+      subtitulo="Adultos. Valores usados por este consultório."
+      rotuloTopo="Níveis"
+      topo={<>
         <table className="pn-tab" style={{ tableLayout: "auto" }}>
           <thead><tr><th style={{ textAlign: "left" }}>Nível</th>{pressao ? <><th>Máxima (mmHg)</th><th>Mínima (mmHg)</th></> : <th>{freq ? "bpm" : "mg/dL"}</th>}</tr></thead>
           <tbody>
@@ -41,7 +29,15 @@ export function DiretrizesDialog({ tipo, escuro, onClose }: { tipo: TipoReferenc
             ))}
           </tbody>
         </table>
-        <h4 className="pn-sec-rotulo mt-5">Para lembrar</h4>
+      </>}
+      porque={<>
+        <p className="pn-texto">{pressao
+          ? "A pressão alta costuma não dar sintoma e, com o tempo, lesa o coração, os rins e o cérebro. Medir em casa mostra como ela se comporta no dia a dia."
+          : freq
+            ? "A frequência cardíaca em repouso mostra como o coração responde ao corpo, ao estresse, aos remédios e ao condicionamento físico."
+            : "A glicemia de jejum mostra como o corpo controla o açúcar. Acompanhar ajuda a perceber o pré-diabetes e o diabetes cedo."}</p>
+      </>}
+      lembrar={<>
         <ul className="pn-lista-pontos">
           {pressao ? (
             <>
@@ -68,7 +64,7 @@ export function DiretrizesDialog({ tipo, escuro, onClose }: { tipo: TipoReferenc
             </>
           )}
         </ul>
-      </DialogContent>
-    </Dialog>
+      </>}
+      referencias={<ReferenciaLista tipo={tipo} />} />
   );
 }

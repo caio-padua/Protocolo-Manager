@@ -76,7 +76,12 @@ const ZONAS_LIBIDO: ZonaGrafico[] = [
   { key: "l3", name: "Moderada", color: "#ca8a04", low: 5, high: 7 }, { key: "l4", name: "Boa", color: "#65a30d", low: 7, high: 9 },
   { key: "l5", name: "Alta", color: "#15803d", low: 9, high: null },
 ];
-const CAMPOS_NOTA = [["energia", "Energia"], ["libido", "Libido"], ["sono", "Sono"]] as const;
+const ROTULO_NOTA = { energia: "Energia", libido: "Libido", sono: "Sono" } as const;
+type CampoNota = keyof typeof ROTULO_NOTA;
+/** Uma nota por período (regra do Dr. Caio, 22/11/2026): manhã = sono, tarde = energia, noite = libido. */
+const NOTA_DO_PERIODO: Record<Reg["periodo"], CampoNota> = { manha: "sono", tarde: "energia", noite: "libido" };
+const ARTIGO: Record<CampoNota, string> = { sono: "O", energia: "A", libido: "A" };
+const QUANDO: Record<CampoNota, string> = { sono: "de manhã", energia: "à tarde", libido: "à noite" };
 
 /** Data de hoje e período do dia no fuso de São Paulo (usado quando o consultório abre o pulso de um cliente). */
 const agoraSP = (): { hoje: string; periodoAgora: Reg["periodo"] } => {
@@ -143,8 +148,10 @@ export default function MeuPulsoCliente({ token = "", clienteId, escuro = false 
   const num = (s: string) => (s.trim() === "" ? null : Number(s.replace(",", ".")));
   const enviar = async () => {
     setResultado(null);
+    // Só vão as notas que a tela perguntou neste período (a do período + as pendentes).
+    const mostradas = Object.fromEntries(perguntas.map((q) => [q.k, notas[q.k]]));
     const body = {
-      periodo, pressaoSistolica: num(f.sis), pressaoDiastolica: num(f.dia), frequenciaCardiaca: num(f.fc), glicemia: num(f.gli), ...notas,
+      periodo, pressaoSistolica: num(f.sis), pressaoDiastolica: num(f.dia), frequenciaCardiaca: num(f.fc), glicemia: num(f.gli), ...mostradas,
     };
     if (Object.values(body).some((v) => typeof v === "number" && !Number.isInteger(v))) { setResultado({ ok: false, texto: "Use apenas números inteiros." }); return; }
     setEnviando(true);
@@ -165,6 +172,17 @@ export default function MeuPulsoCliente({ token = "", clienteId, escuro = false 
     <div className="concave-3d flex items-center gap-2 rounded-lg px-4 py-4 text-sm text-destructive" role="alert"><AlertCircle className="h-4 w-4 shrink-0" />{erro}</div>
   );
   if (!dados) return <div className="flex justify-center py-12 text-muted-foreground" role="status"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+
+  // Qual nota perguntar agora: a do período + as que ficaram sem resposta (sono até a noite; energia à noite; libido de ontem à noite, pergunta-se de manhã).
+  const perguntas: Array<{ k: CampoNota; pendente: string | null }> = (() => {
+    if (!periodo) return [];
+    const tem = (d: string, c: CampoNota, per?: Reg["periodo"]) => dados.registros.some((r) => r.data === d && r[c] != null && (!per || r.periodo === per));
+    const lista: Array<{ k: CampoNota; pendente: string | null }> = [{ k: NOTA_DO_PERIODO[periodo], pendente: null }];
+    if (periodo !== "manha" && !tem(dados.hoje, "sono")) lista.push({ k: "sono", pendente: "Você não respondeu sobre o sono de manhã. Responda agora." });
+    if (periodo === "noite" && !tem(dados.hoje, "energia")) lista.push({ k: "energia", pendente: "Você não respondeu sobre a energia à tarde. Responda agora." });
+    if (periodo === "manha" && !tem(somaDias(dados.hoje, -1), "libido") && !tem(dados.hoje, "libido", "manha")) lista.push({ k: "libido", pendente: "Você não respondeu sobre a libido ontem à noite. Responda agora." });
+    return lista;
+  })();
 
   const dataGrafico = (iso: string) => { const [a, m, d] = iso.split("-"); return `${d}/${m}/${a!.slice(2)}`; };
   const serie = (f: (d: (typeof porDia)[number]) => number | null): PontoGrafico[] =>
@@ -250,20 +268,21 @@ export default function MeuPulsoCliente({ token = "", clienteId, escuro = false 
           <BotaoAjudaComJanela tipo="glicemia" rotulo="Glicemia" escuro={escuro} />
         </div>
 
-        {CAMPOS_NOTA.map(([k, rot]) => (
+        {perguntas.map(({ k, pendente }) => { const rot = ROTULO_NOTA[k]; return (
           <div key={k} className="pn-grupo-notas">
             <div className="pn-notas-cab">
               <span className="pn-notas-tit"><b>{rot}</b><i className="pn-apelido">{SIGNIFICADO[k]!.apelido}</i></span>
               <span className="ml-auto text-[11px]" style={{ color: "var(--pn-mudo)" }}>{notas[k] == null ? "toque na nota" : <>nota <Numeral peso={700}>{String(notas[k])}</Numeral></>}</span>
               <BotaoAjuda aberto={escala === k} onClick={() => setEscala((e) => (e === k ? null : k))} rotulo={rot} />
             </div>
+            <p className="pn-texto mb-1" style={{ color: "var(--pn-mudo)" }}>{pendente ?? `${ARTIGO[k]} ${rot.toLowerCase()} se avalia ${QUANDO[k]}.`}</p>
             <div role="radiogroup" aria-label={rot} className="pn-nota">
               {Array.from({ length: 11 }, (_, i) => (
                 <button key={i} type="button" role="radio" aria-checked={notas[k] === i} onClick={() => setNotas((p) => ({ ...p, [k]: p[k] === i ? null : i }))}>{i}</button>
               ))}
             </div>
           </div>
-        ))}
+        ); })}
 
         <button type="button" onClick={() => void enviar()} disabled={enviando || !periodo}
           className="btn-3d mt-6 flex h-11 w-full items-center justify-center gap-2 text-[11px] font-black uppercase tracking-widest disabled:opacity-60">

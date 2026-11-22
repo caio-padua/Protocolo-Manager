@@ -1,4 +1,5 @@
 import { BotaoTelaCheia } from "@/pages/cockpit-cliente/BotaoTelaCheia";
+import { GRAFICO } from "@/pages/cockpit-cliente/graficoPadrao";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Loader2,
@@ -610,7 +611,7 @@ function CartaoGrafico({
 
   // Largura: cada intervalo entre coletas ganha 64 px (mínimo) + margens de 1/3.
   // Poucas coletas = cabe na moldura inteira, rolagem travada; muitas = rola.
-  const LARGURA_POR_PONTO = 64;
+  const LARGURA_POR_PONTO = GRAFICO.larguraPorPonto;
   const larguraMinimaGrafico = Math.round((ultimoX + 2 * MARGEM) * LARGURA_POR_PONTO) + 56;
   const rolagemRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -631,6 +632,17 @@ function CartaoGrafico({
   // do gráfico — o valor aparece na barra inferior, mudando conforme o mouse
   // passeia pela linha. Sem mouse = última coleta.
   const [ponteiro, setPonteiro] = useState<(typeof data)[number] | null>(null);
+
+  // Teclado (padrão do gráfico): setas esquerda/direita percorrem os pontos; Esc limpa. Mesmo efeito do mouse.
+  const aoTeclar = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") { setPonteiro(null); return; }
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    if (!data.length) return;
+    const i = ponteiro ? data.indexOf(ponteiro) : -1;
+    const alvo = i < 0 ? data.length - 1 : Math.min(data.length - 1, Math.max(0, i + (e.key === "ArrowLeft" ? -1 : 1)));
+    setPonteiro(data[alvo] ?? null);
+  };
   const pontoAtivo = ponteiro ?? ultimo;
   const corAtiva = pontoAtivo?.cor ?? MUTED;
   const rotuloAtivo = pontoAtivo?.zona ? ZONE_ROTULO[pontoAtivo.zona] ?? pontoAtivo.zona : "—";
@@ -682,8 +694,8 @@ function CartaoGrafico({
           {/* Tela do grafico em INSET BEVEL puro (pedido do CEO 25/07/2026:
               sem vidro, sem efeitos por cima). */}
           {/* Rolagem INTERNA esquerda→direita: as datas nunca se espremem */}
-          <div ref={rolagemRef} className="scroll-gold overflow-x-auto pb-1" style={{ overscrollBehaviorX: "contain" }}>
-            <div style={{ minWidth: larguraMinimaGrafico, width: "100%", height: 260 }}>
+          <div tabIndex={0} role="group" aria-label="Gráfico: use as setas esquerda e direita para percorrer os pontos" onKeyDown={aoTeclar} ref={rolagemRef} className="scroll-gold overflow-x-auto pb-1" style={{ overscrollBehaviorX: "contain" }}>
+            <div style={{ minWidth: larguraMinimaGrafico, width: "100%", height: GRAFICO.alturaPx }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={serie}
@@ -703,9 +715,9 @@ function CartaoGrafico({
                     y1={z.low ?? dominio.min}
                     y2={z.high ?? dominio.max}
                     fill={z.color}
-                    fillOpacity={0.16}
+                    fillOpacity={GRAFICO.faixaPreenchimento}
                     stroke={z.color}
-                    strokeOpacity={0.22}
+                    strokeOpacity={GRAFICO.faixaContorno}
                   />
                 ))}
                 <XAxis
@@ -742,7 +754,7 @@ function CartaoGrafico({
                   dataKey="ext"
                   stroke={NAVY}
                   strokeOpacity={0.35}
-                  strokeWidth={1.5}
+                  strokeWidth={GRAFICO.linhaFantasma}
                   strokeDasharray="4 4"
                   isAnimationActive={false}
                   activeDot={false}
@@ -750,7 +762,7 @@ function CartaoGrafico({
                     const { cx, cy, payload, index } = props;
                     if (cx == null || cy == null || !payload?.fantasma) return <g key={`f-${index}`} />;
                     return (
-                      <rect key={`f-${index}`} x={cx - 4} y={cy - 4} width={8} height={8} fill="none" stroke={NAVY} strokeOpacity={0.45} strokeWidth={1} strokeDasharray="2 2" />
+                      <rect key={`f-${index}`} x={cx - GRAFICO.fantasmaLado / 2} y={cy - GRAFICO.fantasmaLado / 2} width={GRAFICO.fantasmaLado} height={GRAFICO.fantasmaLado} fill="none" stroke={NAVY} strokeOpacity={0.45} strokeWidth={1} strokeDasharray="2 2" />
                     );
                   }}
                 />
@@ -758,10 +770,12 @@ function CartaoGrafico({
                   type="linear"
                   dataKey="valor"
                   stroke={NAVY}
-                  strokeWidth={2.5}
+                  strokeWidth={GRAFICO.linhaPrincipal}
                   dot={(props: { cx?: number; cy?: number; payload?: PontoSerie; index?: number }) => {
                     const { cx, cy, payload, index } = props;
                     if (cx == null || cy == null || !payload || payload.fantasma || payload.valor == null) return <g key={`d-${index}`} />;
+                    const marcado = ponteiro != null && index != null && data[index - 1] === ponteiro;
+
                     // Valor na interseção: etiqueta discreta com a cor da faixa do ponto.
                     const txt = rotuloValorPonto(payload.valor);
                     const w = txt.length * 5.8 + 10;
@@ -770,6 +784,7 @@ function CartaoGrafico({
                     const ry = acima ? cy - h - 7 : cy + 7;
                     return (
                       <g key={`d-${index}`} pointerEvents="none">
+                        {marcado && <rect x={cx - GRAFICO.ativoLado / 2} y={cy - GRAFICO.ativoLado / 2} width={GRAFICO.ativoLado} height={GRAFICO.ativoLado} fill="none" stroke={GRAFICO.ativoCor} strokeWidth={GRAFICO.ativoContorno} />}
                         <rect x={cx - w / 2} y={ry} width={w} height={h} fill={payload.cor} fillOpacity={0.95} stroke="#fff" strokeWidth={1} />
                         <text x={cx} y={ry + h / 2 + 3.2} textAnchor="middle" fontSize={9.5} fontWeight={700} fill={textoSobre(payload.cor)}>
                           {txt}
@@ -782,7 +797,7 @@ function CartaoGrafico({
                     if (cx == null || cy == null) return <g />;
                     // QUADRADINHO dourado — só aparece sob o mouse.
                     return (
-                      <rect x={cx - 5} y={cy - 5} width={10} height={10} fill="none" stroke="#000" strokeWidth={1.5} />
+                      <rect x={cx - GRAFICO.ativoLado / 2} y={cy - GRAFICO.ativoLado / 2} width={GRAFICO.ativoLado} height={GRAFICO.ativoLado} fill="none" stroke={GRAFICO.ativoCor} strokeWidth={GRAFICO.ativoContorno} />
                     );
                   }}
                 />

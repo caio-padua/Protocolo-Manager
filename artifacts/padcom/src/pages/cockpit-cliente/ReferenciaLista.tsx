@@ -1,14 +1,14 @@
 import { ExternalLink } from "lucide-react";
-import { REFERENCIAS, type TipoReferencia } from "./pulso-referencias";
+import { REFERENCIAS, type Referencia, type TipoReferencia } from "./pulso-referencias";
 import "./pulso-niveis.css";
 
 // Campo "Referência": um cartão internacional e um nacional, com o link do artigo.
-export function ReferenciaLista({ tipo }: { tipo: TipoReferencia | "sono" }) {
+export function ReferenciaLista({ tipo, itens }: { tipo?: TipoReferencia | "sono"; itens?: Referencia[] }) {
   return (
-    <section aria-label="Referência">
-      <h4 className="pn-sec-rotulo">Referência</h4>
+    <section aria-label="Referências bibliográficas">
+      <h4 className="pn-sec-rotulo">Referências bibliográficas</h4>
       <ul className="space-y-2.5">
-        {REFERENCIAS[tipo].map((r) => (
+        {(itens ?? (tipo ? REFERENCIAS[tipo] : [])).map((r) => (
           <li key={r.link} className="concave-3d pn-ref">
             <span className="bevel-3d pn-ref-etiqueta">{r.origem}</span>
             <p className="pn-ref-titulo">{r.titulo}</p>

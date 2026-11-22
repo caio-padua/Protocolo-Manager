@@ -1,3 +1,5 @@
+- [Pulso — uma nota por período](pulso-uma-nota-por-periodo.md) — manhã=sono, tarde=energia, noite=libido; pendentes reaparecem; telegram pendente.
+- [Gráfico de linha — padrão do Pulso](grafico-linha-padrao-pulso.md) — espessura/faixas/ponto ativo de graficoPadrao.ts; setas movem o ponto.
 - [Forro risca de giz parado + painéis oficiais](forro-risca-de-giz-parado.md) — leva-fabric-fixo em fundo de página; panel-3d-sub/bevel-3d oficiais; barra inferior com touch-action pan-x.
 - [PaxCare planos B2C](paxcare-planos-b2c.md) — previa admin separada do token do paciente; plano nasce vazio; aceite com hash; franquia idempotente.
 - [PAX FINANCE domínio isolado](pax-finance-dominio.md) — fases 1-2 prontas; fronteira em src/pax-finance; tenant.ts único acoplamento; 3-8 pendentes.
@@ -198,3 +200,4 @@
 - [Pulso Diário — níveis e Área do Cliente](pulso-diario-niveis-area-cliente.md) — limites em arquivo único; edição (opção A) pendente; POST do portal só do próprio cliente.
 - [Frequência cardíaca do Pulso — 3 níveis](pulso-frequencia-cardiaca-niveis.md) — baixa <50, normal 50–99, alta ≥100 (SBC 2022); demo 60 dias só sobrescreve origem demo.
 - [Ajuda "?" da antropometria exige referências](antropometria-ajuda-referencias.md) — nacionais+internacionais, mais recente marcada; lista única em .ts; spec em specs/.
+- [Molde do "?" de ajuda](molde-botao-ajuda-pulso.md) — copiar DiretrizesDialog do Pulso; molde escrito na skill-layout-paxter/references/botao-ajuda-interrogacao.md.

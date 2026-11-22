@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { JanelaAjuda } from "./JanelaAjuda";
 import { Numeral } from "@/components/numeral/Numeral";
 import { ReferenciaLista } from "./ReferenciaLista";
 import "./pulso-niveis.css";
@@ -33,13 +33,9 @@ export function EscalaDialog({ foco, escuro, onClose }: { foco: string | null; e
   if (!foco) return null;
   const m = SIGNIFICADO[foco]!;
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className={`${escuro ? "dark " : ""}pn-escopo !top-[8vh] !translate-y-0 max-h-[84vh] w-[min(94vw,480px)] max-w-none overflow-y-auto border border-border bg-background p-5`} style={{ color: "var(--pn-tinta)" }}>
-        <DialogTitle className="pr-8 text-base font-black uppercase tracking-wide">{m.nome}: como dar a nota</DialogTitle>
-        <p className="pn-apelido">{m.apelido}</p>
-        <h4 className="pn-sec-rotulo mt-4">O que é</h4>
-        <DialogDescription className="pn-texto">{m.texto}</DialogDescription>
-        <h4 className="pn-sec-rotulo mt-5">Como dar a nota</h4>
+    <JanelaAjuda onClose={onClose} escuro={escuro} titulo={`${m.nome}: como dar a nota`} apelido={m.apelido}
+      rotuloTopo="Como dar a nota"
+      topo={
         <ul className="space-y-2.5">
           {(foco === "libido" ? ESCALA_LIBIDO : ESCALA).map((e) => (
             <li key={e.nome} className="grid grid-cols-[84px_1fr] items-center gap-3">
@@ -49,39 +45,42 @@ export function EscalaDialog({ foco, escuro, onClose }: { foco: string | null; e
             </li>
           ))}
         </ul>
-        {foco !== "libido" && (
-          <ul className="pn-lista-pontos mt-3">
-            <li><b>Nota 0:</b> {m.zero}</li>
-            <li><b>Nota 10:</b> {m.dez}</li>
-          </ul>
-        )}
-        {foco === "sono" && (
-          <>
-            <h4 className="pn-sec-rotulo mt-5">Como saber se o sono foi reparador</h4>
-            <ul className="space-y-2">
-              {SONO_REPARADOR.map(([t, x]) => (
-                <li key={t} className="concave-3d px-3 py-2 text-[13px] leading-snug"><b className="block text-[11px] font-black uppercase tracking-wider">{t}</b>{x}</li>
-              ))}
-            </ul>
-            <p className="pn-texto mt-2" style={{ color: "var(--pn-mudo)" }}>Quanto mais itens estiverem bons, mais alta é a nota. Se só um estiver ruim, a nota fica no meio.</p>
-          </>
-        )}
-        <h4 className="pn-sec-rotulo mt-5">{foco === "libido" ? "O porquê do questionário sobre libido" : "Por que perguntamos"}</h4>
+      }
+      rotuloPorque={foco === "libido" ? "O que é e o porquê do questionário sobre libido" : "O que é e por que perguntamos"}
+      porque={<div className="grid gap-3">
+        <p className="pn-texto">{m.texto}</p>
         {foco === "libido" ? (
-          <div className="grid gap-3">
+          <>
             <p className="pn-texto">Não é algo relacionado a entrar na sua intimidade ou algo parecido. Não queremos entrar na sua intimidade e não temos nenhum intuito de causar constrangimento. Queremos que você entenda.</p>
             <p className="pn-texto">A libido hoje está relacionada a muitos fatores, como qualidade do sono, níveis hormonais e nível de cortisol (o hormônio do estresse). Também se relaciona com comorbidades, como pressão alta, diabetes e síndrome metabólica.</p>
             <h5 className="pn-sub-rotulo">Por que é um termômetro da saúde?</h5>
             <p className="pn-texto">Porque, quando o corpo está fora de equilíbrio, o desejo costuma acompanhar essa mudança. Acompanhar a nota ao longo das semanas nos ajuda a ver se o tratamento está funcionando. Responder é opcional: se preferir, deixe em branco.</p>
-          </div>
+          </>
         ) : foco === "sono" ? (
           <p className="pn-texto">É durante o sono que o corpo se repara. Um sono curto ou ruim pesa sobre a pressão, a glicemia, os hormônios e o humor. Por isso a nota do sono ajuda a interpretar todas as outras medidas.</p>
         ) : (
           <p className="pn-texto">A energia acompanha o sono, os hormônios, a alimentação e o estresse. Ver a nota ao longo das semanas ajuda a saber se o tratamento está trazendo mais força para o seu dia.</p>
         )}
-        {(foco === "energia" || foco === "libido" || foco === "sono") && <div className="mt-5"><ReferenciaLista tipo={foco} /></div>}
-      </DialogContent>
-    </Dialog>
+      </div>}
+      lembrar={foco === "libido" ? undefined : (
+        <>
+          <ul className="pn-lista-pontos">
+            <li><b>Nota 0:</b> {m.zero}</li>
+            <li><b>Nota 10:</b> {m.dez}</li>
+          </ul>
+          {foco === "sono" && (
+            <>
+              <h5 className="pn-sub-rotulo mt-4">Como saber se o sono foi reparador</h5>
+              <ul className="mt-3 space-y-2">
+                {SONO_REPARADOR.map(([t, x]) => (
+                  <li key={t} className="concave-3d px-3 py-2 text-[13px] leading-snug"><b className="block text-[11px] font-black uppercase tracking-wider">{t}</b>{x}</li>
+                ))}
+              </ul>
+              <p className="pn-texto mt-2" style={{ color: "var(--pn-mudo)" }}>Quanto mais itens estiverem bons, mais alta é a nota. Se só um estiver ruim, a nota fica no meio.</p>
+            </>
+          )}
+        </>
+      )}
+      referencias={<ReferenciaLista tipo={foco as "energia" | "libido" | "sono"} />} />
   );
 }
-

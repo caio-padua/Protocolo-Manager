@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { GRAFICO } from "../graficoPadrao";
 import { BotaoTelaCheia } from "../BotaoTelaCheia";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AVALIACOES, calculaDerivados } from "@workspace/avaliacoes-corporais";
@@ -113,7 +114,6 @@ export function EvolucaoMedicoes({ clientId, tipo, medicoes, maximizado, nascime
         <div className="pn-escopo">
           <GraficoZonas
             key={ativa.key}
-            padraoExames
             titulo={ativa.label}
             unidade={ativa.unit}
             referencia={faixasPermitidas || faixasPeso ? "referência geral para adultos" : undefined}
@@ -159,9 +159,9 @@ export function EvolucaoMedicoes({ clientId, tipo, medicoes, maximizado, nascime
                 tickFormatter={(x: number) => numeroBr(x, ativa.casas)} />
               <Tooltip formatter={(x: number) => [`${fmt(ativa, x)} ${ativa.unit}`.trim(), ativa.label]}
                 contentStyle={{ borderRadius: 6, border: `1px solid ${OURO}`, fontSize: 12 }} />
-              <Line type="linear" dataKey="valor" stroke={OURO} strokeWidth={1.25} strokeLinejoin="miter" strokeMiterlimit={10}
+              <Line type="linear" dataKey="valor" stroke={OURO} strokeWidth={GRAFICO.linhaPrincipal} strokeLinejoin="miter" strokeMiterlimit={10}
                 dot={(pr: { cx?: number; cy?: number; index?: number }) => pr.cx == null || pr.cy == null ? <g key={`d-${pr.index}`} /> : <rect key={`d-${pr.index}`} x={pr.cx - 3} y={pr.cy - 3} width={6} height={6} fill={OURO} />}
-                activeDot={(pr: { cx?: number; cy?: number }) => pr.cx == null || pr.cy == null ? <g /> : <rect x={pr.cx - 5} y={pr.cy - 5} width={10} height={10} fill="none" stroke="#000" strokeWidth={1.5} />} isAnimationActive={false} />
+                activeDot={(pr: { cx?: number; cy?: number }) => pr.cx == null || pr.cy == null ? <g /> : <rect x={pr.cx - GRAFICO.ativoLado / 2} y={pr.cy - GRAFICO.ativoLado / 2} width={GRAFICO.ativoLado} height={GRAFICO.ativoLado} fill="none" stroke={GRAFICO.ativoCor} strokeWidth={GRAFICO.ativoContorno} />} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -211,7 +211,7 @@ export function EvolucaoMedicoes({ clientId, tipo, medicoes, maximizado, nascime
                   <span className="h-8">
                     {pts.length > 1 ? (
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={pts}><Line type="monotone" dataKey="valor" stroke={OURO} strokeWidth={1.8} dot={false} isAnimationActive={false} /></LineChart>
+                        <LineChart data={pts}><Line type="monotone" dataKey="valor" stroke={OURO} strokeWidth={GRAFICO.linhaPrincipal} dot={false} isAnimationActive={false} /></LineChart>
                       </ResponsiveContainer>
                     ) : <span className="text-[10px] text-muted-foreground">1 medição</span>}
                   </span>

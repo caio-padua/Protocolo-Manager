@@ -21,6 +21,7 @@ Toda mudanca e de APRESENTACAO; o motor de calculo e o payload de salvar nunca m
 | `references/grade-imaginaria.md` | construir QUALQUER card ou lista de itens (modelo mental de zonas, anti-padroes, receita JSX, checklist de 10 pontos) — ler ANTES de criar card/linha nova em QUALQUER sistema |
 | `references/marca/marca.md` | usar a LOGO: qual peca (loginho com vidro x logo sem vidro) usar em cada fundo; molde visual numerado (`molde-paxter.png`) + referencia de codigo de cada peca |
 | `references/relevo-3d-ouro/tecnica.md` | renderizar TEXTO/WORDMARK/selo em ALTO-RELEVO 3D DOURADO (ex.: "PAXTER" no topo claro): receita das 3 camadas (parede/face/halo), valores testados e armadilhas (contorno "carcomido", tema escuro intacto) + imagens antes/depois. Ler ANTES de mexer em wordmark/selo dourado em relevo |
+| `references/botao-ajuda-interrogacao.md` | QUALQUER botao "?" de ajuda, janela de parametros/referencias de grafico ou tela (molde unico JanelaAjuda, ordem fixa: botoes coloridos em cima, por que no meio, referencias bibliograficas embaixo). Ler ANTES; copiar igual, nao inventar |
 | `references/previa-de-link.md` | FLYER DE COMUNICACAO (Telegram/WhatsApp com dados) + QUALQUER previa de link (WhatsApp/Telegram, og:image): padrao "Receituario" aprovado (placa up bevel + gaveta, risca de giz, tagline), imagem e componente de referencia em `references/previa-de-link/`, passo a passo de exportar e subir `?v=N` |
 
 Fluxo de uso: para card/lista -> ler `references/grade-imaginaria.md` PRIMEIRO -> escolher controle por
@@ -1023,3 +1024,6 @@ Toda tela NOVA nasce assim. Definido pelo CEO em 20/11/2026.
 6. **Linguagem clara**: verbo que o leigo entende ("Enviar orcamento ao cliente"), nunca "Publicar". Cada bloco diz em 1 frase para que serve.
 7. Secoes secundarias: `BarraGrupo` + `SanfonaVertical` dentro do painel.
 Referencia viva: `pages/pedidos-medicos/FilaPedidos.tsx` e `index.tsx`.
+
+## Gráfico de linha com faixas
+Antes de criar ou mexer em qualquer gráfico de linha (Pulso, antropometria, exames), ler `references/grafico-linha-faixas.md`: espessura, faixas, quadradinho preto vazado e setas vêm de `graficoPadrao.ts`.
