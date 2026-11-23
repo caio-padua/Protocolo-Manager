@@ -9,7 +9,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Check, X } from "lucide-react";
+import { Plus, Pencil, Check, X, Upload } from "lucide-react";
+import { useRef } from "react";
 
 // Cores oficiais por natureza (retângulos indicadores). Prefixos de código são só visuais.
 export const NATUREZA_COR: Record<string, string> = {
@@ -359,5 +360,57 @@ export function GestaoOpcoes() {
         <TabsContent key={t.tipo} value={t.tipo}><PainelOpcoes tipo={t.tipo} rotulo={t.rotulo} /></TabsContent>
       ))}
     </Tabs>
+  );
+}
+
+// ---------------- Upload do manual (PDF) + botão de conferência ----------------
+export function UploadManualExames() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+  const info = useQuery<{ id: number; nome: string; tamanho: number } | null>({
+    queryKey: ["/api/cadastros/exames/manual"],
+    queryFn: async () => {
+      const r = await fetch("/api/cadastros/exames/manual");
+      if (!r.ok) throw new Error("Falha ao consultar o manual");
+      return r.json();
+    },
+  });
+  const enviar = useMutation<unknown, Error>({
+    mutationFn: async () => {
+      const fd = new FormData();
+      fd.append("arquivo", arquivo!);
+      const r = await fetch("/api/cadastros/exames/manual", { method: "POST", headers: collabAuthHeaders(), body: fd });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? "Falha ao enviar");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/cadastros/exames/manual"] });
+      setArquivo(null);
+      if (inputRef.current) inputRef.current.value = "";
+      toast({ title: "Arquivo enviado" });
+    },
+    onError: (e) => toast({ title: "Não foi possível enviar", description: e.message, variant: "destructive" }),
+  });
+  const conferir = async () => {
+    const r = await info.refetch();
+    setOk(r.data ? "OK" : "Nenhum arquivo enviado");
+  };
+  const kb = (n: number) => `${(n / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} KB`;
+  return (
+    <div className="flex flex-wrap items-center gap-2" data-testid="upload-manual-exames">
+      <input ref={inputRef} type="file" accept="application/pdf,.pdf" className="max-w-[240px] text-xs" aria-label="Escolher PDF do manual"
+        onChange={(e) => { setArquivo(e.target.files?.[0] ?? null); setOk(null); }} data-testid="input-manual-pdf" />
+      <Button size="sm" className="btn-3d" disabled={!arquivo || enviar.isPending} onClick={() => enviar.mutate()} data-testid="button-enviar-manual">
+        <Upload className="mr-1.5 h-4 w-4" /> {enviar.isPending ? "Enviando..." : "Enviar PDF"}
+      </Button>
+      <Button size="sm" variant="outline" onClick={conferir} data-testid="button-conferir-manual">Conferir</Button>
+      {ok && (
+        <span role="status" data-testid="status-manual" className={`rounded-[4px] px-2 py-0.5 text-xs font-black text-white ${ok === "OK" ? "bg-emerald-700" : "bg-slate-500"}`}>
+          {ok === "OK" && info.data ? `OK — ${info.data.nome} (${kb(info.data.tamanho)})` : ok}
+        </span>
+      )}
+    </div>
   );
 }

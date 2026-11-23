@@ -42,7 +42,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
-import { AtributosDialog, GestaoOpcoes, NaturezaChip, naturezaSugerida, useAtributos } from "./ExamesAtributos";
+import { AtributosDialog, GestaoOpcoes, UploadManualExames, NaturezaChip, naturezaSugerida, useAtributos } from "./ExamesAtributos";
 import {
   Search,
   Plus,
@@ -1065,6 +1065,7 @@ export default function CadastroExames({ comClassificacoes = true }: { comClassi
             Cadastre e organize exames, blocos e categorias do sistema.
           </p>
         </div>
+        <div className="ml-auto"><UploadManualExames /></div>
       </div>
 
       <Tabs defaultValue="exames" className="space-y-4">

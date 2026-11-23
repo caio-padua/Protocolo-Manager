@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod/v4";
+import multer from "multer";
 
 // =============================================================================
 // ATRIBUTOS ADICIONAIS DO EXAME + OPCOES (natureza, metodo, eixo, regiao,
@@ -208,6 +209,59 @@ router.get("/cadastros/exames/:id/impacto", async (req, res): Promise<void> => {
     FROM catalogo_bloco_exames b JOIN catalogo_exames e ON upper(trim(e.nome_exame)) = upper(trim(b.nome_exame))
     WHERE e.id = ${id} ORDER BY b.nome_bloco, b.grau`);
   res.json({ vinculos: r.rows });
+});
+
+
+// ---- Manual/organograma PDF do modulo de exames (documentacao viva) ----------
+const MANUAL_MAX = 20 * 1024 * 1024;
+const uploadManual = multer({ storage: multer.memoryStorage(), limits: { fileSize: MANUAL_MAX, files: 1 } });
+let manualPronta: Promise<void> | null = null;
+function garantirManual(): Promise<void> {
+  if (!manualPronta) {
+    manualPronta = db
+      .execute(sql`CREATE TABLE IF NOT EXISTS catalogo_exames_manuais (
+        id SERIAL PRIMARY KEY, nome TEXT NOT NULL, tamanho INTEGER NOT NULL, conteudo BYTEA NOT NULL,
+        criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW())`)
+      .then(() => undefined)
+      .catch((e) => { manualPronta = null; throw e; });
+  }
+  return manualPronta;
+}
+
+router.post("/cadastros/exames/manual", (req, res, next) => {
+  uploadManual.single("arquivo")(req, res, (err) => {
+    if (err) {
+      res.status(400).json({ error: err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE" ? "Arquivo maior que 20 MB" : "Falha ao receber o arquivo" });
+      return;
+    }
+    next();
+  });
+}, async (req, res): Promise<void> => {
+  const f = req.file;
+  if (!f) { res.status(400).json({ error: "Envie um arquivo PDF" }); return; }
+  if (f.size === 0) { res.status(400).json({ error: "Arquivo vazio" }); return; }
+  if (f.buffer.subarray(0, 5).toString("latin1") !== "%PDF-") { res.status(400).json({ error: "O arquivo nao e um PDF valido" }); return; }
+  await garantirManual();
+  // novo envio NAO apaga os anteriores (historico preservado)
+  const r = await db.execute(sql`INSERT INTO catalogo_exames_manuais (nome, tamanho, conteudo) VALUES (${f.originalname.slice(0, 200)}, ${f.size}, ${f.buffer}) RETURNING id, nome, tamanho, criado_em AS "criadoEm"`);
+  req.log.info({ id: (r.rows[0] as { id: number }).id, tamanho: f.size }, "manual de exames enviado");
+  res.status(201).json(r.rows[0]);
+});
+
+router.get("/cadastros/exames/manual", async (_req, res): Promise<void> => {
+  await garantirManual();
+  const r = await db.execute(sql`SELECT id, nome, tamanho, criado_em AS "criadoEm" FROM catalogo_exames_manuais ORDER BY id DESC LIMIT 1`);
+  res.json(r.rows[0] ?? null);
+});
+
+router.get("/cadastros/exames/manual/arquivo", async (_req, res): Promise<void> => {
+  await garantirManual();
+  const r = await db.execute(sql`SELECT nome, conteudo FROM catalogo_exames_manuais ORDER BY id DESC LIMIT 1`);
+  const row = r.rows[0] as { nome: string; conteudo: Buffer } | undefined;
+  if (!row) { res.status(404).json({ error: "Nenhum manual enviado" }); return; }
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `inline; filename="manual-exames.pdf"`);
+  res.send(row.conteudo);
 });
 
 export default router;
