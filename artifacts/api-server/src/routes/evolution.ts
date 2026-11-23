@@ -817,7 +817,8 @@ publico.post("/evolution/webhook/:empresaId/:token", async (req, res) => {
         }
         const cliente = identidade.rows[0] as { id: number | string; name: string | null };
         const esperaMs = await lerAgrupamentoMs(empresaId);
-        if (process.env.NODE_ENV === "test" || process.env.EVOLUTION_AGRUPAMENTO_MS === "0" || esperaMs === 0) {
+        // Testes de agrupamento optam por usar a janela real da clínica com EVOLUTION_AGRUPAMENTO_TESTE=1.
+        if ((process.env.NODE_ENV === "test" && process.env.EVOLUTION_AGRUPAMENTO_TESTE !== "1") || process.env.EVOLUTION_AGRUPAMENTO_MS === "0" || esperaMs === 0) {
           await processarEntradaEvolution({
             empresaId, mensagemId, telefone: c.contato, texto,
             clienteId: Number(cliente.id), clienteNome: cliente.name ?? "",
@@ -844,5 +845,5 @@ publico.post("/evolution/webhook/:empresaId/:token", async (req, res) => {
   res.status(200).json({ ok: true });
 });
 
-export { publico as evolutionWebhookRouter };
+export { publico as evolutionWebhookRouter, agrupadorEvolution };
 export default router;

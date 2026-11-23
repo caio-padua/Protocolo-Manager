@@ -158,6 +158,10 @@ export async function semearFrases(exec: { execute: (q: SQL) => Promise<unknown>
   const assinaturaAntiga = "Helena\nAssistente de {clinica}";
   await exec.execute(sql`UPDATE telegram_frases SET texto=${FRASES_PADRAO.apresentacao.texto}
     WHERE chave='apresentacao' AND texto=${apresentacaoAntiga}`);
+  // Saudação da Helena: troca somente o texto padrão anterior pelo aprovado; edição humana é preservada.
+  const helenaAntiga = "Olá !\n\nMe chamo Helena,\nAssistente virtual do Instituto Pádua.\n\nTudo bem ?\nComo eu poderia te ajudar?";
+  await exec.execute(sql`UPDATE telegram_frases SET texto=${FRASES_PADRAO.atendimento_apresentacao_instituto_padua.texto}
+    WHERE chave='atendimento_apresentacao_instituto_padua' AND texto=${helenaAntiga}`);
   await exec.execute(sql`UPDATE telegram_frases SET texto=${FRASES_PADRAO.apresentacao_sem_clinica.texto}
     WHERE chave='apresentacao_sem_clinica' AND texto=${apresentacaoSemClinicaAntiga}`);
   await exec.execute(sql`UPDATE telegram_frases SET texto=${FRASES_PADRAO.assinatura.texto}
