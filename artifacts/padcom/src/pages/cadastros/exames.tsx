@@ -729,7 +729,27 @@ function ClassificacaoPainel({ item }: { item: (typeof CAMPOS_CLASS)[number] }) 
 }
 
 // ============================ PÁGINA =========================================
-export default function CadastroExames() {
+// Bloco independente: cadastro das classificações (usado como seção própria da tela unificada).
+export function ClassificacoesCadastro() {
+  return (
+    <Tabs defaultValue="categoria" className="space-y-4">
+      <TabsList className="concave-3d h-auto flex-wrap justify-start p-1">
+        {CAMPOS_CLASS.map((c) => (
+          <TabsTrigger key={c.campo} value={c.campo} className="text-[11px] font-black uppercase tracking-wide">
+            {c.plural}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {CAMPOS_CLASS.map((c) => (
+        <TabsContent key={c.campo} value={c.campo}>
+          <ClassificacaoPainel item={c} />
+        </TabsContent>
+      ))}
+    </Tabs>
+  );
+}
+
+export default function CadastroExames({ comClassificacoes = true }: { comClassificacoes?: boolean }) {
   return (
     <div className="space-y-6">
       <div className="panel-3d p-4 flex items-center gap-4 border-l-4 border-primary/60">
@@ -752,6 +772,8 @@ export default function CadastroExames() {
           <TabsTrigger value="blocos" className="gap-1.5 text-xs font-black uppercase tracking-wide">
             <Layers className="h-4 w-4" /> Blocos
           </TabsTrigger>
+          {comClassificacoes && (
+          <>
           <TabsTrigger value="categoria" className="gap-1.5 text-xs font-black uppercase tracking-wide">
             <Tags className="h-4 w-4" /> Categorias
           </TabsTrigger>
@@ -764,6 +786,8 @@ export default function CadastroExames() {
           <TabsTrigger value="material_setor" className="gap-1.5 text-xs font-black uppercase tracking-wide">
             <TestTube className="h-4 w-4" /> Material / Setor
           </TabsTrigger>
+          </>
+        )}
         </TabsList>
         <TabsContent value="exames">
           <ExamesTab />
@@ -771,11 +795,12 @@ export default function CadastroExames() {
         <TabsContent value="blocos">
           <BlocosTab />
         </TabsContent>
-        {CAMPOS_CLASS.map((c) => (
-          <TabsContent key={c.campo} value={c.campo}>
-            <ClassificacaoPainel item={c} />
-          </TabsContent>
-        ))}
+        {comClassificacoes &&
+          CAMPOS_CLASS.map((c) => (
+            <TabsContent key={c.campo} value={c.campo}>
+              <ClassificacaoPainel item={c} />
+            </TabsContent>
+          ))}
       </Tabs>
     </div>
   );
