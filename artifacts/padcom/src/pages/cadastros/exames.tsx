@@ -47,6 +47,8 @@ import {
   Plus,
   Pencil,
   Trash2,
+  MoveRight,
+  MinusCircle,
   TestTube,
   Layers,
   Tags,
@@ -72,7 +74,7 @@ interface Exam {
 
 interface BlocoGrau {
   grau: string;
-  exames: Array<{ nomeExame: string; codigoPadcom: string | null; ordem: number | null }>;
+  exames: Array<{ id: number; nomeExame: string; codigoPadcom: string | null; ordem: number | null }>;
 }
 interface Bloco {
   codigoBloco: string;
@@ -520,7 +522,79 @@ function ExamesTab() {
 
 // ============================ ABA BLOCOS =====================================
 function BlocosTab() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  // mover: exame da grade -> outro bloco/grau; incluir: exame do catálogo -> bloco/grau
+  const [mover, setMover] = useState<{ id: number; nome: string; blocoId: string; grau: string } | null>(null);
+  const [incluir, setIncluir] = useState<{ blocoId: string; nomeBloco: string; grau: string; exameId: string } | null>(null);
+  const [buscaExame, setBuscaExame] = useState("");
+
+  const opcoes = useQuery<{ blocos: Array<{ codigoBloco: string; nomeBloco: string }>; graus: string[] }>({
+    queryKey: ["/api/cadastros/blocos/opcoes"],
+    queryFn: async () => {
+      const r = await fetch("/api/cadastros/blocos/opcoes");
+      if (!r.ok) throw new Error("Falha ao carregar blocos");
+      return r.json();
+    },
+  });
+  const catalogo = useQuery<Exam[]>({
+    queryKey: ["/api/cadastros/exames"],
+    queryFn: async () => {
+      const r = await fetch("/api/cadastros/exames");
+      if (!r.ok) throw new Error("Falha ao carregar exames");
+      return r.json();
+    },
+    enabled: incluir !== null,
+  });
+
+  const refazer = () => {
+    qc.invalidateQueries({ queryKey: ["/api/cadastros/blocos"] });
+    qc.invalidateQueries({ queryKey: ["/api/cadastros/blocos/opcoes"] });
+  };
+  const chamar = async (url: string, method: string, body: unknown, falha: string) => {
+    const r = await fetch(url, {
+      method,
+      headers: collabAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) {
+      const b = await r.json().catch(() => ({}));
+      throw new Error(b.error ?? falha);
+    }
+    return r.json();
+  };
+  const moverMut = useMutation<unknown, Error>({
+    mutationFn: () => chamar(`/api/cadastros/blocos/exames/${mover!.id}/mover`, "PATCH", { blocoId: mover!.blocoId, grau: mover!.grau }, "Falha ao mover"),
+    onSuccess: () => {
+      refazer();
+      setMover(null);
+      toast({ title: "Exame movido" });
+    },
+    onError: (err) => toast({ title: "Não foi possível mover", description: err.message, variant: "destructive" }),
+  });
+  const tirarMut = useMutation<unknown, Error, { id: number }>({
+    mutationFn: ({ id }) => chamar(`/api/cadastros/blocos/exames/${id}/ativo`, "PATCH", { ativo: false }, "Falha ao tirar do bloco"),
+    onSuccess: () => {
+      refazer();
+      toast({ title: "Exame tirado do bloco", description: "Continua no catálogo; só deixou de fazer parte deste bloco." });
+    },
+    onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
+  });
+  const incluirMut = useMutation<unknown, Error>({
+    mutationFn: () => chamar("/api/cadastros/blocos/exames", "POST", { blocoId: incluir!.blocoId, grau: incluir!.grau, exameId: Number(incluir!.exameId) }, "Falha ao incluir"),
+    onSuccess: () => {
+      refazer();
+      setIncluir(null);
+      setBuscaExame("");
+      toast({ title: "Exame incluído no bloco" });
+    },
+    onError: (err) => toast({ title: "Não foi possível incluir", description: err.message, variant: "destructive" }),
+  });
+  const examesEscolha = (catalogo.data ?? [])
+    .filter((e) => e.ativo !== false && e.nomeExame)
+    .filter((e) => !buscaExame.trim() || (e.nomeExame ?? "").toLowerCase().includes(buscaExame.trim().toLowerCase()))
+    .slice(0, 60);
   const { data: blocos, isLoading } = useQuery<Bloco[]>({
     queryKey: ["/api/cadastros/blocos"],
     queryFn: async () => {
@@ -597,6 +671,16 @@ function BlocosTab() {
               </div>
             </AccordionTrigger>
             <AccordionContent>
+              <div className="flex justify-end pb-2">
+                <Button
+                  size="sm"
+                  className="btn-3d"
+                  data-testid={`button-incluir-exame-${b.codigoBloco}`}
+                  onClick={() => setIncluir({ blocoId: b.codigoBloco, nomeBloco: b.nomeBloco ?? b.codigoBloco, grau: b.graus[0]?.grau ?? "GRADE BASICA", exameId: "" })}
+                >
+                  <Plus className="mr-1.5 h-4 w-4" /> Incluir exame neste bloco
+                </Button>
+              </div>
               <div className="grid grid-cols-1 gap-3 pb-2 md:grid-cols-3">
                 {b.graus.map((g) => (
                   <div key={g.grau} className="panel-3d-sub p-3">
@@ -605,8 +689,29 @@ function BlocosTab() {
                     </div>
                     <ul className="space-y-0.5">
                       {g.exames.map((ex, i) => (
-                        <li key={i} className="text-xs text-muted-foreground">
-                          {ex.nomeExame}
+                        <li key={ex.id ?? i} className="flex items-center justify-between gap-1 text-xs text-muted-foreground">
+                          <span className="min-w-0 flex-1">{ex.nomeExame}</span>
+                          <button
+                            type="button"
+                            aria-label={`Mover ${ex.nomeExame}`}
+                            title="Mover para outro bloco ou grau"
+                            data-testid={`button-mover-exame-${ex.id}`}
+                            className="btn-3d-soft rounded-[6px] p-1"
+                            onClick={() => setMover({ id: ex.id, nome: ex.nomeExame, blocoId: b.codigoBloco, grau: g.grau })}
+                          >
+                            <MoveRight className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Tirar ${ex.nomeExame} do bloco`}
+                            title="Tirar do bloco (não apaga o exame)"
+                            data-testid={`button-tirar-exame-${ex.id}`}
+                            className="btn-3d-soft rounded-[6px] p-1 text-destructive"
+                            disabled={tirarMut.isPending}
+                            onClick={() => tirarMut.mutate({ id: ex.id })}
+                          >
+                            <MinusCircle className="h-3 w-3" />
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -617,6 +722,90 @@ function BlocosTab() {
           </AccordionItem>
         ))}
       </Accordion>
+
+      <Dialog open={mover !== null} onOpenChange={(o) => !o && setMover(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mover exame</DialogTitle>
+          </DialogHeader>
+          {mover && (
+            <div className="space-y-3">
+              <div className="screen-3d px-3 py-1.5 text-xs font-black">{mover.nome}</div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Bloco de destino</label>
+                <Select value={mover.blocoId} onValueChange={(v) => v && setMover((m) => (m ? { ...m, blocoId: v } : m))}>
+                  <SelectTrigger className="field-engraved" data-testid="select-bloco-destino"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(opcoes.data?.blocos ?? []).map((o) => (
+                      <SelectItem key={o.codigoBloco} value={o.codigoBloco}>{o.nomeBloco}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Grau de destino</label>
+                <Select value={mover.grau} onValueChange={(v) => v && setMover((m) => (m ? { ...m, grau: v } : m))}>
+                  <SelectTrigger className="field-engraved" data-testid="select-grau-destino"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(opcoes.data?.graus ?? []).map((g) => (
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-xs text-muted-foreground">O código do exame não muda. O exame entra no fim da lista do destino.</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMover(null)}>Cancelar</Button>
+            <Button className="btn-3d" disabled={moverMut.isPending} onClick={() => moverMut.mutate()} data-testid="button-confirmar-mover">
+              {moverMut.isPending ? "Movendo..." : "Mover"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={incluir !== null} onOpenChange={(o) => !o && setIncluir(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Incluir exame no bloco</DialogTitle>
+          </DialogHeader>
+          {incluir && (
+            <div className="space-y-3">
+              <div className="screen-3d px-3 py-1.5 text-xs font-black">{incluir.nomeBloco}</div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Grau</label>
+                <Select value={incluir.grau} onValueChange={(v) => v && setIncluir((m) => (m ? { ...m, grau: v } : m))}>
+                  <SelectTrigger className="field-engraved"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(opcoes.data?.graus ?? []).map((g) => (
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Exame</label>
+                <Input value={buscaExame} onChange={(e) => setBuscaExame(e.target.value)} placeholder="Buscar exame..." className="field-engraved" />
+                <Select value={incluir.exameId} onValueChange={(v) => v && setIncluir((m) => (m ? { ...m, exameId: v } : m))}>
+                  <SelectTrigger className="field-engraved" data-testid="select-exame-incluir"><SelectValue placeholder="Escolha o exame" /></SelectTrigger>
+                  <SelectContent>
+                    {examesEscolha.map((e) => (
+                      <SelectItem key={e.id} value={String(e.id)}>{e.nomeExame}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIncluir(null)}>Cancelar</Button>
+            <Button className="btn-3d" disabled={!incluir?.exameId || incluirMut.isPending} onClick={() => incluirMut.mutate()} data-testid="button-confirmar-incluir">
+              {incluirMut.isPending ? "Incluindo..." : "Incluir"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

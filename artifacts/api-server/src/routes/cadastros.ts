@@ -449,7 +449,7 @@ router.get("/cadastros/categorias", async (_req, res): Promise<void> => {
 // ---- BLOCOS (subdivisoes) com a GRADE agrupada por grau ---------------------
 interface BlocoGrau {
   grau: string;
-  exames: Array<{ nomeExame: string; codigoPadcom: string | null; ordem: number | null }>;
+  exames: Array<{ id: number; nomeExame: string; codigoPadcom: string | null; ordem: number | null }>;
 }
 interface BlocoView {
   codigoBloco: string;
@@ -458,6 +458,129 @@ interface BlocoView {
   totalExames: number;
   graus: BlocoGrau[];
 }
+
+// =============================================================================
+// EDICAO DOS BLOCOS: mover exame entre blocos/graus, tirar do bloco, incluir.
+// A grade (catalogo_bloco_exames) e a fonte que o cerebro clinico le para sugerir
+// blocos na anamnese. Nada e apagado: "tirar do bloco" = ativo=false (o cerebro
+// ignora linhas inativas). O codigo semantico do exame NUNCA muda ao mover.
+// =============================================================================
+const GRAUS_BLOCO = ["GRADE BASICA", "GRADE INTERMEDIARIA", "GRADE SOFISTICADA", "GRADE AMPLIADA", "SEM GRADE"] as const;
+const grauSchema = z.enum(GRAUS_BLOCO);
+
+async function dadosDoBloco(tx: Pick<typeof db, "execute">, blocoId: string) {
+  const r = await tx.execute(sql`
+    SELECT nome_bloco, bool_or(usa_grade) AS usa_grade FROM catalogo_bloco_exames
+    WHERE bloco_id = ${blocoId} GROUP BY nome_bloco LIMIT 1`);
+  return r.rows[0] as { nome_bloco: string | null; usa_grade: boolean | null } | undefined;
+}
+async function proximaOrdem(tx: Pick<typeof db, "execute">, blocoId: string, grau: string) {
+  const r = await tx.execute(sql`
+    SELECT coalesce(max(ordem_no_bloco), 0) + 1 AS n FROM catalogo_bloco_exames WHERE bloco_id = ${blocoId} AND grau = ${grau}`);
+  return Number((r.rows[0] as { n: number }).n);
+}
+
+router.get("/cadastros/blocos/opcoes", async (_req, res): Promise<void> => {
+  const r = await db.execute(sql`
+    SELECT bloco_id AS "codigoBloco", min(nome_bloco) AS "nomeBloco" FROM catalogo_bloco_exames
+    GROUP BY bloco_id ORDER BY min(nome_bloco)`);
+  res.json({ blocos: r.rows, graus: GRAUS_BLOCO });
+});
+
+router.patch("/cadastros/blocos/exames/:id/mover", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const parsed = z.object({ blocoId: z.string().trim().min(1), grau: grauSchema }).safeParse(req.body);
+  if (!Number.isInteger(id) || !parsed.success) {
+    res.status(400).json({ error: "id, bloco e grau validos sao obrigatorios" });
+    return;
+  }
+  const { blocoId, grau } = parsed.data;
+  const out = await db.transaction(async (tx) => {
+    const atual = (await tx.execute(sql`
+      SELECT id, bloco_id, grau, nome_exame FROM catalogo_bloco_exames WHERE id = ${id} FOR UPDATE`)).rows[0] as
+      | { id: number; bloco_id: string; grau: string; nome_exame: string }
+      | undefined;
+    if (!atual) return { status: 404 as const };
+    if (atual.bloco_id === blocoId && atual.grau === grau) return { status: 200 as const, mudou: false };
+    const destino = await dadosDoBloco(tx, blocoId);
+    if (!destino) return { status: 400 as const, erro: "Bloco de destino nao existe" };
+    const dup = await tx.execute(sql`
+      SELECT id, ativo FROM catalogo_bloco_exames WHERE bloco_id = ${blocoId} AND nome_exame = ${atual.nome_exame} AND grau = ${grau}`);
+    if (dup.rows.length > 0) {
+      return { status: 409 as const, erro: `"${atual.nome_exame}" ja esta nesse bloco e grau.` };
+    }
+    const ordem = await proximaOrdem(tx, blocoId, grau);
+    await tx.execute(sql`
+      UPDATE catalogo_bloco_exames
+      SET bloco_id = ${blocoId}, nome_bloco = ${destino.nome_bloco}, grau = ${grau},
+          usa_grade = ${grau !== "SEM GRADE"}, ordem_no_bloco = ${ordem}, ativo = TRUE, updated_at = NOW()
+      WHERE id = ${id}`);
+    return { status: 200 as const, mudou: true, de: atual };
+  });
+  if (out.status !== 200) {
+    res.status(out.status).json({ error: "erro" in out ? out.erro : "Linha da grade nao encontrada" });
+    return;
+  }
+  req.log.info({ id, blocoId, grau, de: "de" in out ? out.de : null }, "exame movido de bloco");
+  res.json({ id, blocoId, grau, mudou: out.mudou });
+});
+
+router.patch("/cadastros/blocos/exames/:id/ativo", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const ativo = z.boolean().safeParse(req.body?.ativo);
+  if (!Number.isInteger(id) || !ativo.success) {
+    res.status(400).json({ error: "id e 'ativo' (booleano) sao obrigatorios" });
+    return;
+  }
+  const upd = await db.execute(sql`
+    UPDATE catalogo_bloco_exames SET ativo = ${ativo.data}, updated_at = NOW() WHERE id = ${id} RETURNING id, ativo`);
+  if (upd.rows.length === 0) {
+    res.status(404).json({ error: "Linha da grade nao encontrada" });
+    return;
+  }
+  req.log.info({ id, ativo: ativo.data }, "exame tirado/devolvido ao bloco");
+  res.json(upd.rows[0]);
+});
+
+router.post("/cadastros/blocos/exames", async (req, res): Promise<void> => {
+  const parsed = z
+    .object({ blocoId: z.string().trim().min(1), grau: grauSchema, exameId: z.number().int() })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "bloco, grau e exame sao obrigatorios" });
+    return;
+  }
+  const { blocoId, grau, exameId } = parsed.data;
+  const out = await db.transaction(async (tx) => {
+    const ex = (await tx.execute(sql`SELECT nome_exame, codigo_semantico FROM catalogo_exames WHERE id = ${exameId}`)).rows[0] as
+      | { nome_exame: string | null; codigo_semantico: string | null }
+      | undefined;
+    if (!ex?.nome_exame) return { status: 404 as const, erro: "Exame nao encontrado" };
+    const destino = await dadosDoBloco(tx, blocoId);
+    if (!destino) return { status: 400 as const, erro: "Bloco de destino nao existe" };
+    const dup = (await tx.execute(sql`
+      SELECT id, ativo FROM catalogo_bloco_exames WHERE bloco_id = ${blocoId} AND nome_exame = ${ex.nome_exame} AND grau = ${grau} FOR UPDATE`)).rows[0] as
+      | { id: number; ativo: boolean | null }
+      | undefined;
+    if (dup) {
+      if (dup.ativo !== false) return { status: 409 as const, erro: `"${ex.nome_exame}" ja esta nesse bloco e grau.` };
+      await tx.execute(sql`UPDATE catalogo_bloco_exames SET ativo = TRUE, updated_at = NOW() WHERE id = ${dup.id}`);
+      return { status: 201 as const, id: dup.id };
+    }
+    const ordem = await proximaOrdem(tx, blocoId, grau);
+    const ins = await tx.execute(sql`
+      INSERT INTO catalogo_bloco_exames (bloco_id, nome_bloco, usa_grade, grau, ordem_no_bloco, nome_exame, codigo_padcom, ativo)
+      VALUES (${blocoId}, ${destino.nome_bloco}, ${grau !== "SEM GRADE"}, ${grau}, ${ordem}, ${ex.nome_exame}, ${ex.codigo_semantico}, TRUE)
+      RETURNING id`);
+    return { status: 201 as const, id: Number((ins.rows[0] as { id: number }).id) };
+  });
+  if (out.status !== 201) {
+    res.status(out.status).json({ error: out.erro });
+    return;
+  }
+  req.log.info({ id: out.id, blocoId, grau, exameId }, "exame incluido no bloco");
+  res.status(201).json({ id: out.id });
+});
 
 router.get("/cadastros/blocos", async (_req, res): Promise<void> => {
   // Meta dos blocos (dedup por codigo_bloco — a grade usa a forma curta) ------
@@ -478,6 +601,7 @@ router.get("/cadastros/blocos", async (_req, res): Promise<void> => {
   // A grade real (fonte limpa dos blocos) ------------------------------------
   const grade = await db
     .select({
+      id: catalogoBlocoExamesTable.id,
       blocoId: catalogoBlocoExamesTable.blocoId,
       nomeBloco: catalogoBlocoExamesTable.nomeBloco,
       grau: catalogoBlocoExamesTable.grau,
@@ -514,6 +638,7 @@ router.get("/cadastros/blocos", async (_req, res): Promise<void> => {
       bloco.graus.push(grau);
     }
     grau.exames.push({
+      id: row.id,
       nomeExame: row.nomeExame,
       codigoPadcom: row.codigoPadcom,
       ordem: row.ordem,

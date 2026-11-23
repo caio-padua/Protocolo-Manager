@@ -99,7 +99,7 @@ router.get("/motor/exame/:codigo/blocos", async (req, res): Promise<void> => {
   const ligacoes = await db
     .select()
     .from(catalogoBlocoExamesTable)
-    .where(sql`${catalogoBlocoExamesTable.nomeExame} = ${exame.nomeExame}`);
+    .where(sql`${catalogoBlocoExamesTable.nomeExame} = ${exame.nomeExame} AND ${catalogoBlocoExamesTable.ativo} IS NOT FALSE`);
   ligacoes.sort((a, b) => rankGrau(a.grau) - rankGrau(b.grau));
   res.json({ exame: { codigoExame: exame.codigoExame, nomeExame: exame.nomeExame }, blocos: ligacoes });
 });
@@ -114,7 +114,7 @@ router.get("/motor/bloco/:codigo/exames", async (req, res): Promise<void> => {
   const exames = await db
     .select()
     .from(catalogoBlocoExamesTable)
-    .where(sql`${catalogoBlocoExamesTable.blocoId} = ${req.params.codigo}`);
+    .where(sql`${catalogoBlocoExamesTable.blocoId} = ${req.params.codigo} AND ${catalogoBlocoExamesTable.ativo} IS NOT FALSE`);
   exames.sort((a, b) => {
     const dg = rankGrau(a.grau) - rankGrau(b.grau);
     if (dg !== 0) return dg;
@@ -154,7 +154,7 @@ router.get("/motor/doenca/:idIhe/sugestao", async (req, res): Promise<void> => {
     const exames = await db
       .select()
       .from(catalogoBlocoExamesTable)
-      .where(sql`${catalogoBlocoExamesTable.blocoId} = ${cod}`);
+      .where(sql`${catalogoBlocoExamesTable.blocoId} = ${cod} AND ${catalogoBlocoExamesTable.ativo} IS NOT FALSE`);
     exames.sort((a, b) => {
       const dg = rankGrau(a.grau) - rankGrau(b.grau);
       if (dg !== 0) return dg;
