@@ -159,6 +159,8 @@ export interface TelegramResult {
   sent: boolean;
   mock: boolean;
   error?: string;
+  /** Identificador da mensagem aceito pelo Telegram (prova de envio real). */
+  messageId?: number;
 }
 
 /** Envia texto a um chat. MOCK quando sem token (nunca falha por isso). */
@@ -202,7 +204,7 @@ export async function sendTelegram(
       || !Number.isSafeInteger(data.result.message_id) || data.result.message_id <= 0) {
       return { sent: false, mock: false, error: "telegram_resultado_invalido" };
     }
-    return { sent: true, mock: false };
+    return { sent: true, mock: false, messageId: data.result.message_id };
   } catch {
     return { sent: false, mock: false, error: "telegram_falha_de_rede_ou_timeout" };
   }

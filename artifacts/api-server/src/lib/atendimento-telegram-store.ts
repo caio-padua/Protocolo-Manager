@@ -2,6 +2,10 @@
  * Banco, IA e envio reais do atendimento por IA no Telegram. A regra de decisão está em
  * lib/atendimento-telegram.ts (pura e testada); aqui só ficam as ligações.
  */
+import { registrarFicha } from "./atendimento-ficha";
+import { decidirControle } from "./atendimento-controle";
+import { planejarAtendimentoWhatsapp } from "./atendimento-whatsapp";
+import { depsOperacionaisWhatsapp } from "./atendimento-whatsapp-store";
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
@@ -244,6 +248,8 @@ ${lista}`;
   return id > 0 ? id : null;
 }
 
+const idsEnviados=new Map<number,string>();
+
 export function depsReaisAtendimento(
   empresaId: number,
   inboxMessageId?: number,
@@ -340,6 +346,12 @@ export async function pausarAtendimentoDuravel(e:EntradaAtendimento,motivo:strin
 export async function processarAtendimentosPendentes(): Promise<void> {
   await processarAtendimentosDuraveis(db,{
     permitido: async e=>{
+      const ctl=await decidirControle({empresaId:e.empresaId,canal:"telegram",clienteId:e.clienteId});
+      if(ctl.acao!=="automatico"){
+        await registrarFicha({entrada:{...e,canal:"telegram"},plano:{pausa:null,alerta:null,resposta:null,orientacaoId:null,desfecho:"desligado"},
+          mensagemRef:`tg:${e.inboxMessageId}`,estado:ctl.acao==="assistido"?"pendente":"bloqueado",motivo:`controle:${ctl.motivo}`});
+        return false;
+      }
       const cfg=await lerConfigAtendimento();
       if(!(cfg.modo==="ligado" || (cfg.modo==="lista" && cfg.permitidos.has(e.clienteId)))) return false;
       const { getSecretStatus } = await import("./secure-settings.js");
@@ -374,7 +386,11 @@ export async function processarAtendimentosPendentes(): Promise<void> {
           };
         }
       }
-      const plano = await planejarAtendimento(deps,e);
+      // Mesmo cérebro operacional do WhatsApp (saudação, identidade, endereço, retorno, esclarecimento, encaminhamento).
+      // O agendamento já foi tratado acima; o menu numérico é exclusivo do WhatsApp.
+      const entradaTg = { ...e, canal: "telegram" as const };
+      const ops = { ...depsOperacionaisWhatsapp(entradaTg), menuAtivo: async () => false, agendar: async () => null };
+      const plano = await planejarAtendimentoWhatsapp(deps, entradaTg, ops);
       plano.interpreteChamado ||= usoIA.interprete;
       plano.conferenteChamado ||= usoIA.conferente;
       return plano;
@@ -382,6 +398,7 @@ export async function processarAtendimentosPendentes(): Promise<void> {
     pausar: pausarAtendimentoDuravel,
     chatAlerta: chatAlertaOuNull,
     autorizarResposta: async (e,plano)=>{
+      if((await decidirControle({empresaId:e.empresaId,canal:"telegram",clienteId:e.clienteId})).acao!=="automatico") return false;
       const modo=await db.execute(sql`SELECT modo,motivo,alterado_por FROM telegram_atendimento WHERE cliente_id=${e.clienteId}`);
       const atual=modo.rows[0] as {modo:string;motivo:string;alterado_por:number|null}|undefined;
       if(atual?.modo==="humano" && (!plano.pausa || atual.motivo!==plano.pausa || atual.alterado_por!==null)) return false;
@@ -412,7 +429,17 @@ export async function processarAtendimentosPendentes(): Promise<void> {
       if(contexto?.etapa==="resposta" && contexto.plano.documento?.acao==="confirmar_reenvio"){
         return enviarLinkReceitaConfirmada(chat,contexto.entrada,contexto.plano,contexto.dono);
       }
-      return sendTelegram(chat,escaparHtmlTelegram(texto));
+      return sendTelegram(chat,escaparHtmlTelegram(texto)).then(async r=>{
+        if(contexto?.etapa==="resposta"){
+          const ent={...contexto.entrada,canal:"telegram" as const};
+          if(r.sent&&!r.mock&&r.messageId) idsEnviados.set(ent.inboxMessageId,String(r.messageId));
+          await registrarFicha({entrada:ent,plano:contexto.plano,mensagemRef:`tg:${ent.inboxMessageId}`,
+            estado:r.sent?"enviado":/^telegram_http_(429|5\d\d)$/.test(r.error??"")?"pendente":r.error?.startsWith("telegram_http_")?"falhou":"incerto",
+            motivo:r.sent?null:r.error??null,respostaId:r.messageId?String(r.messageId):null,
+            tentativa:{resultado:r.sent?"aceito":"falhou",providerId:r.messageId?String(r.messageId):null}});
+        }
+        return r;
+      });
     },
     aposRespostaEntregue: async (e,texto,plano)=>{
       await registrarEvento({empresaId:e.empresaId,tipo:"enviada",chave:`enviada:cli:${e.inboxMessageId}`,conversaRef:`cli:${e.clienteId}`,inboxMessageId:e.inboxMessageId,descricao:"Resposta enviada ao cliente no Telegram"});
@@ -424,6 +451,11 @@ export async function processarAtendimentosPendentes(): Promise<void> {
       });
     },
     aposConclusao: async (e,desfecho,plano)=>{
+      const ent={...e,canal:"telegram" as const};
+      const rid=idsEnviados.get(e.inboxMessageId)??null; idsEnviados.delete(e.inboxMessageId);
+      await registrarFicha({entrada:ent,plano,mensagemRef:`tg:${e.inboxMessageId}`,respostaId:rid,
+        estado:plano.resposta?"enviado":plano.desfecho==="sem_conteudo_textual"?"ignorado":"encaminhado",
+        motivo:plano.resposta?null:plano.desfecho});
       if(desfecho==="orientacao_enviada") await registrarEvento({empresaId:e.empresaId,tipo:"solucionada",chave:`solucionada:cli:${e.inboxMessageId}`,conversaRef:`cli:${e.clienteId}`,inboxMessageId:e.inboxMessageId,descricao:"Solicitação solucionada com orientação aprovada"});
       if(plano.documento?.acao==="confirmar_reenvio") await marcarReenvioConcluido(e,plano);
       await registrarResolucaoTelegram({

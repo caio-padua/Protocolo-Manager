@@ -4,7 +4,7 @@
  * (provedor simulado) -> registro. Banco descartável com o esquema real; dados 100% sintéticos; nenhuma mensagem real.
  * Só o provedor externo, o cofre de segredos, a rede (dns) e a IA (contador) são simulados.
  */
-import { beforeAll, afterAll, beforeEach, describe, it, expect, vi } from "vitest";
+import { beforeAll, afterAll, afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 import { bancoCircuitoCompleto } from "./helpers/pg-circuito-completo";
@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   fetch: vi.fn(), ia: vi.fn(),
   envio: "ok" as "ok" | "503" | "desconectado",
   enviados: [] as Array<{ number: string; text: string }>, seq: 0,
+  alertas: [] as Array<{ chat: string; text: string }>,
 }));
 vi.stubGlobal("fetch", h.fetch);
 vi.mock("@workspace/db", async () => {
@@ -39,6 +40,7 @@ vi.mock("@workspace/integrations-anthropic-ai", () => ({ anthropic: { messages: 
 const DAYANA = "5511900000012", CARLUCIA = "5511900000011", CLINICA2 = "5521900000099", TERCEIRO = "5511900000077";
 process.env.EVOLUTION_CONTATOS_AUTORIZADOS = [DAYANA, CARLUCIA, CLINICA2].join(",");
 delete process.env.EVOLUTION_HOMOLOGACAO;
+process.env.TELEGRAM_BOT_TOKEN = "TOKEN_FALSO_SO_TESTE";
 process.env.EVOLUTION_AGRUPAMENTO_TESTE = "1";
 
 let b: Awaited<ReturnType<typeof bancoCircuitoCompleto>>;
@@ -59,6 +61,11 @@ function providerFetch() {
     const u = String(url);
     const resp = (status: number, json: unknown) => ({ ok: status >= 200 && status < 300, status, json: async () => json });
     if (u.includes("connectionState")) return resp(200, { instance: { state: h.envio === "desconectado" ? "close" : "open" } });
+    if (u.includes("api.telegram.org") && u.includes("sendMessage")) {
+      const body = JSON.parse(init.body);
+      h.alertas.push({ chat: String(body.chat_id), text: String(body.text) });
+      return resp(200, { ok: true, result: { message_id: 1000 + h.alertas.length } });
+    }
     if (u.includes("sendText")) {
       if (h.envio === "503") return resp(503, { error: "indisponivel" });
       const body = JSON.parse(init.body);
@@ -109,9 +116,9 @@ beforeAll(async () => {
 afterAll(async () => { await b?.fechar(); });
 
 beforeEach(async () => {
-  h.secrets = { "evolution.apiKey.5": "k5", "evolution.webhookToken.5": "tok5", "evolution.apiKey.6": "k6", "evolution.webhookToken.6": "tok6" };
+  h.secrets = { "evolution.apiKey.5": "k5", "evolution.webhookToken.5": "tok5", "evolution.apiKey.6": "k6", "evolution.webhookToken.6": "tok6", "telegram.ceoChatId": "900000001" };
   h.settings = { "atendimento.ia.modo": "ligado" };
-  h.envio = "ok"; h.enviados.length = 0; h.ia.mockReset(); h.ia.mockRejectedValue(new Error("IA_NAO_DEVE_SER_CHAMADA"));
+  h.envio = "ok"; h.enviados.length = 0; h.alertas.length = 0; h.ia.mockReset(); h.ia.mockRejectedValue(new Error("IA_NAO_DEVE_SER_CHAMADA"));
   providerFetch();
   tenant = { authenticated: true, empresaId: 5, isPlatformOwner: true };
   await b.pool.query(`DELETE FROM evolution_mensagens`);
@@ -120,6 +127,7 @@ beforeEach(async () => {
   await b.pool.query(`UPDATE empresas SET endereco='Rua Sintetica 100' WHERE id=5`);
   await b.pool.query(`INSERT INTO telegram_atendimento (cliente_id,modo,motivo) VALUES ($1,'humano','teste_homologacao')`, [clienteCarlucia]);
   mod.agrupadorEvolution.cancelarTodos();
+  (await import("../lib/evolution"))._zerarLimite();
 });
 
 describe("circuito WhatsApp: saudação e fonte local", () => {
@@ -148,23 +156,71 @@ describe("circuito WhatsApp: saudação e fonte local", () => {
     expect(h.enviados).toHaveLength(1);
     expect(h.enviados[0].text).toContain("Rua Sintetica 100");
   });
-  it("'Quero remarcar e saber o endereço' não escolhe uma intenção arbitrária em silêncio", async () => {
+  const ESCLARECER = (opcoes: string) => `Entendi mais de um pedido na sua mensagem:\n\n${opcoes}\n\nSobre qual deles você quer falar primeiro? Responda com uma frase curta.`;
+  const NAO_RECONHECIDA = "Recebi sua mensagem, mas não tenho uma resposta autorizada para essa pergunta.\n\nRegistrei o pedido para a equipe da clínica analisar. Esta mensagem não é uma avaliação clínica.";
+  const OP_REMARCAR = "• agendar ou remarcar uma consulta", OP_ENDERECO = "• saber o endereço da clínica";
+  it("dois pedidos (remarcar + endereço): pergunta curta autorizada com os dois pedidos, nada escolhido em silêncio", async () => {
     await enviarEvento(5, evento("inst5", DAYANA, "Quero remarcar e saber o endereço", novoId())).expect(200);
-    const e = (await entradas())[0];
-    const plano = e.plano_atendimento;
-    expect(plano).toBeTruthy();
-    // Aceito: responde as duas coisas, ou pergunta/encaminha. Não aceito: só o endereço como se fosse a única intenção.
-    const txt = h.enviados[0]?.text ?? "";
-    const respondeSoEndereco = txt.includes("Rua Sintetica 100") && !/remar/i.test(txt);
-    expect(respondeSoEndereco).toBe(false);
-  });
-  it("pergunta desconhecida: não inventa, não usa IA e registra a dúvida/encaminhamento", async () => {
-    await enviarEvento(5, evento("inst5", DAYANA, "Vocês aceitam pagamento em bitcoin na terça?", novoId())).expect(200);
-    const txt = h.enviados[0]?.text ?? "";
-    expect(txt).not.toMatch(/bitcoin|aceitamos/i);
+    expect(h.enviados).toHaveLength(1);
+    expect(h.enviados[0].text).toBe(ESCLARECER(`${OP_REMARCAR}\n${OP_ENDERECO}`));
+    expect(h.enviados[0].text).not.toContain("Rua Sintetica");
+    const plano = (await entradas())[0].plano_atendimento;
+    expect(plano.intencao).toBe("ambigua");
+    expect([...plano.intencoes].sort()).toEqual(["agendar", "ambigua", "endereco"].sort());
     expect(h.ia).not.toHaveBeenCalled();
+  });
+  it("dois pedidos: ordem invertida, sem pontuação e dois fragmentos agrupados dão a mesma decisão", async () => {
+    const casos = ["Quero saber o endereço e remarcar", "quero saber o endereco e remarcar minha consulta", "endereco e remarcar"];
+    for (const t of casos) {
+      h.enviados.length = 0; await b.pool.query(`DELETE FROM evolution_mensagens`);
+      await enviarEvento(5, evento("inst5", DAYANA, t, novoId())).expect(200);
+      expect(h.enviados, t).toHaveLength(1);
+      expect(h.enviados[0].text, t).toBe(ESCLARECER(`${OP_REMARCAR}\n${OP_ENDERECO}`));
+    }
+    h.enviados.length = 0; await b.pool.query(`DELETE FROM evolution_mensagens`);
+    await b.pool.query(`UPDATE evolution_homologacao_config SET agrupamento_ms=400 WHERE empresa_id=5`);
+    await enviarEvento(5, evento("inst5", DAYANA, "Quero remarcar", novoId())).expect(200);
+    await enviarEvento(5, evento("inst5", DAYANA, "e saber o endereço", novoId())).expect(200);
+    expect(await esperar(async () => h.enviados.length >= 1)).toBe(true);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(h.enviados).toHaveLength(1);
+    expect(h.enviados[0].text).toBe(ESCLARECER(`${OP_REMARCAR}\n${OP_ENDERECO}`));
+  });
+  it("negação: só o pedido afirmado vale, com ou sem pontuação; negar tudo não vira pedido", async () => {
+    for (const t of ["Não quero remarcar; quero o endereço", "nao quero remarcar quero o endereco", "não quero remarcar mas quero o endereço"]) {
+      h.enviados.length = 0; await b.pool.query(`DELETE FROM evolution_mensagens`);
+      await enviarEvento(5, evento("inst5", DAYANA, t, novoId())).expect(200);
+      expect(h.enviados, t).toHaveLength(1);
+      expect(h.enviados[0].text, t).toContain("Rua Sintetica 100");
+      expect((await entradas())[0].plano_atendimento.intencao, t).toBe("endereco");
+    }
+    h.enviados.length = 0; await b.pool.query(`DELETE FROM evolution_mensagens`);
+    await enviarEvento(5, evento("inst5", DAYANA, "Não quero remarcar", novoId())).expect(200);
+    expect(h.enviados[0].text).toBe(NAO_RECONHECIDA);
+  });
+  it("pergunta desconhecida: texto institucional EXATO, sem IA, registrada como não reconhecida e encaminhada", async () => {
+    for (const t of ["Vocês aceitam pagamento em bitcoin na terça?", "VOCÊS ACEITAM BITCOIN???", "vcs aceitm bitcoim", "bitcoin 🙂"]) {
+      h.enviados.length = 0; await b.pool.query(`DELETE FROM evolution_mensagens`);
+      await enviarEvento(5, evento("inst5", DAYANA, t, novoId())).expect(200);
+      expect(h.enviados, t).toHaveLength(1);
+      expect(h.enviados[0].text, t).toBe(NAO_RECONHECIDA);
+      const e = (await entradas())[0];
+      expect(e.desfecho_atendimento, t).toBe("encaminhado_humano");
+      expect(e.plano_atendimento.alerta, t).toMatch(/pergunta não reconhecida/);
+      expect(e.plano_atendimento.alerta, t).not.toMatch(/bitco/i);
+      expect(h.alertas.at(-1)?.chat, t).toBe("900000001");
+      expect(h.alertas.at(-1)?.text, t).not.toMatch(/bitco/i);
+    }
+    expect(h.ia).not.toHaveBeenCalled();
+    const ined = await b.pool.query(`SELECT COUNT(*)::int AS n FROM information_schema.tables WHERE table_name ILIKE '%pergunta%inedit%' OR table_name ILIKE '%inedit%'`);
+    expect(ined.rows[0].n).toBeGreaterThan(0);
+  });
+  it("mensagem vazia depois da normalização (só emoji): nenhuma resposta, registrada com motivo", async () => {
+    await enviarEvento(5, evento("inst5", DAYANA, "🙂🙂", novoId())).expect(200);
+    expect(h.enviados).toHaveLength(0);
     const e = (await entradas())[0];
-    expect(e.desfecho_atendimento).toBeTruthy();
+    expect(e.processamento).toBe("sem_resposta");
+    expect(e.desfecho_atendimento).toBe("sem_conteudo_textual");
   });
 });
 
@@ -300,7 +356,8 @@ describe("circuito WhatsApp: isolamento", () => {
     expect(await saidas(DAYANA)).toHaveLength(1);
     expect(h.enviados.map((x) => x.number)).toEqual([DAYANA]);
     const c = (await entradas()).find((x) => x.contato === CARLUCIA)!;
-    expect(c.desfecho_atendimento).toBe("pausado_humano");
+    expect(c.desfecho_atendimento).toBe("bloqueado_controle");
+    expect(c.plano_atendimento.controle).toBe("modo_humano");
   });
   it("Carlúcia volta ao automático só quando o modo humano é desfeito, e a reversão ao humano funciona sem apagar histórico", async () => {
     await b.pool.query(`UPDATE telegram_atendimento SET modo='ia' WHERE cliente_id=$1`, [clienteCarlucia]);
@@ -342,5 +399,262 @@ describe("circuito WhatsApp: fonte aprovada editada ou revogada", () => {
     await enviarEvento(5, evento("inst5", DAYANA, "Tem estacionamento no local?", novoId())).expect(200);
     expect(h.enviados.at(-1)?.text).toBe("Estacionamento novo na rua de trás.");
     expect(h.ia).not.toHaveBeenCalled();
+  });
+});
+
+// ───────────── Provas fortes: paralelismo real, recuperação periódica, interruptores e ficha ─────────────
+import controleRouter from "../routes/atendimento-controle";
+
+const montarCompleto = (m: typeof mod) => { const a = montar(m); a.use("/api", controleRouter); return a; };
+const controle = (corpo: unknown) => request(app).put("/api/atendimento/controle").send(corpo as object);
+const pendente = async (contato = DAYANA, cliente = clienteDayana, resposta = "Resposta pendente decidida.") =>
+  Number((await b.pool.query(
+    `INSERT INTO evolution_mensagens (empresa_id,instancia,direcao,contato,corpo,provider_id,status,contexto,processamento,cliente_id,plano_atendimento,atualizado_em)
+     VALUES (5,'inst5','entrada',$1,'pergunta',$2,'recebida','inbound','envio_pendente',$3,$4::jsonb,NOW()-interval '5 minutes') RETURNING id`,
+    [contato, novoId(), cliente, JSON.stringify({ resposta, desfecho: "operacional_enviada", pausa: null, alerta: null, orientacaoId: null, caminhoResolucao: "regra" })])).rows[0].id);
+
+describe("circuito WhatsApp: paralelismo real", () => {
+  beforeEach(() => { app = montarCompleto(mod); });
+  it("Dayana e Carlúcia ao mesmo tempo: contextos separados, cada uma recebe só a sua resposta", async () => {
+    await b.pool.query(`UPDATE telegram_atendimento SET modo='ia' WHERE cliente_id=$1`, [clienteCarlucia]);
+    await Promise.all([
+      enviarEvento(5, evento("inst5", DAYANA, "Qual o endereço?", novoId())),
+      enviarEvento(5, evento("inst5", CARLUCIA, "Com quem estou falando?", novoId())),
+    ]);
+    const paraDayana = h.enviados.filter((x) => x.number === DAYANA), paraCarlucia = h.enviados.filter((x) => x.number === CARLUCIA);
+    expect(paraDayana).toHaveLength(1); expect(paraCarlucia).toHaveLength(1);
+    expect(paraDayana[0].text).toContain("Rua Sintetica 100");
+    expect(paraCarlucia[0].text).toBe(HELENA);
+    expect(paraCarlucia[0].text).not.toContain("Rua Sintetica");
+  });
+  it("duas clínicas ao mesmo tempo: fonte, instância e saída de cada uma", async () => {
+    await Promise.all([
+      enviarEvento(5, evento("inst5", DAYANA, "Qual o endereço?", novoId())),
+      enviarEvento(6, evento("inst6", CLINICA2, "Qual o endereço?", novoId())),
+    ]);
+    expect(h.enviados.find((x) => x.number === DAYANA)!.text).toContain("Rua Sintetica 100");
+    expect(h.enviados.find((x) => x.number === CLINICA2)!.text).toContain("Avenida Dois 200");
+    const s = await saidas();
+    expect(s.filter((x: any) => Number(x.empresa_id) === 5).every((x: any) => x.contato === DAYANA)).toBe(true);
+    expect(s.filter((x: any) => Number(x.empresa_id) === 6).every((x: any) => x.contato === CLINICA2)).toBe(true);
+  });
+  it("duas mensagens simultâneas do mesmo contato viram uma entrada; o mesmo evento em paralelo gera uma resposta", async () => {
+    await b.pool.query(`UPDATE evolution_homologacao_config SET agrupamento_ms=400 WHERE empresa_id=5`);
+    await Promise.all([
+      enviarEvento(5, evento("inst5", DAYANA, "Boa tarde", novoId())),
+      enviarEvento(5, evento("inst5", DAYANA, "qual o endereço", novoId())),
+    ]);
+    expect(await esperar(async () => h.enviados.length >= 1)).toBe(true);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(h.enviados).toHaveLength(1);
+    expect((await entradas()).filter((x) => x.processamento === "agrupada")).toHaveLength(1);
+    h.enviados.length = 0; await b.pool.query(`UPDATE evolution_homologacao_config SET agrupamento_ms=0 WHERE empresa_id=5`);
+    const igual = evento("inst5", DAYANA, "Qual o endereço?", "EVT-MESMO-1");
+    await Promise.all([enviarEvento(5, igual), enviarEvento(5, igual), enviarEvento(5, igual)]);
+    expect(h.enviados).toHaveLength(1);
+  });
+  it("dois operadores de recuperação simultâneos enviam o pendente uma única vez", async () => {
+    await pendente();
+    const r = await Promise.all([mod.recuperarEnviosPendentesEvolution(10, 0), mod.recuperarEnviosPendentesEvolution(10, 0), mod.recuperarEnviosPendentesEvolution(10, 0)]);
+    expect(r.reduce((a, c) => a + c, 0)).toBe(1);
+    expect(h.enviados).toHaveLength(1);
+    expect(await saidas(DAYANA)).toHaveLength(1);
+  });
+});
+
+describe("circuito WhatsApp: recuperação periódica com relógio controlado", () => {
+  beforeEach(() => { app = montarCompleto(mod); });
+  afterEach(() => { vi.useRealTimers(); });
+  it("o intervalo configurado dispara a recuperação; ciclos seguintes não duplicam; entregue não volta à fila; incerto não é reenviado", async () => {
+    const id = await pendente();
+    const incertoId = await pendente(CARLUCIA, clienteCarlucia, "Resposta incerta.");
+    await b.pool.query(`UPDATE telegram_atendimento SET modo='ia' WHERE cliente_id=$1`, [clienteCarlucia]);
+    await b.pool.query(`UPDATE evolution_mensagens SET processamento='incerto' WHERE id=$1`, [incertoId]);
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const parar = mod.iniciarRecuperacaoEvolution(1000, 0);
+    await vi.advanceTimersByTimeAsync(999);
+    await new Promise((r) => setTimeout(r, 150));
+    expect(h.enviados).toHaveLength(0); // ainda não venceu o intervalo
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await esperar(async () => h.enviados.length === 1)).toBe(true);
+    for (let i = 0; i < 3; i++) { await vi.advanceTimersByTimeAsync(1000); await new Promise((r) => setTimeout(r, 120)); }
+    parar();
+    expect(h.enviados).toEqual([{ number: DAYANA, text: "Resposta pendente decidida." }]);
+    const e = (await entradas()).find((x) => Number(x.id) === id)!;
+    expect(e.processamento).toBe("concluido");
+    expect((await entradas()).find((x) => Number(x.id) === incertoId)!.processamento).toBe("incerto");
+    await vi.advanceTimersByTimeAsync(5000); // parado: nada mais dispara
+    expect(h.enviados).toHaveLength(1);
+  });
+  it("ciclo sobreposto no mesmo processo é descartado", async () => {
+    await pendente();
+    const [a, c] = await Promise.all([mod.cicloRecuperacaoEvolution(0), mod.cicloRecuperacaoEvolution(0)]);
+    expect([a, c].filter((x) => x === null)).toHaveLength(1);
+    expect(h.enviados).toHaveLength(1);
+  });
+});
+
+describe("circuito WhatsApp: interruptores do atendimento", () => {
+  beforeEach(() => { app = montarCompleto(mod); });
+  const perguntar = async (c = DAYANA) => { h.enviados.length = 0; await enviarEvento(5, evento("inst5", c, "Qual o endereço?", novoId())).expect(200); return h.enviados.length; };
+  const restaurar = async () => { await b.pool.query(`DELETE FROM atendimento_controle`); await b.pool.query(`DELETE FROM atendimento_controle_log`); };
+  it("exige motivo, administrador e contato da própria clínica; grava quem, quando, antes, depois e motivo", async () => {
+    await restaurar();
+    expect((await controle({ escopo: "clinica", ligado: false })).status).toBe(400);
+    expect((await controle({ escopo: "contato", clienteId: clienteDois, modo: "humano", motivo: "teste" })).status).toBe(400);
+    tenant = { authenticated: true, empresaId: 5, isPlatformOwner: false, perfilPlataforma: "recepcionista", professionalId: 3 };
+    expect((await controle({ escopo: "clinica", ligado: false, motivo: "teste" })).status).toBe(403);
+    tenant = { authenticated: true, empresaId: 5, isPlatformOwner: false, perfilPlataforma: "admin", professionalId: 7 };
+    expect((await controle({ escopo: "clinica", ligado: false, motivo: "manutenção combinada" })).status).toBe(200);
+    const log = (await b.pool.query(`SELECT * FROM atendimento_controle_log`)).rows;
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatchObject({ empresa_id: 5, escopo: "clinica", campo: "ligado", valor_anterior: "true", valor_novo: "false", motivo: "manutenção combinada", alterado_por: 7 });
+    expect(log[0].alterado_em).toBeTruthy();
+    await restaurar();
+  });
+  it("clínica desligada, canal desligado e contato desligado bloqueiam; canal do Telegram desligado não afeta o WhatsApp", async () => {
+    await restaurar();
+    expect(await perguntar()).toBe(1);
+    await controle({ escopo: "canal", canal: "telegram", ligado: false, motivo: "teste canal telegram" });
+    expect(await perguntar()).toBe(1);
+    await controle({ escopo: "canal", canal: "whatsapp", ligado: false, motivo: "teste canal whatsapp" });
+    expect(await perguntar()).toBe(0);
+    await controle({ escopo: "canal", canal: "whatsapp", ligado: true, motivo: "religar canal" });
+    await controle({ escopo: "clinica", ligado: false, motivo: "teste clínica" });
+    expect(await perguntar()).toBe(0);
+    await controle({ escopo: "clinica", ligado: true, motivo: "religar clínica" });
+    await controle({ escopo: "contato", clienteId: clienteDayana, ligado: false, motivo: "teste contato" });
+    expect(await perguntar()).toBe(0);
+    expect(await perguntar(CARLUCIA)).toBe(0); // Carlúcia continua humana
+    await restaurar();
+  });
+  it("bloqueio de emergência vence tudo, preserva fila e histórico, e a reativação não processa o que chegou antes", async () => {
+    await restaurar();
+    await controle({ escopo: "clinica", bloqueioEmergencial: true, motivo: "emergência de teste" });
+    expect(await perguntar()).toBe(0);
+    const bloqueada = (await entradas()).at(-1)!;
+    expect(bloqueada.processamento).toBe("bloqueado_controle");
+    expect(bloqueada.plano_atendimento.controle).toBe("bloqueio_emergencial");
+    expect(bloqueada.corpo).toBe("Qual o endereço?"); // histórico preservado
+    const velho = await pendente(); // chegou durante o bloqueio
+    expect(await mod.recuperarEnviosPendentesEvolution(10, 0)).toBe(0);
+    await controle({ escopo: "clinica", bloqueioEmergencial: false, motivo: "fim da emergência" });
+    expect(await mod.recuperarEnviosPendentesEvolution(10, 0)).toBe(0); // anterior à reativação
+    expect((await entradas()).find((x) => Number(x.id) === velho)!.processamento).toBe("bloqueado_controle");
+    expect(h.enviados).toHaveLength(0);
+    expect(await perguntar()).toBe(1); // mensagem nova volta a ser atendida
+    await restaurar();
+  });
+  it("precedência: emergência vence contato em automático; modo humano do contato vence clínica ligada", async () => {
+    await restaurar();
+    await controle({ escopo: "contato", clienteId: clienteDayana, modo: "automatico", motivo: "contato automático" });
+    await controle({ escopo: "clinica", bloqueioEmergencial: true, motivo: "emergência" });
+    expect(await perguntar()).toBe(0);
+    await controle({ escopo: "clinica", bloqueioEmergencial: false, motivo: "fim" });
+    await controle({ escopo: "contato", clienteId: clienteDayana, modo: "humano", motivo: "assumir conversa" });
+    expect(await perguntar()).toBe(0);
+    expect((await b.pool.query(`SELECT modo FROM telegram_atendimento WHERE cliente_id=$1`, [clienteDayana])).rows[0].modo).toBe("humano");
+    await controle({ escopo: "contato", clienteId: clienteDayana, modo: "automatico", motivo: "devolver" });
+    expect(await perguntar()).toBe(1);
+    await restaurar();
+  });
+  it("modo assistido guarda o plano e não envia nada; a lista de homologação continua sendo a última trava", async () => {
+    await restaurar();
+    await controle({ escopo: "clinica", modo: "assistido", motivo: "revisão assistida" });
+    expect(await perguntar()).toBe(0);
+    const e = (await entradas()).at(-1)!;
+    expect(e.processamento).toBe("assistido_aguardando");
+    expect(e.plano_atendimento.resposta).toContain("Rua Sintetica 100");
+    await controle({ escopo: "clinica", modo: "automatico", motivo: "voltar" });
+    await enviarEvento(5, evento("inst5", TERCEIRO, "Qual o endereço?", novoId())).expect(200);
+    expect(h.enviados.filter((x) => x.number === TERCEIRO)).toHaveLength(0); // fora da lista, mesmo com tudo ligado
+    await restaurar();
+  });
+  it("o estado dos interruptores persiste após reinício dos módulos e a leitura mostra o histórico", async () => {
+    await restaurar();
+    await controle({ escopo: "canal", canal: "whatsapp", ligado: false, motivo: "persistência" });
+    vi.resetModules();
+    const novo = await import("../routes/evolution"); mod = novo; app = montarCompleto(novo);
+    expect(await perguntar()).toBe(0);
+    const g = await request(app).get("/api/atendimento/controle");
+    expect(g.body.estado.find((x: any) => x.escopo === "canal")).toMatchObject({ canal: "whatsapp", ligado: false });
+    expect(g.body.historico[0]).toMatchObject({ motivo: "persistência", valor_novo: "false" });
+    await restaurar();
+  });
+});
+
+describe("circuito WhatsApp: ficha auditável", () => {
+  beforeEach(() => { app = montarCompleto(mod); });
+  const fichas = async (q = "") => (await request(app).get(`/api/atendimento/fichas${q}`)).body;
+  it("registra clínica, canal, contato mascarado, intenção, fonte, versão, ausência de IA, resposta, id do provedor e estado final", async () => {
+    await enviarEvento(5, evento("inst5", DAYANA, "Qual o endereço?", "EVT-FICHA-1")).expect(200);
+    const l = await fichas("?contato=***0012");
+    const f = l.itens.find((x: any) => x.mensagem_ref && x.texto_resumo === "Qual o endereço?")!;
+    expect(f).toMatchObject({ canal: "whatsapp", contato_mascarado: "***0012", tipo_contato: "cliente_identificado", intencao_principal: "endereco",
+      fonte_chave: "atendimento_endereco", ia_usada: false, estado_final: "enviado", tentativas: 1, metodo: "regra" });
+    expect(f.fonte_versao).toMatch(/^[0-9a-f]{12}$/);
+    const d = (await request(app).get(`/api/atendimento/fichas/${f.id}`)).body;
+    expect(d.ficha.resposta_texto).toContain("Rua Sintetica 100");
+    expect(d.ficha.resposta_id).toMatch(/^PROV-/);
+    expect(d.ficha.evento_entrada_id).toBe("EVT-FICHA-1");
+    expect(d.ficha.duracoes).toHaveProperty("classificacaoMs");
+    expect(JSON.stringify(l)).not.toContain(DAYANA);
+    expect(JSON.stringify(d)).not.toContain(DAYANA);
+    expect(d.linhaDoTempo.map((x: any) => x.tipo)).toEqual(["tentativa", "estado"]);
+  });
+  it("duplicata não cria segunda ficha; falha seguida de sucesso fica na linha do tempo; fonte revogada vira bloqueio", async () => {
+    await enviarEvento(5, evento("inst5", DAYANA, "Qual o endereço?", "EVT-DUP-1")).expect(200);
+    await enviarEvento(5, evento("inst5", DAYANA, "Qual o endereço?", "EVT-DUP-1")).expect(200);
+    expect((await fichas("?porPagina=100")).itens.filter((x: any) => x.evento_entrada_id === "EVT-DUP-1")).toHaveLength(1);
+    await b.pool.query(`DELETE FROM evolution_mensagens`);
+    h.envio = "desconectado";
+    await enviarEvento(5, evento("inst5", DAYANA, "Onde fica a clínica?", "EVT-FALHA-1")).expect(200);
+    let f = (await fichas("?estado=pendente")).itens.find((x: any) => x.evento_entrada_id === "EVT-FALHA-1")!;
+    expect(f.estado_final).toBe("pendente");
+    h.envio = "ok";
+    await mod.recuperarEnviosPendentesEvolution(10, 0);
+    const d = (await request(app).get(`/api/atendimento/fichas/${f.id}`)).body;
+    expect(d.ficha.estado_final).toBe("enviado");
+    expect(d.linhaDoTempo.map((x: any) => `${x.tipo}:${x.estado ?? x.resultado ?? ""}`)).toEqual(expect.arrayContaining(["estado:pendente", "recuperacao:reenviado", "estado:enviado"]));
+    // fonte revogada
+    const o = await b.pool.query(`INSERT INTO orientacoes_aprovadas (empresa_id,tema,perguntas_exemplo,resposta,status)
+      VALUES (5,'estacionamento','tem estacionamento no local','Temos estacionamento.','aprovada') RETURNING id`);
+    await enviarEvento(5, evento("inst5", DAYANA, "Tem estacionamento no local?", "EVT-REV-1")).expect(200);
+    const rev = (await fichas()).itens.find((x: any) => x.evento_entrada_id === "EVT-REV-1")!;
+    expect(rev.fonte_situacao).toBe("vigente");
+    await b.pool.query(`UPDATE orientacoes_aprovadas SET status='inativa' WHERE id=$1`, [o.rows[0].id]);
+    await b.pool.query(`DELETE FROM evolution_mensagens WHERE contexto='inbound'`);
+  });
+  it("filtros por período, clínica, canal, intenção, IA e estado; paginação estável", async () => {
+    for (let i = 0; i < 5; i++) await enviarEvento(5, evento("inst5", DAYANA, "Qual o endereço?", `EVT-PAG-${i}-${Date.now()}`));
+    const tudo = await fichas("?porPagina=2&pagina=1");
+    expect(tudo.itens).toHaveLength(2); expect(tudo.total).toBeGreaterThanOrEqual(5);
+    const p2 = await fichas("?porPagina=2&pagina=2");
+    expect(p2.itens.map((x: any) => x.id)).not.toEqual(expect.arrayContaining(tudo.itens.map((x: any) => x.id)));
+    expect((await fichas("?canal=telegram")).total).toBe(0);
+    expect((await fichas("?canal=whatsapp&intencao=endereco&ia=false")).total).toBeGreaterThanOrEqual(5);
+    expect((await fichas("?ia=true")).total).toBe(0);
+    expect((await fichas("?de=2999-01-01")).total).toBe(0);
+    expect((await request(app).get("/api/atendimento/fichas?estado=inventado")).status).toBe(400);
+  });
+  it("isolamento: outra clínica não vê nem abre fichas; sem sessão é recusado", async () => {
+    await enviarEvento(5, evento("inst5", DAYANA, "Qual o endereço?", "EVT-ISO-1")).expect(200);
+    const id = (await fichas()).itens.find((x: any) => x.evento_entrada_id === "EVT-ISO-1").id;
+    tenant = { authenticated: true, empresaId: 6, isPlatformOwner: false, perfilPlataforma: "admin", professionalId: 9 };
+    expect((await fichas("?porPagina=100")).itens.map((x: any) => x.id)).not.toContain(id);
+    expect((await request(app).get(`/api/atendimento/fichas/${id}`)).status).toBe(404);
+    tenant = { authenticated: false };
+    expect((await request(app).get("/api/atendimento/fichas")).status).toBe(401);
+  });
+  it("fatos são imutáveis; correção é um evento novo com responsável", async () => {
+    await enviarEvento(5, evento("inst5", DAYANA, "Qual o endereço?", "EVT-IMUT-1")).expect(200);
+    const id = (await fichas()).itens.find((x: any) => x.evento_entrada_id === "EVT-IMUT-1").id;
+    await expect(b.pool.query(`UPDATE atendimento_ficha SET resposta_texto='adulterado' WHERE id=$1`, [id])).rejects.toThrow(/imut/i);
+    await expect(b.pool.query(`DELETE FROM atendimento_ficha WHERE id=$1`, [id])).rejects.toThrow(/imut/i);
+    tenant = { authenticated: true, empresaId: 5, isPlatformOwner: false, perfilPlataforma: "admin", professionalId: 7 };
+    expect((await request(app).post(`/api/atendimento/fichas/${id}/anotacoes`).send({ texto: "Conferido pela equipe" })).status).toBe(201);
+    const d = (await request(app).get(`/api/atendimento/fichas/${id}`)).body;
+    expect(d.linhaDoTempo.at(-1)).toMatchObject({ tipo: "anotacao", responsavel: 7 });
+    expect(d.ficha.resposta_texto).toContain("Rua Sintetica 100");
   });
 });

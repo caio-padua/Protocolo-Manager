@@ -10,6 +10,9 @@ import { brtISODate } from "./brt";
 import { modeloTexto, renderTexto, type CategoriaOperacional } from "./comunicacao-padrao";
 import { getNomeAssistenteAtendimento } from "./atendimento-ia-config";
 
+/** Frases sem categoria própria de modelo por clínica (texto vem da tela Frases do Assistente). */
+const SEM_MODELO_DA_CLINICA = new Set(["atendimento_endereco", "atendimento_esclarecer", "atendimento_nao_reconhecida"]);
+
 /** Somente leituras do cliente/clínica resolvidos pelo webhook; reserva exige revalidação adicional. */
 export function depsOperacionaisWhatsapp(
   e: EntradaAtendimento, autorizarAcao?: () => Promise<boolean>,
@@ -28,7 +31,7 @@ export function depsOperacionaisWhatsapp(
     frase: async (chave, vars) => {
       // Modelo sobrescrito pela própria clínica prevalece; padrão continua
       // vindo da tela Frases do Assistente, sem congelar edições posteriores.
-      const modelo = chave === "atendimento_endereco"
+      const modelo = SEM_MODELO_DA_CLINICA.has(chave)
         ? { origem: "padrao" as const, texto: "" }
         : await modeloTexto(e.empresaId, chave as CategoriaOperacional);
       if (modelo.origem === "clinica") {
@@ -72,7 +75,7 @@ export function depsOperacionaisWhatsapp(
     },
     registrarInedita: async (texto, intencao, origem) => {
       if (e.simulacao) return;
-      await registrarPerguntaInedita({ empresaId: e.empresaId, canal: "whatsapp", texto, intencao, origemIntencao: origem });
+      await registrarPerguntaInedita({ empresaId: e.empresaId, canal: e.canal ?? "whatsapp", texto, intencao, origemIntencao: origem });
     },
     agendar: async (texto) => {
       const ag = await planejarAgendamentoCliente({

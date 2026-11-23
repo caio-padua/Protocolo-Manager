@@ -128,7 +128,7 @@ export type Desfecho =
   | "orientacao_enviada" | "encaminhado_humano" | "queixa_encaminhada" | "queixa_texto_enviado"
   | "falha_envio" | "falha_alerta" | "agendamento_conduzido"
   | "apresentacao_enviada"
-  | "menu_enviado" | "operacional_enviada"
+  | "menu_enviado" | "operacional_enviada" | "sem_conteudo_textual"
   | "clarificacao_documento"
   | "reenvio_receita_ofertado" | "reenvio_receita_confirmado" | "reenvio_receita_cancelado"
   | "reenvio_documento_ofertado" | "reenvio_documento_confirmado" | "reenvio_documento_cancelado";
@@ -252,7 +252,7 @@ export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAten
     return fechar(ok ? "encaminhado_humano" : "falha_envio");
   }
 
-  if (e.canal === "whatsapp" && ehPedidoApresentacao(e.texto) && deps.textoApresentacao) {
+  if ((e.canal === "whatsapp" || e.canal === "telegram") && ehPedidoApresentacao(e.texto) && deps.textoApresentacao) {
     const texto = await deps.textoApresentacao(e.empresaId);
     if (texto) {
       caminhoResolucao = "regra";
@@ -348,6 +348,10 @@ export interface PlanoAtendimento {
   intencaoDetectada?: string;
   /** Quem escolheu a intenção: regra determinística ou IA (apenas classifica). */
   origemIntencao?: "regra" | "ia";
+  /** Todas as intenções reconhecidas na mensagem (a principal primeiro). Nenhuma é descartada sem registro. */
+  intencoes?: string[];
+  /** Tempos medidos no planejamento, em milissegundos (auditoria). */
+  medicoes?: { classificacaoMs: number; planejamentoMs: number };
   encaminhamento?: "registrado" | "alerta_aceito" | "falha_alerta";
   fonteOperacional?: { chave: string; variaveis?: Record<string,string> };
   pausa: string | null;

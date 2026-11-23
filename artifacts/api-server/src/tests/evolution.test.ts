@@ -31,6 +31,8 @@ vi.mock("../lib/atendimento-telegram-store", () => ({ depsReaisAtendimento: () =
   textoEncaminhado:async()=>"Texto de encaminhamento aprovado",
   textoApresentacao:async()=>"Olá!\n\nMe chamo Helena,\nAssistente virtual do Instituto Pádua.\n\nTudo bem?\n\nComo eu poderia te ajudar?",
 }) }));
+vi.mock("../lib/atendimento-controle", () => ({ decidirControle: vi.fn(async () => ({ acao: "automatico", motivo: null })) }));
+vi.mock("../lib/atendimento-ficha", () => ({ registrarFicha: vi.fn(async () => undefined), acrescentarEvento: vi.fn(async () => undefined) }));
 vi.mock("../lib/atendimento-whatsapp-store",async()=>{
   const {FRASES_PADRAO,substituir}=await import("../lib/telegram-frases");
   return {depsOperacionaisWhatsapp:()=>({

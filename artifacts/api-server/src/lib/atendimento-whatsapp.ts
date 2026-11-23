@@ -16,19 +16,23 @@ export const OPCOES_MENU: Record<string, string> = {
   "5": "Quero meus pedidos de exames", "6": "Quero falar com a equipe",
 };
 
-/** Remove orações negadas ("não quero remarcar") para que não virem pedido. A segurança clínica usa o texto inteiro. */
+/**
+ * Remove orações negadas ("não quero remarcar") para que não virem pedido. A segurança clínica usa o texto inteiro.
+ * Funciona com ou sem pontuação: cada "quero/preciso/gostaria..." e cada "não quero..." abre uma oração nova.
+ */
 export function removerOracoesNegadas(texto: string): string {
-  return texto.split(/[,;.!?\n]|\bmas\b/i)
-    .filter((o) => !/^\s*(?:eu\s+)?n[aã]o\s+(?:quero|preciso|desejo|vou|gostaria|queria|pedi|pedir)\b/i.test(o.normalize("NFC")))
+  const marcado = texto.normalize("NFC")
+    .replace(/\s+(?=(?:eu\s+)?n[aã]o\s+(?:quero|preciso|desejo|vou|gostaria|queria|pedi|pedir)\b)/gi, "|")
+    .replace(/(?<!n[aã]o)\s+(?=(?:quero|preciso|desejo|gostaria|queria)\b)/gi, "|")
+    .replace(/\s+(?=(?:e|mas)\s+sim\b)/gi, "|");
+  return marcado.split(/[,;.!?\n|]|\bmas\b/i)
+    .filter((o) => !/^\s*(?:eu\s+)?n[aã]o\s+(?:quero|preciso|desejo|vou|gostaria|queria|pedi|pedir)\b/i.test(o))
     .join(" ");
 }
 
-export function classificarIntencaoWhatsapp(texto: string): IntencaoWhatsapp {
-  if (classificarQueixa(texto) || pedidoClinicoExigeEquipe(texto)) return "clinica";
+/** Pedidos operacionais encontrados no texto já sem as orações negadas (ordem fixa e determinística). */
+export function pedidosOperacionais(texto: string): IntencaoWhatsapp[] {
   const n = normalizar(removerOracoesNegadas(texto));
-  if (ehPedidoApresentacao(texto)) return "apresentacao";
-  if (/^(?:menu|inicio|iniciar|opcoes|ajuda|o que (?:voce|vc) faz|como pode me ajudar)$/.test(n)) return "menu";
-  if (/\b(?:humano|atendente|secretaria|recepcao|equipe|pessoa de verdade|falar com alguem)\b/.test(n)) return "humano";
   const achadas = new Set<IntencaoWhatsapp>();
   if (/\b(?:orcamento|preco|precos|valor|valores|quanto custa|quanto fica)\b/.test(n)) achadas.add("orcamento");
   const agendar = /\b(?:agendar|agendamento|marcar|marcacao|remarcar|reagendar|desmarcar|cancelar consulta)\b/.test(n);
@@ -41,8 +45,23 @@ export function classificarIntencaoWhatsapp(texto: string): IntencaoWhatsapp {
     if (!/\b(?:receita|protocolo|atestado)\b/.test(n)) achadas.delete("documentos");
     achadas.add("exames");
   }
-  return achadas.size > 1 ? "ambigua" : [...achadas][0] ?? "desconhecida";
+  return [...achadas];
 }
+
+export function classificarIntencaoWhatsapp(texto: string): IntencaoWhatsapp {
+  if (classificarQueixa(texto) || pedidoClinicoExigeEquipe(texto)) return "clinica";
+  const n = normalizar(removerOracoesNegadas(texto));
+  if (ehPedidoApresentacao(texto)) return "apresentacao";
+  if (/^(?:menu|inicio|iniciar|opcoes|ajuda|o que (?:voce|vc) faz|como pode me ajudar)$/.test(n)) return "menu";
+  if (/\b(?:humano|atendente|secretaria|recepcao|equipe|pessoa de verdade|falar com alguem)\b/.test(n)) return "humano";
+  const achadas = pedidosOperacionais(texto);
+  return achadas.length > 1 ? "ambigua" : achadas[0] ?? "desconhecida";
+}
+
+const ROTULO_PEDIDO: Partial<Record<IntencaoWhatsapp, string>> = {
+  agendar: "agendar ou remarcar uma consulta", retorno: "consultar seu agendamento", orcamento: "receber um orçamento",
+  documentos: "receitas ou documentos", exames: "pedidos de exames", endereco: "saber o endereço da clínica",
+};
 
 export interface DepsOperacionaisWhatsapp {
   menuAtivo: () => Promise<boolean>;
@@ -63,12 +82,29 @@ export interface DepsOperacionaisWhatsapp {
 export async function planejarAtendimentoWhatsapp(
   deps: DepsAtendimento, e: EntradaAtendimento, ops: DepsOperacionaisWhatsapp,
 ): Promise<PlanoAtendimento> {
+  const t0 = Date.now();
+  const m = { classificacaoMs: 0 };
+  const plano = await planejarInterno(deps, e, ops, m);
+  plano.medicoes = { classificacaoMs: m.classificacaoMs, planejamentoMs: Date.now() - t0 };
+  return plano;
+}
+
+async function planejarInterno(
+  deps: DepsAtendimento, e: EntradaAtendimento, ops: DepsOperacionaisWhatsapp, m: { classificacaoMs: number },
+): Promise<PlanoAtendimento> {
+  // Mensagem sem conteúdo textual (só emoji, pontuação ou símbolos): nada a responder, mas fica registrada.
+  if (!normalizar(e.texto)) {
+    return { pausa: null, alerta: null, resposta: null, orientacaoId: null, faqId: null, desfecho: "sem_conteudo_textual",
+      caminhoResolucao: "regra", intencao: "sem_conteudo", intencaoDetectada: "sem_conteudo", origemIntencao: "regra", intencoes: [] };
+  }
   // A opção numérica pertence exclusivamente ao menu mais recente entregue.
   const n = normalizar(e.texto);
   const numero = n.match(/^(?:(?:opcao|numero) )?([1-6])$/)?.[1];
   const opcao = numero ? OPCOES_MENU[numero] : undefined;
   const texto = opcao && await ops.menuAtivo() ? opcao : e.texto;
+  const tc0 = Date.now();
   let intencao = classificarIntencaoWhatsapp(texto);
+  m.classificacaoMs += Date.now() - tc0;
   // Reconhecidas não dependem de modelo, nem a ambiguidade vira texto inventado.
   const somenteOperacional = intencao === "humano" || intencao === "ambigua" || intencao === "menu";
   const plano = await planejarAtendimento({
@@ -84,6 +120,7 @@ export async function planejarAtendimentoWhatsapp(
   if (intencao === "clinica") return plano;
   // Sem regra que reconheça: IA leve só escolhe a intenção; resposta continua sendo texto aprovado.
   let origem: "regra" | "ia" = "regra";
+  const tg0 = Date.now();
   if (intencao === "desconhecida" && ops.classificarGlobal) {
     const g = await ops.classificarGlobal(texto).catch(() => null);
     if (g && g !== "desconhecida" && g !== "clinica" && g !== "ambigua") { intencao = g; origem = "regra"; plano.intencao = intencao; }
@@ -93,21 +130,31 @@ export async function planejarAtendimentoWhatsapp(
     if (ia && ia !== "desconhecida" && ia !== "clinica" && ia !== "ambigua") { intencao = ia; origem = "ia"; plano.intencao = intencao; }
   }
 
+  m.classificacaoMs += Date.now() - tg0;
   plano.intencaoDetectada = intencao;
   plano.origemIntencao = origem;
+  const todas = [...new Set<string>([intencao, ...pedidosOperacionais(texto)])].filter((x) => x !== "desconhecida");
+  plano.intencoes = todas;
   const detectada = { intencaoDetectada: intencao, origemIntencao: origem };
   const respostaRegra = (resposta: string, desfecho: PlanoAtendimento["desfecho"] = "operacional_enviada"): PlanoAtendimento => ({
-    resposta, desfecho, pausa: null, alerta: null, orientacaoId: null, faqId: null, ...detectada,
+    resposta, desfecho, pausa: null, alerta: null, orientacaoId: null, faqId: null, ...detectada, intencoes: todas,
     caminhoResolucao: "regra", intencao, interpreteChamado: false, conferenteChamado: false, aprendizChamado: false,
   });
+  const canalNome = e.canal === "telegram" ? "Telegram" : "WhatsApp";
   const equipe = async (motivo: string): Promise<PlanoAtendimento> => ({
-    ...respostaRegra(await ops.frase("atendimento_pedido_equipe")),
-    pausa: motivo, alerta: `WhatsApp: solicitação ${intencao}, atendimento #${e.inboxMessageId}, cliente #${e.clienteId}. Abra a conversa protegida.`,
+    ...respostaRegra(await ops.frase("atendimento_pedido_equipe")), intencoes: todas,
+    pausa: motivo, alerta: `${canalNome}: solicitação ${intencao}, atendimento #${e.inboxMessageId}, cliente #${e.clienteId}. Abra a conversa protegida.`,
     desfecho: "encaminhado_humano", caminhoResolucao: "equipe",
     fonteOperacional: { chave: "atendimento_pedido_equipe" },
   });
 
   if (intencao === "humano") return equipe("solicitou_equipe");
+  if (intencao === "ambigua") {
+    // Dois pedidos na mesma mensagem: nenhuma combinação está prevista, então nenhum é escolhido em silêncio.
+    const opcoes = todas.filter((x) => x !== "ambigua").map((x) => `• ${ROTULO_PEDIDO[x as IntencaoWhatsapp] ?? x}`).join("\n");
+    return { ...respostaRegra(await ops.frase("atendimento_esclarecer", { opcoes })), intencoes: todas, intencao: "ambigua",
+      fonteOperacional: { chave: "atendimento_esclarecer", variaveis: { opcoes } } };
+  }
   if (intencao === "agendar" || intencao === "desconhecida") {
     const agenda = await ops.agendar(texto);
     if (agenda) return { ...agenda, intencao: "agendar", ...detectada };
@@ -128,7 +175,13 @@ export async function planejarAtendimentoWhatsapp(
   }
   if (intencao === "orcamento") return equipe("orcamento_sem_resposta_aprovada");
   if (intencao === "documentos" || intencao === "exames") return equipe("documento_sem_resposta_aplicavel");
-  if (intencao === "desconhecida") await ops.registrarInedita?.(texto, intencao, origem).catch(() => undefined);
+  if (intencao === "desconhecida") {
+    // Sem fonte autorizada: registra como não reconhecida, avisa a equipe e usa somente o texto institucional aprovado.
+    await ops.registrarInedita?.(texto, intencao, origem).catch(() => undefined);
+    return { ...respostaRegra(await ops.frase("atendimento_nao_reconhecida")), intencoes: [], intencao: "desconhecida",
+      alerta: `${canalNome}: pergunta não reconhecida, atendimento #${e.inboxMessageId}, cliente #${e.clienteId}. Abra a conversa protegida.`,
+      desfecho: "encaminhado_humano", caminhoResolucao: "equipe", fonteOperacional: { chave: "atendimento_nao_reconhecida" } };
+  }
   return { ...respostaRegra(await ops.frase("atendimento_menu"), "menu_enviado"), intencao: "menu",
     fonteOperacional: {chave:"atendimento_menu"} };
 }

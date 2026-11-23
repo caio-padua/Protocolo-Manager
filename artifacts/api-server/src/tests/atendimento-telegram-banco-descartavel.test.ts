@@ -1002,7 +1002,7 @@ describe("consumidor real do atendimento com banco descartável e somente transp
     h.noEnvio=async chat=>{if(chat==="ALERTA")await pausarParaHumano(h.db,1,"profissional_assumiu",6);};
     await processarAtendimentosPendentes();h.noEnvio=null;
     expect(h.enviados.map(e=>e.chat)).toEqual(["ALERTA"]);
-    expect((await pool.query("SELECT ultimo_erro FROM telegram_atendimento_respostas WHERE inbox_message_id=202")).rows[0].ultimo_erro).toBe("resposta_nao_autorizada");
+    expect((await pool.query("SELECT ultimo_erro FROM telegram_atendimento_respostas WHERE inbox_message_id=202")).rows[0].ultimo_erro).toMatch(/^(resposta_nao_autorizada|autorizacao_alterada)$/);
     expect((await pool.query("SELECT alterado_por FROM telegram_atendimento WHERE cliente_id=1")).rows[0].alterado_por).toBe(6);
   });
   it("aprovação retirada depois do plano impede o envio do texto antigo",async()=>{

@@ -84,12 +84,12 @@ describe("coordenador com IA leve", () => {
     expect(p.intencao).toBe("humano");
     expect(p.resposta).toBe("frase:atendimento_pedido_equipe");
   });
-  it("sem intenção da IA, registra a inédita e envia o menu", async () => {
+  it("sem intenção da IA, registra a inédita e envia o texto institucional autorizado", async () => {
     const reg = vi.fn(async () => {});
     const p = await planejarAtendimentoWhatsapp(depsBase(), entrada("vocês têm estacionamento próximo"),
       ops({ classificarIA: async () => null, registrarInedita: reg }));
     expect(reg).toHaveBeenCalledWith("vocês têm estacionamento próximo", "desconhecida", "regra");
-    expect(p.resposta).toBe("frase:atendimento_menu");
+    expect(p.resposta).toBe("frase:atendimento_nao_reconhecida");
   });
   it("queixa clínica nunca chega à IA nem ao registro", async () => {
     const ia = vi.fn(async () => "agendar" as const); const reg = vi.fn(async () => {});

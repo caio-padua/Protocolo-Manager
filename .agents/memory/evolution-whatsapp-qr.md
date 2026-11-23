@@ -67,3 +67,10 @@ Uma opção numérica só pertence ao menu se o contexto recente e entregue for 
 - Base Global: só intenção + variação limpa; limpeza RECUSA em vez de remendar; origem só como hash com sal; telas ainda pendentes.
 **Why:** evitar vazamento entre clínicas e queda do servidor. **How to apply:** qualquer promoção passa por `limparVariacaoParaBaseGlobal`.
 - Croqui em 4 etapas em specs/cerebro-atendimento-croqui-etapas.md; etapa 1 executa só o que consta lá. Endereço vem de `empresas` na hora da resposta (nunca texto fixo); negação remove orações "não quero X" antes de classificar; intervalo de agrupamento é por clínica (`agrupamento_ms`, 0 desliga).
+
+
+## Fase 1B (circuito Telegram + ficha + interruptores)
+- Telegram usa o mesmo planejador do WhatsApp (menu numérico só no WhatsApp); controle por canal vale para ambos.
+- Testes antigos que mockam pool/db precisam mockar `atendimento-controle` e `atendimento-ficha`; sem isso o controle falha fechado e nada responde.
+- Rodar um único vitest por vez (dois em paralelo derrubam o banco descartável).
+- Roteiro do teste real: specs/roteiro-teste-real-fase-1b.md; conferência: src/scripts/conferir-homologacao.ts.

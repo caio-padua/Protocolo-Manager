@@ -1,3 +1,4 @@
+import atendimentoControleRouter from "./atendimento-controle";
 import { Router, type IRouter } from "express";
 import clinicalDemonstrationsRouter from "./clinical-demonstrations";
 import healthRouter from "./health";
@@ -229,6 +230,7 @@ router.use(collaboratorGuard);
 
 router.use(healthRouter);
 router.use(evolutionRouter);
+router.use(atendimentoControleRouter);
 router.use(clientsRouter);
 router.use(avaliacoesCorporaisRouter);
 router.use(antropometriaFigurasRouter);

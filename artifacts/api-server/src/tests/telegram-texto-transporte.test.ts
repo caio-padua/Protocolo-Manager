@@ -20,7 +20,7 @@ describe("transporte de texto: aceite verificável e erro sem conteúdo", () => 
 
   it("aceita somente resposta ok com identificador válido de mensagem", async () => {
     mocks.fetch.mockResolvedValue(new Response(JSON.stringify({ ok: true, result: { message_id: 10 } })));
-    expect(await enviar()).toEqual({ sent: true, mock: false });
+    expect(await enviar()).toEqual({ sent: true, mock: false, messageId: 10 });
     const [, options] = mocks.fetch.mock.calls[0];
     expect(options.signal).toBeInstanceOf(AbortSignal);
   });

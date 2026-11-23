@@ -608,6 +608,20 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
     const clienteJaVinculado = vinculados[0];
 
     if (clienteJaVinculado) {
+      const ignorarFicha = async (motivo: string): Promise<void> => {
+        const { registrarFicha } = await import("../lib/atendimento-ficha");
+        await registrarFicha({
+          entrada: { inboxMessageId: 0, empresaId: clienteJaVinculado.empresaId ?? 0, clienteId: clienteJaVinculado.id, clienteNome: "", chatId, texto: "", canal: "telegram" },
+          plano: { pausa: null, alerta: null, resposta: null, orientacaoId: null, desfecho: "sem_conteudo_textual" },
+          mensagemRef: `tgu:${updateIdEntrada ?? randomUUID()}`, estado: "ignorado", motivo,
+        });
+      };
+      if (msg.from?.is_bot === true && (clienteJaVinculado.empresaId ?? 0) > 0) {
+        logger.info({ motivo: "mensagem_de_bot" }, "[telegram] update ignorado: remetente é bot (nenhum efeito)");
+        await ignorarFicha("mensagem_de_bot");
+        res.status(200).json({ ok: true });
+        return;
+      }
       if (isStart) {
         void sendTelegram(chatId, "Seu Telegram já está vinculado. Pode nos escrever por aqui.");
         res.status(200).json({ ok: true });
@@ -660,6 +674,9 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
         }
         res.status(200).json({ ok: true });
         return;
+      }
+      if (!texto && !anexo && (clienteJaVinculado.empresaId ?? 0) > 0) {
+        await ignorarFicha(update.edited_message ? "evento_editado_sem_texto" : "mensagem_sem_texto");
       }
       // ── Modo INBOX: cliente vinculado enviou mensagem → delega à lib ────────
       if (texto) {

@@ -7,6 +7,7 @@ import {
 import { ConsoleShell, BlockTitle, StatusVela, BASE } from "./_shared";
 import { getCollabToken } from "@/lib/collab-auth";
 import { PainelOperacionalTelegram } from "./painel-telegram";
+import { FichaAtendimento } from "./ficha-atendimento";
 import { SecaoComunicacaoUnificada } from "./conversa-unificada";
 import { BotaoMinMax } from "./botao-min-max";
 import { classificarStatusTelegram, mensagemErroTelegram, type StatusTelegram } from "./telegram-status";
@@ -634,6 +635,8 @@ export default function CentralAuditoriaComunicacao() {
       </section>
 
       <SecaoComunicacaoUnificada periodo={filtroData} />
+
+      <FichaAtendimento periodo={filtroData} />
 
       {/* 4 blocos de canal */}
       <BlocoWhatsApp filtroData={filtroData} />

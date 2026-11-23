@@ -46,7 +46,16 @@ describe("cérebro real sem inteligência artificial",()=>{
     expect(d.carregarOrientacoes).not.toHaveBeenCalled(); expect(ops.agendar).not.toHaveBeenCalled();
     expect(d.enviarAoPaciente).not.toHaveBeenCalled(); expect(d.passarParaHumano).not.toHaveBeenCalled();
   });
-  it.each(["menu","não entendi","quero orçamento e receita"])("oferece menu claro sem falsa passagem à equipe: %s",async texto=>{
+  it("sem pedido reconhecido, usa o texto institucional autorizado e avisa a equipe (Fase 1B)",async()=>{
+    const p=await planejarAtendimentoWhatsapp(d,entrada("não entendi"),ops);
+    expect(p.resposta).toBe("atendimento_nao_reconhecida"); expect(p.desfecho).toBe("encaminhado_humano");
+    expect(p.alerta).toMatch(/pergunta não reconhecida/);
+  });
+  it("dois pedidos na mesma mensagem: pergunta curta autorizada, sem escolher em silêncio",async()=>{
+    const p=await planejarAtendimentoWhatsapp(d,entrada("quero orçamento e receita"),ops);
+    expect(p.desfecho).toBe("operacional_enviada"); expect(p.alerta).toBeNull(); expect(p.pausa).toBeNull();
+  });
+  it.each(["menu"])("oferece menu claro sem falsa passagem à equipe: %s",async texto=>{
     const p=await planejarAtendimentoWhatsapp(d,entrada(texto),ops);
     expect(p.desfecho).toBe("menu_enviado"); expect(p.resposta).toBe("atendimento_menu");
     expect(p.alerta).toBeNull(); expect(p.pausa).toBeNull();

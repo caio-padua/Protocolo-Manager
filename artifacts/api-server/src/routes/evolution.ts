@@ -20,6 +20,8 @@ import { resolverIdentidadeWhatsapp } from "../lib/evolution-client-identity";
 import { fonteAtendimentoAindaAutorizada } from "../lib/atendimento-resposta-autorizada";
 import type { EntradaAtendimento, PlanoAtendimento } from "../lib/atendimento-telegram";
 import { carregarFrases } from "../lib/telegram-frases";
+import { decidirControle } from "../lib/atendimento-controle";
+import { registrarFicha, acrescentarEvento, type EstadoFicha } from "../lib/atendimento-ficha";
 import {
   autorizarCancelamentoReenvio,
   autorizarConfirmacaoReenvio,
@@ -177,7 +179,7 @@ const usuarioDe = (req: Request): number | null => {
   return Number.isSafeInteger(id) ? id : null;
 };
 
-async function processarEntradaEvolution(p: {
+async function processarEntradaEvolutionNucleo(p: {
   empresaId: number;
   mensagemId: number;
   telefone: string;
@@ -198,6 +200,16 @@ async function processarEntradaEvolution(p: {
   };
   await pool.query(`UPDATE evolution_mensagens SET processamento='processando',cliente_id=$3,atualizado_em=NOW() WHERE id=$1 AND empresa_id=$2`, [p.mensagemId, p.empresaId,p.clienteId]);
   try {
+    // Interruptores: emergência > modo humano > clínica > canal > contato. A lista de homologação continua depois.
+    const rec = await pool.query(`SELECT criado_em FROM evolution_mensagens WHERE id=$1 AND empresa_id=$2`, [p.mensagemId, p.empresaId]);
+    const controle = await decidirControle({ empresaId: p.empresaId, canal: "whatsapp", clienteId: p.clienteId, recebidoEm: rec.rows[0]?.criado_em ?? null });
+    if (controle.acao === "bloqueado") {
+      await pool.query(
+        `UPDATE evolution_mensagens SET processamento='bloqueado_controle', desfecho_atendimento='bloqueado_controle',
+           plano_atendimento=jsonb_build_object('controle',$3::text) WHERE id=$1 AND empresa_id=$2`,
+        [p.mensagemId, p.empresaId, controle.motivo]);
+      return;
+    }
     const uso = { interprete: false, conferente: false };
     const deps = depsReaisAtendimento(p.empresaId, eventoMotorId, uso);
     const plano = await planejarAtendimentoWhatsapp(deps, entrada, depsOperacionaisWhatsapp(entrada,
@@ -207,6 +219,14 @@ async function processarEntradaEvolution(p: {
         `UPDATE evolution_mensagens SET processamento=$3, desfecho_atendimento=$4, plano_atendimento=$5::jsonb
           WHERE id=$1 AND empresa_id=$2`,
         [p.mensagemId, p.empresaId, plano.desfecho, plano.desfecho, JSON.stringify(plano)]);
+      return;
+    }
+    if (controle.acao === "assistido") {
+      // Modo assistido: o plano fica guardado para a equipe; nada é enviado nem pausado.
+      await pool.query(
+        `UPDATE evolution_mensagens SET processamento='assistido_aguardando', desfecho_atendimento=$3,
+           plano_atendimento=$4::jsonb WHERE id=$1 AND empresa_id=$2`,
+        [p.mensagemId, p.empresaId, plano.desfecho, JSON.stringify({ ...plano, controle: "modo_assistido" })]);
       return;
     }
     if (!await autorizarSaidaEvolution(entrada, plano)) {
@@ -663,6 +683,51 @@ router.post("/evolution/homologacao/enviar-resposta", requireCollaborator, async
 
 
 /** Fecha o grupo: junta as mensagens aguardando, marca as anteriores como agrupadas e processa a última. */
+
+type DadosEntradaEvolution = { empresaId: number; mensagemId: number; telefone: string; texto: string; clienteId: number; clienteNome: string; fragmentos?: number[] };
+
+function estadoDaFicha(processamento: string, desfecho: string | null, entregue: boolean): { estado: EstadoFicha; motivo: string | null } {
+  switch (processamento) {
+    case "concluido": return { estado: desfecho === "encaminhado_humano" ? "encaminhado" : entregue ? "entregue" : "enviado", motivo: null };
+    case "envio_pendente": return { estado: "pendente", motivo: "envio_nao_confirmado" };
+    case "incerto": return { estado: "incerto", motivo: "resultado_do_envio_nao_confirmado" };
+    case "bloqueado_controle": return { estado: "bloqueado", motivo: "controle_do_atendimento" };
+    case "assistido_aguardando": return { estado: "pendente", motivo: "modo_assistido" };
+    case "autorizacao_revogada": return { estado: "bloqueado", motivo: "fonte_ou_autorizacao_revogada" };
+    case "sem_resposta": return { estado: "ignorado", motivo: desfecho ?? "sem_resposta" };
+    case "falha_alerta": return { estado: "falhou", motivo: "alerta_a_equipe_recusado" };
+    case "desligado": case "fora_da_lista": case "pausado_humano": return { estado: "bloqueado", motivo: processamento };
+    default: return { estado: "encaminhado", motivo: processamento };
+  }
+}
+
+/** Processa a entrada e, ao final, grava a ficha auditável a partir do estado REAL persistido (nunca de suposição). */
+async function processarEntradaEvolution(p: DadosEntradaEvolution): Promise<void> {
+  try { await processarEntradaEvolutionNucleo(p); }
+  finally {
+    try {
+      const r = await pool.query(
+        `SELECT processamento,desfecho_atendimento,plano_atendimento,provider_id,criado_em FROM evolution_mensagens WHERE id=$1 AND empresa_id=$2`, [p.mensagemId, p.empresaId]);
+      const l = r.rows[0] as { processamento: string; desfecho_atendimento: string | null; plano_atendimento: PlanoAtendimento | null; provider_id: string | null; criado_em: string } | undefined;
+      if (l && l.processamento !== "processando") {
+        const s = await pool.query(
+          `SELECT provider_id,status FROM evolution_mensagens WHERE empresa_id=$1 AND mensagem_origem_id=$2 AND direcao='saida' AND contexto='motor_evolution' ORDER BY id DESC LIMIT 1`,
+          [p.empresaId, p.mensagemId]);
+        const saida = s.rows[0] as { provider_id: string | null; status: string } | undefined;
+        const { estado, motivo } = estadoDaFicha(l.processamento, l.desfecho_atendimento, ["entregue", "lido"].includes(saida?.status ?? ""));
+        await registrarFicha({
+          entrada: { inboxMessageId: 1_000_000_000_000 + p.mensagemId, empresaId: p.empresaId, clienteId: p.clienteId, clienteNome: "", chatId: p.telefone, texto: p.texto, canal: "whatsapp" },
+          plano: (l.plano_atendimento ?? { pausa: null, alerta: null, resposta: null, orientacaoId: null, desfecho: (l.desfecho_atendimento ?? "desligado") as PlanoAtendimento["desfecho"] }) as PlanoAtendimento,
+          mensagemRef: `wa:${p.mensagemId}`, eventoEntradaId: l.provider_id, fragmentos: p.fragmentos, recebidoEm: l.criado_em,
+          estado, motivo: l.processamento === "autorizacao_revogada" ? "fonte_ou_autorizacao_revogada" : motivo,
+          respostaId: saida?.provider_id ?? null, fonteSituacao: l.processamento === "autorizacao_revogada" ? "revogada_ou_alterada" : undefined,
+          tentativa: saida ? { resultado: saida.status, providerId: saida.provider_id } : undefined,
+        });
+      }
+    } catch { /* ficha nunca derruba o atendimento */ }
+  }
+}
+
 async function lerAgrupamentoMs(empresaId: number): Promise<number> {
   const r = await pool.query(`SELECT agrupamento_ms FROM evolution_homologacao_config WHERE empresa_id=$1`, [empresaId]);
   const v = Number(r.rows[0]?.agrupamento_ms);
@@ -694,6 +759,7 @@ async function dispararAgrupamento(chave: string): Promise<void> {
     empresaId, mensagemId: Number(ultima.id), telefone: contato,
     texto: linhas.map((l) => l.corpo).join("\n"),
     clienteId: Number(ultima.cliente_id), clienteNome: (cli.rows[0] as { name?: string } | undefined)?.name ?? "",
+    fragmentos: linhas.map((l) => Number(l.id)),
   });
 }
 const agrupadorEvolution = criarAgrupador(dispararAgrupamento);
@@ -715,7 +781,7 @@ async function varrerAgrupamentosPendentes(): Promise<void> {
 export async function recuperarEnviosPendentesEvolution(limite = 10, esperaSegundos = 60): Promise<number> {
   await garantirTabelasEvolution();
   const r = await pool.query(
-    `SELECT e.id,e.empresa_id,e.contato,e.cliente_id,e.plano_atendimento,e.corpo
+    `SELECT e.id,e.empresa_id,e.contato,e.cliente_id,e.plano_atendimento,e.corpo,e.criado_em
        FROM evolution_mensagens e
       WHERE e.direcao='entrada' AND e.processamento IN ('envio_pendente','processando')
         AND e.plano_atendimento->>'resposta' IS NOT NULL AND e.plano_atendimento->>'alerta' IS NULL
@@ -726,7 +792,7 @@ export async function recuperarEnviosPendentesEvolution(limite = 10, esperaSegun
           AND s.direcao='saida' AND s.contexto='motor_evolution' AND s.status IN ('incerto','aceito','enviado','entregue','lido'))
       ORDER BY e.id LIMIT $1`, [limite, esperaSegundos]);
   let reenviados = 0;
-  for (const l of r.rows as Array<{ id: number|string; empresa_id: number; contato: string; cliente_id: number; plano_atendimento: PlanoAtendimento; corpo: string }>) {
+  for (const l of r.rows as Array<{ id: number|string; empresa_id: number; contato: string; cliente_id: number; plano_atendimento: PlanoAtendimento; corpo: string; criado_em: string }>) {
     const claim = await pool.query(
       `UPDATE evolution_mensagens SET processamento='reenviando',tentativas_envio=tentativas_envio+1,atualizado_em=NOW()
         WHERE id=$1 AND empresa_id=$2 AND processamento IN ('envio_pendente','processando') RETURNING id`, [l.id, l.empresa_id]);
@@ -735,6 +801,12 @@ export async function recuperarEnviosPendentesEvolution(limite = 10, esperaSegun
     const entrada: EntradaAtendimento = { inboxMessageId: 1_000_000_000_000 + Number(l.id), empresaId: l.empresa_id,
       clienteId: Number(l.cliente_id), clienteNome: "", chatId: l.contato, texto: l.corpo, canal: "whatsapp", simulacao: false };
     try {
+      const ctl = await decidirControle({ empresaId: l.empresa_id, canal: "whatsapp", clienteId: Number(l.cliente_id), recebidoEm: l.criado_em });
+      if (ctl.acao !== "automatico") {
+        await pool.query(`UPDATE evolution_mensagens SET processamento='bloqueado_controle',atualizado_em=NOW() WHERE id=$1`, [l.id]);
+        await acrescentarEvento({ empresaId: l.empresa_id, canal: "whatsapp", mensagemRef: `wa:${l.id}`, tipo: "estado", estado: "bloqueado", motivo: ctl.motivo });
+        continue;
+      }
       if (!await autorizarSaidaEvolution(entrada, plano)) {
         await pool.query(`UPDATE evolution_mensagens SET processamento='autorizacao_revogada',atualizado_em=NOW() WHERE id=$1`, [l.id]);
         continue;
@@ -745,6 +817,10 @@ export async function recuperarEnviosPendentesEvolution(limite = 10, esperaSegun
       const naoEnviado = !ok && (!env.corpo.id || env.corpo.status === "falha");
       await pool.query(`UPDATE evolution_mensagens SET processamento=$2,atualizado_em=NOW() WHERE id=$1`,
         [l.id, ok ? "concluido" : naoEnviado ? "envio_pendente" : "incerto"]);
+      await acrescentarEvento({ empresaId: l.empresa_id, canal: "whatsapp", mensagemRef: `wa:${l.id}`, tipo: "recuperacao", resultado: ok ? "reenviado" : naoEnviado ? "nao_enviado" : "incerto",
+        providerId: (env.corpo.id as string | undefined) ?? null, motivo: "recuperacao_periodica" });
+      await acrescentarEvento({ empresaId: l.empresa_id, canal: "whatsapp", mensagemRef: `wa:${l.id}`, tipo: "estado",
+        estado: ok ? "enviado" : naoEnviado ? "pendente" : "incerto", motivo: "recuperacao_periodica" });
       if (ok) reenviados++;
     } catch {
       await pool.query(`UPDATE evolution_mensagens SET processamento='incerto',atualizado_em=NOW() WHERE id=$1`, [l.id]).catch(() => undefined);
@@ -752,8 +828,23 @@ export async function recuperarEnviosPendentesEvolution(limite = 10, esperaSegun
   }
   return reenviados;
 }
+let recuperacaoEmCurso = false;
+/** Um ciclo da recuperação periódica; ciclos sobrepostos no mesmo processo são descartados (o claim no banco é a trava final). */
+export async function cicloRecuperacaoEvolution(esperaSegundos = 60): Promise<number | null> {
+  if (recuperacaoEmCurso) return null;
+  recuperacaoEmCurso = true;
+  try { return await recuperarEnviosPendentesEvolution(10, esperaSegundos); }
+  catch { return null; }
+  finally { recuperacaoEmCurso = false; }
+}
+/** Agenda a recuperação no intervalo configurado. Devolve a função que a desliga. */
+export function iniciarRecuperacaoEvolution(intervaloMs = 30_000, esperaSegundos = 60): () => void {
+  const t = setInterval(() => void cicloRecuperacaoEvolution(esperaSegundos), intervaloMs);
+  t.unref?.();
+  return () => clearInterval(t);
+}
 if (process.env.NODE_ENV !== "test") {
-  setInterval(() => void recuperarEnviosPendentesEvolution().catch(() => undefined), 30_000).unref();
+  iniciarRecuperacaoEvolution();
   setTimeout(() => void varrerAgrupamentosPendentes().catch(() => undefined), 20_000).unref();
   setInterval(() => void varrerAgrupamentosPendentes().catch(() => undefined), 60_000).unref();
 }

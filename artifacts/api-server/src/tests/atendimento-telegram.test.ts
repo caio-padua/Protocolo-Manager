@@ -102,10 +102,10 @@ describe("apresentação operacional no WhatsApp", () => {
     expect(d.textoApresentacao).not.toHaveBeenCalled();
     expect(d.textoEncaminhado).toHaveBeenCalledWith(5, "Paciente Teste", "sem_orientacao_aprovada");
   });
-  it("não altera a apresentação de outro canal", async () => {
+  it("o Telegram usa a mesma apresentação da clínica (paridade com o WhatsApp)", async () => {
     const { d } = deps({ textoApresentacao: vi.fn(async () => apresentacao) });
     await processarAtendimento(d, E("Olá com quem estou falando?", { canal: "telegram" }));
-    expect(d.textoApresentacao).not.toHaveBeenCalled();
+    expect(d.textoApresentacao).toHaveBeenCalledOnce();
   });
   it("registra falha sem alegar envio e não duplica ao repetir", async () => {
     const { d } = deps({
