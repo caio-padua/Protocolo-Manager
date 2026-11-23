@@ -1516,3 +1516,45 @@ mtime_ms = 1795387839441
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/6195ff2b-503d-4d53-b86c-6563e1850a4d/6297d1a9-57f6-4562-86e6-a5ab5ded70c3"
 storage_version_token = "1795388415116442"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "CFRloSiAKliotV4DCiM4a"
+uri = "file://generated-artifacts/auditoria-catalogo-exames.md"
+type = "text"
+title = "Auditoria do catálogo de exames (Markdown)"
+description = "280 exames, números, achados e sugestões, para outra IA auditar."
+logical_id = "cad11dce-40f6-418c-bee2-7e551b340706"
+content_hash = "sha256:c08eb831fd8834d7cfc6521eb1044508757f2adabd264aade771a5bf99753a40"
+size = 65696
+mtime_ms = 1795465099654
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/cad11dce-40f6-418c-bee2-7e551b340706/93c6f6ad-5dbc-421b-8828-863877089443"
+storage_version_token = "1795465103258549"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "tVyf8-xtJD75f98f5sBWM"
+uri = "file://generated-artifacts/catalogo-exames.csv"
+type = "table"
+title = "Catálogo de exames (planilha CSV)"
+description = "Todas as linhas e colunas do catálogo."
+logical_id = "d94113bd-f33a-4a26-b443-c432e0b542d6"
+content_hash = "sha256:7c7ea9eea8ac358f7bb5b1486cd71a9290cb57f08254872be57a87444b5a8903"
+size = 59501
+mtime_ms = 1795465099659
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/d94113bd-f33a-4a26-b443-c432e0b542d6/d3057f51-bde6-4829-a4e9-d531c80781bc"
+storage_version_token = "1795465103928377"
+content_type = "text/csv"
+
+[[outputs]]
+id = "Sef61LcjqET4l3h9gEEP3"
+uri = "file://generated-artifacts/catalogo-exames.json"
+type = "unspecified"
+title = "Catálogo de exames (JSON)"
+description = "Mesmos dados em formato para IA e programas."
+logical_id = "f86d9d31-3c5f-44f9-ae6a-9acd302b7fcb"
+content_hash = "sha256:1f8dd4c6f6463c643adf66c9f6554ade21b529a725cf373a31ee7886b318d4ed"
+size = 169781
+mtime_ms = 1795465099315
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/f86d9d31-3c5f-44f9-ae6a-9acd302b7fcb/d0ac41ec-69f6-4e7c-981e-dbd0c58dd2ab"
+storage_version_token = "1795465104580939"
+content_type = "application/octet-stream"
