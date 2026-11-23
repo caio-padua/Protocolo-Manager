@@ -14,7 +14,7 @@ import { normalizarPerguntaAprendida, perguntaNaoClinicaSegura } from "./telegra
 import { ramificacaoDaIntencao } from "./atendimento-taxonomia";
 import { logger } from "./logger";
 
-export const INTENCOES_IA = ["agendar", "retorno", "orcamento", "documentos", "exames", "humano", "menu", "outra"] as const;
+export const INTENCOES_IA = ["agendar", "retorno", "orcamento", "documentos", "exames", "endereco", "humano", "menu", "outra"] as const;
 export type IntencaoIA = typeof INTENCOES_IA[number];
 
 /** Devolve uma intenção da lista fechada, ou null (sem modelo, texto sensível, falha ou resposta fora da lista). */

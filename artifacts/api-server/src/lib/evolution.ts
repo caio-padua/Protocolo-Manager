@@ -94,7 +94,8 @@ export function garantirTabelasEvolution(): Promise<void> {
       ADD COLUMN IF NOT EXISTS modelo_interprete TEXT NOT NULL DEFAULT '',
       ADD COLUMN IF NOT EXISTS modelo_conferente TEXT NOT NULL DEFAULT '',
       ADD COLUMN IF NOT EXISTS modelo_aprendiz TEXT NOT NULL DEFAULT '',
-      ADD COLUMN IF NOT EXISTS nome_assistente TEXT NOT NULL DEFAULT ''`);
+      ADD COLUMN IF NOT EXISTS nome_assistente TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS agrupamento_ms INTEGER NOT NULL DEFAULT 4000`);
   })().catch((e) => { pronto = null; throw e; });
   return pronto;
 }

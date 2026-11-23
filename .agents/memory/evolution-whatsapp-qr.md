@@ -66,3 +66,4 @@ Uma opção numérica só pertence ao menu se o contexto recente e entregue for 
 - Rotas Express novas: não usar `:param(a|b)` (path-to-regexp novo quebra o boot da API); registrar uma rota por valor.
 - Base Global: só intenção + variação limpa; limpeza RECUSA em vez de remendar; origem só como hash com sal; telas ainda pendentes.
 **Why:** evitar vazamento entre clínicas e queda do servidor. **How to apply:** qualquer promoção passa por `limparVariacaoParaBaseGlobal`.
+- Croqui em 4 etapas em specs/cerebro-atendimento-croqui-etapas.md; etapa 1 executa só o que consta lá. Endereço vem de `empresas` na hora da resposta (nunca texto fixo); negação remove orações "não quero X" antes de classificar; intervalo de agrupamento é por clínica (`agrupamento_ms`, 0 desliga).

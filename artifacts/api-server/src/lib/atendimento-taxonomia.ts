@@ -31,6 +31,7 @@ export function ramificacaoDaIntencao(intencao: string | null | undefined): Rami
     case "orcamento": return { tronco: "financeiro", ramo: "orcamento" };
     case "documentos": return { tronco: "receitas_exames", ramo: "receitas" };
     case "exames": return { tronco: "receitas_exames", ramo: "exames" };
+    case "endereco": return { tronco: "agendamento", ramo: "horarios" };
     case "humano": return { tronco: "triagem_clinica", ramo: "equipe" };
     case "clinica": return { tronco: "triagem_clinica", ramo: "queixa" };
     default: return { tronco: "recepcao", ramo: "clinica" };

@@ -165,6 +165,8 @@ async function autorizarSaidaEvolution(entrada: EntradaAtendimento, plano: Plano
     const ops = depsOperacionaisWhatsapp(entrada);
     const f = plano.fonteOperacional;
     if (await ops.frase(f.chave,f.variaveis) !== plano.resposta) return false;
+    if (f.chave === "atendimento_endereco" &&
+      await ops.endereco?.() !== f.variaveis?.endereco) return false;
     if (f.chave === "atendimento_consulta_agenda" &&
       await ops.consultarRetorno() !== f.variaveis?.compromissos) return false;
   }
@@ -388,6 +390,24 @@ router.get("/evolution/homologacao/config", requireCollaborator, async (req, res
     motorAtivo: Boolean(atual?.motor_ativo),
     nomeAssistente: atual?.nome_assistente ?? "",
   });
+});
+
+router.get("/evolution/homologacao/agrupamento", requireCollaborator, async (req, res) => {
+  const empresaId = exigeAdmin(req, res); if (empresaId === null) return;
+  await garantirTabelasEvolution();
+  res.json({ agrupamentoMs: await lerAgrupamentoMs(empresaId), maximoMs: 12000 });
+});
+// Intervalo para juntar mensagens seguidas da mesma pessoa. 0 desliga o agrupamento.
+router.put("/evolution/homologacao/agrupamento", requireCollaborator, async (req, res) => {
+  const empresaId = exigeAdmin(req, res); if (empresaId === null) return;
+  await garantirTabelasEvolution();
+  const ms = req.body?.agrupamentoMs;
+  if (!Number.isInteger(ms) || ms < 0 || ms > 12000) { res.status(400).json({ error: "Informe de 0 a 12000 milissegundos." }); return; }
+  await pool.query(
+    `INSERT INTO evolution_homologacao_config (empresa_id,agrupamento_ms,atualizado_por) VALUES ($1,$2,$3)
+     ON CONFLICT (empresa_id) DO UPDATE SET agrupamento_ms=EXCLUDED.agrupamento_ms,atualizado_por=EXCLUDED.atualizado_por,atualizado_em=NOW()`,
+    [empresaId, ms, usuarioDe(req)]);
+  res.json({ ok: true, agrupamentoMs: ms });
 });
 
 router.put("/evolution/homologacao/config", requireCollaborator, async (req, res) => {
@@ -639,6 +659,12 @@ router.post("/evolution/homologacao/enviar-resposta", requireCollaborator, async
 
 
 /** Fecha o grupo: junta as mensagens aguardando, marca as anteriores como agrupadas e processa a última. */
+async function lerAgrupamentoMs(empresaId: number): Promise<number> {
+  const r = await pool.query(`SELECT agrupamento_ms FROM evolution_homologacao_config WHERE empresa_id=$1`, [empresaId]);
+  const v = Number(r.rows[0]?.agrupamento_ms);
+  return Number.isInteger(v) && v >= 0 && v <= 12000 ? v : 4000;
+}
+
 async function dispararAgrupamento(chave: string): Promise<void> {
   const [empresaTxt, contato] = chave.split("|");
   const empresaId = Number(empresaTxt);
@@ -739,7 +765,8 @@ publico.post("/evolution/webhook/:empresaId/:token", async (req, res) => {
           continue;
         }
         const cliente = identidade.rows[0] as { id: number | string; name: string | null };
-        if (process.env.NODE_ENV === "test" || process.env.EVOLUTION_AGRUPAMENTO_MS === "0") {
+        const esperaMs = await lerAgrupamentoMs(empresaId);
+        if (process.env.NODE_ENV === "test" || process.env.EVOLUTION_AGRUPAMENTO_MS === "0" || esperaMs === 0) {
           await processarEntradaEvolution({
             empresaId, mensagemId, telefone: c.contato, texto,
             clienteId: Number(cliente.id), clienteNome: cliente.name ?? "",
@@ -750,7 +777,7 @@ publico.post("/evolution/webhook/:empresaId/:token", async (req, res) => {
         await pool.query(
           `UPDATE evolution_mensagens SET processamento='aguardando_agrupamento',cliente_id=$3 WHERE id=$1 AND empresa_id=$2`,
           [mensagemId, empresaId, Number(cliente.id)]);
-        agrupadorEvolution.agendar(`${empresaId}|${c.contato}`);
+        agrupadorEvolution.agendar(`${empresaId}|${c.contato}`, esperaMs);
       }
     } else if (evento === "messages.update") {
       for (const d of itens) {

@@ -31,6 +31,7 @@ beforeAll(async () => {
   store = await import("../lib/telegram-agendamento-store");
   const { db } = await import("@workspace/db");
   await store.aplicarMigracaoAgendamentoTelegram(db);
+  await (await import("../lib/telegram-aprendiz")).migrarTabelasTelegramAprendiz(db);
 }, 60_000);
 afterAll(async () => { try { await pool?.end(); } catch { /* ignora */ } pg.parar(); });
 beforeEach(() => { enviados.length = 0; cfg.modo = "ligado"; cfg.lista = "[]"; });

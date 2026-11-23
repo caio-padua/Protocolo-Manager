@@ -9,16 +9,23 @@ import {
 } from "./atendimento-telegram";
 
 export type IntencaoWhatsapp = "apresentacao" | "menu" | "agendar" | "retorno" |
-  "orcamento" | "documentos" | "exames" | "humano" | "clinica" | "ambigua" | "desconhecida";
+  "orcamento" | "documentos" | "exames" | "endereco" | "humano" | "clinica" | "ambigua" | "desconhecida";
 export const OPCOES_MENU: Record<string, string> = {
   "1": "Quero agendar uma consulta", "2": "Quero consultar meu retorno agendado",
   "3": "Quero um orçamento", "4": "Quero a segunda via de um documento",
   "5": "Quero meus pedidos de exames", "6": "Quero falar com a equipe",
 };
 
+/** Remove orações negadas ("não quero remarcar") para que não virem pedido. A segurança clínica usa o texto inteiro. */
+export function removerOracoesNegadas(texto: string): string {
+  return texto.split(/[,;.!?\n]|\bmas\b/i)
+    .filter((o) => !/^\s*(?:eu\s+)?n[aã]o\s+(?:quero|preciso|desejo|vou|gostaria|queria|pedi|pedir)\b/i.test(o.normalize("NFC")))
+    .join(" ");
+}
+
 export function classificarIntencaoWhatsapp(texto: string): IntencaoWhatsapp {
-  const n = normalizar(texto);
   if (classificarQueixa(texto) || pedidoClinicoExigeEquipe(texto)) return "clinica";
+  const n = normalizar(removerOracoesNegadas(texto));
   if (ehPedidoApresentacao(texto)) return "apresentacao";
   if (/^(?:menu|inicio|iniciar|opcoes|ajuda|o que (?:voce|vc) faz|como pode me ajudar)$/.test(n)) return "menu";
   if (/\b(?:humano|atendente|secretaria|recepcao|equipe|pessoa de verdade|falar com alguem)\b/.test(n)) return "humano";
@@ -28,6 +35,7 @@ export function classificarIntencaoWhatsapp(texto: string): IntencaoWhatsapp {
   if (agendar) achadas.add("agendar");
   else if (/\b(?:retorno|minha consulta|meu agendamento|consulta agendada|que dia.*consulta|quando.*consulta)\b/.test(n)) achadas.add("retorno");
   if (/\b(?:receita|receitas|prescricao|prescricoes|documento|documentos|protocolo|atestado|encaminhamento|segunda via)\b/.test(n)) achadas.add("documentos");
+  if (/\b(?:endereco|onde fica|onde voces ficam|localizacao|como chegar|qual o local)\b/.test(n)) achadas.add("endereco");
   if (/\b(?:exame|exames|laboratorio)\b/.test(n)) {
     // "pedido de exames" é uma única intenção documental, não duas.
     if (!/\b(?:receita|protocolo|atestado)\b/.test(n)) achadas.delete("documentos");
@@ -42,6 +50,8 @@ export interface DepsOperacionaisWhatsapp {
   /** Contém apenas dado verificado do próprio cliente e clínica. */
   consultarRetorno: () => Promise<string | null>;
   agendar: (texto: string) => Promise<PlanoAtendimento | null>;
+  /** Endereço do cadastro vigente da clínica de destino; null se ausente. */
+  endereco?: () => Promise<string | null>;
   /** IA leve: só devolve uma intenção de lista fechada (nunca texto). Opcional. */
   /** Base Global (somente clínica licenciada): variação genérica conhecida -> intenção. */
   classificarGlobal?: (texto: string) => Promise<IntencaoWhatsapp | null>;
@@ -103,6 +113,13 @@ export async function planejarAtendimentoWhatsapp(
       ? { ...respostaRegra(await ops.frase("atendimento_consulta_agenda", { compromissos })),
           fonteOperacional: {chave:"atendimento_consulta_agenda",variaveis:{compromissos}} }
       : equipe("retorno_sem_registro");
+  }
+  if (intencao === "endereco") {
+    const endereco = await ops.endereco?.();
+    return endereco
+      ? { ...respostaRegra(await ops.frase("atendimento_endereco", { endereco })),
+          fonteOperacional: { chave: "atendimento_endereco", variaveis: { endereco } } }
+      : equipe("endereco_sem_cadastro");
   }
   if (intencao === "orcamento") return equipe("orcamento_sem_resposta_aprovada");
   if (intencao === "documentos" || intencao === "exames") return equipe("documento_sem_resposta_aplicavel");

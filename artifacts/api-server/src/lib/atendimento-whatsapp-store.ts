@@ -28,7 +28,9 @@ export function depsOperacionaisWhatsapp(
     frase: async (chave, vars) => {
       // Modelo sobrescrito pela própria clínica prevalece; padrão continua
       // vindo da tela Frases do Assistente, sem congelar edições posteriores.
-      const modelo = await modeloTexto(e.empresaId, chave as CategoriaOperacional);
+      const modelo = chave === "atendimento_endereco"
+        ? { origem: "padrao" as const, texto: "" }
+        : await modeloTexto(e.empresaId, chave as CategoriaOperacional);
       if (modelo.origem === "clinica") {
         const r = await db.execute(sql`SELECT nome FROM empresas WHERE id=${e.empresaId}`);
         const clinica = (r.rows[0] as {nome?:string}|undefined)?.nome;
@@ -38,6 +40,13 @@ export function depsOperacionaisWhatsapp(
         return renderTexto(modelo.texto,{...vars,nome:e.clienteNome,clinica,assistente:assistente ?? ""});
       }
       return (await carregarFrases())(chave as ChaveFrase, vars);
+    },
+    endereco: async () => {
+      const r = await db.execute(sql`SELECT endereco,bairro,cidade,estado,cep FROM empresas WHERE id=${e.empresaId}`);
+      const x = r.rows[0] as {endereco?:string|null;bairro?:string|null;cidade?:string|null;estado?:string|null;cep?:string|null}|undefined;
+      if (!x?.endereco?.trim()) return null;
+      const cidade = [x.cidade?.trim(), x.estado?.trim()].filter(Boolean).join("/");
+      return [x.endereco.trim(), x.bairro?.trim(), cidade, x.cep?.trim() ? `CEP ${x.cep.trim()}` : ""].filter(Boolean).join(", ");
     },
     consultarRetorno: async () => {
       const r = await db.execute(sql`SELECT s.scheduled_date,s.scheduled_time FROM sessions s

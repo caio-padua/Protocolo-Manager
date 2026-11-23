@@ -98,3 +98,40 @@ describe("coordenador com IA leve", () => {
     expect(p.desfecho).not.toBe("menu_enviado");
   });
 });
+
+describe("negação e endereço da fonte local", () => {
+  const ops = (extra: Partial<DepsOperacionaisWhatsapp>): DepsOperacionaisWhatsapp => ({
+    menuAtivo: async () => false, frase: async (c, v) => `frase:${c}:${v?.endereco ?? ""}`,
+    consultarRetorno: async () => null, agendar: async () => { throw new Error("não deve agendar"); }, ...extra,
+  });
+  it("'não quero remarcar, só quero o endereço' responde o endereço e não agenda", async () => {
+    const p = await planejarAtendimentoWhatsapp(depsBase(), entrada("Não quero remarcar, só quero o endereço"),
+      ops({ endereco: async () => "Rua Sintética 1, Cidade A" }));
+    expect(p.intencao).toBe("endereco");
+    expect(p.resposta).toBe("frase:atendimento_endereco:Rua Sintética 1, Cidade A");
+    expect(p.fonteOperacional?.variaveis?.endereco).toBe("Rua Sintética 1, Cidade A");
+  });
+  it("'não quero falar com a equipe, qual o endereço' não escala para humano", async () => {
+    const p = await planejarAtendimentoWhatsapp(depsBase(), entrada("não quero falar com a equipe, qual o endereço?"),
+      ops({ endereco: async () => "Av. Teste 2" }));
+    expect(p.desfecho).not.toBe("encaminhado_humano");
+    expect(p.intencao).toBe("endereco");
+  });
+  it("sem endereço cadastrado encaminha à equipe, sem inventar", async () => {
+    const p = await planejarAtendimentoWhatsapp(depsBase(), entrada("qual o endereço de vocês"), ops({ endereco: async () => null }));
+    expect(p.desfecho).toBe("encaminhado_humano");
+    expect(p.pausa).toBe("endereco_sem_cadastro");
+  });
+  it("sem negação, remarcar e endereço juntos continuam ambíguos", async () => {
+    const p = await planejarAtendimentoWhatsapp(depsBase(), entrada("quero remarcar e saber o endereço"), ops({ endereco: async () => "X" }));
+    expect(p.intencao).not.toBe("endereco");
+  });
+  it("duas clínicas: o endereço vem sempre da própria clínica de destino", async () => {
+    const lerA = async () => "Rua da Clínica A";
+    const lerB = async () => "Rua da Clínica B";
+    const a = await planejarAtendimentoWhatsapp(depsBase(), { ...entrada("onde fica a clínica"), empresaId: 5 }, ops({ endereco: lerA }));
+    const b = await planejarAtendimentoWhatsapp(depsBase(), { ...entrada("onde fica a clínica"), empresaId: 6 }, ops({ endereco: lerB }));
+    expect(a.resposta).toContain("Clínica A"); expect(b.resposta).toContain("Clínica B");
+    expect(a.resposta).not.toContain("Clínica B");
+  });
+});
