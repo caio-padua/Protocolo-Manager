@@ -76,6 +76,8 @@ export async function planejarAtendimentoWhatsapp(
     ...(somenteOperacional ? { responderDocumento: undefined, buscarFaq: undefined, carregarOrientacoes: async () => [] } : {}),
   }, { ...e, texto });
   plano.intencao = intencao;
+  plano.intencaoDetectada = intencao;
+  plano.origemIntencao = "regra";
   if (["desligado", "fora_da_lista", "pausado_humano", "ja_tratado"].includes(plano.desfecho)) return plano;
   // Não substituir decisões clínicas, resposta aprovada ou documentos.
   if (plano.pausa !== "sem_orientacao_aprovada") return plano;
@@ -91,8 +93,11 @@ export async function planejarAtendimentoWhatsapp(
     if (ia && ia !== "desconhecida" && ia !== "clinica" && ia !== "ambigua") { intencao = ia; origem = "ia"; plano.intencao = intencao; }
   }
 
+  plano.intencaoDetectada = intencao;
+  plano.origemIntencao = origem;
+  const detectada = { intencaoDetectada: intencao, origemIntencao: origem };
   const respostaRegra = (resposta: string, desfecho: PlanoAtendimento["desfecho"] = "operacional_enviada"): PlanoAtendimento => ({
-    resposta, desfecho, pausa: null, alerta: null, orientacaoId: null, faqId: null,
+    resposta, desfecho, pausa: null, alerta: null, orientacaoId: null, faqId: null, ...detectada,
     caminhoResolucao: "regra", intencao, interpreteChamado: false, conferenteChamado: false, aprendizChamado: false,
   });
   const equipe = async (motivo: string): Promise<PlanoAtendimento> => ({
@@ -105,7 +110,7 @@ export async function planejarAtendimentoWhatsapp(
   if (intencao === "humano") return equipe("solicitou_equipe");
   if (intencao === "agendar" || intencao === "desconhecida") {
     const agenda = await ops.agendar(texto);
-    if (agenda) return { ...agenda, intencao: "agendar" };
+    if (agenda) return { ...agenda, intencao: "agendar", ...detectada };
   }
   if (intencao === "retorno") {
     const compromissos = await ops.consultarRetorno();

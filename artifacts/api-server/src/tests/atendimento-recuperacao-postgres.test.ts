@@ -99,10 +99,18 @@ describe("atendimento recuperável, somente banco descartável",()=>{
     expect(d.enviar).not.toHaveBeenCalled();expect((await estado(id)).ultimo_erro).toBe("destino_configurado_alterado");
   });
   it("alerta aceito não repete quando só a resposta falhou",async()=>{
+    const contar=async()=>Number((await b.pool.query("SELECT count(*) n FROM telegram_inbox_messages WHERE direcao='saida' AND chat_id='111'")).rows[0].n);
+    const antes=await contar();
     const id=await novo();let n=0;
     await tentarAtendimentoDuravel(b.db,id,deps({enviar:async()=>++n===1?{sent:true,mock:false}:{sent:false,mock:false,error:"telegram_http_503"}}));
+    expect(await contar()).toBe(antes);
     await vencer(id);const d=deps();await tentarAtendimentoDuravel(b.db,id,d);
-    expect(d.enviar).toHaveBeenCalledTimes(1);expect(d.enviar).toHaveBeenCalledWith("111","RESPOSTA SINTÉTICA");
+    // Só a etapa pendente (resposta) é reenviada; o alerta já aceito e a intenção não são refeitos.
+    expect(d.enviar).toHaveBeenCalledTimes(1);
+    expect(d.enviar).toHaveBeenCalledWith("111","RESPOSTA SINTÉTICA",expect.objectContaining({etapa:"resposta"}));
+    expect(d.planejar).not.toHaveBeenCalled();
+    expect((await estado(id)).estado).toBe("concluido");
+    expect(await contar()).toBe(antes+1);
   });
   it("exceção após barreira fica incerta, sem erro bruto nem repetição",async()=>{
     const id=await novo();const d=deps({enviar:async()=>{throw new Error("CPF 123.456.789-00 TOKEN");}});

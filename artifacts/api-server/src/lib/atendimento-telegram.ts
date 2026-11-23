@@ -344,6 +344,10 @@ export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAten
 
 export interface PlanoAtendimento {
   intencao?: string;
+  /** Intenção reconhecida antes de o plano virar menu/equipe (ex.: "ambigua"). Só para auditoria. */
+  intencaoDetectada?: string;
+  /** Quem escolheu a intenção: regra determinística ou IA (apenas classifica). */
+  origemIntencao?: "regra" | "ia";
   encaminhamento?: "registrado" | "alerta_aceito" | "falha_alerta";
   fonteOperacional?: { chave: string; variaveis?: Record<string,string> };
   pausa: string | null;

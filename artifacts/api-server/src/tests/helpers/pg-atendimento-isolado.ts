@@ -10,9 +10,17 @@ export async function bancoAtendimentoIsolado() {
   const dir=mkdtempSync(join(tmpdir(),"atendimento-isolado-"));
   execFileSync(join(bin,"initdb"),["-D",join(dir,"db"),"-A","trust","-U","teste"],{stdio:"ignore"});
   const proc=spawn(join(bin,"postgres"),["-D",join(dir,"db"),"-c","listen_addresses=","-k",dir,"-c","max_connections=40"],{stdio:"ignore"});
-  for(let i=0;i<80&&!existsSync(join(dir,".s.PGSQL.5432"));i++) await new Promise(r=>setTimeout(r,100));
+  // O arquivo de socket aparece ANTES de o servidor aceitar consultas ("database system is starting up").
+  // Prontidão real = uma consulta bem-sucedida; sem ela o teste falhava quando a máquina estava ocupada.
   const pool=new pg.Pool({host:dir,user:"teste",database:"postgres",max:25});
-  await pool.query("SELECT 1");
+  let ultimoErro:unknown=null;
+  for(let i=0;i<300;i++){
+    if(existsSync(join(dir,".s.PGSQL.5432"))){
+      try{await pool.query("SELECT 1");ultimoErro=null;break;}catch(e){ultimoErro=e;}
+    }
+    await new Promise(r=>setTimeout(r,100));
+  }
+  if(ultimoErro!==null||!existsSync(join(dir,".s.PGSQL.5432"))){proc.kill("SIGTERM");throw new Error("postgres_isolado_nao_ficou_pronto");}
   return {pool,db:drizzle(pool),dir,fechar:async()=>{
     // Parada inteligente aguarda o PostgreSQL observar o fechamento dos sockets.
     // SIGINT pode devolver FATAL ao socket que o pool acabou de encerrar.

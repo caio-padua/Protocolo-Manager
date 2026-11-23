@@ -56,7 +56,13 @@ export function garantirTabelasEvolution(): Promise<void> {
       ADD COLUMN IF NOT EXISTS plano_atendimento JSONB,
       ADD COLUMN IF NOT EXISTS cliente_id INTEGER,
       ADD COLUMN IF NOT EXISTS mensagem_origem_id BIGINT,
+      ADD COLUMN IF NOT EXISTS tentativas_envio INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS reissue_request_id BIGINT`);
+    // Garantia no banco: uma mensagem recebida gera no máximo UMA saída do motor que não seja falha comprovada.
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS evolution_saida_origem_unica
+      ON evolution_mensagens (empresa_id, mensagem_origem_id)
+      WHERE direcao='saida' AND contexto='motor_evolution' AND mensagem_origem_id IS NOT NULL
+        AND status IN ('incerto','aceito','enviado','entregue','lido')`);
     await pool.query(`CREATE INDEX IF NOT EXISTS evolution_mensagens_reissue_request
       ON evolution_mensagens (empresa_id, reissue_request_id)
       WHERE reissue_request_id IS NOT NULL`);
@@ -322,12 +328,19 @@ export async function enviarTextoEvolution(
   const conexao = await consultarConexao(empresaId);
   if (conexao.estado !== "conectado") return { accepted: false, status: 409, error: conexao.estado };
   if (!podeEnviarAgora(empresaId)) return { accepted: false, status: 429, error: "limite_de_envios" };
-  const inserted = await pool.query(
-    `INSERT INTO evolution_mensagens
-       (empresa_id, instancia, direcao, contato, corpo, provider_id, status, erro, contexto, enviado_por, reissue_request_id,cliente_id,mensagem_origem_id)
-     VALUES ($1,$2,'saida',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
-    [empresaId, cfg.instanceName, destino, texto, null, "incerto", null, contexto, usuarioId,
-      reissueRequestId ?? null, atendimento?.clienteId ?? null,atendimento?.mensagemOrigemId ?? null]);
+  let inserted;
+  try {
+    inserted = await pool.query(
+      `INSERT INTO evolution_mensagens
+         (empresa_id, instancia, direcao, contato, corpo, provider_id, status, erro, contexto, enviado_por, reissue_request_id,cliente_id,mensagem_origem_id)
+       VALUES ($1,$2,'saida',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+      [empresaId, cfg.instanceName, destino, texto, null, "incerto", null, contexto, usuarioId,
+        reissueRequestId ?? null, atendimento?.clienteId ?? null,atendimento?.mensagemOrigemId ?? null]);
+  } catch (e) {
+    // Índice único: já existe saída desta origem (incerta ou aceita). Nunca enviar a segunda.
+    if ((e as { code?: string })?.code === "23505") return { accepted: false, status: 409, error: "saida_ja_registrada_para_esta_origem" };
+    throw e;
+  }
   const id = Number(inserted.rows[0]?.id);
   if (!Number.isSafeInteger(id) || id <= 0) throw new Error("registro_de_envio_indisponivel");
   const resposta = await chamar(cfg, "POST", `/message/sendText/${encodeURIComponent(cfg.instanceName)}`, { number: destino, text: texto });

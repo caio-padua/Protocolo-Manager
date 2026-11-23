@@ -29,7 +29,7 @@ vi.mock("../lib/atendimento-telegram-store", () => ({ depsReaisAtendimento: () =
   modoDoCliente: h.clientMode,
   carregarOrientacoes:async()=>[],buscarFaq:async()=>null,responderDocumento:async()=>null,
   textoEncaminhado:async()=>"Texto de encaminhamento aprovado",
-  textoApresentacao:async()=>"Olá !\n\nMe chamo Helena,\nAssistente virtual do Instituto Pádua.\n\nTudo bem ?\nComo eu poderia te ajudar?",
+  textoApresentacao:async()=>"Olá!\n\nMe chamo Helena,\nAssistente virtual do Instituto Pádua.\n\nTudo bem?\n\nComo eu poderia te ajudar?",
 }) }));
 vi.mock("../lib/atendimento-whatsapp-store",async()=>{
   const {FRASES_PADRAO,substituir}=await import("../lib/telegram-frases");

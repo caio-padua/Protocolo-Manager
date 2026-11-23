@@ -36,7 +36,7 @@ function deps(over: Partial<DepsAtendimento> & { cfg?: ConfigAtendimentoIA; modo
 }
 
 describe("apresentação operacional no WhatsApp", () => {
-  const apresentacao = "Olá !\n\nMe chamo Helena,\nAssistente virtual do Instituto Pádua.\n\nTudo bem ?\nComo eu poderia te ajudar?";
+  const apresentacao = "Olá!\n\nMe chamo Helena,\nAssistente virtual do Instituto Pádua.\n\nTudo bem?\n\nComo eu poderia te ajudar?";
   const saudacoes = [
     "Olá com quem estou falando?", "Olá!", "Oi", "Oii!", "Oie!",
     "Bom dia", "Boa tarde!", "Boa noite", "Olá, tudo bem?",

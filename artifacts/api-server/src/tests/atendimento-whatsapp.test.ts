@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { classificarIntencaoWhatsapp, planejarAtendimentoWhatsapp, type DepsOperacionaisWhatsapp } from "../lib/atendimento-whatsapp";
 import type { DepsAtendimento, EntradaAtendimento, PlanoAtendimento } from "../lib/atendimento-telegram";
 
-const APRESENTACAO = "Olá !\n\nMe chamo Helena,\nAssistente virtual do Instituto Pádua.\n\nTudo bem ?\nComo eu poderia te ajudar?";
+const APRESENTACAO = "Olá!\n\nMe chamo Helena,\nAssistente virtual do Instituto Pádua.\n\nTudo bem?\n\nComo eu poderia te ajudar?";
 let d: DepsAtendimento;
 let ops: DepsOperacionaisWhatsapp;
 const entrada = (texto:string):EntradaAtendimento => ({

@@ -187,7 +187,7 @@ const run = (id: number, texto: string, over: Partial<typeof base> = {}) =>
 describe("SQL real", () => {
   it("apresentação usa o texto persistido exato, editável e isolado da outra clínica, sem envio externo", async () => {
     const original = (await pool.query("SELECT nome FROM empresas WHERE id=5")).rows[0].nome;
-    const esperado = "Olá !\n\nMe chamo Helena,\nAssistente virtual do Instituto Pádua.\n\nTudo bem ?\nComo eu poderia te ajudar?";
+    const esperado = "Olá!\n\nMe chamo Helena,\nAssistente virtual do Instituto Pádua.\n\nTudo bem?\n\nComo eu poderia te ajudar?";
     await semearFrases(h.db);
     await pool.query("UPDATE empresas SET nome='Instituto Padua' WHERE id=5");
     try {
