@@ -241,6 +241,52 @@ router.post("/cadastros/classificacoes", async (req, res): Promise<void> => {
   res.status(201).json({ ...inserted.rows[0], total: 0 });
 });
 
+// Renomear: atualiza o cadastro e os exames que usam o nome antigo, na mesma transacao.
+// Nome ja existente => 409 (fusao de duplicadas nao e feita aqui).
+router.patch("/cadastros/classificacoes/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const parsed = z.object({ nome: z.string().trim().min(1, "Nome obrigatorio").max(200) }).safeParse(req.body);
+  if (!Number.isInteger(id) || !parsed.success) {
+    res.status(400).json({ error: "id e nome validos sao obrigatorios" });
+    return;
+  }
+  await garantirClassificacoes();
+  const novo = parsed.data.nome.replace(/\s+/g, " ").toUpperCase();
+  try {
+    const out = await db.transaction(async (tx) => {
+      const atual = (await tx.execute(sql`
+        SELECT id, campo, nome, nome_norm FROM catalogo_exame_classificacoes WHERE id = ${id} FOR UPDATE`)).rows[0] as
+        | { id: number; campo: CampoClassificacao; nome: string; nome_norm: string }
+        | undefined;
+      if (!atual) return { status: 404 as const };
+      if (atual.nome_norm === novo) return { status: 200 as const, atualizados: 0, nome: atual.nome };
+      const dup = await tx.execute(sql`
+        SELECT 1 FROM catalogo_exame_classificacoes WHERE campo = ${atual.campo} AND nome_norm = ${novo}`);
+      if (dup.rows.length > 0) return { status: 409 as const };
+      const colunaExame = sql.raw(COLUNA_SQL[atual.campo].replace("e.", ""));
+      const upd = await tx.execute(sql`
+        UPDATE catalogo_exames SET ${colunaExame} = ${novo}
+        WHERE upper(trim(${colunaExame})) = ${atual.nome_norm}`);
+      await tx.execute(sql`
+        UPDATE catalogo_exame_classificacoes SET nome = ${novo}, nome_norm = ${novo} WHERE id = ${id}`);
+      return { status: 200 as const, atualizados: upd.rowCount ?? 0, nome: novo };
+    });
+    if (out.status === 404) {
+      res.status(404).json({ error: "Classificacao nao encontrada" });
+      return;
+    }
+    if (out.status === 409) {
+      res.status(409).json({ error: `Ja existe "${novo}" neste cadastro.` });
+      return;
+    }
+    req.log.info({ id, atualizados: out.atualizados }, "classificacao de exame renomeada");
+    res.json({ id, nome: out.nome, exames_atualizados: out.atualizados });
+  } catch (err) {
+    req.log.error({ err }, "falha ao renomear classificacao");
+    res.status(500).json({ error: "Falha ao renomear" });
+  }
+});
+
 router.patch("/cadastros/classificacoes/:id/ativo", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   const ativo = z.boolean().safeParse(req.body?.ativo);

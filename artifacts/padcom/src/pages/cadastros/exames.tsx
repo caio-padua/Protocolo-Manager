@@ -606,6 +606,30 @@ function ClassificacaoPainel({ item }: { item: (typeof CAMPOS_CLASS)[number] }) 
     onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
   });
 
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editNome, setEditNome] = useState("");
+  const renomear = useMutation<{ exames_atualizados: number }, Error, { id: number }>({
+    mutationFn: async ({ id }) => {
+      const r = await fetch(`/api/cadastros/classificacoes/${id}`, {
+        method: "PATCH",
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ nome: editNome }),
+      });
+      if (!r.ok) {
+        const b = await r.json().catch(() => ({}));
+        throw new Error(b.error ?? "Falha ao renomear");
+      }
+      return r.json();
+    },
+    onSuccess: (d) => {
+      qc.invalidateQueries({ queryKey: ["/api/cadastros/classificacoes"] });
+      qc.invalidateQueries({ queryKey: ["/api/cadastros/exames"] });
+      setEditId(null);
+      toast({ title: "Nome atualizado", description: `${d.exames_atualizados} exame(s) acompanharam a mudança.` });
+    },
+    onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
+  });
+
   const q = busca.trim().toLowerCase();
   const lista = (data ?? []).filter((c) => !q || c.nome.toLowerCase().includes(q));
 
@@ -614,7 +638,7 @@ function ClassificacaoPainel({ item }: { item: (typeof CAMPOS_CLASS)[number] }) 
       <div className="concave-3d flex items-start gap-2.5 px-3 py-2.5 text-sm text-muted-foreground">
         <Tags className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
         <span>
-          {item.ajuda} Desativar remove a opção da lista suspensa do exame, mas nunca apaga nem altera exames já cadastrados.
+          {item.ajuda} Desativar remove a opção da lista suspensa sem apagar nada. Editar o nome atualiza também os exames que usam esse nome.
         </span>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row">
@@ -654,10 +678,42 @@ function ClassificacaoPainel({ item }: { item: (typeof CAMPOS_CLASS)[number] }) 
               key={c.id}
               className={`panel-3d-sub flex items-center justify-between gap-2 border-l-4 border-primary/50 p-3 ${c.ativo ? "" : "opacity-50"}`}
             >
-              <div className="min-w-0">
-                <div className="truncate text-xs font-black uppercase tracking-wide">{c.nome}</div>
+              <div className="min-w-0 flex-1">
+                {editId === c.id ? (
+                  <div className="flex gap-1">
+                    <Input
+                      value={editNome}
+                      onChange={(e) => setEditNome(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && editNome.trim()) renomear.mutate({ id: c.id });
+                        if (e.key === "Escape") setEditId(null);
+                      }}
+                      className="field-engraved h-8"
+                      autoFocus
+                    />
+                    <Button size="sm" className="btn-3d h-8" disabled={!editNome.trim() || renomear.isPending} onClick={() => renomear.mutate({ id: c.id })}>
+                      OK
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="truncate text-xs font-black uppercase tracking-wide">{c.nome}</div>
+                )}
                 <div className="mt-1 screen-3d inline-block px-2 py-0.5 text-xs font-black">{c.total} exames</div>
               </div>
+              {editId !== c.id && (
+                <button
+                  type="button"
+                  aria-label={`Editar ${c.nome}`}
+                  data-testid={`button-editar-classificacao-${c.id}`}
+                  className="btn-3d-soft rounded-[6px] p-1.5"
+                  onClick={() => {
+                    setEditId(c.id);
+                    setEditNome(c.nome);
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
               <Switch
                 checked={c.ativo}
                 onCheckedChange={(v) => alternar.mutate({ id: c.id, ativo: v })}
