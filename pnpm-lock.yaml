@@ -402,6 +402,9 @@ importers:
 
   artifacts/api-worker:
     dependencies:
+      '@napi-rs/canvas':
+        specifier: 0.1.97
+        version: 0.1.97
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db

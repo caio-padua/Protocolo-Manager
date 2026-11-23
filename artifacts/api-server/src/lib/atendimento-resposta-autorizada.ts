@@ -23,7 +23,7 @@ export async function fonteAtendimentoAindaAutorizada(
       JOIN orientacoes_aprovadas o ON o.id=f.orientacao_id AND o.empresa_id=f.empresa_id
       WHERE f.id=${plano.faqId} AND f.empresa_id=${e.empresaId} AND f.ativa=TRUE AND f.excluida_em IS NULL
         AND f.resposta=${plano.resposta}
-        AND (f.resposta_editada=TRUE OR (o.status='aprovada' AND o.resposta=f.resposta_fonte))`);
+        AND o.status='aprovada' AND (f.resposta_editada=TRUE OR o.resposta=f.resposta_fonte)`);
     if (!r.rows.length) return false;
   }
   return !revalidarDocumento || await respostaDocumentoAindaAtual(exec, e, plano);

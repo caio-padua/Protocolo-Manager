@@ -561,7 +561,12 @@ inboxRouter.put("/telegram-inbox/exam-followups/config", requireCollaborator, re
 // Frases do assistente de agendamento (cadastradas no banco; texto editavel pelo CEO).
 inboxRouter.get("/telegram-inbox/frases", requireCollaborator, requireMessageClinic, async (_req, res): Promise<void> => {
   const { listarFrases } = await import("../lib/telegram-frases.js");
-  res.json({ frases: await listarFrases() });
+  const { ramificacaoDoGrupoDeFrase, arvoreParaTela } = await import("../lib/atendimento-taxonomia.js");
+  const frases = await listarFrases();
+  res.json({
+    frases: (frases as Array<Record<string, unknown>>).map((f) => ({ ...f, ...ramificacaoDoGrupoDeFrase(String(f.grupo ?? "")) })),
+    arvore: arvoreParaTela(),
+  });
 });
 
 inboxRouter.put("/telegram-inbox/frases/:chave", requireCollaborator, requireMessageClinic, requireCeoInstance, async (req, res): Promise<void> => {
@@ -571,6 +576,84 @@ inboxRouter.put("/telegram-inbox/frases/:chave", requireCollaborator, requireMes
   const erro = validarTextoFrase(chave, texto);
   if (erro) { res.status(400).json({ error: erro }); return; }
   await gravarFrase(chave, texto as string, req.collaborator?.professionalId ?? null);
+  res.json({ ok: true });
+});
+
+// Base Global PAXMED: só intenções e variações genéricas. Painel e licenças são do dono da plataforma.
+const porDe = (req: any): string => String(req.collaborator?.professionalId ?? "CEO");
+inboxRouter.get("/telegram-inbox/base-global", requireCollaborator, requirePlatformOwner, async (_req, res): Promise<void> => {
+  const { painelBaseGlobal } = await import("../lib/base-global-intencoes");
+  const { arvoreParaTela } = await import("../lib/atendimento-taxonomia");
+  res.json({ ...(await painelBaseGlobal()), arvore: arvoreParaTela() });
+});
+inboxRouter.get("/telegram-inbox/base-global/intencoes/:id/variacoes", requireCollaborator, requirePlatformOwner, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) { res.status(400).json({ error: "Identificador inválido." }); return; }
+  const { variacoesDaIntencao } = await import("../lib/base-global-intencoes");
+  res.json({ variacoes: await variacoesDaIntencao(id) });
+});
+inboxRouter.post("/telegram-inbox/base-global/intencoes", requireCollaborator, requirePlatformOwner, async (req, res): Promise<void> => {
+  const b = (req.body ?? {}) as Record<string, unknown>;
+  if (typeof b.chave !== "string" || typeof b.tronco !== "string" || typeof b.ramo !== "string") { res.status(400).json({ error: "Informe chave, tronco e ramificação." }); return; }
+  const { criarIntencaoGlobal } = await import("../lib/base-global-intencoes");
+  const ok = await criarIntencaoGlobal({ chave: b.chave, tronco: b.tronco, ramo: b.ramo, descricao: typeof b.descricao === "string" ? b.descricao : "", por: porDe(req) });
+  if (!ok) { res.status(400).json({ error: "Chave ou ramificação inválida." }); return; }
+  res.json({ ok: true });
+});
+const alterarEstadoGlobalRota = (tipo: "intencao" | "variacao") => async (req: any, res: any): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0 || typeof req.body?.ativa !== "boolean") { res.status(400).json({ error: "Informe estado ativo ou inativo." }); return; }
+  const { alterarEstadoGlobal } = await import("../lib/base-global-intencoes");
+  const ok = await alterarEstadoGlobal({ tipo, id, ativa: req.body.ativa, por: porDe(req) });
+  if (!ok) { res.status(404).json({ error: "Registro não encontrado." }); return; }
+  res.json({ ok: true });
+};
+inboxRouter.patch("/telegram-inbox/base-global/intencao/:id/estado", requireCollaborator, requirePlatformOwner, alterarEstadoGlobalRota("intencao"));
+inboxRouter.patch("/telegram-inbox/base-global/variacao/:id/estado", requireCollaborator, requirePlatformOwner, alterarEstadoGlobalRota("variacao"));
+inboxRouter.put("/telegram-inbox/base-global/licencas/:empresaId", requireCollaborator, requirePlatformOwner, async (req, res): Promise<void> => {
+  const empresaId = Number(req.params.empresaId);
+  if (!Number.isSafeInteger(empresaId) || empresaId <= 0 || typeof req.body?.contribui !== "boolean" || typeof req.body?.consome !== "boolean") {
+    res.status(400).json({ error: "Informe contribui e consome." }); return;
+  }
+  const { definirLicenca } = await import("../lib/base-global-intencoes");
+  await definirLicenca({ empresaId, contribui: req.body.contribui, consome: req.body.consome, por: porDe(req) });
+  res.json({ ok: true });
+});
+// Da própria clínica: ver a licença e promover uma pergunta inédita (limpeza recusa se não for segura).
+inboxRouter.get("/telegram-inbox/base-global/minha-licenca", requireCollaborator, requireMessageClinic, requireCeoInstance, async (req, res): Promise<void> => {
+  const { lerLicenca } = await import("../lib/base-global-intencoes");
+  res.json(await lerLicenca(req.messageEmpresaId!));
+});
+inboxRouter.post("/telegram-inbox/perguntas-ineditas/:id/promover", requireCollaborator, requireMessageClinic, requireCeoInstance, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0 || typeof req.body?.intencao !== "string") { res.status(400).json({ error: "Informe a intenção global." }); return; }
+  const { promoverVariacaoParaBaseGlobal } = await import("../lib/base-global-intencoes");
+  const r = await promoverVariacaoParaBaseGlobal({ empresaId: req.messageEmpresaId!, perguntaInedita: id, intencaoChave: req.body.intencao, por: porDe(req) });
+  res.status(r.ok ? 200 : 422).json(r.ok ? { ok: true, criada: r.criada } : { ok: false, motivo: r.motivo });
+});
+
+// Sinapses: perguntas inéditas não clínicas por Tronco/Ramificação, isoladas pela clínica autenticada.
+inboxRouter.get("/telegram-inbox/perguntas-ineditas", requireCollaborator, requireMessageClinic, requireCeoInstance, async (req, res): Promise<void> => {
+  const { listarPerguntasIneditas } = await import("../lib/atendimento-aprendizado-whatsapp");
+  const { arvoreParaTela } = await import("../lib/atendimento-taxonomia");
+  res.json({ itens: await listarPerguntasIneditas(req.messageEmpresaId!), arvore: arvoreParaTela() });
+});
+
+inboxRouter.patch("/telegram-inbox/perguntas-ineditas/:id", requireCollaborator, requireMessageClinic, requireCeoInstance, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const { estado, tronco, ramo } = (req.body ?? {}) as { estado?: unknown; tronco?: unknown; ramo?: unknown };
+  const { ramificacaoValida } = await import("../lib/atendimento-taxonomia");
+  const estadoOk = estado === undefined || estado === "pendente" || estado === "curada" || estado === "descartada";
+  const ramoOk = (tronco === undefined && ramo === undefined) || (typeof tronco === "string" && typeof ramo === "string" && ramificacaoValida(tronco, ramo));
+  if (!Number.isSafeInteger(id) || id <= 0 || !estadoOk || !ramoOk || (estado === undefined && tronco === undefined)) {
+    res.status(400).json({ error: "Informe estado válido ou tronco e ramificação existentes." }); return;
+  }
+  const { alterarPerguntaInedita } = await import("../lib/atendimento-aprendizado-whatsapp");
+  const ok = await alterarPerguntaInedita({
+    empresaId: req.messageEmpresaId!, id, estado: estado as "pendente" | "curada" | "descartada" | undefined,
+    tronco: tronco as string | undefined, ramo: ramo as string | undefined,
+  });
+  if (!ok) { res.status(404).json({ error: "Pergunta não encontrada nesta clínica." }); return; }
   res.json({ ok: true });
 });
 

@@ -1,9 +1,11 @@
 import { db, pool } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import type { EntradaAtendimento, PlanoAtendimento } from "./atendimento-telegram";
-import type { DepsOperacionaisWhatsapp } from "./atendimento-whatsapp";
+import type { DepsOperacionaisWhatsapp, IntencaoWhatsapp } from "./atendimento-whatsapp";
 import { carregarFrases, type ChaveFrase } from "./telegram-frases";
 import { planejarAgendamentoCliente } from "./telegram-agendamento-store";
+import { classificarIntencaoComIA, registrarPerguntaInedita } from "./atendimento-aprendizado-whatsapp";
+import { consultarIntencaoGlobal } from "./base-global-intencoes";
 import { brtISODate } from "./brt";
 import { modeloTexto, renderTexto, type CategoriaOperacional } from "./comunicacao-padrao";
 import { getNomeAssistenteAtendimento } from "./atendimento-ia-config";
@@ -47,6 +49,21 @@ export function depsOperacionaisWhatsapp(
       const dados = r.rows as {scheduled_date:string;scheduled_time:string}[];
       if (!dados.length) return null;
       return dados.map(x => `${x.scheduled_date.split("-").reverse().join("/")} às ${x.scheduled_time.slice(0,5)}`).join("\n");
+    },
+    classificarGlobal: e.simulacao ? undefined : async (texto) => {
+      const g = await consultarIntencaoGlobal(e.empresaId, texto);
+      const mapa: Record<string, IntencaoWhatsapp> = { "agendamento:marcar": "agendar", "agendamento:consultar": "retorno", "agendamento:remarcar": "agendar",
+        "financeiro:orcamento": "orcamento", "receitas_exames:receitas": "documentos", "receitas_exames:exames": "exames", "receitas_exames:segunda_via": "documentos",
+        "triagem_clinica:equipe": "humano", "recepcao:menu": "menu" };
+      return g ? (mapa[`${g.tronco}:${g.ramo}`] ?? null) : null;
+    },
+    classificarIA: e.simulacao ? undefined : async (texto) => {
+      const r = await classificarIntencaoComIA(texto, e.empresaId, String(e.inboxMessageId));
+      return r === "outra" ? null : r;
+    },
+    registrarInedita: async (texto, intencao, origem) => {
+      if (e.simulacao) return;
+      await registrarPerguntaInedita({ empresaId: e.empresaId, canal: "whatsapp", texto, intencao, origemIntencao: origem });
     },
     agendar: async (texto) => {
       const ag = await planejarAgendamentoCliente({

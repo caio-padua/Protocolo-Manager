@@ -36,6 +36,8 @@ async function buildAll() {
       "better-sqlite3",
       "sqlite3",
       "canvas",
+      "@napi-rs/canvas",
+      "@napi-rs/canvas-*",
     ],
     plugins: [esbuildPluginPino({ transports: [] })],
     sourcemap: true,

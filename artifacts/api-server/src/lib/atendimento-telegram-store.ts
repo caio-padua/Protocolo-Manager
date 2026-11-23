@@ -27,6 +27,7 @@ import {
 } from "./telegram-aprendiz";
 import { planejarAgendamentoCliente, aplicarMigracaoAgendamentoTelegram } from "./telegram-agendamento-store";
 import { criarConferenteLeitura, textoSeguroParaInterpretar } from "./telegram-interprete";
+import { migrarBaseGlobal } from "./base-global-intencoes";
 import { getModeloAtendimento } from "./atendimento-ia-config";
 import { carregarFrases, comGlobais } from "./telegram-frases";
 import {
@@ -161,6 +162,7 @@ export async function aplicarMigracaoAtendimento(exec: ExecutorAtendimento): Pro
     WHERE status IN ('ofertando','oferecido','enviando')`);
   await migrarRecuperacaoAtendimento(exec);
   await migrarTabelasTelegramAprendiz(exec);
+  await migrarBaseGlobal(exec);
   /* Assistente de agendamento: estado, visitantes e pedidos (aditiva) */
   await aplicarMigracaoAgendamentoTelegram(exec);
 }
@@ -393,7 +395,7 @@ export async function processarAtendimentosPendentes(): Promise<void> {
           JOIN orientacoes_aprovadas o ON o.id=f.orientacao_id AND o.empresa_id=f.empresa_id
           WHERE f.id=${plano.faqId} AND f.empresa_id=${e.empresaId} AND f.ativa=TRUE AND f.excluida_em IS NULL
             AND f.resposta=${plano.resposta}
-            AND (f.resposta_editada=TRUE OR (o.status='aprovada' AND o.resposta=f.resposta_fonte))`);
+            AND o.status='aprovada' AND (f.resposta_editada=TRUE OR o.resposta=f.resposta_fonte)`);
         if(!r.rows.length) return false;
       }
       if(plano.caminhoResolucao==="documento"){

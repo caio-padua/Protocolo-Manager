@@ -13,6 +13,7 @@ import { requireCollaborator } from "./collaborator";
 import { depsReaisAtendimento } from "../lib/atendimento-telegram-store";
 import { planejarAtendimentoWhatsapp } from "../lib/atendimento-whatsapp";
 import { depsOperacionaisWhatsapp } from "../lib/atendimento-whatsapp-store";
+import { criarAgrupador } from "../lib/agrupador-mensagens";
 import { telefoneCanonico } from "../lib/whatsapp-seguranca";
 import { registrarStatusEvolution } from "../lib/evolution-document-delivery-status";
 import { resolverIdentidadeWhatsapp } from "../lib/evolution-client-identity";
@@ -636,6 +637,50 @@ router.post("/evolution/homologacao/enviar-resposta", requireCollaborator, async
   }
 });
 
+
+/** Fecha o grupo: junta as mensagens aguardando, marca as anteriores como agrupadas e processa a última. */
+async function dispararAgrupamento(chave: string): Promise<void> {
+  const [empresaTxt, contato] = chave.split("|");
+  const empresaId = Number(empresaTxt);
+  if (!Number.isSafeInteger(empresaId) || !contato) return;
+  const r = await pool.query(
+    `UPDATE evolution_mensagens SET processamento='agrupando'
+      WHERE empresa_id=$1 AND contato=$2 AND direcao='entrada' AND processamento='aguardando_agrupamento'
+      RETURNING id,corpo,cliente_id`, [empresaId, contato]);
+  const linhas = (r.rows as Array<{ id: number | string; corpo: string; cliente_id: number | string }>)
+    .sort((a, b) => Number(a.id) - Number(b.id));
+  if (!linhas.length) return;
+  const ultima = linhas[linhas.length - 1];
+  const anteriores = linhas.slice(0, -1).map((l) => Number(l.id));
+  if (anteriores.length) {
+    await pool.query(
+      `UPDATE evolution_mensagens SET processamento='agrupada',desfecho_atendimento='agrupada',
+         plano_atendimento=jsonb_build_object('agrupadaEm',$3::bigint) WHERE empresa_id=$1 AND id=ANY($2::bigint[])`,
+      [empresaId, anteriores, Number(ultima.id)]);
+  }
+  const cli = await pool.query(`SELECT name FROM clients WHERE id=$1 AND empresa_id=$2 AND status='active' AND deleted_at IS NULL`,
+    [Number(ultima.cliente_id), empresaId]);
+  await processarEntradaEvolution({
+    empresaId, mensagemId: Number(ultima.id), telefone: contato,
+    texto: linhas.map((l) => l.corpo).join("\n"),
+    clienteId: Number(ultima.cliente_id), clienteNome: (cli.rows[0] as { name?: string } | undefined)?.name ?? "",
+  });
+}
+const agrupadorEvolution = criarAgrupador(dispararAgrupamento);
+
+/** Recuperação após reinício: o que ficou aguardando há mais de 15 s é processado agora. */
+async function varrerAgrupamentosPendentes(): Promise<void> {
+  const r = await pool.query(
+    `SELECT DISTINCT empresa_id,contato FROM evolution_mensagens
+      WHERE direcao='entrada' AND processamento='aguardando_agrupamento' AND criado_em < NOW() - interval '15 seconds'
+        AND criado_em > NOW() - interval '1 day'`);
+  for (const x of r.rows as Array<{ empresa_id: number; contato: string }>) agrupadorEvolution.agendar(`${x.empresa_id}|${x.contato}`, 0);
+}
+if (process.env.NODE_ENV !== "test") {
+  setTimeout(() => void varrerAgrupamentosPendentes().catch(() => undefined), 20_000).unref();
+  setInterval(() => void varrerAgrupamentosPendentes().catch(() => undefined), 60_000).unref();
+}
+
 // ── Webhook público (autenticidade = token secreto da clínica) ─────────────
 publico.post("/evolution/webhook/:empresaId/:token", async (req, res) => {
   const empresaId = Number(req.params.empresaId);
@@ -694,14 +739,18 @@ publico.post("/evolution/webhook/:empresaId/:token", async (req, res) => {
           continue;
         }
         const cliente = identidade.rows[0] as { id: number | string; name: string | null };
-        await processarEntradaEvolution({
-          empresaId,
-          mensagemId,
-          telefone: c.contato,
-          texto,
-          clienteId: Number(cliente.id),
-          clienteNome: cliente.name ?? "",
-        });
+        if (process.env.NODE_ENV === "test" || process.env.EVOLUTION_AGRUPAMENTO_MS === "0") {
+          await processarEntradaEvolution({
+            empresaId, mensagemId, telefone: c.contato, texto,
+            clienteId: Number(cliente.id), clienteNome: cliente.name ?? "",
+          });
+          continue;
+        }
+        // Mensagens seguidas esperam 4 s e viram uma única entrada de atendimento.
+        await pool.query(
+          `UPDATE evolution_mensagens SET processamento='aguardando_agrupamento',cliente_id=$3 WHERE id=$1 AND empresa_id=$2`,
+          [mensagemId, empresaId, Number(cliente.id)]);
+        agrupadorEvolution.agendar(`${empresaId}|${c.contato}`);
       }
     } else if (evento === "messages.update") {
       for (const d of itens) {

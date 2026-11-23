@@ -12,6 +12,13 @@ import { requireAiTenant } from "./ai-central";
 import { logger } from "./logger";
 import { garantirTabelasCredito, registrarCustoProvedor } from "./mensageria-credito";
 import { getModeloAtendimento } from "./atendimento-ia-config";
+import type { Ramificacao } from "./atendimento-taxonomia";
+function ramoDaCategoriaOrientacao(categoria: string | null): Ramificacao {
+  if (categoria === "apresentacao") return { tronco: "recepcao", ramo: "apresentacao" };
+  if (categoria === "cadastro") return { tronco: "recepcao", ramo: "menu" };
+  if (categoria === "duvidas") return { tronco: "pos_consulta", ramo: "orientacoes" };
+  return { tronco: "recepcao", ramo: "clinica" };
+}
 const LIMIAR_APRENDIZAGEM = 3;
 const SIMILARIDADE_MINIMA = 0.72;
 
@@ -61,6 +68,15 @@ export function perguntaSeguraParaAprender(
   if (TERMOS_CLINICOS.test(normalizada) || TERMOS_COMERCIAIS.test(normalizada) || TERMOS_IDENTIDADE.test(normalizada)) return false;
   if (PII.some((pattern) => pattern.test(original))) return false;
   return true;
+}
+
+/** Pergunta inédita só é guardada se não for clínica, comercial, de identidade nem tiver dado pessoal. */
+export function perguntaNaoClinicaSegura(texto: string): boolean {
+  const original = texto.trim();
+  const normalizada = normalizarPerguntaAprendida(original);
+  if (!original || original.length > 600 || normalizada.split(" ").filter(Boolean).length < 3) return false;
+  if (TERMOS_CLINICOS.test(normalizada) || TERMOS_COMERCIAIS.test(normalizada) || TERMOS_IDENTIDADE.test(normalizada)) return false;
+  return !PII.some((pattern) => pattern.test(original));
 }
 
 function tokens(texto: string): Set<string> {
@@ -144,6 +160,26 @@ export async function migrarTabelasTelegramAprendiz(exec: ExecutorTelegramAprend
       criada_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       PRIMARY KEY (empresa_id, inbox_message_id)
     )`);
+  // Sinapses: tronco/ramificação por clínica (empresa_id já isola o tenant).
+  await exec.execute(sql`ALTER TABLE telegram_faq_aprendidas ADD COLUMN IF NOT EXISTS tronco TEXT, ADD COLUMN IF NOT EXISTS ramo TEXT`);
+  await exec.execute(sql`
+    CREATE TABLE IF NOT EXISTS atendimento_perguntas_ineditas (
+      id BIGSERIAL PRIMARY KEY,
+      empresa_id INTEGER NOT NULL,
+      canal TEXT NOT NULL CHECK (canal IN ('whatsapp','telegram')),
+      pergunta TEXT NOT NULL,
+      pergunta_normalizada TEXT NOT NULL,
+      tronco TEXT NOT NULL,
+      ramo TEXT NOT NULL,
+      intencao TEXT,
+      origem_intencao TEXT NOT NULL DEFAULT 'regra' CHECK (origem_intencao IN ('regra','ia')),
+      ocorrencias INTEGER NOT NULL DEFAULT 1,
+      estado TEXT NOT NULL DEFAULT 'pendente' CHECK (estado IN ('pendente','curada','descartada')),
+      primeira_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      ultima_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (empresa_id, pergunta_normalizada)
+    )`);
+  await exec.execute(sql`CREATE INDEX IF NOT EXISTS ix_perguntas_ineditas_empresa ON atendimento_perguntas_ineditas (empresa_id, estado, tronco, ramo)`);
   await exec.execute(sql`CREATE INDEX IF NOT EXISTS ix_telegram_faq_busca ON telegram_faq_aprendidas (empresa_id, ativa, pergunta_normalizada) WHERE excluida_em IS NULL`);
   await exec.execute(sql`CREATE INDEX IF NOT EXISTS ix_telegram_faq_observacoes_cluster ON telegram_faq_observacoes (empresa_id, orientacao_id, observada_em DESC)`);
 }
@@ -158,7 +194,7 @@ export async function buscarFaqAprendida(empresaId: number, texto: string): Prom
     WHERE f.empresa_id = ${empresaId}
       AND f.ativa = TRUE AND f.excluida_em IS NULL
       AND (f.pergunta_normalizada = ${normalizada} OR f.variacoes ? ${normalizada})
-      AND (f.resposta_editada = TRUE OR (o.status = 'aprovada' AND o.resposta = f.resposta_fonte))
+      AND o.status = 'aprovada' AND (f.resposta_editada = TRUE OR o.resposta = f.resposta_fonte)
     ORDER BY f.id DESC LIMIT 1`);
   const row = r.rows[0] as { id: number | string; resposta: string } | undefined;
   return row ? { id: Number(row.id), resposta: row.resposta } : null;
@@ -262,14 +298,15 @@ export async function observarRespostaAprovada(p: {
   if (!canonical) return true;
   const canonicalNorm = normalizarPerguntaAprendida(canonical);
   const variants = [...new Set(unique.map((row) => row.pergunta_normalizada))];
+  const ramo = ramoDaCategoriaOrientacao(orientation.categoria);
   const keyHash = createHash("sha256").update(canonicalNorm).digest("hex").slice(0, 20);
 
   await db.execute(sql`
     WITH nova AS (
       INSERT INTO telegram_faq_aprendidas
-      (empresa_id, pergunta, pergunta_normalizada, variacoes, resposta, resposta_fonte, orientacao_id)
+      (empresa_id, pergunta, pergunta_normalizada, variacoes, resposta, resposta_fonte, orientacao_id, tronco, ramo)
       SELECT ${p.empresaId}, ${canonical}, ${canonicalNorm}, ${JSON.stringify(variants)}::jsonb,
-        o.resposta, o.resposta, o.id
+        o.resposta, o.resposta, o.id, ${ramo.tronco}, ${ramo.ramo}
       FROM orientacoes_aprovadas o
       WHERE o.id = ${p.orientacaoId} AND o.empresa_id = ${p.empresaId} AND o.status = 'aprovada'
         AND o.resposta = ${orientation.resposta}
@@ -285,8 +322,8 @@ export async function observarRespostaAprovada(p: {
 export async function listarFaqAprendidas(empresaId: number) {
   const r = await db.execute(sql`
     SELECT f.id, f.pergunta, f.variacoes, f.resposta, f.ativa, f.usos, f.economia_ia AS "economiaIa",
-      f.resposta_editada AS "respostaEditada", f.orientacao_id AS "orientacaoId",
-      (o.status = 'aprovada' AND o.resposta = f.resposta_fonte) AS "fonteVigente",
+      f.resposta_editada AS "respostaEditada", f.tronco, f.ramo, f.orientacao_id AS "orientacaoId",
+      (o.status = 'aprovada' AND (f.resposta_editada = TRUE OR o.resposta = f.resposta_fonte)) AS "fonteVigente",
       f.criada_em AS "criadaEm", f.atualizada_em AS "atualizadaEm"
     FROM telegram_faq_aprendidas f
     JOIN orientacoes_aprovadas o ON o.id = f.orientacao_id AND o.empresa_id = f.empresa_id

@@ -59,3 +59,10 @@ O modo humano não deve ser reativado silenciosamente ao corrigir o classificado
 
 **How to apply:** reutilizar os motores existentes, revalidar identidade e fonte antes da saída e informar lacunas sem inventar encaminhamento.
 Uma opção numérica só pertence ao menu se o contexto recente e entregue for esse menu, da mesma pessoa, canal e clínica; caso contrário, preservar o diálogo de documento ou agenda.
+
+## Agrupamento, Sinapses e Base Global (23/11/2026)
+- Espera de 4 s (teto 12 s) só em desenvolvimento/produção; teste usa `NODE_ENV=test` ou `EVOLUTION_AGRUPAMENTO_MS=0` para processar direto.
+- Resposta editada de FAQ só vale com a fonte ainda `aprovada` (antes sobrevivia à revogação).
+- Rotas Express novas: não usar `:param(a|b)` (path-to-regexp novo quebra o boot da API); registrar uma rota por valor.
+- Base Global: só intenção + variação limpa; limpeza RECUSA em vez de remendar; origem só como hash com sal; telas ainda pendentes.
+**Why:** evitar vazamento entre clínicas e queda do servidor. **How to apply:** qualquer promoção passa por `limparVariacaoParaBaseGlobal`.

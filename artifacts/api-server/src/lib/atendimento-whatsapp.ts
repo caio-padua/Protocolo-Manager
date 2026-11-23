@@ -42,6 +42,12 @@ export interface DepsOperacionaisWhatsapp {
   /** Contém apenas dado verificado do próprio cliente e clínica. */
   consultarRetorno: () => Promise<string | null>;
   agendar: (texto: string) => Promise<PlanoAtendimento | null>;
+  /** IA leve: só devolve uma intenção de lista fechada (nunca texto). Opcional. */
+  /** Base Global (somente clínica licenciada): variação genérica conhecida -> intenção. */
+  classificarGlobal?: (texto: string) => Promise<IntencaoWhatsapp | null>;
+  classificarIA?: (texto: string) => Promise<IntencaoWhatsapp | null>;
+  /** Guarda pergunta inédita não clínica para curadoria (nunca responde por ela). Opcional. */
+  registrarInedita?: (texto: string, intencao: IntencaoWhatsapp, origem: "regra" | "ia") => Promise<void>;
 }
 
 export async function planejarAtendimentoWhatsapp(
@@ -52,7 +58,7 @@ export async function planejarAtendimentoWhatsapp(
   const numero = n.match(/^(?:(?:opcao|numero) )?([1-6])$/)?.[1];
   const opcao = numero ? OPCOES_MENU[numero] : undefined;
   const texto = opcao && await ops.menuAtivo() ? opcao : e.texto;
-  const intencao = classificarIntencaoWhatsapp(texto);
+  let intencao = classificarIntencaoWhatsapp(texto);
   // Reconhecidas não dependem de modelo, nem a ambiguidade vira texto inventado.
   const somenteOperacional = intencao === "humano" || intencao === "ambigua" || intencao === "menu";
   const plano = await planejarAtendimento({
@@ -64,6 +70,16 @@ export async function planejarAtendimentoWhatsapp(
   // Não substituir decisões clínicas, resposta aprovada ou documentos.
   if (plano.pausa !== "sem_orientacao_aprovada") return plano;
   if (intencao === "clinica") return plano;
+  // Sem regra que reconheça: IA leve só escolhe a intenção; resposta continua sendo texto aprovado.
+  let origem: "regra" | "ia" = "regra";
+  if (intencao === "desconhecida" && ops.classificarGlobal) {
+    const g = await ops.classificarGlobal(texto).catch(() => null);
+    if (g && g !== "desconhecida" && g !== "clinica" && g !== "ambigua") { intencao = g; origem = "regra"; plano.intencao = intencao; }
+  }
+  if (intencao === "desconhecida" && ops.classificarIA) {
+    const ia = await ops.classificarIA(texto);
+    if (ia && ia !== "desconhecida" && ia !== "clinica" && ia !== "ambigua") { intencao = ia; origem = "ia"; plano.intencao = intencao; }
+  }
 
   const respostaRegra = (resposta: string, desfecho: PlanoAtendimento["desfecho"] = "operacional_enviada"): PlanoAtendimento => ({
     resposta, desfecho, pausa: null, alerta: null, orientacaoId: null, faqId: null,
@@ -90,6 +106,7 @@ export async function planejarAtendimentoWhatsapp(
   }
   if (intencao === "orcamento") return equipe("orcamento_sem_resposta_aprovada");
   if (intencao === "documentos" || intencao === "exames") return equipe("documento_sem_resposta_aplicavel");
+  if (intencao === "desconhecida") await ops.registrarInedita?.(texto, intencao, origem).catch(() => undefined);
   return { ...respostaRegra(await ops.frase("atendimento_menu"), "menu_enviado"), intencao: "menu",
     fonteOperacional: {chave:"atendimento_menu"} };
 }
