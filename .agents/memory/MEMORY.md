@@ -196,3 +196,4 @@
 - [Ajuda "?" da antropometria exige referências](antropometria-ajuda-referencias.md) — nacionais+internacionais, mais recente marcada; lista única em .ts; spec em specs/.
 - [Molde do "?" de ajuda](molde-botao-ajuda-pulso.md) — copiar DiretrizesDialog do Pulso; molde escrito na skill-layout-paxter/references/botao-ajuda-interrogacao.md.
 - [Painel Emissão de receitas](painel-emissao-receitas.md) — destinos retangulares, sem caixa de confirmação, prévia PDF, histórico comparável, nome Drive AA.MM.DD.
+- [Cascata de 3 IAs (isolada)](cascata-sinapses-ia-isolada.md) — desativada; só liga após testes reais Dayana/Carlúcia; ratificar exige validação e conflito zero.
