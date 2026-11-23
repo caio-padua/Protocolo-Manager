@@ -1558,3 +1558,129 @@ mtime_ms = 1795465099315
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/f86d9d31-3c5f-44f9-ae6a-9acd302b7fcb/d0ac41ec-69f6-4e7c-981e-dbd0c58dd2ab"
 storage_version_token = "1795465104580939"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "mWkYi84ziJZ1LsE373nZE"
+uri = "file://generated-artifacts/extracao-cerebro/anamnese-perguntas.csv"
+type = "table"
+title = "Anamnese: 173 perguntas"
+description = "Anamnese: 173 perguntas"
+logical_id = "b1d6ddf6-e3b3-4857-a10d-7da69ede97d3"
+content_hash = "sha256:744571c05afe61743dbca22b684398ec87a877229f7e4606929cb7fa60f03afc"
+size = 76259
+mtime_ms = 1795473771555
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/b1d6ddf6-e3b3-4857-a10d-7da69ede97d3/208a5666-d89f-4277-bf4f-221029e5b0ba"
+storage_version_token = "1795473778492747"
+content_type = "text/csv"
+
+[[outputs]]
+id = "9DdGM_O1XofDwz5VauscS"
+uri = "file://generated-artifacts/extracao-cerebro/exames-280.csv"
+type = "table"
+title = "280 exames com vínculos de bloco e grade"
+description = "280 exames com vínculos de bloco e grade"
+logical_id = "6ee7ad23-6186-40f3-b461-f3cf1df505a2"
+content_hash = "sha256:329f8750114c841e2378e138498218acd1aee6d98ee928326e61e9d145397ca7"
+size = 52989
+mtime_ms = 1795473771655
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/6ee7ad23-6186-40f3-b461-f3cf1df505a2/1a2412a6-dfeb-43eb-b8ca-69c90debdb50"
+storage_version_token = "1795473779105580"
+content_type = "text/csv"
+
+[[outputs]]
+id = "44PNLS_byslWnBr88GI2o"
+uri = "file://generated-artifacts/extracao-cerebro/blocos-grades-vinculos.csv"
+type = "table"
+title = "409 vínculos bloco/grade"
+description = "409 vínculos bloco/grade"
+logical_id = "6d0439aa-35c9-4a1b-8716-d804f1011d56"
+content_hash = "sha256:2828ec560421feab496126ed0231be26e7e1b25d9a6e1abb8ba01835f732925b"
+size = 25899
+mtime_ms = 1795473771699
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/6d0439aa-35c9-4a1b-8716-d804f1011d56/8324d5de-9367-44f8-9f62-d35f4128d841"
+storage_version_token = "1795473779830710"
+content_type = "text/csv"
+
+[[outputs]]
+id = "FlnVspJrAmmbnlHCnv38O"
+uri = "file://generated-artifacts/extracao-cerebro/CODIGO-motor-anamnese.ts.txt"
+type = "text"
+title = "Código do motor clínico"
+description = "Código do motor clínico"
+logical_id = "1ebb4f69-1271-4e65-b558-84b311acc727"
+content_hash = "sha256:2d30a8c08b8dd6a906e8438787aaa637a2fee598a1323ea0053a56e8f302eb37"
+size = 10255
+mtime_ms = 1795473771879
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/1ebb4f69-1271-4e65-b558-84b311acc727/b22123c1-403b-4ec9-b128-c41b357b96bf"
+storage_version_token = "1795473780356332"
+content_type = "text/plain"
+
+[[outputs]]
+id = "CXH36nvpirRrQgYojTmIu"
+uri = "file://generated-artifacts/extracao-cerebro/CODIGO-anamnese-motor-ponte.ts.txt"
+type = "text"
+title = "Ponte Anamnese V2 para o motor"
+description = "Ponte Anamnese V2 para o motor"
+logical_id = "786c716b-1e9c-48d0-aa10-5300d4ef00bf"
+content_hash = "sha256:824c59fbc62e6465e327af3171632825eb40fec1795c32ab7d22908235890e7f"
+size = 6133
+mtime_ms = 1795473771891
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/786c716b-1e9c-48d0-aa10-5300d4ef00bf/754ca69d-2d7e-4314-9f8c-9c37ff217934"
+storage_version_token = "1795473780828227"
+content_type = "text/plain"
+
+[[outputs]]
+id = "Gx6NX5VzdhVVvg4Gz0Eyx"
+uri = "file://generated-artifacts/extracao-cerebro/ligacoes-pergunta-sintoma.csv"
+type = "table"
+title = "31 ligações pergunta e sintoma"
+description = "31 ligações pergunta e sintoma"
+logical_id = "77b3776d-f6da-4aa3-81d7-bf04d8104044"
+content_hash = "sha256:20e250d0acc3cc60aaffe915bd70af311511f5aefeb23977241f4bd6b0659c60"
+size = 1431
+mtime_ms = 1795473771739
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/77b3776d-f6da-4aa3-81d7-bf04d8104044/a09c1076-1b51-4865-9f50-e81bc545bc16"
+storage_version_token = "1795473781323652"
+content_type = "text/csv"
+
+[[outputs]]
+id = "P-m8HJCGqnNdDhLV7N-XA"
+uri = "file://generated-artifacts/extracao-cerebro/ligacoes-pergunta-doenca.csv"
+type = "table"
+title = "6 ligações pergunta e doença"
+description = "6 ligações pergunta e doença"
+logical_id = "b2ade0e8-b222-42f2-80ba-7a9a67bd2302"
+content_hash = "sha256:83fd73693cc0ed68100eaf5aab1dab38adf75e11cc2deec389b01f6f1d7f3db8"
+size = 309
+mtime_ms = 1795473771779
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/b2ade0e8-b222-42f2-80ba-7a9a67bd2302/99862759-1382-4cf0-b8e8-d9f7a7b8b772"
+storage_version_token = "1795473781776097"
+content_type = "text/csv"
+
+[[outputs]]
+id = "bXQ2XKkKK6V4PRN-p38-j"
+uri = "file://generated-artifacts/extracao-cerebro/doencas-bloco-motor.csv"
+type = "table"
+title = "58 doenças e bloco motor"
+description = "58 doenças e bloco motor"
+logical_id = "c8ecee49-eaeb-448e-b7b1-d3a0786f8338"
+content_hash = "sha256:68f9926c1c79039d7914e5d7a4f13d71de18c2f448c1a96869b47229d77cac9e"
+size = 1898
+mtime_ms = 1795473771819
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/c8ecee49-eaeb-448e-b7b1-d3a0786f8338/b0ca8731-ee48-496a-aebc-cf4139fb871e"
+storage_version_token = "1795473782243485"
+content_type = "text/csv"
+
+[[outputs]]
+id = "Xs8N0zO8w2BO0MLocyx8k"
+uri = "file://generated-artifacts/extracao-cerebro/sintomas.csv"
+type = "table"
+title = "41 sintomas oficiais"
+description = "41 sintomas oficiais"
+logical_id = "a11a9824-8a0d-44d5-b974-b9009f02a913"
+content_hash = "sha256:79346f21ce44da2f16f41eab20b8858bcff71e1530cf990a3c3afddd0b4778b1"
+size = 1375
+mtime_ms = 1795473771859
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/a11a9824-8a0d-44d5-b974-b9009f02a913/e306f07b-d302-418b-8551-a79b690aa040"
+storage_version_token = "1795473782706756"
+content_type = "text/csv"

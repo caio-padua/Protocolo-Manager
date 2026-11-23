@@ -33,6 +33,7 @@ const EIXOS = ["Metabólico & Glicêmico", "Tireoide", "Adrenal & Estresse", "Ho
 const GATILHOS = ["fadiga_matinal", "queda_de_cabelo", "ganho_de_peso", "dificuldade_emagrecer", "compulsao_doce", "insonia", "esgotamento", "ansiedade_noturna", "baixa_libido", "perda_massa_muscular", "distensao_pos_prandial", "refluxo", "tosse_pos_prandial", "palpitacao", "pressao_alta", "dor_lombar", "dor_cervical", "dores_articulares", "checkup_rotina", "uso_glp1", "uso_ibp"];
 const REGIOES_V2 = ["Crânio & Encéfalo", "Pescoço & Tireoide", "Tórax & Pulmão", "Coração & Grandes Vasos", "Mamas & Axilas", "Abdome Total", "Abdome Superior (Fígado/Vias)", "Parede Abdominal & Inguinal", "Trato Digestivo (Endoscópico)", "Pelve Feminina", "Pelve Masculina / Próstata", "Rins & Vias Urinárias", "Coluna Cervical", "Coluna Torácica", "Coluna Lombossacra", "Ombro", "Cotovelo/Punho/Mão", "Quadril", "Joelho", "Tornozelo/Pé", "Corpo Inteiro / Ósseo", "Vascular Cervical (Carótidas)", "Vascular Membros Inferiores", "Aorta Abdominal"];
 
+const pgArr = (a: string[]) => sql`ARRAY[${sql.join(a.map((x) => sql`${x}`), sql`, `)}]::text[]`;
 let pronta: Promise<void> | null = null;
 function garantir(): Promise<void> {
   if (!pronta) {
@@ -60,7 +61,7 @@ function garantir(): Promise<void> {
       for (const c of [
         "periodizacao_modo TEXT", "publico_alvo TEXT", "idade_minima INTEGER", "idade_maxima INTEGER",
         "repetir_meses INTEGER", "regra_antecipacao TEXT", "diretrizes TEXT[] NOT NULL DEFAULT '{}'",
-        "artigos JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "artigos JSONB NOT NULL DEFAULT '[]'::jsonb", "necessita_sedacao BOOLEAN",
       ]) await db.execute(sql`ALTER TABLE catalogo_exame_atributos ADD COLUMN IF NOT EXISTS ${sql.raw(c)}`);
       const seeds: Array<[string, string[]]> = [["natureza", NATUREZAS], ["metodo", METODOS], ["regiao", REGIOES], ["diretriz", DIRETRIZES]];
       for (const [tipo, lista] of seeds) {
@@ -99,6 +100,17 @@ function garantir(): Promise<void> {
         await db.execute(sql`UPDATE catalogo_exames SET material_ou_setor = 'SANGUE TOTAL' WHERE upper(trim(material_ou_setor)) = 'SANGUE'`);
         await db.execute(sql`UPDATE catalogo_exame_atributos SET material = 'SANGUE TOTAL' WHERE upper(trim(material)) = 'SANGUE'`);
         await db.execute(sql`UPDATE catalogo_exame_opcoes SET ativo = FALSE WHERE tipo='material' AND nome_norm = 'SANGUE'`);
+      }
+      // Só as 24 regiões novas ficam ativas (as antigas são apenas desativadas; exames mantêm o valor).
+      if (await nova("desativar-regioes-antigas-v1")) {
+        await db.execute(sql`UPDATE catalogo_exame_opcoes SET ativo = FALSE WHERE tipo='regiao' AND nome_norm <> ALL (${pgArr(REGIOES_V2)})`);
+      }
+      // URINA unica: URINA ISOLADA e URINA 24H migram para URINA e ficam inativas.
+      if (await nova("unificar-urina-v1")) {
+        await db.execute(sql`INSERT INTO catalogo_exame_opcoes (tipo, nome, nome_norm) VALUES ('material','URINA','URINA') ON CONFLICT DO NOTHING`);
+        await db.execute(sql`UPDATE catalogo_exames SET material_ou_setor = 'URINA' WHERE upper(trim(material_ou_setor)) IN ('URINA ISOLADA','URINA 24H')`);
+        await db.execute(sql`UPDATE catalogo_exame_atributos SET material = 'URINA' WHERE upper(trim(material)) IN ('URINA ISOLADA','URINA 24H')`);
+        await db.execute(sql`UPDATE catalogo_exame_opcoes SET ativo = FALSE WHERE tipo='material' AND nome_norm IN ('URINA ISOLADA','URINA 24H')`);
       }
       // CARDIO e CARDIO / IMAGEM saem da lista de Modalidades (so desativa; exames mantem o valor).
       if (await nova("desativar-modalidades-cardio-v1")) {
@@ -198,6 +210,7 @@ const atributosSchema = z.object({
   metodo: z.string().trim().max(120).nullish(),
   regiao: z.string().trim().max(120).nullish(),
   material: z.string().trim().max(120).nullish(),
+  necessitaSedacao: z.boolean().nullish(),
   lateralidade: z.enum(["DIREITA", "ESQUERDA", "BILATERAL", "NAO SE APLICA"]).nullish(),
   contraste: z.enum(["COM CONTRASTE", "SEM CONTRASTE", "COM E SEM CONTRASTE", "NAO SE APLICA"]).nullish(),
   tipoResultado: z.string().trim().max(120).nullish(),
@@ -230,7 +243,7 @@ const atributosSchema = z.object({
 router.get("/cadastros/exames-atributos", async (_req, res): Promise<void> => {
   await garantir();
   const r = await db.execute(sql`
-    SELECT exame_id AS "exameId", natureza, metodo, regiao, material, lateralidade, contraste,
+    SELECT exame_id AS "exameId", natureza, metodo, regiao, material, necessita_sedacao AS "necessitaSedacao", lateralidade, contraste,
            tipo_resultado AS "tipoResultado", prioridade, eixos, sinonimos, gatilhos,
            periodizacao_modo AS "periodizacaoModo", publico_alvo AS "publicoAlvo", idade_minima AS "idadeMinima", idade_maxima AS "idadeMaxima",
            repetir_meses AS "repetirMeses", regra_antecipacao AS "regraAntecipacao", diretrizes, artigos FROM catalogo_exame_atributos`);
@@ -254,14 +267,14 @@ router.put("/cadastros/exames/:id/atributos", async (req, res): Promise<void> =>
   const pg = (a: string[]) => sql`ARRAY[${sql.join(a.map((x) => sql`${x}`), sql`, `)}]::text[]`;
   const arr = (a: string[]) => (a.length ? pg(a) : sql`'{}'::text[]`);
   await db.execute(sql`
-    INSERT INTO catalogo_exame_atributos (exame_id, natureza, metodo, regiao, material, lateralidade, contraste, tipo_resultado, prioridade, eixos, sinonimos, gatilhos, periodizacao_modo, publico_alvo, idade_minima, idade_maxima, repetir_meses, regra_antecipacao, diretrizes, artigos, updated_at)
+    INSERT INTO catalogo_exame_atributos (exame_id, natureza, metodo, regiao, material, lateralidade, contraste, tipo_resultado, prioridade, eixos, sinonimos, gatilhos, periodizacao_modo, publico_alvo, idade_minima, idade_maxima, repetir_meses, regra_antecipacao, diretrizes, artigos, necessita_sedacao, updated_at)
     VALUES (${id}, ${d.natureza ?? null}, ${d.metodo ?? null}, ${d.regiao ?? null}, ${d.material ?? null}, ${d.lateralidade ?? null}, ${d.contraste ?? null},
-            ${d.tipoResultado ?? null}, ${d.prioridade ?? null}, ${arr(d.eixos)}, ${arr(d.sinonimos)}, ${arr(d.gatilhos)}, ${d.periodizacaoModo ?? null}, ${d.publicoAlvo ?? null}, ${d.idadeMinima ?? null}, ${d.idadeMaxima ?? null}, ${d.repetirMeses ?? null}, ${d.regraAntecipacao ?? null}, ${arr(d.diretrizes)}, ${JSON.stringify(d.artigos)}::jsonb, NOW())
+            ${d.tipoResultado ?? null}, ${d.prioridade ?? null}, ${arr(d.eixos)}, ${arr(d.sinonimos)}, ${arr(d.gatilhos)}, ${d.periodizacaoModo ?? null}, ${d.publicoAlvo ?? null}, ${d.idadeMinima ?? null}, ${d.idadeMaxima ?? null}, ${d.repetirMeses ?? null}, ${d.regraAntecipacao ?? null}, ${arr(d.diretrizes)}, ${JSON.stringify(d.artigos)}::jsonb, ${d.natureza?.toUpperCase() === "ENDOSCOPICOS" ? (d.necessitaSedacao ?? null) : null}, NOW())
     ON CONFLICT (exame_id) DO UPDATE SET natureza = EXCLUDED.natureza, metodo = EXCLUDED.metodo, regiao = EXCLUDED.regiao, material = EXCLUDED.material,
       lateralidade = EXCLUDED.lateralidade, contraste = EXCLUDED.contraste, tipo_resultado = EXCLUDED.tipo_resultado, prioridade = EXCLUDED.prioridade,
       eixos = EXCLUDED.eixos, sinonimos = EXCLUDED.sinonimos, gatilhos = EXCLUDED.gatilhos,
       periodizacao_modo = EXCLUDED.periodizacao_modo, publico_alvo = EXCLUDED.publico_alvo, idade_minima = EXCLUDED.idade_minima, idade_maxima = EXCLUDED.idade_maxima,
-      repetir_meses = EXCLUDED.repetir_meses, regra_antecipacao = EXCLUDED.regra_antecipacao, diretrizes = EXCLUDED.diretrizes, artigos = EXCLUDED.artigos, updated_at = NOW()`);
+      repetir_meses = EXCLUDED.repetir_meses, regra_antecipacao = EXCLUDED.regra_antecipacao, diretrizes = EXCLUDED.diretrizes, artigos = EXCLUDED.artigos, necessita_sedacao = EXCLUDED.necessita_sedacao, updated_at = NOW()`);
   req.log.info({ id }, "atributos do exame salvos");
   res.json({ exameId: id, ...d });
 });

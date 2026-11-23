@@ -83,6 +83,7 @@ export interface Atributos {
   metodo: string | null;
   regiao: string | null;
   material: string | null;
+  necessitaSedacao: boolean | null;
   lateralidade: string | null;
   contraste: string | null;
   tipoResultado: string | null;
@@ -222,7 +223,7 @@ function OpcaoMulti({ tipo, valores, onChange, rotulo }: { tipo: Tipo; valores: 
   );
 }
 
-const VAZIO = (id: number): Atributos => ({ exameId: id, natureza: null, metodo: null, regiao: null, material: null, lateralidade: null, contraste: null, tipoResultado: null, prioridade: null, eixos: [], sinonimos: [], gatilhos: [], periodizacaoModo: null, publicoAlvo: null, idadeMinima: null, idadeMaxima: null, repetirMeses: null, regraAntecipacao: null, diretrizes: [], artigos: [] });
+const VAZIO = (id: number): Atributos => ({ exameId: id, natureza: null, metodo: null, regiao: null, material: null, necessitaSedacao: null, lateralidade: null, contraste: null, tipoResultado: null, prioridade: null, eixos: [], sinonimos: [], gatilhos: [], periodizacaoModo: null, publicoAlvo: null, idadeMinima: null, idadeMaxima: null, repetirMeses: null, regraAntecipacao: null, diretrizes: [], artigos: [] });
 
 // Faixa horizontal retrátil (minimizar/maximizar) com resumo à direita.
 function Faixa({ titulo, resumo, aberta, onToggle, children, id }: { titulo: string; resumo?: string; aberta: boolean; onToggle: () => void; children: ReactNode; id: string }) {
@@ -240,7 +241,7 @@ function Faixa({ titulo, resumo, aberta, onToggle, children, id }: { titulo: str
 
 // Ficha única do exame (gaveta lateral): cadastro + atributos + vínculos + periodização + embasamento, com um só "Salvar".
 // `topo` traz os campos de cadastro; `antesDeSalvar` grava o cadastro e devolve o id (necessário para exame novo).
-export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antesDeSalvar, podeSalvar = true, titulo = "Ficha do exame" }: {
+export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antesDeSalvar, podeSalvar = true, titulo = "Ficha do exame", onClonar }: {
   exame: { id: number | null; nome: string } | null;
   atual?: Atributos;
   modalidade?: string | null;
@@ -249,6 +250,7 @@ export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antes
   antesDeSalvar?: () => Promise<number>;
   podeSalvar?: boolean;
   titulo?: string;
+  onClonar?: () => void;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -318,6 +320,7 @@ export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antes
           <Button type="button" size="sm" variant="outline" onClick={() => setAbertas({ cadastro: !todas, classificacao: !todas, vinculos: !todas, periodizacao: !todas, embasamento: !todas })} data-testid="button-expandir-faixas">
             {todas ? "Recolher tudo" : "Expandir tudo"}
           </Button>
+          {onClonar && <Button type="button" size="sm" variant="outline" onClick={onClonar} data-testid="button-clonar-exame">Clonar exame</Button>}
         </div>
         <p className="text-xs text-muted-foreground">O código, o bloco e a grade do exame não mudam por atributos. Um só botão salva a ficha inteira.</p>
 
@@ -329,6 +332,19 @@ export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antes
             <OpcaoSelect tipo="metodo" rotulo="Método" valor={f.metodo ?? ""} onChange={(v) => set("metodo", v || null)} />
             {ehLab && <OpcaoSelect tipo="material" rotulo="Material" valor={f.material ?? ""} onChange={(v) => set("material", v || null)} />}
             {!ehLab && nat !== "" && <OpcaoSelect tipo="regiao" rotulo={ehImg ? "Região anatômica *" : "Região"} valor={f.regiao ?? ""} onChange={(v) => set("regiao", v || null)} />}
+            {nat === "ENDOSCOPICOS" && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Necessita sedação</label>
+                <Select value={f.necessitaSedacao == null ? "__none__" : f.necessitaSedacao ? "sim" : "nao"} onValueChange={(v) => v !== "" && set("necessitaSedacao", v === "__none__" ? null : v === "sim")}>
+                  <SelectTrigger className="field-engraved" data-testid="select-necessita-sedacao"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Não informado —</SelectItem>
+                    <SelectItem value="sim">Sim</SelectItem>
+                    <SelectItem value="nao">Não</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {ehImg && <Simples k="lateralidade" rotulo="Lateralidade *" opcoes={["DIREITA", "ESQUERDA", "BILATERAL", "NAO SE APLICA"]} />}
             {ehImg && <Simples k="contraste" rotulo="Contraste *" opcoes={["COM CONTRASTE", "SEM CONTRASTE", "COM E SEM CONTRASTE", "NAO SE APLICA"]} />}
             <div className="space-y-1.5">

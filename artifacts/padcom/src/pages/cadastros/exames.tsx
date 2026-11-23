@@ -42,7 +42,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
-import { AtributosDialog, GestaoOpcoes, UploadManualExames, NaturezaChip, naturezaSugerida, useAtributos, useCores } from "./ExamesAtributos";
+import { type Atributos, AtributosDialog, GestaoOpcoes, UploadManualExames, NaturezaChip, naturezaSugerida, useAtributos, useCores } from "./ExamesAtributos";
 import {
   Search,
   Plus,
@@ -196,6 +196,7 @@ function ExamesTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const criadoId = useRef<number | null>(null); // evita duplicar o exame se os atributos falharem e o médico tentar de novo
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [cloneAttr, setCloneAttr] = useState<Atributos | undefined>(undefined);
   const { data: atributos } = useAtributos();
   const attrPorId = useMemo(() => new Map((atributos ?? []).map((a) => [a.exameId, a])), [atributos]);
 
@@ -282,11 +283,21 @@ function ExamesTab() {
   });
 
   function openNew() {
+    setCloneAttr(undefined);
     criadoId.current = null;
     setForm(EMPTY_FORM);
     setDialogOpen(true);
   }
+  function clonarAtual() {
+    // Cópia da ficha como exame NOVO: sem código (gerado pelo sistema) e sem vínculos de bloco.
+    const a = form.id ? attrPorId.get(form.id) : undefined;
+    criadoId.current = null;
+    setCloneAttr(a ? { ...a, exameId: 0 } : undefined);
+    setForm((f) => ({ ...f, id: null, codigoExame: "", areaCodigo: "", gradeCodigo: "", nomeExame: `${f.nomeExame} (CÓPIA)` }));
+    toast({ title: "Exame clonado", description: "Escolha a área e a grade do código novo. Os vínculos de bloco não são copiados." });
+  }
   function openEdit(e: Exam) {
+    setCloneAttr(undefined);
     criadoId.current = null;
     setForm({
       id: e.id,
@@ -446,7 +457,8 @@ function ExamesTab() {
 
       <AtributosDialog
         exame={dialogOpen ? { id: form.id, nome: form.nomeExame } : null}
-        atual={form.id ? attrPorId.get(form.id) : undefined}
+        atual={form.id ? attrPorId.get(form.id) : cloneAttr}
+        onClonar={form.id ? clonarAtual : undefined}
         modalidade={form.modalidade}
         titulo={form.id ? "Editar exame" : "Novo exame"}
         podeSalvar={canSave}
@@ -556,6 +568,7 @@ function BlocosTab() {
   const [mover, setMover] = useState<{ id: number; nome: string; blocoId: string; grau: string } | null>(null);
   const [incluir, setIncluir] = useState<{ blocoId: string; nomeBloco: string; grau: string; exameId: string } | null>(null);
   const [buscaExame, setBuscaExame] = useState("");
+  const [abertos, setAbertos] = useState<string[]>([]);
 
   const opcoes = useQuery<{ blocos: Array<{ codigoBloco: string; nomeBloco: string }>; graus: string[] }>({
     queryKey: ["/api/cadastros/blocos/opcoes"],
@@ -675,7 +688,12 @@ function BlocosTab() {
         </span>
       </div>
 
-      <Accordion type="multiple" className="space-y-2">
+      <div className="flex justify-end gap-2">
+        <Button type="button" size="sm" variant="outline" onClick={() => setAbertos(filtered.map((b) => b.codigoBloco))} data-testid="button-expandir-blocos">Expandir todos</Button>
+        <Button type="button" size="sm" variant="outline" onClick={() => setAbertos([])} data-testid="button-recolher-blocos">Recolher todos</Button>
+      </div>
+
+      <Accordion type="multiple" value={abertos} onValueChange={setAbertos} className="space-y-2">
         {filtered.map((b) => (
           <AccordionItem
             key={b.codigoBloco}
@@ -780,6 +798,29 @@ function BlocosTab() {
                   </SelectContent>
                 </Select>
               </div>
+              {(() => {
+                // Prévia de impacto (só leitura, calculada a partir da grade já carregada).
+                const grauDe = (bid: string, gr: string) => (blocos ?? []).find((x) => x.codigoBloco === bid)?.graus.find((g) => g.grau === gr);
+                const nomeBloco = (bid: string) => (blocos ?? []).find((x) => x.codigoBloco === bid)?.nomeBloco ?? bid;
+                const origem = (blocos ?? []).flatMap((x) => x.graus.map((g) => ({ b: x.codigoBloco, g: g.grau, ex: g.exames }))).find((o) => o.ex.some((e) => e.id === mover.id));
+                const destino = grauDe(mover.blocoId, mover.grau);
+                const mesmo = !!origem && origem.b === mover.blocoId && origem.g === mover.grau;
+                const nomeAlvo = mover.nome.trim().toUpperCase();
+                const jaNoDestino = !mesmo && !!destino?.exames.some((e) => (e.nomeExame ?? "").trim().toUpperCase() === nomeAlvo);
+                return (
+                  <div className="concave-3d space-y-1 px-3 py-2 text-xs" data-testid="previa-impacto-mover" role="status">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-primary">Prévia de impacto</div>
+                    {mesmo ? <div>Origem e destino são iguais: nada muda.</div> : (
+                      <>
+                        {origem && <div>Sai de: {nomeBloco(origem.b)} / {origem.g} ({origem.ex.length} → {origem.ex.length - 1} exames)</div>}
+                        <div>Entra em: {nomeBloco(mover.blocoId)} / {mover.grau} ({destino?.exames.length ?? 0} → {(destino?.exames.length ?? 0) + 1} exames)</div>
+                        {jaNoDestino && <div className="font-bold text-destructive">Já existe um exame com este nome no destino; o servidor pode recusar.</div>}
+                        <div className="text-muted-foreground">Muda quais exames o cérebro sugere para este bloco e grade.</div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
               <p className="text-xs text-muted-foreground">O código do exame não muda. O exame entra no fim da lista do destino.</p>
             </div>
           )}
@@ -1056,7 +1097,10 @@ export function ClassificacoesCadastro() {
   );
 }
 
-export default function CadastroExames({ comClassificacoes = true }: { comClassificacoes?: boolean }) {
+// As 4 listas legadas (Categorias, Subgrupos, Modalidades, Material/Setor) ficam ocultas na tela; o código e os dados continuam.
+const MOSTRAR_CLASSIFICACOES_LEGADAS = false;
+
+export default function CadastroExames({ comClassificacoes = MOSTRAR_CLASSIFICACOES_LEGADAS }: { comClassificacoes?: boolean }) {
   return (
     <div className="space-y-6">
       <div className="panel-3d p-4 flex items-center gap-4 border-l-4 border-primary/60">
