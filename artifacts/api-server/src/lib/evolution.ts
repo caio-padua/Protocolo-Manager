@@ -121,6 +121,59 @@ export async function lerConfig(empresaId: number): Promise<ConfigEvolution | nu
 
 export class ConfigInvalida extends Error {}
 
+export async function validarInstanciaEvolutionNaoDuplicada(
+  baseUrl: string,
+  instanceName: string,
+  empresaId: number,
+  accountKey?: string,
+): Promise<void> {
+  const tables = await pool.query(
+    "SELECT to_regclass('public.evolution_instancias') AS legacy_table, to_regclass('public.evolution_contas') AS accounts_table",
+  );
+  const existing = tables.rows[0] as { legacy_table?: string | null; accounts_table?: string | null } | undefined;
+  if (accountKey === undefined) {
+    if (existing?.accounts_table) {
+      const conflict = await pool.query(
+        `SELECT 1 FROM evolution_contas
+          WHERE base_url = $1 AND instance_name = $2
+          LIMIT 1`,
+        [baseUrl, instanceName],
+      );
+      if (conflict.rowCount) throw new ConfigInvalida("instancia_ja_associada");
+    }
+    if (existing?.legacy_table) {
+      const conflict = await pool.query(
+        `SELECT 1 FROM evolution_instancias
+          WHERE base_url = $1 AND instance_name = $2 AND empresa_id <> $3
+          LIMIT 1`,
+        [baseUrl, instanceName, empresaId],
+      );
+      if (conflict.rowCount) throw new ConfigInvalida("instancia_ja_associada");
+    }
+    return;
+  }
+
+  if (existing?.legacy_table) {
+    const conflict = await pool.query(
+      `SELECT 1 FROM evolution_instancias
+        WHERE base_url = $1 AND instance_name = $2
+        LIMIT 1`,
+      [baseUrl, instanceName],
+    );
+    if (conflict.rowCount) throw new ConfigInvalida("instancia_ja_associada");
+  }
+  if (existing?.accounts_table) {
+    const conflict = await pool.query(
+      `SELECT 1 FROM evolution_contas
+        WHERE base_url = $1 AND instance_name = $2
+          AND NOT (empresa_id = $3 AND account_key = $4)
+        LIMIT 1`,
+      [baseUrl, instanceName, empresaId, accountKey],
+    );
+    if (conflict.rowCount) throw new ConfigInvalida("instancia_ja_associada");
+  }
+}
+
 export function normalizarBaseUrl(raw: unknown, env: NodeJS.ProcessEnv = process.env): string {
   let u: URL;
   try { u = new URL(String(raw ?? "").trim()); } catch { throw new ConfigInvalida("Endereço do servidor inválido."); }
@@ -140,6 +193,7 @@ export function validarNomeInstancia(raw: unknown): string {
 
 export async function salvarConfig(empresaId: number, baseUrl: string, instanceName: string, apiKey: string | undefined, por: string): Promise<void> {
   await garantirTabelasEvolution();
+  await validarInstanciaEvolutionNaoDuplicada(baseUrl, instanceName, empresaId);
   await pool.query(
     `INSERT INTO evolution_instancias (empresa_id, base_url, instance_name, atualizado_por)
      VALUES ($1,$2,$3,$4)
@@ -177,8 +231,14 @@ export type EstadoConexao =
 
 export interface RespostaProvedor { ok: boolean; status: number; json: any; falha?: "rede" | "tempo" | "endereco" }
 
-export async function chamar(cfg: ConfigEvolution, metodo: "GET" | "POST", caminho: string, corpo?: unknown): Promise<RespostaProvedor> {
-  const chave = await getSecret(chaveApi(cfg.empresaId));
+/** Chamada compartilhada pelo canal empresarial legado e pelas contas isoladas. */
+export async function chamarComChave(
+  cfg: Pick<ConfigEvolution, "baseUrl" | "instanceName">,
+  chave: string | null,
+  metodo: "GET" | "POST",
+  caminho: string,
+  corpo?: unknown,
+): Promise<RespostaProvedor> {
   if (!chave) return { ok: false, status: 0, json: null, falha: "endereco" };
   try { await enderecoSeguro(cfg.baseUrl); } catch { return { ok: false, status: 0, json: null, falha: "endereco" }; }
   try {
@@ -195,6 +255,11 @@ export async function chamar(cfg: ConfigEvolution, metodo: "GET" | "POST", camin
     const tempo = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
     return { ok: false, status: 0, json: null, falha: tempo ? "tempo" : "rede" };
   }
+}
+
+export async function chamar(cfg: ConfigEvolution, metodo: "GET" | "POST", caminho: string, corpo?: unknown): Promise<RespostaProvedor> {
+  const chave = await getSecret(chaveApi(cfg.empresaId));
+  return chamarComChave(cfg, chave, metodo, caminho, corpo);
 }
 
 export function estadoDaResposta(r: RespostaProvedor): EstadoConexao {

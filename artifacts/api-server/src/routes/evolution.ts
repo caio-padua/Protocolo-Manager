@@ -92,6 +92,10 @@ router.put("/evolution/config", requireCollaborator, async (req, res) => {
     await salvarConfig(e, baseUrl, instanceName, chave, `empresa:${e}`);
     res.json({ ok: true });
   } catch (err) {
+    if (err instanceof ConfigInvalida && err.message === "instancia_ja_associada") {
+      res.status(409).json({ error: "Esta instância já está associada a outra conta." });
+      return;
+    }
     if (err instanceof ConfigInvalida) { res.status(400).json({ error: err.message }); return; }
     // dns.lookup falhou: o servidor não existe
     logger.warn({ err: err instanceof Error ? err.message : String(err) }, "[evolution] config recusada");

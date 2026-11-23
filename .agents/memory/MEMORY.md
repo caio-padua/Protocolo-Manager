@@ -1,4 +1,4 @@
-- [WhatsApp por Evolution](evolution-whatsapp-qr.md) — identidade exata, homologação supervisionada e confirmações de entrega fora de ordem.
+- [WhatsApp por Evolution](evolution-whatsapp-qr.md) — conta empresarial legada preservada; contas novas isoladas por clínica/chave e autoria não presumida.
 - [WhatsApp: segurança de entrada](whatsapp-seguranca-entrada.md) — prova de posse, vínculo único e preservação dos limites da homologação.
 - [Redes sociais cliente/profissional](redes-sociais-submenu.md) — aba própria; Instagram do cliente fica na coluna; demais na tabela redes_sociais.
 - **Pulso** — [uma nota por período](pulso-uma-nota-por-periodo.md) · [padrão do gráfico](grafico-linha-padrao-pulso.md) — janelas manhã/tarde/noite; pendentes reaparecem; setas movem o ponto.
@@ -191,8 +191,7 @@
 - [Anamnese — seletor sem opções vira texto](anamnese-seletor-sem-opcoes.md) — LISTA sem `opcoes` degrada para texto; sexo do cadastro não editável; gênero separado.
 - [Anamnese — seletor pesquisável e tema](anamnese-combobox-tema-portal.md) — portal na raiz tematica; filtro sem acento; correcao de sexo com historico.
 - [PAX FINANCE documentos oficiais](pax-finance-documentos-oficiais.md) — slots CNPJ/JUCESP/contrato; sensíveis cifrados; aplicar com confirmação; visão de IA p/ digitalizado.
-- [Pulso Diário — níveis e Área do Cliente](pulso-diario-niveis-area-cliente.md) — limites em arquivo único; edição (opção A) pendente; POST do portal só do próprio cliente.
-- [Frequência cardíaca do Pulso — 3 níveis](pulso-frequencia-cardiaca-niveis.md) — baixa <50, normal 50–99, alta ≥100 (SBC 2022); demo 60 dias só sobrescreve origem demo.
+- **Pulso Diário** — [níveis/Área do Cliente](pulso-diario-niveis-area-cliente.md) · [frequência cardíaca](pulso-frequencia-cardiaca-niveis.md) — limites centralizados; exceção de dados demo documentada.
 - [Ajuda "?" da antropometria exige referências](antropometria-ajuda-referencias.md) — nacionais+internacionais, mais recente marcada; lista única em .ts; spec em specs/.
 - [Molde do "?" de ajuda](molde-botao-ajuda-pulso.md) — copiar DiretrizesDialog do Pulso; molde escrito na skill-layout-paxter/references/botao-ajuda-interrogacao.md.
 - [Painel Emissão de receitas](painel-emissao-receitas.md) — destinos retangulares, sem caixa de confirmação, prévia PDF, histórico comparável, nome Drive AA.MM.DD.

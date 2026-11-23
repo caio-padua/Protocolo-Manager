@@ -155,6 +155,7 @@ import agentesIntegracoesRouter from "./agentes-integracoes";
 import agentesQuickrepliesRouter from "./agentes-quickreplies";
 import whatsappInboundRouter from "./whatsapp-inbound";
 import evolutionRouter, { evolutionWebhookRouter } from "./evolution";
+import evolutionAccountsRouter, { evolutionAccountsWebhookRouter } from "./evolution-accounts";
 import prontuarioRouter from "./prontuario";
 import driveWatcherRouter from "./drive-watcher";
 import menuRouter from "./menu";
@@ -195,6 +196,7 @@ router.use(whatsappInboundRouter);
 
 // Evolution API (QR Code): webhook público autenticado por token secreto da clínica.
 router.use(evolutionWebhookRouter);
+router.use(evolutionAccountsWebhookRouter);
 
 // Webhooks do Trello (HEAD+POST de validação e eventos de cards).
 // Devem vir ANTES do portão — Trello não envia token de colaborador.
@@ -230,6 +232,7 @@ router.use(collaboratorGuard);
 
 router.use(healthRouter);
 router.use(evolutionRouter);
+router.use(evolutionAccountsRouter);
 router.use(atendimentoControleRouter);
 router.use(clientsRouter);
 router.use(avaliacoesCorporaisRouter);

@@ -74,3 +74,13 @@ Uma opção numérica só pertence ao menu se o contexto recente e entregue for 
 - Testes antigos que mockam pool/db precisam mockar `atendimento-controle` e `atendimento-ficha`; sem isso o controle falha fechado e nada responde.
 - Rodar um único vitest por vez (dois em paralelo derrubam o banco descartável).
 - Roteiro do teste real: specs/roteiro-teste-real-fase-1b.md; conferência: src/scripts/conferir-homologacao.ts.
+
+## Contas Evolution por clínica
+
+A conta empresarial permanece na configuração legada e continua sendo a única usada pelos fluxos existentes.
+Contas pessoais e adicionais usam escopo composto por clínica e conta, segredos separados e nunca compartilham o mesmo nome de instância do provedor.
+Eventos enviados pelo próprio número (`fromMe`) não comprovam autoria humana; manter a origem como não classificada até uma etapa de atribuição validada.
+
+**Why:** mudar o canal empresarial em uso ou inferir autoria a partir de um indicador incompleto pode misturar conversas ou atribuir uma fala automática ao proprietário.
+
+**How to apply:** em mudanças de contas, preservar a configuração e os consumidores legados, validar unicidade da instância, manter captura desligada por padrão e testar tokens/instâncias errados sem provedores reais.
