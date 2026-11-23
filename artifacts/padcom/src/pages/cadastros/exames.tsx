@@ -83,6 +83,8 @@ interface Bloco {
 type FormState = {
   id: number | null;
   codigoExame: string;
+  areaCodigo: string;
+  gradeCodigo: string;
   nomeExame: string;
   grupoPrincipal: string;
   subgrupo: string;
@@ -97,6 +99,8 @@ type FormState = {
 const EMPTY_FORM: FormState = {
   id: null,
   codigoExame: "",
+  areaCodigo: "",
+  gradeCodigo: "",
   nomeExame: "",
   grupoPrincipal: "",
   subgrupo: "",
@@ -232,7 +236,7 @@ function ExamesTab() {
       const r = await fetch(url, {
         method: form.id ? "PUT" : "POST",
         headers: collabAuthHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify(form.id ? body : { ...body, codigoExame: form.codigoExame }),
+        body: JSON.stringify(form.id ? body : { ...body, areaCodigo: form.areaCodigo, gradeCodigo: form.gradeCodigo }),
       });
       if (!r.ok) {
         const b = await r.json().catch(() => ({}));
@@ -274,6 +278,8 @@ function ExamesTab() {
     setForm({
       id: e.id,
       codigoExame: e.codigoExame ?? "",
+      areaCodigo: "",
+      gradeCodigo: "",
       nomeExame: e.nomeExame ?? "",
       grupoPrincipal: e.grupoPrincipal ?? "",
       subgrupo: e.subgrupo ?? "",
@@ -287,9 +293,34 @@ function ExamesTab() {
     setDialogOpen(true);
   }
 
+  const opcoesCodigo = useQuery<{ areas: Array<{ codigo: string; rotulo: string }>; grades: Array<{ codigo: string; rotulo: string }> }>({
+    queryKey: ["/api/cadastros/exames/codigo/opcoes"],
+    queryFn: async () => {
+      const r = await fetch("/api/cadastros/exames/codigo/opcoes");
+      if (!r.ok) throw new Error("Falha ao carregar opções do código");
+      return r.json();
+    },
+    enabled: dialogOpen && form.id === null,
+  });
+  const previa = useQuery<{ semantico: string }, Error>({
+    queryKey: ["/api/cadastros/exames/codigo/previa", form.nomeExame.trim(), form.areaCodigo, form.gradeCodigo],
+    queryFn: async () => {
+      const r = await fetch("/api/cadastros/exames/codigo/previa", {
+        method: "POST",
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ nomeExame: form.nomeExame.trim(), areaCodigo: form.areaCodigo, gradeCodigo: form.gradeCodigo }),
+      });
+      const b = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(b.error ?? "Código inválido");
+      return b;
+    },
+    enabled: dialogOpen && form.id === null && form.nomeExame.trim().length > 0 && form.areaCodigo.length === 4 && form.gradeCodigo.length === 4,
+    retry: false,
+  });
+
   const canSave =
     form.nomeExame.trim().length > 0 &&
-    (form.id !== null || form.codigoExame.trim().length > 0) &&
+    (form.id !== null || (form.areaCodigo.length === 4 && form.gradeCodigo.length === 4 && !!previa.data)) &&
     !saveMutation.isPending;
 
   return (
@@ -387,16 +418,43 @@ function ExamesTab() {
             <DialogTitle>{form.id ? "Editar exame" : "Novo exame"}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Código *</label>
-              <Input
-                value={form.codigoExame}
-                disabled={form.id !== null}
-                onChange={(e) => setForm((f) => ({ ...f, codigoExame: e.target.value }))}
-                placeholder="EX: EXAMSANGUE0001"
-                className="field-engraved"
-              />
-            </div>
+            {form.id !== null ? (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Código</label>
+                <Input value={form.codigoExame} disabled className="field-engraved" />
+              </div>
+            ) : (
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Código (gerado pelo sistema) *</label>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <Select value={form.areaCodigo || SEM_VALOR} onValueChange={(v) => { if (v !== "") setForm((f) => ({ ...f, areaCodigo: v === SEM_VALOR ? "" : v })); }}>
+                    <SelectTrigger className="field-engraved" data-testid="select-area-codigo"><SelectValue placeholder="Área (bloco)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={SEM_VALOR}>— Escolha a área —</SelectItem>
+                      {(opcoesCodigo.data?.areas ?? []).map((a) => (
+                        <SelectItem key={a.codigo} value={a.codigo}>{a.codigo} — {a.rotulo}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={form.gradeCodigo || SEM_VALOR} onValueChange={(v) => { if (v !== "") setForm((f) => ({ ...f, gradeCodigo: v === SEM_VALOR ? "" : v })); }}>
+                    <SelectTrigger className="field-engraved" data-testid="select-grade-codigo"><SelectValue placeholder="Grade" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={SEM_VALOR}>— Escolha a grade —</SelectItem>
+                      {(opcoesCodigo.data?.grades ?? []).map((g) => (
+                        <SelectItem key={g.codigo} value={g.codigo}>{g.codigo} — {g.rotulo}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="screen-3d px-3 py-1.5 text-xs font-black tracking-wide" data-testid="previa-codigo" role="status">
+                  {previa.isError
+                    ? previa.error.message
+                    : previa.data
+                      ? `Código: ${previa.data.semantico}`
+                      : "Digite o nome e escolha área e grade para ver o código."}
+                </div>
+              </div>
+            )}
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Nome do exame *</label>
               <Input

@@ -7,8 +7,11 @@ import {
 } from "@workspace/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
+import { GRADES_EXAME, montarCodigoExame, nickUnico } from "../lib/codigo-semantico-exame";
 
 const router: IRouter = Router();
+
+class ConflitoCadastro extends Error {}
 
 // =============================================================================
 // CADASTROS — escrita (CRUD) sobre o catalogo. Base = PRODUCAO REAL:
@@ -46,8 +49,67 @@ const exameInputSchema = z.object({
   exameDeRastreio: z.string().trim().max(40).optional().nullable(),
 });
 
-const createExameSchema = exameInputSchema.extend({
-  codigoExame: z.string().trim().min(1, "Codigo do exame e obrigatorio").max(120),
+// Codigo: ou o legado digitado (codigoExame) ou gerado pelo sistema (areaCodigo + gradeCodigo).
+const createExameSchema = exameInputSchema
+  .extend({
+    codigoExame: z.string().trim().min(1).max(120).optional().nullable(),
+    areaCodigo: z.string().trim().length(4).optional().nullable(),
+    gradeCodigo: z.string().trim().length(4).optional().nullable(),
+    nickCodigo: z.string().trim().length(4).optional().nullable(),
+  })
+  .refine((d) => d.codigoExame || (d.areaCodigo && d.gradeCodigo), {
+    message: "Informe a area e a grade do codigo (o sistema gera o codigo)",
+  });
+
+const previaCodigoSchema = z.object({
+  nomeExame: z.string().trim().min(1).max(300),
+  areaCodigo: z.string().trim().length(4),
+  gradeCodigo: z.string().trim().length(4),
+  nickCodigo: z.string().trim().length(4).optional().nullable(),
+});
+
+// Calcula o codigo semantico (sem gravar). Deve ser chamado dentro da transacao que grava.
+async function calcularCodigoExame(
+  exec: Pick<typeof db, "execute">,
+  d: { nomeExame: string; areaCodigo: string; gradeCodigo: string; nickCodigo?: string | null },
+) {
+  const usados = await exec.execute(sql`SELECT b4 FROM catalogo_exames WHERE b4 IS NOT NULL`);
+  const nicks = new Set(usados.rows.map((r) => String((r as { b4: string }).b4).toUpperCase()));
+  const nick = d.nickCodigo ? d.nickCodigo.toUpperCase() : nickUnico(d.nomeExame, nicks);
+  if (d.nickCodigo && nicks.has(nick)) {
+    const dono = await exec.execute(sql`SELECT nome_exame FROM catalogo_exames WHERE upper(b4) = ${nick} LIMIT 1`);
+    const nomeDono = String((dono.rows[0] as { nome_exame?: string } | undefined)?.nome_exame ?? "");
+    if (nomeDono.toUpperCase() !== d.nomeExame.toUpperCase()) {
+      throw new Error(`O nick ${nick} ja pertence a outro exame (${nomeDono}).`);
+    }
+  }
+  const codigo = montarCodigoExame(d.areaCodigo, d.gradeCodigo, nick);
+  const dup = await exec.execute(sql`
+    SELECT 1 FROM catalogo_exames WHERE upper(codigo_semantico) = ${codigo.semantico} OR upper(codigo_exame) = ${codigo.compacto} LIMIT 1`);
+  if (dup.rows.length > 0) throw new Error(`Ja existe um exame com o codigo ${codigo.semantico}.`);
+  return codigo;
+}
+
+// ---- Opcoes do gerador de codigo (areas = blocos existentes; grades fixas) ----
+router.get("/cadastros/exames/codigo/opcoes", async (_req, res): Promise<void> => {
+  const areas = await db.execute(sql`
+    SELECT b2 AS codigo, min(coalesce(bloco_oficial, grupo_principal)) AS rotulo, count(*)::int AS total
+    FROM catalogo_exames WHERE b2 IS NOT NULL AND b2 <> '' GROUP BY b2 ORDER BY b2`);
+  res.json({ areas: areas.rows, grades: GRADES_EXAME });
+});
+
+// ---- Previa do codigo (nao grava) ----
+router.post("/cadastros/exames/codigo/previa", async (req, res): Promise<void> => {
+  const parsed = previaCodigoSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Dados invalidos", details: parsed.error.issues });
+    return;
+  }
+  try {
+    res.json(await calcularCodigoExame(db, parsed.data));
+  } catch (err) {
+    res.status(409).json({ error: err instanceof Error ? err.message : "Codigo invalido" });
+  }
 });
 
 function nullify<T extends Record<string, unknown>>(obj: T): T {
@@ -74,24 +136,56 @@ router.post("/cadastros/exames", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Dados invalidos", details: parsed.error.issues });
     return;
   }
-  const data = nullify(parsed.data);
+  const { areaCodigo, gradeCodigo, nickCodigo, codigoExame: codigoManual, ...resto } = parsed.data;
+  const data = nullify(resto);
 
-  const existing = await db
-    .select({ id: catalogoExamesTable.id })
-    .from(catalogoExamesTable)
-    .where(eq(catalogoExamesTable.codigoExame, data.codigoExame))
-    .limit(1);
-  if (existing.length > 0) {
-    res.status(409).json({ error: `Ja existe um exame com o codigo "${data.codigoExame}".` });
-    return;
+  try {
+    const created = await db.transaction(async (tx) => {
+      // trava global curta: dois cadastros simultaneos nunca geram o mesmo codigo
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(19872027)`);
+      let valores: Record<string, unknown>;
+      if (codigoManual) {
+        const existing = await tx
+          .select({ id: catalogoExamesTable.id })
+          .from(catalogoExamesTable)
+          .where(eq(catalogoExamesTable.codigoExame, codigoManual))
+          .limit(1);
+        if (existing.length > 0) throw new ConflitoCadastro(`Ja existe um exame com o codigo "${codigoManual}".`);
+        valores = { ...data, codigoExame: codigoManual };
+      } else {
+        const cod = await calcularCodigoExame(tx, {
+          nomeExame: data.nomeExame,
+          areaCodigo: areaCodigo as string,
+          gradeCodigo: gradeCodigo as string,
+          nickCodigo,
+        });
+        valores = {
+          ...data,
+          codigoExame: cod.compacto,
+          codigoSemantico: cod.semantico,
+          b1: cod.b1,
+          b2: cod.b2,
+          b3: cod.b3,
+          b4: cod.b4,
+          seq: cod.seq,
+          grauDoBloco: cod.b3,
+        };
+      }
+      const [row] = await tx
+        .insert(catalogoExamesTable)
+        .values({ ...valores, ativo: true } as typeof catalogoExamesTable.$inferInsert)
+        .returning(EXAME_SELECT);
+      return row;
+    });
+    req.log.info({ id: created.id, codigo: created.codigoExame }, "exame criado");
+    res.status(201).json(created);
+  } catch (err) {
+    if (err instanceof ConflitoCadastro || (err instanceof Error && /Ja existe|ja pertence|Nao ha nick|invalida|deve ter/.test(err.message))) {
+      res.status(409).json({ error: (err as Error).message });
+      return;
+    }
+    throw err;
   }
-
-  const [created] = await db
-    .insert(catalogoExamesTable)
-    .values({ ...data, ativo: true })
-    .returning(EXAME_SELECT);
-  req.log.info({ id: created.id, codigo: created.codigoExame }, "exame criado");
-  res.status(201).json(created);
 });
 
 // ---- EDITAR exame -----------------------------------------------------------
