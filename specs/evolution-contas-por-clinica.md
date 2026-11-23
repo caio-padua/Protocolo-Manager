@@ -50,3 +50,18 @@ Adicionar suporte de servidor a três contas Evolution lógicas por clínica (em
 - Não ler conversas privadas nem usar dados pessoais em testes.
 - Não presumir que Railway ou Evolution comportem três instâncias; a configuração em código não prova capacidade hospedada.
 - Não implementar as tarefas #801 a #804.
+
+## Aditivo de arquitetura — identidade da conta e vínculos autorizados
+
+Esta revisão amplia a tarefa #800 sem iniciar as telas da tarefa #801.
+
+- A conta tem identificador próprio; sua identidade de proprietário e suas associações com clínicas são registros separados.
+- O identificador do proprietário vem do profissional autenticado pelo servidor. A clínica vem exclusivamente do contexto autenticado da sessão.
+- Uma conta pessoal do proprietário e uma terceira conta configurável podem ser associadas a mais de uma clínica, mas só o proprietário autenticado pode criar, consultar, alterar ou revogar esses vínculos.
+- Cada clínica mantém no máximo um vínculo ativo por categoria de conta. Revogar vínculo é lógico e não apaga conta, configuração, segredo ou mensagem.
+- A conta empresarial continua na configuração e nas rotas legadas; não há cópia de configuração, segredo, vínculo ou mensagem empresarial.
+- Webhooks pessoais identificam a conta por identificador próprio, token próprio e nome exato da instância. Não recebem clínica presumida e não entram na rota empresarial nem no motor clínico.
+- Eventos de saída não provam autoria humana. Toda mensagem nova permanece com origem `nao_classificada`.
+- A mudança de esquema é apenas aditiva. O preflight informa contagens de estruturas legadas e marca qualquer linha antiga de contas/mensagens para reconciliação explícita; nenhuma linha ou segredo legado é copiado, alterado ou apagado automaticamente.
+- A reversão segura é voltar o código mantendo as novas tabelas e dados intactos. Não criar uma reversão `DROP` que destrua dados.
+- Testes de migração, autorização, associação, webhook, falhas e reinício usam PostgreSQL temporário e dados sintéticos. Nenhum esquema de produção é alterado.

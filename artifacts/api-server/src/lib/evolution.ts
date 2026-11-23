@@ -128,9 +128,24 @@ export async function validarInstanciaEvolutionNaoDuplicada(
   accountKey?: string,
 ): Promise<void> {
   const tables = await pool.query(
-    "SELECT to_regclass('public.evolution_instancias') AS legacy_table, to_regclass('public.evolution_contas') AS accounts_table",
+    `SELECT to_regclass('public.evolution_instancias') AS legacy_table,
+            to_regclass('public.evolution_contas') AS accounts_table,
+            to_regclass('public.evolution_conta_identidades') AS identities_table`,
   );
-  const existing = tables.rows[0] as { legacy_table?: string | null; accounts_table?: string | null } | undefined;
+  const existing = tables.rows[0] as {
+    legacy_table?: string | null;
+    accounts_table?: string | null;
+    identities_table?: string | null;
+  } | undefined;
+  if (existing?.identities_table) {
+    const identityConflict = await pool.query(
+      `SELECT 1 FROM evolution_conta_identidades
+        WHERE lower(base_url) = lower($1) AND instance_name = $2
+        LIMIT 1`,
+      [baseUrl, instanceName],
+    );
+    if (identityConflict.rowCount) throw new ConfigInvalida("instancia_ja_associada");
+  }
   if (accountKey === undefined) {
     if (existing?.accounts_table) {
       const conflict = await pool.query(
@@ -193,14 +208,28 @@ export function validarNomeInstancia(raw: unknown): string {
 
 export async function salvarConfig(empresaId: number, baseUrl: string, instanceName: string, apiKey: string | undefined, por: string): Promise<void> {
   await garantirTabelasEvolution();
-  await validarInstanciaEvolutionNaoDuplicada(baseUrl, instanceName, empresaId);
-  await pool.query(
-    `INSERT INTO evolution_instancias (empresa_id, base_url, instance_name, atualizado_por)
-     VALUES ($1,$2,$3,$4)
-     ON CONFLICT (empresa_id) DO UPDATE SET base_url=EXCLUDED.base_url, instance_name=EXCLUDED.instance_name,
-       atualizado_em=NOW(), atualizado_por=EXCLUDED.atualizado_por`,
-    [empresaId, baseUrl, instanceName, por],
-  );
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [`${baseUrl.toLowerCase()}\n${instanceName}`],
+    );
+    await validarInstanciaEvolutionNaoDuplicada(baseUrl, instanceName, empresaId);
+    await client.query(
+      `INSERT INTO evolution_instancias (empresa_id, base_url, instance_name, atualizado_por)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (empresa_id) DO UPDATE SET base_url=EXCLUDED.base_url, instance_name=EXCLUDED.instance_name,
+         atualizado_em=NOW(), atualizado_por=EXCLUDED.atualizado_por`,
+      [empresaId, baseUrl, instanceName, por],
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
   if (apiKey !== undefined && apiKey !== "") await setSecret(chaveApi(empresaId), apiKey, por);
   if (!(await getSecret(chaveWebhook(empresaId)))) await setSecret(chaveWebhook(empresaId), crypto.randomBytes(32).toString("hex"), por);
 }

@@ -11,7 +11,10 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@workspace/db", () => ({
-  pool: { query: (...args: unknown[]) => state.pool.query(...args) },
+  pool: {
+    query: (...args: unknown[]) => state.pool.query(...args),
+    connect: (...args: unknown[]) => state.pool.connect(...args),
+  },
 }));
 vi.mock("../lib/secure-settings.js", () => ({
   getSecret: vi.fn(async (key: string) => state.secrets[key] ?? null),
