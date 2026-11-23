@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +10,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Check, X, Upload } from "lucide-react";
+import { Plus, Pencil, Check, X, Upload, ChevronDown, ExternalLink, RotateCcw } from "lucide-react";
+import { SeletorCorVidro } from "@/components/VidroCor";
 import { useRef } from "react";
 
 // Cores oficiais por natureza (retângulos indicadores). Prefixos de código são só visuais.
@@ -20,6 +22,31 @@ export const NATUREZA_COR: Record<string, string> = {
   "METODOS GRAFICOS": "#4338CA",
   "ENDOSCOPICOS": "#BE123C",
 };
+
+export const GRADE_COR: Record<string, string> = {
+  "GRADE BASICA": "#10B981",
+  "GRADE INTERMEDIARIA": "#3B82F6",
+  "GRADE AMPLIADA": "#F59E0B",
+  "GRADE SOFISTICADA": "#8B5CF6",
+};
+
+// Cores editaveis (tela Opcoes). Sem personalizacao, vale o padrao oficial acima.
+export function useCores() {
+  const q = useQuery<Array<{ chave: string; cor: string }>>({
+    queryKey: ["/api/cadastros/exames-cores"],
+    queryFn: async () => {
+      const r = await fetch("/api/cadastros/exames-cores");
+      if (!r.ok) throw new Error("Falha ao carregar cores");
+      return r.json();
+    },
+  });
+  const mapa = new Map((q.data ?? []).map((c) => [c.chave, c.cor]));
+  return {
+    natureza: (n: string) => mapa.get(n.toUpperCase()) ?? NATUREZA_COR[n.toUpperCase()] ?? "#475569",
+    grade: (g: string) => mapa.get(g) ?? GRADE_COR[g] ?? "#64748B",
+    personalizada: (chave: string) => mapa.has(chave),
+  };
+}
 
 // Sugestão apenas visual a partir da modalidade existente (nada é gravado por isso).
 export function naturezaSugerida(modalidade: string | null | undefined): string | null {
@@ -35,8 +62,9 @@ export function naturezaSugerida(modalidade: string | null | undefined): string 
 const NATUREZA_SIGLA: Record<string, string> = { "LABORATORIAL": "LAB", "IMAGEM": "IMG", "COMPOSICAO CORPORAL": "COMP", "METODOS GRAFICOS": "GRAF", "ENDOSCOPICOS": "ENDO" };
 
 export function NaturezaChip({ natureza, sugerida, curto }: { natureza: string | null; sugerida?: boolean; curto?: boolean }) {
+  const cores = useCores();
   if (!natureza) return <span className="text-xs text-muted-foreground">—</span>;
-  const cor = NATUREZA_COR[natureza.toUpperCase()] ?? "#475569";
+  const cor = cores.natureza(natureza);
   return (
     <span
       className="inline-block rounded-[4px] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white"
@@ -71,7 +99,16 @@ export interface Atributos {
   diretrizes: string[];
   artigos: Artigo[];
 }
-export interface Artigo { autores: string; titulo: string; revista: string; ano: string; link: string }
+export interface Artigo { texto: string; link: string; autores?: string; titulo?: string; revista?: string; ano?: string }
+
+// Texto exibido da referência (aceita os campos antigos separados).
+export function textoArtigo(a: Artigo): string {
+  return a.texto?.trim() || [a.autores, a.titulo, a.revista, a.ano].filter(Boolean).join(". ");
+}
+const URL_NO_TEXTO = /https?:\/\/[^\s)>\]]+/i;
+export function linkArtigo(a: Artigo): string {
+  return a.link?.trim() || (textoArtigo(a).match(URL_NO_TEXTO)?.[0] ?? "");
+}
 
 interface Opcao {
   id: number;
@@ -187,35 +224,62 @@ function OpcaoMulti({ tipo, valores, onChange, rotulo }: { tipo: Tipo; valores: 
 
 const VAZIO = (id: number): Atributos => ({ exameId: id, natureza: null, metodo: null, regiao: null, material: null, lateralidade: null, contraste: null, tipoResultado: null, prioridade: null, eixos: [], sinonimos: [], gatilhos: [], periodizacaoModo: null, publicoAlvo: null, idadeMinima: null, idadeMaxima: null, repetirMeses: null, regraAntecipacao: null, diretrizes: [], artigos: [] });
 
-// Diálogo de atributos adicionais: campos mudam conforme a natureza.
-export function AtributosDialog({ exame, atual, modalidade, onClose }: { exame: { id: number; nome: string } | null; atual?: Atributos; modalidade?: string | null; onClose: () => void }) {
+// Faixa horizontal retrátil (minimizar/maximizar) com resumo à direita.
+function Faixa({ titulo, resumo, aberta, onToggle, children, id }: { titulo: string; resumo?: string; aberta: boolean; onToggle: () => void; children: ReactNode; id: string }) {
+  return (
+    <section className="panel-3d-sub overflow-hidden" data-testid={`faixa-${id}`}>
+      <button type="button" onClick={onToggle} aria-expanded={aberta} className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-primary/5">
+        <span className="flex-1 text-[11px] font-black uppercase tracking-widest text-primary">{titulo}</span>
+        {resumo && <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{resumo}</span>}
+        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${aberta ? "rotate-180" : ""}`} />
+      </button>
+      <div hidden={!aberta} className="border-t border-border/60 p-3">{children}</div>
+    </section>
+  );
+}
+
+// Ficha única do exame (gaveta lateral): cadastro + atributos + vínculos + periodização + embasamento, com um só "Salvar".
+// `topo` traz os campos de cadastro; `antesDeSalvar` grava o cadastro e devolve o id (necessário para exame novo).
+export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antesDeSalvar, podeSalvar = true, titulo = "Ficha do exame" }: {
+  exame: { id: number | null; nome: string } | null;
+  atual?: Atributos;
+  modalidade?: string | null;
+  onClose: () => void;
+  topo?: ReactNode;
+  antesDeSalvar?: () => Promise<number>;
+  podeSalvar?: boolean;
+  titulo?: string;
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [f, setF] = useState<Atributos | null>(null);
   const [sin, setSin] = useState("");
+  const [abertas, setAbertas] = useState<Record<string, boolean>>({ cadastro: true, classificacao: true, vinculos: false, periodizacao: false, embasamento: false });
   useEffect(() => {
     if (exame) {
-      setF(atual ?? { ...VAZIO(exame.id), natureza: naturezaSugerida(modalidade) });
+      setF(atual ?? { ...VAZIO(exame.id ?? 0), natureza: naturezaSugerida(modalidade) });
       setSin("");
+      setAbertas({ cadastro: true, classificacao: true, vinculos: false, periodizacao: false, embasamento: false });
     }
-  }, [exame?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [exame?.id, !!exame]); // eslint-disable-line react-hooks/exhaustive-deps
   const impacto = useQuery<{ vinculos: Array<{ blocoId: string; nomeBloco: string; grau: string; ativo: boolean | null }> }>({
     queryKey: ["/api/cadastros/exames", exame?.id, "impacto"],
     queryFn: async () => (await fetch(`/api/cadastros/exames/${exame!.id}/impacto`)).json(),
-    enabled: !!exame,
+    enabled: !!exame?.id,
   });
   const salvar = useMutation<unknown, Error>({
     mutationFn: async () => {
-      const r = await fetch(`/api/cadastros/exames/${f!.exameId}/atributos`, {
+      const id = antesDeSalvar ? await antesDeSalvar() : f!.exameId;
+      const r = await fetch(`/api/cadastros/exames/${id}/atributos`, {
         method: "PUT",
         headers: collabAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ ...f, exameId: undefined }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? "Falha ao salvar");
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? "O cadastro foi salvo, mas os atributos não");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/cadastros/exames-atributos"] });
-      toast({ title: "Atributos salvos" });
+      toast({ title: "Exame salvo" });
       onClose();
     },
     onError: (e) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
@@ -227,6 +291,8 @@ export function AtributosDialog({ exame, atual, modalidade, onClose }: { exame: 
   const ehLab = nat === "LABORATORIAL";
   const ehImg = nat === "IMAGEM";
   const set = <K extends keyof Atributos>(k: K, v: Atributos[K]) => setF((x) => (x ? { ...x, [k]: v } : x));
+  const alterna = (k: string) => setAbertas((a) => ({ ...a, [k]: !a[k] }));
+  const todas = Object.values(abertas).every(Boolean);
   const Simples = ({ k, rotulo, opcoes }: { k: "lateralidade" | "contraste" | "prioridade"; rotulo: string; opcoes: string[] }) => (
     <div className="space-y-1.5">
       <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{rotulo}</label>
@@ -239,107 +305,143 @@ export function AtributosDialog({ exame, atual, modalidade, onClose }: { exame: 
       </Select>
     </div>
   );
+  const nVinc = impacto.data?.vinculos.length ?? 0;
+  const resPer = [f.periodizacaoModo, f.repetirMeses ? `a cada ${f.repetirMeses} meses` : null].filter(Boolean).join(" • ") || "não definida";
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-        <DialogHeader><DialogTitle>Atributos do exame</DialogTitle></DialogHeader>
-        <div className="screen-3d flex items-center gap-2 px-3 py-1.5 text-xs font-black">
-          <NaturezaChip natureza={f.natureza} /> <span>{exame.nome}</span>
+      <DialogContent className="fixed left-auto right-0 top-0 h-screen max-h-screen w-full max-w-2xl translate-x-0 translate-y-0 overflow-y-auto rounded-none sm:rounded-none" data-testid="gaveta-exame">
+        <DialogHeader><DialogTitle>{titulo}</DialogTitle></DialogHeader>
+        <div className="flex items-center gap-2">
+          <div className="screen-3d flex flex-1 items-center gap-2 px-3 py-1.5 text-xs font-black">
+            <NaturezaChip natureza={f.natureza} /> <span>{exame.nome || "Novo exame"}</span>
+          </div>
+          <Button type="button" size="sm" variant="outline" onClick={() => setAbertas({ cadastro: !todas, classificacao: !todas, vinculos: !todas, periodizacao: !todas, embasamento: !todas })} data-testid="button-expandir-faixas">
+            {todas ? "Recolher tudo" : "Expandir tudo"}
+          </Button>
         </div>
-        <p className="text-xs text-muted-foreground">Estes campos são complementares. O código, o bloco e a grade do exame não mudam por aqui.</p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <OpcaoSelect tipo="natureza" rotulo="Natureza" valor={f.natureza ?? ""} onChange={(v) => set("natureza", v || null)} />
-          <OpcaoSelect tipo="metodo" rotulo="Método" valor={f.metodo ?? ""} onChange={(v) => set("metodo", v || null)} />
-          {ehLab && <OpcaoSelect tipo="material" rotulo="Material" valor={f.material ?? ""} onChange={(v) => set("material", v || null)} />}
-          {!ehLab && nat !== "" && <OpcaoSelect tipo="regiao" rotulo={ehImg ? "Região anatômica *" : "Região"} valor={f.regiao ?? ""} onChange={(v) => set("regiao", v || null)} />}
-          {ehImg && <Simples k="lateralidade" rotulo="Lateralidade *" opcoes={["DIREITA", "ESQUERDA", "BILATERAL", "NAO SE APLICA"]} />}
-          {ehImg && <Simples k="contraste" rotulo="Contraste *" opcoes={["COM CONTRASTE", "SEM CONTRASTE", "COM E SEM CONTRASTE", "NAO SE APLICA"]} />}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Tipo de resultado</label>
-            <Input value={f.tipoResultado ?? ""} onChange={(e) => set("tipoResultado", e.target.value || null)} placeholder="Ex.: numérico, laudo descritivo" className="field-engraved" />
-          </div>
-          <Simples k="prioridade" rotulo="Prioridade" opcoes={["ROTINA", "PRIORITARIO", "URGENTE"]} />
-          <div className="sm:col-span-2"><OpcaoMulti tipo="eixo" rotulo="Eixos clínicos" valores={f.eixos} onChange={(v) => set("eixos", v)} /></div>
-          <div className="sm:col-span-2"><OpcaoMulti tipo="gatilho" rotulo="Gatilhos" valores={f.gatilhos} onChange={(v) => set("gatilhos", v)} /></div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Sinônimos (busca)</label>
-            <div className="flex flex-wrap gap-1.5">
-              {f.sinonimos.map((s) => (
-                <Badge key={s} variant="secondary" className="gap-1 text-[10px]">{s}<button type="button" aria-label={`Remover ${s}`} onClick={() => set("sinonimos", f.sinonimos.filter((x) => x !== s))}><X className="h-3 w-3" /></button></Badge>
-              ))}
+        <p className="text-xs text-muted-foreground">O código, o bloco e a grade do exame não mudam por atributos. Um só botão salva a ficha inteira.</p>
+
+        {topo && <Faixa id="cadastro" titulo="1. Cadastro do exame" resumo={exame.nome} aberta={!!abertas.cadastro} onToggle={() => alterna("cadastro")}>{topo}</Faixa>}
+
+        <Faixa id="classificacao" titulo="2. Identidade e classificação" resumo={[f.natureza, f.metodo].filter(Boolean).join(" • ") || "não classificado"} aberta={!!abertas.classificacao} onToggle={() => alterna("classificacao")}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <OpcaoSelect tipo="natureza" rotulo="Natureza" valor={f.natureza ?? ""} onChange={(v) => set("natureza", v || null)} />
+            <OpcaoSelect tipo="metodo" rotulo="Método" valor={f.metodo ?? ""} onChange={(v) => set("metodo", v || null)} />
+            {ehLab && <OpcaoSelect tipo="material" rotulo="Material" valor={f.material ?? ""} onChange={(v) => set("material", v || null)} />}
+            {!ehLab && nat !== "" && <OpcaoSelect tipo="regiao" rotulo={ehImg ? "Região anatômica *" : "Região"} valor={f.regiao ?? ""} onChange={(v) => set("regiao", v || null)} />}
+            {ehImg && <Simples k="lateralidade" rotulo="Lateralidade *" opcoes={["DIREITA", "ESQUERDA", "BILATERAL", "NAO SE APLICA"]} />}
+            {ehImg && <Simples k="contraste" rotulo="Contraste *" opcoes={["COM CONTRASTE", "SEM CONTRASTE", "COM E SEM CONTRASTE", "NAO SE APLICA"]} />}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Tipo de resultado</label>
+              <Input value={f.tipoResultado ?? ""} onChange={(e) => set("tipoResultado", e.target.value || null)} placeholder="Ex.: numérico, laudo descritivo" className="field-engraved" />
             </div>
-            <div className="flex gap-1.5">
-              <Input value={sin} onChange={(e) => setSin(e.target.value)} placeholder="Novo sinônimo" className="field-engraved" />
-              <Button type="button" size="icon" className="btn-3d" disabled={!sin.trim()} aria-label="Adicionar sinônimo" onClick={() => { set("sinonimos", Array.from(new Set([...f.sinonimos, sin.trim()]))); setSin(""); }}><Plus className="h-4 w-4" /></Button>
-            </div>
-          </div>
-          {faltaImagem && <div className="rounded-[4px] bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive sm:col-span-2" role="alert">Para exame de IMAGEM, região anatômica, lateralidade e contraste são obrigatórios.</div>}
-          <div className="sm:col-span-2 border-t pt-3 text-[11px] font-black uppercase tracking-widest text-primary">Periodização preventiva (check-up)</div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Modo</label>
-            <Select value={f.periodizacaoModo ?? "__none__"} onValueChange={(v) => v !== "" && set("periodizacaoModo", v === "__none__" ? null : v)}>
-              <SelectTrigger className="field-engraved"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">— Nenhum —</SelectItem>
-                <SelectItem value="SOB DEMANDA">Sob demanda</SelectItem>
-                <SelectItem value="PERIODICO">Periódico</SelectItem>
-                <SelectItem value="POR RISCO">Por risco</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Público-alvo</label>
-            <Select value={f.publicoAlvo ?? "__none__"} onValueChange={(v) => v !== "" && set("publicoAlvo", v === "__none__" ? null : v)}>
-              <SelectTrigger className="field-engraved"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">— Nenhum —</SelectItem>
-                <SelectItem value="AMBOS">Ambos</SelectItem>
-                <SelectItem value="MASCULINO">Masculino</SelectItem>
-                <SelectItem value="FEMININO">Feminino</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {([["idadeMinima", "Idade mínima"], ["idadeMaxima", "Idade máxima"], ["repetirMeses", "Repetir a cada (meses)"]] as const).map(([k, r]) => (
-            <div key={k} className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{r}</label>
-              <Input type="number" min={0} value={f[k] ?? ""} onChange={(e) => set(k, e.target.value === "" ? null : Math.trunc(Number(e.target.value)))} className="field-engraved" />
-            </div>
-          ))}
-          <div className="space-y-1.5 sm:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Regra de antecipação</label>
-            <Input value={f.regraAntecipacao ?? ""} onChange={(e) => set("regraAntecipacao", e.target.value || null)} placeholder="Texto livre, definido pelo médico" className="field-engraved" />
-          </div>
-          {idadeInvalida && <div className="text-xs font-bold text-destructive sm:col-span-2" role="alert">A idade mínima não pode ser maior que a máxima.</div>}
-          <div className="sm:col-span-2 text-[10px] text-muted-foreground">Estes campos são cadastro de referência. Não geram regra clínica automática nem alteram as sugestões do cérebro.</div>
-          <div className="sm:col-span-2 border-t pt-3 text-[11px] font-black uppercase tracking-widest text-primary">Embasamento científico</div>
-          <div className="sm:col-span-2"><OpcaoMulti tipo="diretriz" rotulo="Diretrizes clínicas" valores={f.diretrizes} onChange={(v) => set("diretrizes", v)} /></div>
-          <div className="space-y-2 sm:col-span-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Artigos científicos / referências</label>
-              <Button type="button" size="sm" variant="outline" onClick={() => set("artigos", [...f.artigos, { autores: "", titulo: "", revista: "", ano: "", link: "" }])} data-testid="button-novo-artigo"><Plus className="mr-1 h-4 w-4" /> Artigo</Button>
-            </div>
-            {f.artigos.map((a, i) => (
-              <div key={i} className="panel-3d-sub grid grid-cols-1 gap-1.5 p-2 sm:grid-cols-2">
-                {([["autores", "Autores"], ["titulo", "Título"], ["revista", "Revista"], ["ano", "Ano"], ["link", "DOI / Link"]] as const).map(([k, r]) => (
-                  <Input key={k} value={a[k]} placeholder={r} aria-label={r} className={`field-engraved ${k === "autores" || k === "titulo" || k === "link" ? "sm:col-span-2" : ""}`}
-                    onChange={(e) => set("artigos", f.artigos.map((x, j) => (j === i ? { ...x, [k]: e.target.value } : x)))} />
+            <Simples k="prioridade" rotulo="Prioridade" opcoes={["ROTINA", "PRIORITARIO", "URGENTE"]} />
+            <div className="sm:col-span-2"><OpcaoMulti tipo="eixo" rotulo="Eixos clínicos" valores={f.eixos} onChange={(v) => set("eixos", v)} /></div>
+            <div className="sm:col-span-2"><OpcaoMulti tipo="gatilho" rotulo="Gatilhos" valores={f.gatilhos} onChange={(v) => set("gatilhos", v)} /></div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Sinônimos (busca)</label>
+              <div className="flex flex-wrap gap-1.5">
+                {f.sinonimos.map((x) => (
+                  <Badge key={x} variant="secondary" className="gap-1 text-[10px]">{x}<button type="button" aria-label={`Remover ${x}`} onClick={() => set("sinonimos", f.sinonimos.filter((y) => y !== x))}><X className="h-3 w-3" /></button></Badge>
                 ))}
-                <Button type="button" size="sm" variant="ghost" className="sm:col-span-2 text-destructive" onClick={() => set("artigos", f.artigos.filter((_, j) => j !== i))}>Remover este artigo</Button>
               </div>
-            ))}
+              <div className="flex gap-1.5">
+                <Input value={sin} onChange={(e) => setSin(e.target.value)} placeholder="Novo sinônimo" className="field-engraved" />
+                <Button type="button" size="icon" className="btn-3d" disabled={!sin.trim()} aria-label="Adicionar sinônimo" onClick={() => { set("sinonimos", Array.from(new Set([...f.sinonimos, sin.trim()]))); setSin(""); }}><Plus className="h-4 w-4" /></Button>
+              </div>
+            </div>
+            {faltaImagem && <div className="rounded-[4px] bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive sm:col-span-2" role="alert">Para exame de IMAGEM, região anatômica, lateralidade e contraste são obrigatórios.</div>}
           </div>
-          <div className="concave-3d px-3 py-2 text-xs sm:col-span-2">
-            <div className="font-black uppercase tracking-wide">Onde este exame está nos blocos (leitura)</div>
-            {(impacto.data?.vinculos ?? []).length === 0 ? <span className="text-muted-foreground">Nenhum vínculo na grade.</span> : (
-              <ul className="mt-1 space-y-0.5">
+        </Faixa>
+
+        <Faixa id="vinculos" titulo="3. Vínculos nos blocos clínicos" resumo={exame.id ? `${nVinc} vínculo(s)` : "exame novo"} aberta={!!abertas.vinculos} onToggle={() => alterna("vinculos")}>
+          <div className="concave-3d px-3 py-2 text-xs">
+            {nVinc === 0 ? <span className="text-muted-foreground">Nenhum vínculo na grade.</span> : (
+              <ul className="space-y-0.5">
                 {impacto.data!.vinculos.map((v, i) => <li key={i} className={v.ativo === false ? "opacity-50" : ""}>{v.nomeBloco} — {v.grau}{v.ativo === false ? " (tirado do bloco)" : ""}</li>)}
               </ul>
             )}
           </div>
-        </div>
+          <p className="mt-2 text-[10px] text-muted-foreground">Para incluir, mover ou tirar o exame de um bloco, use a aba "Blocos clínicos e grades".</p>
+        </Faixa>
+
+        <Faixa id="periodizacao" titulo="4. Periodização preventiva (check-up)" resumo={resPer} aberta={!!abertas.periodizacao} onToggle={() => alterna("periodizacao")}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Modo</label>
+              <Select value={f.periodizacaoModo ?? "__none__"} onValueChange={(v) => v !== "" && set("periodizacaoModo", v === "__none__" ? null : v)}>
+                <SelectTrigger className="field-engraved"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Nenhum —</SelectItem>
+                  <SelectItem value="SOB DEMANDA">Sob demanda</SelectItem>
+                  <SelectItem value="PERIODICO">Periódico</SelectItem>
+                  <SelectItem value="POR RISCO">Por risco</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Público-alvo</label>
+              <Select value={f.publicoAlvo ?? "__none__"} onValueChange={(v) => v !== "" && set("publicoAlvo", v === "__none__" ? null : v)}>
+                <SelectTrigger className="field-engraved"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Nenhum —</SelectItem>
+                  <SelectItem value="AMBOS">Ambos</SelectItem>
+                  <SelectItem value="MASCULINO">Masculino</SelectItem>
+                  <SelectItem value="FEMININO">Feminino</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {([["idadeMinima", "Idade mínima"], ["idadeMaxima", "Idade máxima"], ["repetirMeses", "Repetir a cada (meses)"]] as const).map(([k, r]) => (
+              <div key={k} className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{r}</label>
+                <Input type="number" min={0} value={f[k] ?? ""} onChange={(e) => set(k, e.target.value === "" ? null : Math.trunc(Number(e.target.value)))} className="field-engraved" />
+              </div>
+            ))}
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Regra de antecipação</label>
+              <Input value={f.regraAntecipacao ?? ""} onChange={(e) => set("regraAntecipacao", e.target.value || null)} placeholder="Texto livre, definido pelo médico" className="field-engraved" />
+            </div>
+            {idadeInvalida && <div className="text-xs font-bold text-destructive sm:col-span-2" role="alert">A idade mínima não pode ser maior que a máxima.</div>}
+            <div className="text-[10px] text-muted-foreground sm:col-span-2">Cadastro de referência. Não gera regra clínica automática nem altera as sugestões do cérebro.</div>
+          </div>
+        </Faixa>
+
+        <Faixa id="embasamento" titulo="5. Embasamento científico" resumo={`${f.diretrizes.length} diretriz(es) • ${f.artigos.length} artigo(s)`} aberta={!!abertas.embasamento} onToggle={() => alterna("embasamento")}>
+          <div className="space-y-3">
+            <OpcaoMulti tipo="diretriz" rotulo="Diretrizes clínicas" valores={f.diretrizes} onChange={(v) => set("diretrizes", v)} />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Artigos científicos / referências</label>
+                <Button type="button" size="sm" variant="outline" onClick={() => set("artigos", [...f.artigos, { texto: "", link: "" }])} data-testid="button-novo-artigo"><Plus className="mr-1 h-4 w-4" /> Referência</Button>
+              </div>
+              {f.artigos.map((a, i) => {
+                const link = linkArtigo(a);
+                const t = a.texto ?? textoArtigo(a);
+                return (
+                  <div key={i} className="concave-3d space-y-1.5 p-2">
+                    <Textarea rows={3} value={a.texto ?? textoArtigo(a)} aria-label="Referência bibliográfica completa" placeholder="Cole aqui a referência completa (autores, título, revista, ano). Se houver link no texto, ele é detectado."
+                      className="field-engraved" onChange={(e) => set("artigos", f.artigos.map((x, j) => (j === i ? { ...x, texto: e.target.value } : x)))} />
+                    <Input value={a.link} aria-label="Link ou DOI" placeholder="Link / URL do artigo (https://...)" className="field-engraved"
+                      onChange={(e) => set("artigos", f.artigos.map((x, j) => (j === i ? { ...x, link: e.target.value } : x)))} />
+                    <div className="flex items-center gap-2">
+                      {link && /^https?:\/\//i.test(link) && (
+                        <a href={link} target="_blank" rel="noopener noreferrer" className="btn-3d-soft inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[11px] font-black" data-testid={`link-artigo-${i}`}>
+                          Abrir artigo <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                        </a>
+                      )}
+                      {t && <span className="line-clamp-2 flex-1 text-[11px] text-muted-foreground">{t}</span>}
+                      <Button type="button" size="sm" variant="ghost" className="ml-auto text-destructive" onClick={() => set("artigos", f.artigos.filter((_, j) => j !== i))}>Remover</Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Faixa>
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button className="btn-3d" disabled={salvar.isPending || faltaImagem || idadeInvalida} onClick={() => salvar.mutate()} data-testid="button-salvar-atributos">{salvar.isPending ? "Salvando..." : "Salvar atributos"}</Button>
+          <Button className="btn-3d" disabled={salvar.isPending || faltaImagem || idadeInvalida || !podeSalvar} onClick={() => salvar.mutate()} data-testid="button-salvar-atributos">{salvar.isPending ? "Salvando..." : "Salvar exame"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -356,6 +458,53 @@ const TIPOS: Array<{ tipo: Tipo; rotulo: string }> = [
   { tipo: "gatilho", rotulo: "Gatilhos" },
   { tipo: "diretriz", rotulo: "Diretrizes" },
 ];
+
+// Cor editável (mesmo seletor da Agenda). Sem personalização vale o padrão oficial.
+function CorEditavel({ chave, padrao }: { chave: string; padrao: string }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const cores = useCores();
+  const atual = chave.startsWith("GRADE") ? cores.grade(chave) : cores.natureza(chave);
+  const salvar = useMutation<void, Error, string | null>({
+    mutationFn: async (cor) => {
+      const url = `/api/cadastros/exames-cores/${encodeURIComponent(chave)}`;
+      const r = cor
+        ? await fetch(url, { method: "PUT", headers: collabAuthHeaders({ "Content-Type": "application/json" }), body: JSON.stringify({ cor }) })
+        : await fetch(url, { method: "DELETE", headers: collabAuthHeaders() });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? "Falha ao salvar a cor");
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/cadastros/exames-cores"] }),
+    onError: (e) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+  });
+  return (
+    <div className="flex items-center gap-1.5">
+      <SeletorCorVidro rotulo={`Cor de ${chave}`} valor={atual} onChange={(c) => salvar.mutate(c.toUpperCase())} />
+      {cores.personalizada(chave) && (
+        <Button type="button" size="icon" variant="ghost" aria-label={`Voltar ao padrão (${padrao})`} title={`Voltar ao padrão (${padrao})`} onClick={() => salvar.mutate(null)}><RotateCcw className="h-4 w-4" /></Button>
+      )}
+    </div>
+  );
+}
+
+const GRADES_COR = [
+  { chave: "GRADE BASICA", rotulo: "Grade básica" },
+  { chave: "GRADE INTERMEDIARIA", rotulo: "Grade intermediária" },
+  { chave: "GRADE AMPLIADA", rotulo: "Grade ampliada" },
+  { chave: "GRADE SOFISTICADA", rotulo: "Grade sofisticada" },
+];
+export function PainelGrades() {
+  return (
+    <div className="panel-3d divide-y">
+      {GRADES_COR.map((g) => (
+        <div key={g.chave} className="flex items-center gap-3 px-3 py-2">
+          <span className="flex-1 text-sm font-bold">{g.rotulo}</span>
+          <CorEditavel chave={g.chave} padrao={GRADE_COR[g.chave]} />
+        </div>
+      ))}
+      <div className="px-3 py-2 text-[11px] text-muted-foreground">A cor aparece na borda e no fundo suave dos cartões da aba "Blocos clínicos e grades". Só muda a aparência.</div>
+    </div>
+  );
+}
 
 function PainelOpcoes({ tipo, rotulo }: { tipo: Tipo; rotulo: string }) {
   const qc = useQueryClient();
@@ -403,6 +552,7 @@ function PainelOpcoes({ tipo, rotulo }: { tipo: Tipo; rotulo: string }) {
             ) : (
               <>
                 {tipo === "natureza" && <NaturezaChip natureza={o.nome} />}
+                {tipo === "natureza" && NATUREZA_COR[o.nome.toUpperCase()] && <CorEditavel chave={o.nome.toUpperCase()} padrao={NATUREZA_COR[o.nome.toUpperCase()]} />}
                 {tipo !== "natureza" && <span className="flex-1 text-sm font-bold">{o.nome}</span>}
                 <span className="flex-1" />
                 <Badge variant="outline" className="text-[10px]">{o.total} exame(s)</Badge>
@@ -417,7 +567,8 @@ function PainelOpcoes({ tipo, rotulo }: { tipo: Tipo; rotulo: string }) {
   );
 }
 
-export function GestaoOpcoes({ extras = [] }: { extras?: Array<{ chave: string; rotulo: string; conteudo: ReactNode }> }) {
+export function GestaoOpcoes({ extras: extrasRecebidos = [] }: { extras?: Array<{ chave: string; rotulo: string; conteudo: ReactNode }> }) {
+  const extras = [{ chave: "grades-cor", rotulo: "Grades", conteudo: <PainelGrades /> }, ...extrasRecebidos];
   return (
     <Tabs defaultValue="natureza" className="space-y-3">
       <TabsList className="concave-3d h-auto flex-wrap justify-start p-1">

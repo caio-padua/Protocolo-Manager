@@ -212,12 +212,14 @@ const atributosSchema = z.object({
   repetirMeses: z.number().int().min(1).max(600).nullish(),
   regraAntecipacao: z.string().trim().max(1000).nullish(),
   diretrizes: lista,
+  // Referencia em texto unico (citacao completa) + link. Campos antigos (autores/titulo/revista/ano) seguem aceitos para nao perder o que ja foi salvo.
   artigos: z.array(z.object({
-    autores: z.string().trim().max(500).default(""),
-    titulo: z.string().trim().max(500).default(""),
-    revista: z.string().trim().max(300).default(""),
-    ano: z.string().trim().max(10).default(""),
-    link: z.string().trim().max(500).default(""),
+    texto: z.string().trim().max(2000).default(""),
+    link: z.string().trim().max(500).default("").refine((v) => v === "" || /^https?:\/\/\S+$/i.test(v), { message: "Link deve comecar com http:// ou https://" }),
+    autores: z.string().trim().max(500).optional(),
+    titulo: z.string().trim().max(500).optional(),
+    revista: z.string().trim().max(300).optional(),
+    ano: z.string().trim().max(10).optional(),
   })).max(30).default([]),
 }).refine((d) => (d.natureza ?? "").toUpperCase() !== "IMAGEM" || (d.regiao && d.lateralidade && d.contraste), {
   message: "Para IMAGEM, regiao anatomica, lateralidade e contraste sao obrigatorios",
@@ -262,6 +264,42 @@ router.put("/cadastros/exames/:id/atributos", async (req, res): Promise<void> =>
       repetir_meses = EXCLUDED.repetir_meses, regra_antecipacao = EXCLUDED.regra_antecipacao, diretrizes = EXCLUDED.diretrizes, artigos = EXCLUDED.artigos, updated_at = NOW()`);
   req.log.info({ id }, "atributos do exame salvos");
   res.json({ exameId: id, ...d });
+});
+
+// Cores editaveis (naturezas e grades). So apresentacao; nao altera nenhum dado clinico.
+const CHAVES_COR = [...NATUREZAS, "GRADE BASICA", "GRADE INTERMEDIARIA", "GRADE AMPLIADA", "GRADE SOFISTICADA"];
+let coresPronta: Promise<void> | null = null;
+function garantirCores(): Promise<void> {
+  if (!coresPronta) {
+    coresPronta = db
+      .execute(sql`CREATE TABLE IF NOT EXISTS catalogo_exame_cores (chave TEXT PRIMARY KEY, cor TEXT NOT NULL CHECK (cor ~ '^#[0-9A-Fa-f]{6}$'), atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW())`)
+      .then(() => undefined)
+      .catch((e) => { coresPronta = null; throw e; });
+  }
+  return coresPronta;
+}
+router.get("/cadastros/exames-cores", async (_req, res): Promise<void> => {
+  await garantirCores();
+  const r = await db.execute(sql`SELECT chave, cor FROM catalogo_exame_cores`);
+  res.json(r.rows);
+});
+router.put("/cadastros/exames-cores/:chave", async (req, res): Promise<void> => {
+  const chave = decodeURIComponent(String(req.params.chave));
+  const p = z.object({ cor: z.string().regex(/^#[0-9A-Fa-f]{6}$/) }).safeParse(req.body);
+  if (!CHAVES_COR.includes(chave) || !p.success) {
+    res.status(400).json({ error: "Chave ou cor invalida (use #RRGGBB)" });
+    return;
+  }
+  await garantirCores();
+  await db.execute(sql`INSERT INTO catalogo_exame_cores (chave, cor) VALUES (${chave}, ${p.data.cor.toUpperCase()}) ON CONFLICT (chave) DO UPDATE SET cor = EXCLUDED.cor, atualizado_em = NOW()`);
+  res.json({ chave, cor: p.data.cor.toUpperCase() });
+});
+router.delete("/cadastros/exames-cores/:chave", async (req, res): Promise<void> => {
+  const chave = decodeURIComponent(String(req.params.chave));
+  if (!CHAVES_COR.includes(chave)) { res.status(400).json({ error: "Chave invalida" }); return; }
+  await garantirCores();
+  await db.execute(sql`DELETE FROM catalogo_exame_cores WHERE chave = ${chave}`); // volta ao padrao oficial
+  res.json({ chave });
 });
 
 // Previa de impacto: quantas linhas da grade (e blocos) usam este exame pelo nome.

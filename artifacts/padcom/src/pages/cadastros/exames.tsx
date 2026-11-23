@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Input } from "@/components/ui/input";
@@ -42,7 +42,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
-import { AtributosDialog, GestaoOpcoes, UploadManualExames, NaturezaChip, naturezaSugerida, useAtributos } from "./ExamesAtributos";
+import { AtributosDialog, GestaoOpcoes, UploadManualExames, NaturezaChip, naturezaSugerida, useAtributos, useCores } from "./ExamesAtributos";
 import {
   Search,
   Plus,
@@ -55,7 +55,6 @@ import {
   Tags,
   FolderTree,
   Boxes,
-  SlidersHorizontal,
 } from "lucide-react";
 
 interface Exam {
@@ -136,12 +135,6 @@ const CAMPOS_CLASS: Array<{ campo: CampoClass; rotulo: string; plural: string; a
   { campo: "modalidade", rotulo: "Modalidade", plural: "Modalidades", ajuda: "Tipo de método. Ex.: LABORATORIAL, USG, TC, RM, RX." },
   { campo: "material_setor", rotulo: "Setor / Especialidade", plural: "Setor / Especialidade", ajuda: "Setor executor ou especialidade. O material biológico (soro, plasma, urina...) fica em Opções > Materiais." },
 ];
-const COR_GRADE: Record<string, { backgroundColor: string; borderLeftColor: string }> = {
-  "GRADE BASICA": { backgroundColor: "#ECFDF5", borderLeftColor: "#10B981" },
-  "GRADE INTERMEDIARIA": { backgroundColor: "#EFF6FF", borderLeftColor: "#3B82F6" },
-  "GRADE AMPLIADA": { backgroundColor: "#FFFBEB", borderLeftColor: "#F59E0B" },
-  "GRADE SOFISTICADA": { backgroundColor: "#F5F3FF", borderLeftColor: "#8B5CF6" },
-};
 const SEM_VALOR = "__none__";
 
 function useClassificacoes(campo: CampoClass) {
@@ -201,8 +194,8 @@ function ExamesTab() {
   const [categoria, setCategoria] = useState("__all__");
   const [naturezaFiltro, setNaturezaFiltro] = useState("__all__");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const criadoId = useRef<number | null>(null); // evita duplicar o exame se os atributos falharem e o médico tentar de novo
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [attrExame, setAttrExame] = useState<{ id: number; nome: string; modalidade: string | null } | null>(null);
   const { data: atributos } = useAtributos();
   const attrPorId = useMemo(() => new Map((atributos ?? []).map((a) => [a.exameId, a])), [atributos]);
 
@@ -267,8 +260,6 @@ function ExamesTab() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/cadastros/exames"] });
       qc.invalidateQueries({ queryKey: ["/api/catalogos/exames"] });
-      setDialogOpen(false);
-      toast({ title: form.id ? "Exame atualizado" : "Exame criado" });
     },
     onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
   });
@@ -291,10 +282,12 @@ function ExamesTab() {
   });
 
   function openNew() {
+    criadoId.current = null;
     setForm(EMPTY_FORM);
     setDialogOpen(true);
   }
   function openEdit(e: Exam) {
+    criadoId.current = null;
     setForm({
       id: e.id,
       codigoExame: e.codigoExame ?? "",
@@ -439,10 +432,7 @@ function ExamesTab() {
                       />
                     </TableCell>
                     <TableCell className="text-right align-top">
-                      <Button variant="ghost" size="icon" onClick={() => setAttrExame({ id: e.id, nome: e.nomeExame ?? "", modalidade: e.modalidade })} aria-label="Atributos" title="Atributos (natureza, método, região, gatilhos, sinônimos)" data-testid={`button-atributos-${e.id}`}>
-                        <SlidersHorizontal className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(e)} aria-label="Editar">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(e)} aria-label="Editar" title="Editar ficha completa do exame" data-testid={`button-editar-${e.id}`}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -455,118 +445,110 @@ function ExamesTab() {
       )}
 
       <AtributosDialog
-        exame={attrExame ? { id: attrExame.id, nome: attrExame.nome } : null}
-        atual={attrExame ? attrPorId.get(attrExame.id) : undefined}
-        modalidade={attrExame?.modalidade}
-        onClose={() => setAttrExame(null)}
-      />
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{form.id ? "Editar exame" : "Novo exame"}</DialogTitle>
-          </DialogHeader>
+        exame={dialogOpen ? { id: form.id, nome: form.nomeExame } : null}
+        atual={form.id ? attrPorId.get(form.id) : undefined}
+        modalidade={form.modalidade}
+        titulo={form.id ? "Editar exame" : "Novo exame"}
+        podeSalvar={canSave}
+        antesDeSalvar={async () => {
+          if (form.id) return (await saveMutation.mutateAsync()).id;
+          if (criadoId.current) return criadoId.current;
+          criadoId.current = (await saveMutation.mutateAsync()).id;
+          return criadoId.current;
+        }}
+        onClose={() => setDialogOpen(false)}
+        topo={(
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {form.id !== null ? (
+              {form.id !== null ? (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Código</label>
+                  <Input value={form.codigoExame} disabled className="field-engraved" />
+                </div>
+              ) : (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Código (gerado pelo sistema) *</label>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <Select value={form.areaCodigo || SEM_VALOR} onValueChange={(v) => { if (v !== "") setForm((f) => ({ ...f, areaCodigo: v === SEM_VALOR ? "" : v })); }}>
+                      <SelectTrigger className="field-engraved" data-testid="select-area-codigo"><SelectValue placeholder="Área (bloco)" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SEM_VALOR}>— Escolha a área —</SelectItem>
+                        {(opcoesCodigo.data?.areas ?? []).map((a) => (
+                          <SelectItem key={a.codigo} value={a.codigo}>{a.codigo} — {a.rotulo}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={form.gradeCodigo || SEM_VALOR} onValueChange={(v) => { if (v !== "") setForm((f) => ({ ...f, gradeCodigo: v === SEM_VALOR ? "" : v })); }}>
+                      <SelectTrigger className="field-engraved" data-testid="select-grade-codigo"><SelectValue placeholder="Grade" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SEM_VALOR}>— Escolha a grade —</SelectItem>
+                        {(opcoesCodigo.data?.grades ?? []).map((g) => (
+                          <SelectItem key={g.codigo} value={g.codigo}>{g.codigo} — {g.rotulo}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="screen-3d px-3 py-1.5 text-xs font-black tracking-wide" data-testid="previa-codigo" role="status">
+                    {previa.isError
+                      ? previa.error.message
+                      : previa.data
+                        ? `Código: ${previa.data.semantico}`
+                        : "Digite o nome e escolha área e grade para ver o código."}
+                  </div>
+                </div>
+              )}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Código</label>
-                <Input value={form.codigoExame} disabled className="field-engraved" />
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Nome do exame *</label>
+                <Input
+                  value={form.nomeExame}
+                  onChange={(e) => setForm((f) => ({ ...f, nomeExame: e.target.value }))}
+                  placeholder="Ex.: Hemograma completo"
+                  className="field-engraved"
+                />
               </div>
-            ) : (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Grupo / Categoria</label>
+                <ClassSelect campo="categoria" value={form.grupoPrincipal} onChange={(v) => setForm((f) => ({ ...f, grupoPrincipal: v }))} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Subgrupo</label>
+                <ClassSelect campo="subgrupo" value={form.subgrupo} onChange={(v) => setForm((f) => ({ ...f, subgrupo: v }))} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Modalidade</label>
+                <ClassSelect campo="modalidade" value={form.modalidade} onChange={(v) => setForm((f) => ({ ...f, modalidade: v }))} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Setor / Especialidade</label>
+                <ClassSelect campo="material_setor" value={form.materialOuSetor} onChange={(v) => setForm((f) => ({ ...f, materialOuSetor: v }))} />
+              </div>
               <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Código (gerado pelo sistema) *</label>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <Select value={form.areaCodigo || SEM_VALOR} onValueChange={(v) => { if (v !== "") setForm((f) => ({ ...f, areaCodigo: v === SEM_VALOR ? "" : v })); }}>
-                    <SelectTrigger className="field-engraved" data-testid="select-area-codigo"><SelectValue placeholder="Área (bloco)" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={SEM_VALOR}>— Escolha a área —</SelectItem>
-                      {(opcoesCodigo.data?.areas ?? []).map((a) => (
-                        <SelectItem key={a.codigo} value={a.codigo}>{a.codigo} — {a.rotulo}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={form.gradeCodigo || SEM_VALOR} onValueChange={(v) => { if (v !== "") setForm((f) => ({ ...f, gradeCodigo: v === SEM_VALOR ? "" : v })); }}>
-                    <SelectTrigger className="field-engraved" data-testid="select-grade-codigo"><SelectValue placeholder="Grade" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={SEM_VALOR}>— Escolha a grade —</SelectItem>
-                      {(opcoesCodigo.data?.grades ?? []).map((g) => (
-                        <SelectItem key={g.codigo} value={g.codigo}>{g.codigo} — {g.rotulo}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="screen-3d px-3 py-1.5 text-xs font-black tracking-wide" data-testid="previa-codigo" role="status">
-                  {previa.isError
-                    ? previa.error.message
-                    : previa.data
-                      ? `Código: ${previa.data.semantico}`
-                      : "Digite o nome e escolha área e grade para ver o código."}
-                </div>
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Finalidade principal</label>
+                <Input
+                  value={form.finalidadePrincipal}
+                  onChange={(e) => setForm((f) => ({ ...f, finalidadePrincipal: e.target.value }))}
+                  className="field-engraved"
+                />
               </div>
-            )}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Nome do exame *</label>
-              <Input
-                value={form.nomeExame}
-                onChange={(e) => setForm((f) => ({ ...f, nomeExame: e.target.value }))}
-                placeholder="Ex.: Hemograma completo"
-                className="field-engraved"
-              />
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Preparo</label>
+                <Textarea
+                  rows={2}
+                  value={form.preparo}
+                  onChange={(e) => setForm((f) => ({ ...f, preparo: e.target.value }))}
+                  placeholder="Ex.: Jejum de 8 horas"
+                  className="field-engraved"
+                />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Grupo / Categoria</label>
-              <ClassSelect campo="categoria" value={form.grupoPrincipal} onChange={(v) => setForm((f) => ({ ...f, grupoPrincipal: v }))} />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Subgrupo</label>
-              <ClassSelect campo="subgrupo" value={form.subgrupo} onChange={(v) => setForm((f) => ({ ...f, subgrupo: v }))} />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Modalidade</label>
-              <ClassSelect campo="modalidade" value={form.modalidade} onChange={(v) => setForm((f) => ({ ...f, modalidade: v }))} />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Setor / Especialidade</label>
-              <ClassSelect campo="material_setor" value={form.materialOuSetor} onChange={(v) => setForm((f) => ({ ...f, materialOuSetor: v }))} />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Finalidade principal</label>
-              <Input
-                value={form.finalidadePrincipal}
-                onChange={(e) => setForm((f) => ({ ...f, finalidadePrincipal: e.target.value }))}
-                className="field-engraved"
-              />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Preparo</label>
-              <Textarea
-                rows={2}
-                value={form.preparo}
-                onChange={(e) => setForm((f) => ({ ...f, preparo: e.target.value }))}
-                placeholder="Ex.: Jejum de 8 horas"
-                className="field-engraved"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={() => saveMutation.mutate()}
-              disabled={!canSave}
-              className="btn-3d"
-            >
-              {saveMutation.isPending ? "Salvando..." : "Salvar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
+      />
     </div>
   );
 }
 
 // ============================ ABA BLOCOS =====================================
 function BlocosTab() {
+  const coresUi = useCores();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -728,7 +710,7 @@ function BlocosTab() {
               </div>
               <div className="grid grid-cols-1 gap-3 pb-2 md:grid-cols-3">
                 {b.graus.map((g) => (
-                  <div key={g.grau} className="panel-3d-sub p-3 border-l-4 text-slate-900" style={COR_GRADE[g.grau] ?? undefined} data-testid={`grade-${g.grau}`}>
+                  <div key={g.grau} className="panel-3d-sub p-3 border-l-4 text-slate-900" style={{ borderLeftColor: coresUi.grade(g.grau), backgroundColor: `color-mix(in srgb, ${coresUi.grade(g.grau)} 10%, white)` }} data-testid={`grade-${g.grau}`}>
                     <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-primary">
                       {g.grau} ({g.exames.length})
                     </div>

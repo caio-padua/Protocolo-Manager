@@ -145,8 +145,7 @@ const navigation: NavEntry[] = [
       { name: "Prescritor de Exames", href: "/exames", icon: ClipboardListIcon },
       { name: "Monitor do Motor", href: "/exames/monitor", icon: Activity },
       { name: "Cadastro de Exames", href: "/cadastros/cadastro-exames", icon: FolderTree },
-      { name: "Exames & Blocos", href: "/cadastros/exames", icon: TestTube },
-      { name: "Console de Exames", href: "/cadastros/console-exames", icon: Compass },
+      // "Exames & Blocos" (/cadastros/exames) e "Console de Exames" (/cadastros/console-exames): rotas preservadas, ocultas do menu (unificadas em "Cadastro de Exames").
       { name: "Configuração de Exames", href: "/cadastros/config-exames", icon: FlaskConical },
       { name: "Importar Exames do Drive", href: "/importar-drive", icon: DownloadCloud },
     ],
