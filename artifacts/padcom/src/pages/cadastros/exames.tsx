@@ -728,25 +728,6 @@ function ClassificacaoPainel({ item }: { item: (typeof CAMPOS_CLASS)[number] }) 
   );
 }
 
-function CategoriasTab() {
-  return (
-    <Tabs defaultValue="categoria" className="space-y-4">
-      <TabsList className="concave-3d p-1">
-        {CAMPOS_CLASS.map((c) => (
-          <TabsTrigger key={c.campo} value={c.campo} className="text-[11px] font-black uppercase tracking-wide">
-            {c.plural}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-      {CAMPOS_CLASS.map((c) => (
-        <TabsContent key={c.campo} value={c.campo}>
-          <ClassificacaoPainel item={c} />
-        </TabsContent>
-      ))}
-    </Tabs>
-  );
-}
-
 // ============================ PÁGINA =========================================
 export default function CadastroExames() {
   return (
@@ -764,15 +745,24 @@ export default function CadastroExames() {
       </div>
 
       <Tabs defaultValue="exames" className="space-y-4">
-        <TabsList className="concave-3d p-1">
+        <TabsList className="concave-3d h-auto flex-wrap justify-start p-1">
           <TabsTrigger value="exames" className="gap-1.5 text-xs font-black uppercase tracking-wide">
             <TestTube className="h-4 w-4" /> Exames
           </TabsTrigger>
           <TabsTrigger value="blocos" className="gap-1.5 text-xs font-black uppercase tracking-wide">
             <Layers className="h-4 w-4" /> Blocos
           </TabsTrigger>
-          <TabsTrigger value="categorias" className="gap-1.5 text-xs font-black uppercase tracking-wide">
+          <TabsTrigger value="categoria" className="gap-1.5 text-xs font-black uppercase tracking-wide">
             <Tags className="h-4 w-4" /> Categorias
+          </TabsTrigger>
+          <TabsTrigger value="subgrupo" className="gap-1.5 text-xs font-black uppercase tracking-wide">
+            <FolderTree className="h-4 w-4" /> Subgrupos
+          </TabsTrigger>
+          <TabsTrigger value="modalidade" className="gap-1.5 text-xs font-black uppercase tracking-wide">
+            <Layers className="h-4 w-4" /> Modalidades
+          </TabsTrigger>
+          <TabsTrigger value="material_setor" className="gap-1.5 text-xs font-black uppercase tracking-wide">
+            <TestTube className="h-4 w-4" /> Material / Setor
           </TabsTrigger>
         </TabsList>
         <TabsContent value="exames">
@@ -781,9 +771,11 @@ export default function CadastroExames() {
         <TabsContent value="blocos">
           <BlocosTab />
         </TabsContent>
-        <TabsContent value="categorias">
-          <CategoriasTab />
-        </TabsContent>
+        {CAMPOS_CLASS.map((c) => (
+          <TabsContent key={c.campo} value={c.campo}>
+            <ClassificacaoPainel item={c} />
+          </TabsContent>
+        ))}
       </Tabs>
     </div>
   );
