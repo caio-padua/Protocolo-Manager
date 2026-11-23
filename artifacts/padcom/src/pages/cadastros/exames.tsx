@@ -42,6 +42,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
+import { AtributosDialog, GestaoOpcoes, NaturezaChip, naturezaSugerida, useAtributos } from "./ExamesAtributos";
 import {
   Search,
   Plus,
@@ -54,6 +55,7 @@ import {
   Tags,
   FolderTree,
   Boxes,
+  SlidersHorizontal,
 } from "lucide-react";
 
 interface Exam {
@@ -193,6 +195,9 @@ function ExamesTab() {
   const [categoria, setCategoria] = useState("__all__");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [attrExame, setAttrExame] = useState<{ id: number; nome: string; modalidade: string | null } | null>(null);
+  const { data: atributos } = useAtributos();
+  const attrPorId = useMemo(() => new Map((atributos ?? []).map((a) => [a.exameId, a])), [atributos]);
 
   const { data: exams, isLoading } = useQuery<Exam[]>({
     queryKey: ["/api/cadastros/exames"],
@@ -214,11 +219,12 @@ function ExamesTab() {
     return (exams ?? []).filter((e) => {
       if (categoria !== "__all__" && (e.grupoPrincipal ?? "").trim() !== categoria) return false;
       if (!q) return true;
-      return [e.nomeExame, e.codigoExame, e.grupoPrincipal, e.subgrupo, e.modalidade]
+      const a = attrPorId.get(e.id);
+      return [e.nomeExame, e.codigoExame, e.grupoPrincipal, e.subgrupo, e.modalidade, a?.natureza, a?.metodo, a?.regiao, ...(a?.sinonimos ?? []), ...(a?.eixos ?? []), ...(a?.gatilhos ?? [])]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [exams, search, categoria]);
+  }, [exams, search, categoria, attrPorId]);
 
   const saveMutation = useMutation<Exam, Error>({
     mutationFn: async () => {
@@ -374,6 +380,7 @@ function ExamesTab() {
               <TableRow className="bg-primary/10">
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Código</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Exame</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Natureza</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Grupo</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Modalidade</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Preparo</TableHead>
@@ -384,7 +391,7 @@ function ExamesTab() {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={8} className="h-24 text-center text-sm text-muted-foreground">
                     Nenhum exame encontrado.
                   </TableCell>
                 </TableRow>
@@ -393,6 +400,13 @@ function ExamesTab() {
                   <TableRow key={e.id} className={`neon-hover ${e.ativo === false ? "opacity-50" : ""}`}>
                     <TableCell className="align-top text-xs font-mono text-muted-foreground">{txt(e.codigoExame)}</TableCell>
                     <TableCell className="align-top text-sm font-bold">{txt(e.nomeExame)}</TableCell>
+                    <TableCell className="align-top">
+                      {attrPorId.get(e.id)?.natureza ? (
+                        <NaturezaChip natureza={attrPorId.get(e.id)!.natureza} />
+                      ) : (
+                        <NaturezaChip natureza={naturezaSugerida(e.modalidade)} sugerida />
+                      )}
+                    </TableCell>
                     <TableCell className="align-top text-sm">{txt(e.grupoPrincipal)}</TableCell>
                     <TableCell className="align-top text-sm">{txt(e.modalidade)}</TableCell>
                     <TableCell className="align-top max-w-[280px] truncate text-sm text-muted-foreground">{txt(e.preparo)}</TableCell>
@@ -403,6 +417,9 @@ function ExamesTab() {
                       />
                     </TableCell>
                     <TableCell className="text-right align-top">
+                      <Button variant="ghost" size="icon" onClick={() => setAttrExame({ id: e.id, nome: e.nomeExame ?? "", modalidade: e.modalidade })} aria-label="Atributos" title="Atributos (natureza, método, região, gatilhos, sinônimos)" data-testid={`button-atributos-${e.id}`}>
+                        <SlidersHorizontal className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => openEdit(e)} aria-label="Editar">
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -415,6 +432,12 @@ function ExamesTab() {
         </div>
       )}
 
+      <AtributosDialog
+        exame={attrExame ? { id: attrExame.id, nome: attrExame.nome } : null}
+        atual={attrExame ? attrPorId.get(attrExame.id) : undefined}
+        modalidade={attrExame?.modalidade}
+        onClose={() => setAttrExame(null)}
+      />
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -1047,27 +1070,14 @@ export default function CadastroExames({ comClassificacoes = true }: { comClassi
       <Tabs defaultValue="exames" className="space-y-4">
         <TabsList className="concave-3d h-auto flex-wrap justify-start p-1">
           <TabsTrigger value="exames" className="gap-1.5 text-xs font-black uppercase tracking-wide">
-            <TestTube className="h-4 w-4" /> Exames
+            <TestTube className="h-4 w-4" /> Catálogo
           </TabsTrigger>
           <TabsTrigger value="blocos" className="gap-1.5 text-xs font-black uppercase tracking-wide">
-            <Layers className="h-4 w-4" /> Blocos
+            <Layers className="h-4 w-4" /> Blocos clínicos e grades
           </TabsTrigger>
-          {comClassificacoes && (
-          <>
-          <TabsTrigger value="categoria" className="gap-1.5 text-xs font-black uppercase tracking-wide">
-            <Tags className="h-4 w-4" /> Categorias
+          <TabsTrigger value="opcoes" className="gap-1.5 text-xs font-black uppercase tracking-wide">
+            <Tags className="h-4 w-4" /> Gerenciamento de opções
           </TabsTrigger>
-          <TabsTrigger value="subgrupo" className="gap-1.5 text-xs font-black uppercase tracking-wide">
-            <FolderTree className="h-4 w-4" /> Subgrupos
-          </TabsTrigger>
-          <TabsTrigger value="modalidade" className="gap-1.5 text-xs font-black uppercase tracking-wide">
-            <Layers className="h-4 w-4" /> Modalidades
-          </TabsTrigger>
-          <TabsTrigger value="material_setor" className="gap-1.5 text-xs font-black uppercase tracking-wide">
-            <TestTube className="h-4 w-4" /> Material / Setor
-          </TabsTrigger>
-          </>
-        )}
         </TabsList>
         <TabsContent value="exames">
           <ExamesTab />
@@ -1075,12 +1085,15 @@ export default function CadastroExames({ comClassificacoes = true }: { comClassi
         <TabsContent value="blocos">
           <BlocosTab />
         </TabsContent>
-        {comClassificacoes &&
-          CAMPOS_CLASS.map((c) => (
-            <TabsContent key={c.campo} value={c.campo}>
-              <ClassificacaoPainel item={c} />
-            </TabsContent>
-          ))}
+        <TabsContent value="opcoes" className="space-y-6">
+          <GestaoOpcoes />
+          {comClassificacoes && (
+            <div className="space-y-2">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Classificações existentes (categoria, subgrupo, modalidade, material/setor)</div>
+              <ClassificacoesCadastro />
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
     </div>
   );
