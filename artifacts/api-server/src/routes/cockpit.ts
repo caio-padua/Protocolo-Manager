@@ -1,3 +1,5 @@
+import { pool as cockpitPool } from "@workspace/db";
+import { registrarEventoOrcamento } from "../lib/comercial-politica";
 import { Router } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { requireCollaborator } from "./collaborator";
@@ -313,6 +315,9 @@ router.post("/cockpit/:clientId/emitir", requireCollaborator, async (req, res): 
       .update(budgetsTable)
       .set({ status: "accepted", acceptedAt: now, updatedAt: now })
       .where(eq(budgetsTable.id, b.id));
+    // Trilha: esta aprovação é automática do Cockpit (não é aprovação de exceção por gerente).
+    await registrarEventoOrcamento(cockpitPool, { empresaId: b.empresaId ?? 0, budgetId: b.id, tipo: "aprovacao_automatica_cockpit", de: "presented", para: "accepted", usuarioId: null })
+      .catch((e) => req.log.error({ err: String(e) }, "[cockpit] falha ao registrar evento do orçamento"));
     aprovados += 1;
   }
 

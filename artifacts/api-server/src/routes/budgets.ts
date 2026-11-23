@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
-import { db, budgetsTable, clientsTable, type BudgetItemSnapshot } from "@workspace/db";
+import { and, eq, desc, inArray } from "drizzle-orm";
+import { db, pool, budgetsTable, budgetCatalogTable, clientsTable, type BudgetItemSnapshot } from "@workspace/db";
 import {
   CalculateBudgetBody,
   ListBudgetsQueryParams,
@@ -12,6 +12,8 @@ import {
 } from "@workspace/api-zod";
 import { calculateBudget, type CalcItem, type CalcSettings } from "../lib/budget-calc";
 import { getOrCreateSettings } from "./budget-settings";
+import { exigirComercial } from "../lib/comercial-acesso";
+import { registrarEventoOrcamento, transicaoPermitida } from "../lib/comercial-politica";
 
 const router: IRouter = Router();
 
@@ -31,6 +33,23 @@ function toCalcSettings(s: Awaited<ReturnType<typeof getOrCreateSettings>>): Cal
     cartVolumeTiers: s.cartVolumeTiers,
     maxTotalDiscountPct: s.maxTotalDiscountPct,
   };
+}
+
+/** O cliente informado precisa ser da clinica da sessao (nunca se grava orcamento para cliente de outra clinica). */
+async function clienteDaClinica(clientId: number, empresaId: number): Promise<boolean> {
+  const r = await pool.query("SELECT 1 FROM clients WHERE id=$1 AND empresa_id=$2", [clientId, empresaId]);
+  return r.rows.length > 0;
+}
+
+/** Congela no snapshot a escada de volume PROPRIA de cada item (do catalogo), para Montagem e Apresentacao nunca divergirem. */
+async function congelarEscadas(items: BudgetItemSnapshot[]): Promise<BudgetItemSnapshot[]> {
+  const ids = [...new Set(items.filter((i) => i.volumeTiers === undefined && typeof i.catalogId === "number").map((i) => i.catalogId as number))];
+  const mapa = new Map<number, BudgetItemSnapshot["volumeTiers"]>();
+  if (ids.length) {
+    const rows = await db.select({ id: budgetCatalogTable.id, t: budgetCatalogTable.itemVolumeTiers }).from(budgetCatalogTable).where(inArray(budgetCatalogTable.id, ids));
+    for (const r of rows) mapa.set(r.id, r.t ?? null);
+  }
+  return items.map((i) => (i.volumeTiers !== undefined ? i : { ...i, volumeTiers: typeof i.catalogId === "number" ? (mapa.get(i.catalogId) ?? null) : null }));
 }
 
 async function formatBudget(row: typeof budgetsTable.$inferSelect) {
@@ -63,13 +82,13 @@ async function formatBudget(row: typeof budgetsTable.$inferSelect) {
 }
 
 // --- CALCULO (stateless): precisa vir ANTES de /budgets/:id ---
-router.post("/budgets/calculate", async (req, res): Promise<void> => {
+router.post("/budgets/calculate", exigirComercial(), async (req, res): Promise<void> => {
   const parsed = CalculateBudgetBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const settings = await getOrCreateSettings();
+  const settings = await getOrCreateSettings(req.comercial!.empresaId);
   const items: CalcItem[] = parsed.data.items.map((i) => ({
     unitPriceCents: i.unitPriceCents,
     sessions: i.sessions,
@@ -80,26 +99,31 @@ router.post("/budgets/calculate", async (req, res): Promise<void> => {
   res.json(result);
 });
 
-router.get("/budgets", async (req, res): Promise<void> => {
+router.get("/budgets", exigirComercial(), async (req, res): Promise<void> => {
   const query = ListBudgetsQueryParams.safeParse(req.query);
   if (!query.success) {
     res.status(400).json({ error: query.error.message });
     return;
   }
-  let rows = await db.select().from(budgetsTable).orderBy(desc(budgetsTable.createdAt));
+  let rows = await db.select().from(budgetsTable).where(eq(budgetsTable.empresaId, req.comercial!.empresaId)).orderBy(desc(budgetsTable.createdAt));
   if (query.data.clientId) rows = rows.filter((b) => b.clientId === query.data.clientId);
   if (query.data.status) rows = rows.filter((b) => b.status === query.data.status);
   res.json(await Promise.all(rows.map(formatBudget)));
 });
 
-router.post("/budgets", async (req, res): Promise<void> => {
+router.post("/budgets", exigirComercial(), async (req, res): Promise<void> => {
   const parsed = CreateBudgetBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
   const d = parsed.data;
-  const items = (d.items ?? []) as BudgetItemSnapshot[];
+  const empresaId = req.comercial!.empresaId;
+  if (d.clientId != null && !(await clienteDaClinica(d.clientId, empresaId))) {
+    res.status(404).json({ error: "Cliente não encontrado nesta clínica." });
+    return;
+  }
+  const items = await congelarEscadas((d.items ?? []) as BudgetItemSnapshot[]);
   const computedTotal = items
     .filter((i) => i.include)
     .reduce((sum, i) => sum + Math.round(i.unitPriceCents) * Math.max(0, i.sessions), 0);
@@ -107,6 +131,7 @@ router.post("/budgets", async (req, res): Promise<void> => {
   const [row] = await db
     .insert(budgetsTable)
     .values({
+      empresaId,
       clientId: d.clientId ?? null,
       title: d.title ?? null,
       status: d.status ?? "draft",
@@ -121,16 +146,17 @@ router.post("/budgets", async (req, res): Promise<void> => {
       createdBy: d.createdBy ?? null,
     })
     .returning();
+  await registrarEventoOrcamento(pool, { empresaId, budgetId: row.id, tipo: "criado", para: row.status, usuarioId: req.comercial!.usuarioId });
   res.status(201).json(await formatBudget(row));
 });
 
-router.get("/budgets/:id", async (req, res): Promise<void> => {
+router.get("/budgets/:id", exigirComercial(), async (req, res): Promise<void> => {
   const params = GetBudgetParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [row] = await db.select().from(budgetsTable).where(eq(budgetsTable.id, params.data.id));
+  const [row] = await db.select().from(budgetsTable).where(and(eq(budgetsTable.id, params.data.id), eq(budgetsTable.empresaId, req.comercial!.empresaId)));
   if (!row) {
     res.status(404).json({ error: "Budget not found" });
     return;
@@ -138,7 +164,7 @@ router.get("/budgets/:id", async (req, res): Promise<void> => {
   res.json(await formatBudget(row));
 });
 
-router.patch("/budgets/:id", async (req, res): Promise<void> => {
+router.patch("/budgets/:id", exigirComercial(), async (req, res): Promise<void> => {
   const params = UpdateBudgetParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -149,13 +175,23 @@ router.patch("/budgets/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [current] = await db.select().from(budgetsTable).where(eq(budgetsTable.id, params.data.id));
+  const empresaId = req.comercial!.empresaId;
+  const [current] = await db.select().from(budgetsTable).where(and(eq(budgetsTable.id, params.data.id), eq(budgetsTable.empresaId, empresaId)));
   if (!current) {
     res.status(404).json({ error: "Budget not found" });
     return;
   }
 
   const d = parsed.data;
+  if (d.status !== undefined && !transicaoPermitida(current.status, d.status)) {
+    res.status(409).json({ error: `Transição de ${current.status} para ${d.status} não é permitida.` });
+    return;
+  }
+  if (d.clientId != null && d.clientId !== current.clientId && !(await clienteDaClinica(d.clientId, empresaId))) {
+    res.status(404).json({ error: "Cliente não encontrado nesta clínica." });
+    return;
+  }
+  const itensCongelados = d.items !== undefined ? await congelarEscadas(d.items as BudgetItemSnapshot[]) : undefined;
   const now = new Date();
   const [row] = await db
     .update(budgetsTable)
@@ -163,7 +199,7 @@ router.patch("/budgets/:id", async (req, res): Promise<void> => {
       ...(d.clientId !== undefined ? { clientId: d.clientId } : {}),
       ...(d.title !== undefined ? { title: d.title } : {}),
       ...(d.status !== undefined ? { status: d.status } : {}),
-      ...(d.items !== undefined ? { items: d.items as BudgetItemSnapshot[] } : {}),
+      ...(itensCongelados !== undefined ? { items: itensCongelados } : {}),
       ...(d.settingsSnapshot !== undefined ? { settingsSnapshot: d.settingsSnapshot } : {}),
       ...(d.totalsSnapshot !== undefined ? { totalsSnapshot: d.totalsSnapshot } : {}),
       ...(d.chosenScenario !== undefined ? { chosenScenario: d.chosenScenario } : {}),
@@ -175,18 +211,35 @@ router.patch("/budgets/:id", async (req, res): Promise<void> => {
       ...(d.status === "presented" && !current.presentedAt ? { presentedAt: now } : {}),
       ...(d.status === "accepted" && !current.acceptedAt ? { acceptedAt: now } : {}),
     })
-    .where(eq(budgetsTable.id, params.data.id))
+    .where(and(eq(budgetsTable.id, params.data.id), eq(budgetsTable.empresaId, empresaId)))
     .returning();
+  if (d.status !== undefined && d.status !== current.status) {
+    await registrarEventoOrcamento(pool, { empresaId, budgetId: row.id, tipo: "status", de: current.status, para: d.status, usuarioId: req.comercial!.usuarioId });
+  }
   res.json(await formatBudget(row));
 });
 
-router.delete("/budgets/:id", async (req, res): Promise<void> => {
+router.delete("/budgets/:id", exigirComercial(), async (req, res): Promise<void> => {
   const params = DeleteBudgetParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  await db.delete(budgetsTable).where(eq(budgetsTable.id, params.data.id));
+  // Regra de Ouro: orcamento nunca e apagado. "Excluir" cancela (logico) e fica na trilha de eventos.
+  const empresaId = req.comercial!.empresaId;
+  const [atual] = await db.select().from(budgetsTable).where(and(eq(budgetsTable.id, params.data.id), eq(budgetsTable.empresaId, empresaId)));
+  if (!atual) {
+    res.status(404).json({ error: "Budget not found" });
+    return;
+  }
+  if (!transicaoPermitida(atual.status, "cancelled")) {
+    res.status(409).json({ error: `Orçamento ${atual.status} não pode ser cancelado.` });
+    return;
+  }
+  if (atual.status !== "cancelled") {
+    await db.update(budgetsTable).set({ status: "cancelled" }).where(and(eq(budgetsTable.id, atual.id), eq(budgetsTable.empresaId, empresaId)));
+    await registrarEventoOrcamento(pool, { empresaId, budgetId: atual.id, tipo: "cancelado", de: atual.status, para: "cancelled", usuarioId: req.comercial!.usuarioId });
+  }
   res.status(204).end();
 });
 

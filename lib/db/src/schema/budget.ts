@@ -32,6 +32,9 @@ export const budgetCatalogTable = pgTable("budget_catalog", {
   minAplicacoesMes: integer("min_aplicacoes_mes"),
   // itemVolumeTiers: override da escada por item. null => usa a escada global do settings.
   itemVolumeTiers: jsonb("item_volume_tiers").$type<VolumeTier[]>(),
+  // Custo cadastrado do item (insumo + profissional), em centavos por sessao. NULL = sem custo
+  // confiavel: o motor de negociacao NUNCA libera excecao automatica sem ele.
+  custoUnitCents: integer("custo_unit_cents"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -66,6 +69,15 @@ export const budgetSettingsTable = pgTable("budget_settings", {
   itemVolumeTiers: jsonb("item_volume_tiers").$type<VolumeTier[]>(),
   cartVolumeTiers: jsonb("cart_volume_tiers").$type<VolumeTier[]>(),
   maxTotalDiscountPct: real("max_total_discount_pct").notNull().default(40),
+  // --- Politica por clinica (colunas criadas por lib/comercial-migracao.ts, nao por drizzle push) ---
+  empresaId: integer("empresa_id"),
+  descontoExcepcionalAvistaPct: real("desconto_excepcional_avista_pct").notNull().default(22),
+  descontoExcepcionalParceladoPct: real("desconto_excepcional_parcelado_pct").notNull().default(18),
+  entradaMinimaExcecaoPct: real("entrada_minima_excecao_pct").notNull().default(70),
+  margemLiquidaMinimaPct: real("margem_liquida_minima_pct").notNull().default(20),
+  tributosPct: real("tributos_pct").notNull().default(0),
+  negociacaoCadenciada30minAtiva: boolean("negociacao_cadenciada_30min_ativa").notNull().default(false),
+  nomeGerenteFinanceiro: text("nome_gerente_financeiro").notNull().default("Carlos"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
@@ -88,10 +100,14 @@ export type BudgetItemSnapshot = {
   unitPriceCents: number;
   include: boolean;
   substanceId: number | null;
+  /** Escada de volume PROPRIA do item, congelada no momento em que o orcamento foi salvo. */
+  volumeTiers?: VolumeTier[] | null;
 };
 
 export const budgetsTable = pgTable("budgets", {
   id: serial("id").primaryKey(),
+  // Clinica dona do orcamento (coluna criada e preenchida por lib/comercial-migracao.ts).
+  empresaId: integer("empresa_id"),
   clientId: integer("client_id"),
   title: text("title"),
   status: text("status").notNull().default("draft"),

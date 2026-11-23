@@ -113,6 +113,32 @@ function iniciarJobRepasseTelegram(logger: pino.Logger, scheduler: CronScheduler
 }
 
 /**
+ * Cadência de negociação extraordinária (minutos 0, 10, 20 e 30). Roda a cada minuto; as etapas vivem em
+ * PostgreSQL (negotiation_cadence_jobs), então reinício não perde nem duplica. Só envia com a política da clínica
+ * ligada, motor ativo, homologação autorizando o cliente e atendimento fora de modo humano/bloqueio.
+ */
+export function iniciarJobCadenciaNegociacao(logger: pino.Logger, scheduler: CronScheduler): void {
+  let rodando = false;
+  scheduler.schedule(
+    "* * * * *",
+    async () => {
+      if (rodando) return;
+      rodando = true;
+      try {
+        const { executarCadenciaNegociacao } = await import("../../api-server/src/lib/negociacao-store.js" as string);
+        const r = await executarCadenciaNegociacao();
+        if (r.enviados > 0 || r.pausados > 0 || r.falhas > 0) logger.info(r, "Worker: cadência de negociação");
+      } catch (err) {
+        logger.error({ errorType: err instanceof Error ? err.constructor.name : typeof err, errorCategory: categorizarErroDeWorker(err) }, "Worker: falha na cadência de negociação");
+      } finally {
+        rodando = false;
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+}
+
+/**
  * Conciliação automática com o Asaas (a cada 3 minutos), SOMENTE LEITURA no Asaas.
  * Existe porque o webhook de produção pode estar desligado/interrompido: sem este job, um pagamento
  * recebido nunca chegava ao sistema. Só marca "pago" com consulta direta que comprove (status pago, valor

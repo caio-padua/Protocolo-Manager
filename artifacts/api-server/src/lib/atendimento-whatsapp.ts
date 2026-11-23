@@ -3,6 +3,7 @@
  * Usa o cérebro clínico existente antes de oferecer menu ou executar operação.
  * Todas as dependências de dados/agenda são injetadas para teste sem rede.
  */
+import { pedidoDeCondicaoEspecial } from "./budget-negociacao";
 import {
   classificarQueixa, ehPedidoApresentacao, normalizar, pedidoClinicoExigeEquipe, planejarAtendimento,
   type DepsAtendimento, type EntradaAtendimento, type PlanoAtendimento,
@@ -77,6 +78,10 @@ export interface DepsOperacionaisWhatsapp {
   classificarIA?: (texto: string) => Promise<IntencaoWhatsapp | null>;
   /** Guarda pergunta inédita não clínica para curadoria (nunca responde por ela). Opcional. */
   registrarInedita?: (texto: string, intencao: IntencaoWhatsapp, origem: "regra" | "ia") => Promise<void>;
+  /** Cliente escreveu no meio de uma cadência de negociação: pausa e entrega ao humano (null = nada ativo). */
+  negociacaoAtiva?: () => Promise<PlanoAtendimento | null>;
+  /** Pedido de condição melhor com orçamento aceito: abre Caminho A (cadência) ou B (humano). null = fluxo antigo. */
+  negociar?: (texto: string) => Promise<PlanoAtendimento | null>;
 }
 
 export async function planejarAtendimentoWhatsapp(
@@ -97,6 +102,9 @@ async function planejarInterno(
     return { pausa: null, alerta: null, resposta: null, orientacaoId: null, faqId: null, desfecho: "sem_conteudo_textual",
       caminhoResolucao: "regra", intencao: "sem_conteudo", intencaoDetectada: "sem_conteudo", origemIntencao: "regra", intencoes: [] };
   }
+  // Mensagem do cliente durante uma cadência de negociação: pausa a automação ANTES de qualquer classificação.
+  const interrompida = await ops.negociacaoAtiva?.();
+  if (interrompida) return { ...interrompida, intencao: "orcamento", intencaoDetectada: "orcamento", origemIntencao: "regra", intencoes: ["orcamento"] };
   // A opção numérica pertence exclusivamente ao menu mais recente entregue.
   const n = normalizar(e.texto);
   const numero = n.match(/^(?:(?:opcao|numero) )?([1-6])$/)?.[1];
@@ -172,6 +180,10 @@ async function planejarInterno(
       ? { ...respostaRegra(await ops.frase("atendimento_endereco", { endereco })),
           fonteOperacional: { chave: "atendimento_endereco", variaveis: { endereco } } }
       : equipe("endereco_sem_cadastro");
+  }
+  if ((intencao === "orcamento" || intencao === "desconhecida") && ops.negociar && pedidoDeCondicaoEspecial(texto)) {
+    const neg = await ops.negociar(texto);
+    if (neg) return { ...neg, intencao: "orcamento", ...detectada, intencoes: todas };
   }
   if (intencao === "orcamento") return equipe("orcamento_sem_resposta_aprovada");
   if (intencao === "documentos" || intencao === "exames") return equipe("documento_sem_resposta_aplicavel");
