@@ -145,6 +145,120 @@ router.patch("/cadastros/exames/:id/ativo", async (req, res): Promise<void> => {
   res.json(updated);
 });
 
+// =============================================================================
+// CLASSIFICACOES do catalogo (dropdowns do cadastro de exames).
+// Uma unica tabela serve os 4 campos de classificacao; nao altera nenhum exame.
+// Valores ja usados pelos exames sao semeados (preservados) sem renomear nada.
+// "Excluir" = desativar (Regra de Ouro).
+// =============================================================================
+const CAMPOS_CLASSIFICACAO = {
+  categoria: catalogoExamesTable.grupoPrincipal,
+  subgrupo: catalogoExamesTable.subgrupo,
+  modalidade: catalogoExamesTable.modalidade,
+  material_setor: catalogoExamesTable.materialOuSetor,
+} as const;
+type CampoClassificacao = keyof typeof CAMPOS_CLASSIFICACAO;
+const campoSchema = z.enum(["categoria", "subgrupo", "modalidade", "material_setor"]);
+
+const COLUNA_SQL: Record<CampoClassificacao, string> = {
+  categoria: "e.grupo_principal",
+  subgrupo: "e.subgrupo",
+  modalidade: "e.modalidade",
+  material_setor: "e.material_ou_setor",
+};
+
+let classificacoesPronta: Promise<void> | null = null;
+function garantirClassificacoes(): Promise<void> {
+  if (!classificacoesPronta) {
+    classificacoesPronta = (async () => {
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS catalogo_exame_classificacoes (
+          id          SERIAL PRIMARY KEY,
+          campo       TEXT NOT NULL CHECK (campo IN ('categoria','subgrupo','modalidade','material_setor')),
+          nome        TEXT NOT NULL,
+          nome_norm   TEXT NOT NULL,
+          ativo       BOOLEAN NOT NULL DEFAULT TRUE,
+          criado_em   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          criado_por  INTEGER,
+          CONSTRAINT catalogo_exame_classificacoes_uk UNIQUE (campo, nome_norm)
+        )`);
+      for (const [campo, col] of Object.entries(CAMPOS_CLASSIFICACAO)) {
+        await db.execute(sql`
+          INSERT INTO catalogo_exame_classificacoes (campo, nome, nome_norm)
+          SELECT ${campo}, v, upper(trim(v)) FROM (
+            SELECT DISTINCT ON (upper(trim(${col}))) trim(${col}) AS v
+            FROM catalogo_exames
+            WHERE ${col} IS NOT NULL AND trim(${col}) <> ''
+            ORDER BY upper(trim(${col})), trim(${col})
+          ) x
+          ON CONFLICT (campo, nome_norm) DO NOTHING`);
+      }
+    })().catch((err) => {
+      classificacoesPronta = null;
+      throw err;
+    });
+  }
+  return classificacoesPronta;
+}
+
+router.get("/cadastros/classificacoes", async (req, res): Promise<void> => {
+  const campo = campoSchema.safeParse(req.query.campo);
+  if (!campo.success) {
+    res.status(400).json({ error: "Informe campo: categoria, subgrupo, modalidade ou material_setor" });
+    return;
+  }
+  await garantirClassificacoes();
+  const col = sql.raw(COLUNA_SQL[campo.data as CampoClassificacao]);
+  const rows = await db.execute(sql`
+    SELECT c.id, c.nome, c.ativo,
+           (SELECT count(*)::int FROM catalogo_exames e WHERE upper(trim(${col})) = c.nome_norm) AS total
+    FROM catalogo_exame_classificacoes c
+    WHERE c.campo = ${campo.data}
+    ORDER BY c.nome_norm`);
+  res.json(rows.rows);
+});
+
+router.post("/cadastros/classificacoes", async (req, res): Promise<void> => {
+  const parsed = z
+    .object({ campo: campoSchema, nome: z.string().trim().min(1, "Nome obrigatorio").max(200) })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Dados invalidos", details: parsed.error.issues });
+    return;
+  }
+  await garantirClassificacoes();
+  const nome = parsed.data.nome.replace(/\s+/g, " ").toUpperCase();
+  const inserted = await db.execute(sql`
+    INSERT INTO catalogo_exame_classificacoes (campo, nome, nome_norm, criado_por)
+    VALUES (${parsed.data.campo}, ${nome}, ${nome}, ${req.collaborator?.professionalId ?? null})
+    ON CONFLICT (campo, nome_norm) DO NOTHING
+    RETURNING id, nome, ativo`);
+  if (inserted.rows.length === 0) {
+    res.status(409).json({ error: `Ja existe "${nome}" neste cadastro.` });
+    return;
+  }
+  req.log.info({ campo: parsed.data.campo, nome }, "classificacao de exame criada");
+  res.status(201).json({ ...inserted.rows[0], total: 0 });
+});
+
+router.patch("/cadastros/classificacoes/:id/ativo", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const ativo = z.boolean().safeParse(req.body?.ativo);
+  if (!Number.isInteger(id) || !ativo.success) {
+    res.status(400).json({ error: "id e 'ativo' (booleano) sao obrigatorios" });
+    return;
+  }
+  await garantirClassificacoes();
+  const upd = await db.execute(sql`
+    UPDATE catalogo_exame_classificacoes SET ativo = ${ativo.data}
+    WHERE id = ${id} RETURNING id, nome, ativo`);
+  if (upd.rows.length === 0) {
+    res.status(404).json({ error: "Classificacao nao encontrada" });
+    return;
+  }
+  res.json(upd.rows[0]);
+});
+
 // ---- CATEGORIAS (grupo_principal distinto + contagem) -----------------------
 router.get("/cadastros/categorias", async (_req, res): Promise<void> => {
   const rows = await db

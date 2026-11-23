@@ -197,3 +197,4 @@
 - [Painel Emissão de receitas](painel-emissao-receitas.md) — destinos retangulares, sem caixa de confirmação, prévia PDF, histórico comparável, nome Drive AA.MM.DD.
 - [Cascata de 3 IAs (isolada)](cascata-sinapses-ia-isolada.md) — desativada; só liga após testes reais Dayana/Carlúcia; ratificar exige validação e conflito zero.
 - [Negociação extraordinária + cadência 30 min](negociacao-extraordinaria-orcamento.md) — centavos inteiros, trava de margem, cadência desligada por padrão, trilha em budget_eventos/cascata_eventos.
+- [Exames: classificações e código semântico](exames-classificacoes-codigo-semantico.md) — tabela de classificações dos dropdowns; código de 5 blocos existe nos dados, sem spec escrita.

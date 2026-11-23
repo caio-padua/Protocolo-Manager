@@ -80,11 +80,6 @@ interface Bloco {
   totalExames: number;
   graus: BlocoGrau[];
 }
-interface Categoria {
-  nome: string;
-  total: number;
-}
-
 type FormState = {
   id: number | null;
   codigoExame: string;
@@ -117,6 +112,70 @@ function txt(v: unknown): string {
   if (v === null || v === undefined) return "—";
   const s = String(v).trim();
   return s.length ? s : "—";
+}
+
+interface Classificacao {
+  id: number;
+  nome: string;
+  ativo: boolean;
+  total: number;
+}
+type CampoClass = "categoria" | "subgrupo" | "modalidade" | "material_setor";
+const CAMPOS_CLASS: Array<{ campo: CampoClass; rotulo: string; plural: string; ajuda: string }> = [
+  { campo: "categoria", rotulo: "Grupo / Categoria", plural: "Categorias", ajuda: "Grande área clínica do exame. Ex.: HEMATOLOGICO, IMAGEM, ENDOCRINO." },
+  { campo: "subgrupo", rotulo: "Subgrupo", plural: "Subgrupos", ajuda: "Divisão dentro da categoria. Ex.: TIREOIDE, DST, LIPIDICO CARDIOMETABOLICO." },
+  { campo: "modalidade", rotulo: "Modalidade", plural: "Modalidades", ajuda: "Tipo de método. Ex.: LABORATORIAL, USG, TC, RM, RX." },
+  { campo: "material_setor", rotulo: "Material / Setor", plural: "Material / Setor", ajuda: "Material coletado ou setor executor. Ex.: SORO, SANGUE TOTAL, IMAGEM." },
+];
+const SEM_VALOR = "__none__";
+
+function useClassificacoes(campo: CampoClass) {
+  return useQuery<Classificacao[]>({
+    queryKey: ["/api/cadastros/classificacoes", campo],
+    queryFn: async () => {
+      const r = await fetch(`/api/cadastros/classificacoes?campo=${campo}`);
+      if (!r.ok) throw new Error("Falha ao carregar classificações");
+      return r.json();
+    },
+  });
+}
+
+// Lista suspensa alimentada pelo cadastro de classificações. Valor antigo que
+// ainda não consta no cadastro continua visível (nunca é apagado ao editar).
+function ClassSelect({
+  campo,
+  value,
+  onChange,
+}: {
+  campo: CampoClass;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const { data } = useClassificacoes(campo);
+  const atuais = (data ?? []).filter((c) => c.ativo).map((c) => c.nome);
+  const legado = value && !atuais.some((n) => n.toUpperCase() === value.trim().toUpperCase()) ? value : null;
+  return (
+    <Select
+      value={value ? value : SEM_VALOR}
+      onValueChange={(v) => {
+        if (v === "") return;
+        onChange(v === SEM_VALOR ? "" : v);
+      }}
+    >
+      <SelectTrigger className="field-engraved" data-testid={`select-${campo}`}>
+        <SelectValue placeholder="Selecione" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={SEM_VALOR}>— Nenhum —</SelectItem>
+        {legado && <SelectItem value={legado}>{legado} (fora do cadastro)</SelectItem>}
+        {atuais.map((n) => (
+          <SelectItem key={n} value={n}>
+            {n}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 }
 
 // ============================ ABA EXAMES =====================================
@@ -349,37 +408,19 @@ function ExamesTab() {
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Grupo / Categoria</label>
-              <Input
-                value={form.grupoPrincipal}
-                onChange={(e) => setForm((f) => ({ ...f, grupoPrincipal: e.target.value }))}
-                placeholder="Ex.: HEMATOLOGICO"
-                className="field-engraved"
-              />
+              <ClassSelect campo="categoria" value={form.grupoPrincipal} onChange={(v) => setForm((f) => ({ ...f, grupoPrincipal: v }))} />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Subgrupo</label>
-              <Input
-                value={form.subgrupo}
-                onChange={(e) => setForm((f) => ({ ...f, subgrupo: e.target.value }))}
-                className="field-engraved"
-              />
+              <ClassSelect campo="subgrupo" value={form.subgrupo} onChange={(v) => setForm((f) => ({ ...f, subgrupo: v }))} />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Modalidade</label>
-              <Input
-                value={form.modalidade}
-                onChange={(e) => setForm((f) => ({ ...f, modalidade: e.target.value }))}
-                placeholder="Ex.: USG, TC, RM (vazio = sangue)"
-                className="field-engraved"
-              />
+              <ClassSelect campo="modalidade" value={form.modalidade} onChange={(v) => setForm((f) => ({ ...f, modalidade: v }))} />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Material / Setor</label>
-              <Input
-                value={form.materialOuSetor}
-                onChange={(e) => setForm((f) => ({ ...f, materialOuSetor: e.target.value }))}
-                className="field-engraved"
-              />
+              <ClassSelect campo="material_setor" value={form.materialOuSetor} onChange={(v) => setForm((f) => ({ ...f, materialOuSetor: v }))} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Finalidade principal</label>
@@ -522,46 +563,131 @@ function BlocosTab() {
 }
 
 // ============================ ABA CATEGORIAS =================================
-function CategoriasTab() {
-  const { data, isLoading } = useQuery<Categoria[]>({
-    queryKey: ["/api/cadastros/categorias"],
-    queryFn: async () => {
-      const r = await fetch("/api/cadastros/categorias");
-      if (!r.ok) throw new Error("Falha ao carregar categorias");
+// Sub-tela de cadastro das classificações usadas nos menus suspensos do exame.
+function ClassificacaoPainel({ item }: { item: (typeof CAMPOS_CLASS)[number] }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [novo, setNovo] = useState("");
+  const [busca, setBusca] = useState("");
+  const { data, isLoading } = useClassificacoes(item.campo);
+
+  const criar = useMutation<unknown, Error>({
+    mutationFn: async () => {
+      const r = await fetch("/api/cadastros/classificacoes", {
+        method: "POST",
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ campo: item.campo, nome: novo }),
+      });
+      if (!r.ok) {
+        const b = await r.json().catch(() => ({}));
+        throw new Error(b.error ?? "Falha ao cadastrar");
+      }
       return r.json();
     },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/cadastros/classificacoes", item.campo] });
+      setNovo("");
+      toast({ title: `${item.rotulo} cadastrado(a)` });
+    },
+    onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
   });
 
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        {Array.from({ length: 12 }).map((_, i) => (
-          <Skeleton key={i} className="h-16 w-full" />
-        ))}
-      </div>
-    );
-  }
+  const alternar = useMutation<unknown, Error, { id: number; ativo: boolean }>({
+    mutationFn: async ({ id, ativo }) => {
+      const r = await fetch(`/api/cadastros/classificacoes/${id}/ativo`, {
+        method: "PATCH",
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ ativo }),
+      });
+      if (!r.ok) throw new Error("Falha ao alterar status");
+      return r.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/cadastros/classificacoes", item.campo] }),
+    onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
+  });
+
+  const q = busca.trim().toLowerCase();
+  const lista = (data ?? []).filter((c) => !q || c.nome.toLowerCase().includes(q));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="concave-3d flex items-start gap-2.5 px-3 py-2.5 text-sm text-muted-foreground">
         <Tags className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
         <span>
-          Categorias são o campo "Grupo" de cada exame. Para mover um exame de categoria, edite o exame na aba Exames.
+          {item.ajuda} Desativar remove a opção da lista suspensa do exame, mas nunca apaga nem altera exames já cadastrados.
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-        {(data ?? []).map((c) => (
-          <div
-            key={c.nome}
-            className="panel-3d-sub p-3 border-l-4 border-primary/50 neon-hover"
-          >
-            <div className="text-xs font-black uppercase tracking-wide">{c.nome}</div>
-            <div className="mt-1 screen-3d text-xs font-black px-2 py-0.5 inline-block">{c.total} exames</div>
-          </div>
-        ))}
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          value={novo}
+          onChange={(e) => setNovo(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && novo.trim() && !criar.isPending) criar.mutate();
+          }}
+          placeholder={`Novo(a) ${item.rotulo.toLowerCase()}...`}
+          className="field-engraved sm:max-w-sm"
+          data-testid={`input-nova-${item.campo}`}
+        />
+        <Button
+          onClick={() => criar.mutate()}
+          disabled={!novo.trim() || criar.isPending}
+          className="btn-3d"
+          data-testid={`button-cadastrar-${item.campo}`}
+        >
+          <Plus className="mr-1.5 h-4 w-4" /> Cadastrar
+        </Button>
+        <div className="relative sm:ml-auto sm:w-56">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar..." className="pl-9 field-engraved" />
+        </div>
       </div>
+      {isLoading ? (
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {lista.map((c) => (
+            <div
+              key={c.id}
+              className={`panel-3d-sub flex items-center justify-between gap-2 border-l-4 border-primary/50 p-3 ${c.ativo ? "" : "opacity-50"}`}
+            >
+              <div className="min-w-0">
+                <div className="truncate text-xs font-black uppercase tracking-wide">{c.nome}</div>
+                <div className="mt-1 screen-3d inline-block px-2 py-0.5 text-xs font-black">{c.total} exames</div>
+              </div>
+              <Switch
+                checked={c.ativo}
+                onCheckedChange={(v) => alternar.mutate({ id: c.id, ativo: v })}
+                aria-label={`Ativar ${c.nome}`}
+              />
+            </div>
+          ))}
+          {lista.length === 0 && <div className="text-sm text-muted-foreground">Nada cadastrado ainda.</div>}
+        </div>
+      )}
     </div>
+  );
+}
+
+function CategoriasTab() {
+  return (
+    <Tabs defaultValue="categoria" className="space-y-4">
+      <TabsList className="concave-3d p-1">
+        {CAMPOS_CLASS.map((c) => (
+          <TabsTrigger key={c.campo} value={c.campo} className="text-[11px] font-black uppercase tracking-wide">
+            {c.plural}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {CAMPOS_CLASS.map((c) => (
+        <TabsContent key={c.campo} value={c.campo}>
+          <ClassificacaoPainel item={c} />
+        </TabsContent>
+      ))}
+    </Tabs>
   );
 }
 
