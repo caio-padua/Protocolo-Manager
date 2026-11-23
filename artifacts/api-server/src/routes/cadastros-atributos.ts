@@ -12,10 +12,13 @@ import multer from "multer";
 // =============================================================================
 const router: IRouter = Router();
 
-const TIPOS = ["natureza", "metodo", "eixo", "regiao", "material", "gatilho"] as const;
+const TIPOS = ["natureza", "metodo", "eixo", "regiao", "material", "gatilho", "diretriz"] as const;
 const tipoSchema = z.enum(TIPOS);
 
 const NATUREZAS = ["LABORATORIAL", "IMAGEM", "COMPOSICAO CORPORAL", "METODOS GRAFICOS", "ENDOSCOPICOS"];
+const DIRETRIZES = ["SBC", "SBCP", "FEBRASGO", "CBR", "SBM", "ABRASSO", "INCA/MS", "USPSTF", "ACC/AHA", "ACG"];
+const MATERIAIS_BIO = ["SORO", "SANGUE TOTAL", "PLASMA", "URINA ISOLADA", "URINA 24H", "FEZES", "SALIVA", "SWAB/SECRECAO", "LIQUOR"];
+const MATERIAIS_NAO_BIO = ["CARDIO", "IMAGEM", "FUNCIONAL", "IMAGEM / PROCEDIMENTO"];
 const METODOS = ["ULTRASSONOGRAFIA", "TOMOGRAFIA", "RESSONANCIA MAGNETICA", "RADIOGRAFIA", "MAMOGRAFIA", "DENSITOMETRIA", "ELETROCARDIOGRAMA", "ECOCARDIOGRAMA", "TESTE ERGOMETRICO", "HOLTER", "MAPA", "ENDOSCOPIA DIGESTIVA ALTA", "COLONOSCOPIA", "BIOIMPEDANCIA", "ANALISE LABORATORIAL"];
 const REGIOES = [
   "CRANIO", "ENCEFALO", "SELA TURCICA", "SEIOS DA FACE", "OLHOS / ORBITAS", "OUVIDOS", "PESCOCO", "TIREOIDE", "PARATIREOIDES", "CAROTIDAS",
@@ -48,7 +51,14 @@ function garantir(): Promise<void> {
           eixos TEXT[] NOT NULL DEFAULT '{}', sinonimos TEXT[] NOT NULL DEFAULT '{}', gatilhos TEXT[] NOT NULL DEFAULT '{}',
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`);
-      const seeds: Array<[string, string[]]> = [["natureza", NATUREZAS], ["metodo", METODOS], ["regiao", REGIOES]];
+      await db.execute(sql`ALTER TABLE catalogo_exame_opcoes DROP CONSTRAINT IF EXISTS catalogo_exame_opcoes_tipo_check`);
+      await db.execute(sql`ALTER TABLE catalogo_exame_opcoes ADD CONSTRAINT catalogo_exame_opcoes_tipo_check CHECK (tipo IN ('natureza','metodo','eixo','regiao','material','gatilho','diretriz'))`);
+      for (const c of [
+        "periodizacao_modo TEXT", "publico_alvo TEXT", "idade_minima INTEGER", "idade_maxima INTEGER",
+        "repetir_meses INTEGER", "regra_antecipacao TEXT", "diretrizes TEXT[] NOT NULL DEFAULT '{}'",
+        "artigos JSONB NOT NULL DEFAULT '[]'::jsonb",
+      ]) await db.execute(sql`ALTER TABLE catalogo_exame_atributos ADD COLUMN IF NOT EXISTS ${sql.raw(c)}`);
+      const seeds: Array<[string, string[]]> = [["natureza", NATUREZAS], ["metodo", METODOS], ["regiao", REGIOES], ["diretriz", DIRETRIZES]];
       for (const [tipo, lista] of seeds) {
         for (const nome of lista) {
           await db.execute(sql`INSERT INTO catalogo_exame_opcoes (tipo, nome, nome_norm) VALUES (${tipo}, ${nome}, ${nome}) ON CONFLICT DO NOTHING`);
@@ -59,6 +69,16 @@ function garantir(): Promise<void> {
         INSERT INTO catalogo_exame_opcoes (tipo, nome, nome_norm)
         SELECT 'material', v, upper(v) FROM (SELECT DISTINCT trim(material_ou_setor) v FROM catalogo_exames WHERE material_ou_setor IS NOT NULL AND trim(material_ou_setor) <> '') x
         ON CONFLICT DO NOTHING`);
+      // Material biologico = so amostras fisicas. Aplicado UMA vez (marcador: opcao SWAB/SECRECAO ainda nao existe).
+      const jaSeparado = await db.execute(sql`SELECT 1 FROM catalogo_exame_opcoes WHERE tipo='material' AND nome_norm='SWAB/SECRECAO'`);
+      if (jaSeparado.rows.length === 0) {
+        for (const nome of MATERIAIS_BIO) {
+          await db.execute(sql`INSERT INTO catalogo_exame_opcoes (tipo, nome, nome_norm) VALUES ('material', ${nome}, ${nome}) ON CONFLICT DO NOTHING`);
+        }
+        for (const nome of MATERIAIS_NAO_BIO) {
+          await db.execute(sql`UPDATE catalogo_exame_opcoes SET ativo = FALSE WHERE tipo='material' AND nome_norm = ${nome}`);
+        }
+      }
     })().catch((e) => {
       pronta = null;
       throw e;
@@ -75,7 +95,7 @@ router.get("/cadastros/opcoes-exame", async (req, res): Promise<void> => {
   }
   await garantir();
   const col = { natureza: "natureza", metodo: "metodo", regiao: "regiao", material: "material" } as Record<string, string>;
-  const arr = { eixo: "eixos", gatilho: "gatilhos" } as Record<string, string>;
+  const arr = { eixo: "eixos", gatilho: "gatilhos", diretriz: "diretrizes" } as Record<string, string>;
   const uso = col[tipo.data]
     ? sql`(SELECT count(*)::int FROM catalogo_exame_atributos a WHERE upper(a.${sql.raw(col[tipo.data])}) = o.nome_norm)`
     : sql`(SELECT count(*)::int FROM catalogo_exame_atributos a WHERE o.nome_norm = ANY (SELECT upper(x) FROM unnest(a.${sql.raw(arr[tipo.data])}) x))`;
@@ -118,7 +138,7 @@ router.patch("/cadastros/opcoes-exame/:id", async (req, res): Promise<void> => {
     if (["natureza", "metodo", "regiao", "material"].includes(a.tipo)) {
       await tx.execute(sql`UPDATE catalogo_exame_atributos SET ${sql.raw(a.tipo)} = ${novo} WHERE upper(${sql.raw(a.tipo)}) = ${a.nome.toUpperCase()}`);
     } else {
-      const c = sql.raw(a.tipo === "eixo" ? "eixos" : "gatilhos");
+      const c = sql.raw(a.tipo === "eixo" ? "eixos" : a.tipo === "gatilho" ? "gatilhos" : "diretrizes");
       await tx.execute(sql`UPDATE catalogo_exame_atributos SET ${c} = array_replace(${c}, ${a.nome}, ${novo}) WHERE ${a.nome} = ANY(${c})`);
     }
     await tx.execute(sql`UPDATE catalogo_exame_opcoes SET nome = ${novo}, nome_norm = ${novo} WHERE id = ${id}`);
@@ -160,13 +180,33 @@ const atributosSchema = z.object({
   eixos: lista,
   sinonimos: lista,
   gatilhos: lista,
+  periodizacaoModo: z.enum(["SOB DEMANDA", "PERIODICO", "POR RISCO"]).nullish(),
+  publicoAlvo: z.enum(["AMBOS", "MASCULINO", "FEMININO"]).nullish(),
+  idadeMinima: z.number().int().min(0).max(130).nullish(),
+  idadeMaxima: z.number().int().min(0).max(130).nullish(),
+  repetirMeses: z.number().int().min(1).max(600).nullish(),
+  regraAntecipacao: z.string().trim().max(1000).nullish(),
+  diretrizes: lista,
+  artigos: z.array(z.object({
+    autores: z.string().trim().max(500).default(""),
+    titulo: z.string().trim().max(500).default(""),
+    revista: z.string().trim().max(300).default(""),
+    ano: z.string().trim().max(10).default(""),
+    link: z.string().trim().max(500).default(""),
+  })).max(30).default([]),
+}).refine((d) => (d.natureza ?? "").toUpperCase() !== "IMAGEM" || (d.regiao && d.lateralidade && d.contraste), {
+  message: "Para IMAGEM, regiao anatomica, lateralidade e contraste sao obrigatorios",
+}).refine((d) => d.idadeMinima == null || d.idadeMaxima == null || d.idadeMinima <= d.idadeMaxima, {
+  message: "Idade minima nao pode ser maior que a maxima",
 });
 
 router.get("/cadastros/exames-atributos", async (_req, res): Promise<void> => {
   await garantir();
   const r = await db.execute(sql`
     SELECT exame_id AS "exameId", natureza, metodo, regiao, material, lateralidade, contraste,
-           tipo_resultado AS "tipoResultado", prioridade, eixos, sinonimos, gatilhos FROM catalogo_exame_atributos`);
+           tipo_resultado AS "tipoResultado", prioridade, eixos, sinonimos, gatilhos,
+           periodizacao_modo AS "periodizacaoModo", publico_alvo AS "publicoAlvo", idade_minima AS "idadeMinima", idade_maxima AS "idadeMaxima",
+           repetir_meses AS "repetirMeses", regra_antecipacao AS "regraAntecipacao", diretrizes, artigos FROM catalogo_exame_atributos`);
   res.json(r.rows);
 });
 
@@ -174,7 +214,7 @@ router.put("/cadastros/exames/:id/atributos", async (req, res): Promise<void> =>
   const id = Number(req.params.id);
   const p = atributosSchema.safeParse(req.body);
   if (!Number.isInteger(id) || !p.success) {
-    res.status(400).json({ error: "Dados invalidos" });
+    res.status(400).json({ error: p.success ? "Dados invalidos" : (p.error.issues[0]?.message ?? "Dados invalidos") });
     return;
   }
   await garantir();
@@ -187,12 +227,14 @@ router.put("/cadastros/exames/:id/atributos", async (req, res): Promise<void> =>
   const pg = (a: string[]) => sql`ARRAY[${sql.join(a.map((x) => sql`${x}`), sql`, `)}]::text[]`;
   const arr = (a: string[]) => (a.length ? pg(a) : sql`'{}'::text[]`);
   await db.execute(sql`
-    INSERT INTO catalogo_exame_atributos (exame_id, natureza, metodo, regiao, material, lateralidade, contraste, tipo_resultado, prioridade, eixos, sinonimos, gatilhos, updated_at)
+    INSERT INTO catalogo_exame_atributos (exame_id, natureza, metodo, regiao, material, lateralidade, contraste, tipo_resultado, prioridade, eixos, sinonimos, gatilhos, periodizacao_modo, publico_alvo, idade_minima, idade_maxima, repetir_meses, regra_antecipacao, diretrizes, artigos, updated_at)
     VALUES (${id}, ${d.natureza ?? null}, ${d.metodo ?? null}, ${d.regiao ?? null}, ${d.material ?? null}, ${d.lateralidade ?? null}, ${d.contraste ?? null},
-            ${d.tipoResultado ?? null}, ${d.prioridade ?? null}, ${arr(d.eixos)}, ${arr(d.sinonimos)}, ${arr(d.gatilhos)}, NOW())
+            ${d.tipoResultado ?? null}, ${d.prioridade ?? null}, ${arr(d.eixos)}, ${arr(d.sinonimos)}, ${arr(d.gatilhos)}, ${d.periodizacaoModo ?? null}, ${d.publicoAlvo ?? null}, ${d.idadeMinima ?? null}, ${d.idadeMaxima ?? null}, ${d.repetirMeses ?? null}, ${d.regraAntecipacao ?? null}, ${arr(d.diretrizes)}, ${JSON.stringify(d.artigos)}::jsonb, NOW())
     ON CONFLICT (exame_id) DO UPDATE SET natureza = EXCLUDED.natureza, metodo = EXCLUDED.metodo, regiao = EXCLUDED.regiao, material = EXCLUDED.material,
       lateralidade = EXCLUDED.lateralidade, contraste = EXCLUDED.contraste, tipo_resultado = EXCLUDED.tipo_resultado, prioridade = EXCLUDED.prioridade,
-      eixos = EXCLUDED.eixos, sinonimos = EXCLUDED.sinonimos, gatilhos = EXCLUDED.gatilhos, updated_at = NOW()`);
+      eixos = EXCLUDED.eixos, sinonimos = EXCLUDED.sinonimos, gatilhos = EXCLUDED.gatilhos,
+      periodizacao_modo = EXCLUDED.periodizacao_modo, publico_alvo = EXCLUDED.publico_alvo, idade_minima = EXCLUDED.idade_minima, idade_maxima = EXCLUDED.idade_maxima,
+      repetir_meses = EXCLUDED.repetir_meses, regra_antecipacao = EXCLUDED.regra_antecipacao, diretrizes = EXCLUDED.diretrizes, artigos = EXCLUDED.artigos, updated_at = NOW()`);
   req.log.info({ id }, "atributos do exame salvos");
   res.json({ exameId: id, ...d });
 });

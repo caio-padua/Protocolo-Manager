@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown, FolderTree, Compass, Info } from "lucide-react";
-import CadastroExames, { ClassificacoesCadastro } from "@/pages/cadastros/exames";
-import { Tags } from "lucide-react";
+import CadastroExames from "@/pages/cadastros/exames";
 import { usePermissoes } from "@/lib/permissoes";
 
 // CADASTRO DE EXAMES — entrada unica que REUNE (sem duplicar) as duas telas reais:
@@ -57,7 +56,6 @@ function Secao({
 export default function CadastroExamesUnificado() {
   const { loading, me, matriz, isCeo, pode } = usePermissoes();
   const [catalogoAberto, setCatalogoAberto] = useState(true);
-  const [classAberto, setClassAberto] = useState(true);
   const [faixasAberto, setFaixasAberto] = useState(false);
   const [faixasInicializadas, setFaixasInicializadas] = useState(false);
   const ambas = catalogoAberto && faixasAberto;
@@ -113,19 +111,7 @@ export default function CadastroExamesUnificado() {
         inicializada
         onToggle={() => setCatalogoAberto((v) => !v)}
       >
-        <CadastroExames comClassificacoes={false} />
-      </Secao>
-
-      <Secao
-        id="classificacoes"
-        icon={Tags}
-        titulo="Categorias e classificações"
-        subtitulo="Cadastre, edite e ative: categorias, subgrupos, modalidades e material / setor"
-        aberta={classAberto}
-        inicializada
-        onToggle={() => setClassAberto((v) => !v)}
-      >
-        <ClassificacoesCadastro />
+        <CadastroExames />
       </Secao>
 
       <Secao

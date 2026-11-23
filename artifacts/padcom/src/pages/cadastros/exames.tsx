@@ -134,7 +134,7 @@ const CAMPOS_CLASS: Array<{ campo: CampoClass; rotulo: string; plural: string; a
   { campo: "categoria", rotulo: "Grupo / Categoria", plural: "Categorias", ajuda: "Grande área clínica do exame. Ex.: HEMATOLOGICO, IMAGEM, ENDOCRINO." },
   { campo: "subgrupo", rotulo: "Subgrupo", plural: "Subgrupos", ajuda: "Divisão dentro da categoria. Ex.: TIREOIDE, DST, LIPIDICO CARDIOMETABOLICO." },
   { campo: "modalidade", rotulo: "Modalidade", plural: "Modalidades", ajuda: "Tipo de método. Ex.: LABORATORIAL, USG, TC, RM, RX." },
-  { campo: "material_setor", rotulo: "Material / Setor", plural: "Material / Setor", ajuda: "Material coletado ou setor executor. Ex.: SORO, SANGUE TOTAL, IMAGEM." },
+  { campo: "material_setor", rotulo: "Setor / Especialidade", plural: "Setor / Especialidade", ajuda: "Setor executor ou especialidade. O material biológico (soro, plasma, urina...) fica em Opções > Materiais." },
 ];
 const SEM_VALOR = "__none__";
 
@@ -193,6 +193,7 @@ function ExamesTab() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [categoria, setCategoria] = useState("__all__");
+  const [naturezaFiltro, setNaturezaFiltro] = useState("__all__");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [attrExame, setAttrExame] = useState<{ id: number; nome: string; modalidade: string | null } | null>(null);
@@ -218,13 +219,17 @@ function ExamesTab() {
     const q = search.trim().toLowerCase();
     return (exams ?? []).filter((e) => {
       if (categoria !== "__all__" && (e.grupoPrincipal ?? "").trim() !== categoria) return false;
+      if (naturezaFiltro !== "__all__") {
+        const nat = (attrPorId.get(e.id)?.natureza ?? naturezaSugerida(e.modalidade) ?? "").toUpperCase();
+        if (nat !== naturezaFiltro) return false;
+      }
       if (!q) return true;
       const a = attrPorId.get(e.id);
       return [e.nomeExame, e.codigoExame, e.grupoPrincipal, e.subgrupo, e.modalidade, a?.natureza, a?.metodo, a?.regiao, ...(a?.sinonimos ?? []), ...(a?.eixos ?? []), ...(a?.gatilhos ?? [])]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [exams, search, categoria, attrPorId]);
+  }, [exams, search, categoria, naturezaFiltro, attrPorId]);
 
   const saveMutation = useMutation<Exam, Error>({
     mutationFn: async () => {
@@ -345,6 +350,17 @@ function ExamesTab() {
           />
         </div>
         <div className="flex items-center gap-3">
+          <Select value={naturezaFiltro} onValueChange={setNaturezaFiltro}>
+            <SelectTrigger className="w-[150px] field-engraved" data-testid="filtro-natureza">
+              <SelectValue placeholder="Natureza" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Todas as naturezas</SelectItem>
+              {["LABORATORIAL", "IMAGEM", "COMPOSICAO CORPORAL", "METODOS GRAFICOS", "ENDOSCOPICOS"].map((n) => (
+                <SelectItem key={n} value={n}>{n}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={categoria} onValueChange={setCategoria}>
             <SelectTrigger className="w-[220px] field-engraved">
               <SelectValue placeholder="Categoria" />
@@ -402,9 +418,9 @@ function ExamesTab() {
                     <TableCell className="align-top text-sm font-bold">{txt(e.nomeExame)}</TableCell>
                     <TableCell className="align-top">
                       {attrPorId.get(e.id)?.natureza ? (
-                        <NaturezaChip natureza={attrPorId.get(e.id)!.natureza} />
+                        <NaturezaChip curto natureza={attrPorId.get(e.id)!.natureza} />
                       ) : (
-                        <NaturezaChip natureza={naturezaSugerida(e.modalidade)} sugerida />
+                        <NaturezaChip curto natureza={naturezaSugerida(e.modalidade)} sugerida />
                       )}
                     </TableCell>
                     <TableCell className="align-top text-sm">{txt(e.grupoPrincipal)}</TableCell>
@@ -503,7 +519,7 @@ function ExamesTab() {
               <ClassSelect campo="modalidade" value={form.modalidade} onChange={(v) => setForm((f) => ({ ...f, modalidade: v }))} />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Material / Setor</label>
+              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Setor / Especialidade</label>
               <ClassSelect campo="material_setor" value={form.materialOuSetor} onChange={(v) => setForm((f) => ({ ...f, materialOuSetor: v }))} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">

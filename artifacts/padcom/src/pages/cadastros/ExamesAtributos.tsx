@@ -32,17 +32,19 @@ export function naturezaSugerida(modalidade: string | null | undefined): string 
   return null;
 }
 
-export function NaturezaChip({ natureza, sugerida }: { natureza: string | null; sugerida?: boolean }) {
+const NATUREZA_SIGLA: Record<string, string> = { "LABORATORIAL": "LAB", "IMAGEM": "IMG", "COMPOSICAO CORPORAL": "COMP", "METODOS GRAFICOS": "GRAF", "ENDOSCOPICOS": "ENDO" };
+
+export function NaturezaChip({ natureza, sugerida, curto }: { natureza: string | null; sugerida?: boolean; curto?: boolean }) {
   if (!natureza) return <span className="text-xs text-muted-foreground">—</span>;
   const cor = NATUREZA_COR[natureza.toUpperCase()] ?? "#475569";
   return (
     <span
       className="inline-block rounded-[4px] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white"
       style={{ backgroundColor: cor, opacity: sugerida ? 0.75 : 1 }}
-      title={sugerida ? "Sugerida pela modalidade (não gravada)" : "Natureza cadastrada"}
+      title={sugerida ? `${natureza} — sugerida pela modalidade (não gravada)` : natureza}
       data-testid="chip-natureza"
     >
-      {natureza}
+      {curto ? (NATUREZA_SIGLA[natureza.toUpperCase()] ?? natureza) : natureza}
     </span>
   );
 }
@@ -60,7 +62,16 @@ export interface Atributos {
   eixos: string[];
   sinonimos: string[];
   gatilhos: string[];
+  periodizacaoModo: string | null;
+  publicoAlvo: string | null;
+  idadeMinima: number | null;
+  idadeMaxima: number | null;
+  repetirMeses: number | null;
+  regraAntecipacao: string | null;
+  diretrizes: string[];
+  artigos: Artigo[];
 }
+export interface Artigo { autores: string; titulo: string; revista: string; ano: string; link: string }
 
 interface Opcao {
   id: number;
@@ -68,7 +79,7 @@ interface Opcao {
   ativo: boolean;
   total: number;
 }
-type Tipo = "natureza" | "metodo" | "eixo" | "regiao" | "material" | "gatilho";
+type Tipo = "natureza" | "metodo" | "eixo" | "regiao" | "material" | "gatilho" | "diretriz";
 
 export function useOpcoes(tipo: Tipo, enabled = true) {
   return useQuery<Opcao[]>({
@@ -174,7 +185,7 @@ function OpcaoMulti({ tipo, valores, onChange, rotulo }: { tipo: Tipo; valores: 
   );
 }
 
-const VAZIO = (id: number): Atributos => ({ exameId: id, natureza: null, metodo: null, regiao: null, material: null, lateralidade: null, contraste: null, tipoResultado: null, prioridade: null, eixos: [], sinonimos: [], gatilhos: [] });
+const VAZIO = (id: number): Atributos => ({ exameId: id, natureza: null, metodo: null, regiao: null, material: null, lateralidade: null, contraste: null, tipoResultado: null, prioridade: null, eixos: [], sinonimos: [], gatilhos: [], periodizacaoModo: null, publicoAlvo: null, idadeMinima: null, idadeMaxima: null, repetirMeses: null, regraAntecipacao: null, diretrizes: [], artigos: [] });
 
 // Diálogo de atributos adicionais: campos mudam conforme a natureza.
 export function AtributosDialog({ exame, atual, modalidade, onClose }: { exame: { id: number; nome: string } | null; atual?: Atributos; modalidade?: string | null; onClose: () => void }) {
@@ -211,6 +222,8 @@ export function AtributosDialog({ exame, atual, modalidade, onClose }: { exame: 
   });
   if (!exame || !f) return null;
   const nat = (f.natureza ?? "").toUpperCase();
+  const faltaImagem = nat === "IMAGEM" && (!f.regiao || !f.lateralidade || !f.contraste);
+  const idadeInvalida = f.idadeMinima != null && f.idadeMaxima != null && f.idadeMinima > f.idadeMaxima;
   const ehLab = nat === "LABORATORIAL";
   const ehImg = nat === "IMAGEM";
   const set = <K extends keyof Atributos>(k: K, v: Atributos[K]) => setF((x) => (x ? { ...x, [k]: v } : x));
@@ -238,9 +251,9 @@ export function AtributosDialog({ exame, atual, modalidade, onClose }: { exame: 
           <OpcaoSelect tipo="natureza" rotulo="Natureza" valor={f.natureza ?? ""} onChange={(v) => set("natureza", v || null)} />
           <OpcaoSelect tipo="metodo" rotulo="Método" valor={f.metodo ?? ""} onChange={(v) => set("metodo", v || null)} />
           {ehLab && <OpcaoSelect tipo="material" rotulo="Material" valor={f.material ?? ""} onChange={(v) => set("material", v || null)} />}
-          {!ehLab && nat !== "" && <OpcaoSelect tipo="regiao" rotulo="Região" valor={f.regiao ?? ""} onChange={(v) => set("regiao", v || null)} />}
-          {ehImg && <Simples k="lateralidade" rotulo="Lateralidade" opcoes={["DIREITA", "ESQUERDA", "BILATERAL", "NAO SE APLICA"]} />}
-          {ehImg && <Simples k="contraste" rotulo="Contraste" opcoes={["COM CONTRASTE", "SEM CONTRASTE", "COM E SEM CONTRASTE", "NAO SE APLICA"]} />}
+          {!ehLab && nat !== "" && <OpcaoSelect tipo="regiao" rotulo={ehImg ? "Região anatômica *" : "Região"} valor={f.regiao ?? ""} onChange={(v) => set("regiao", v || null)} />}
+          {ehImg && <Simples k="lateralidade" rotulo="Lateralidade *" opcoes={["DIREITA", "ESQUERDA", "BILATERAL", "NAO SE APLICA"]} />}
+          {ehImg && <Simples k="contraste" rotulo="Contraste *" opcoes={["COM CONTRASTE", "SEM CONTRASTE", "COM E SEM CONTRASTE", "NAO SE APLICA"]} />}
           <div className="space-y-1.5">
             <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Tipo de resultado</label>
             <Input value={f.tipoResultado ?? ""} onChange={(e) => set("tipoResultado", e.target.value || null)} placeholder="Ex.: numérico, laudo descritivo" className="field-engraved" />
@@ -260,6 +273,61 @@ export function AtributosDialog({ exame, atual, modalidade, onClose }: { exame: 
               <Button type="button" size="icon" className="btn-3d" disabled={!sin.trim()} aria-label="Adicionar sinônimo" onClick={() => { set("sinonimos", Array.from(new Set([...f.sinonimos, sin.trim()]))); setSin(""); }}><Plus className="h-4 w-4" /></Button>
             </div>
           </div>
+          {faltaImagem && <div className="rounded-[4px] bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive sm:col-span-2" role="alert">Para exame de IMAGEM, região anatômica, lateralidade e contraste são obrigatórios.</div>}
+          <div className="sm:col-span-2 border-t pt-3 text-[11px] font-black uppercase tracking-widest text-primary">Periodização preventiva (check-up)</div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Modo</label>
+            <Select value={f.periodizacaoModo ?? "__none__"} onValueChange={(v) => v !== "" && set("periodizacaoModo", v === "__none__" ? null : v)}>
+              <SelectTrigger className="field-engraved"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— Nenhum —</SelectItem>
+                <SelectItem value="SOB DEMANDA">Sob demanda</SelectItem>
+                <SelectItem value="PERIODICO">Periódico</SelectItem>
+                <SelectItem value="POR RISCO">Por risco</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Público-alvo</label>
+            <Select value={f.publicoAlvo ?? "__none__"} onValueChange={(v) => v !== "" && set("publicoAlvo", v === "__none__" ? null : v)}>
+              <SelectTrigger className="field-engraved"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— Nenhum —</SelectItem>
+                <SelectItem value="AMBOS">Ambos</SelectItem>
+                <SelectItem value="MASCULINO">Masculino</SelectItem>
+                <SelectItem value="FEMININO">Feminino</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {([["idadeMinima", "Idade mínima"], ["idadeMaxima", "Idade máxima"], ["repetirMeses", "Repetir a cada (meses)"]] as const).map(([k, r]) => (
+            <div key={k} className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{r}</label>
+              <Input type="number" min={0} value={f[k] ?? ""} onChange={(e) => set(k, e.target.value === "" ? null : Math.trunc(Number(e.target.value)))} className="field-engraved" />
+            </div>
+          ))}
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Regra de antecipação</label>
+            <Input value={f.regraAntecipacao ?? ""} onChange={(e) => set("regraAntecipacao", e.target.value || null)} placeholder="Texto livre, definido pelo médico" className="field-engraved" />
+          </div>
+          {idadeInvalida && <div className="text-xs font-bold text-destructive sm:col-span-2" role="alert">A idade mínima não pode ser maior que a máxima.</div>}
+          <div className="sm:col-span-2 text-[10px] text-muted-foreground">Estes campos são cadastro de referência. Não geram regra clínica automática nem alteram as sugestões do cérebro.</div>
+          <div className="sm:col-span-2 border-t pt-3 text-[11px] font-black uppercase tracking-widest text-primary">Embasamento científico</div>
+          <div className="sm:col-span-2"><OpcaoMulti tipo="diretriz" rotulo="Diretrizes clínicas" valores={f.diretrizes} onChange={(v) => set("diretrizes", v)} /></div>
+          <div className="space-y-2 sm:col-span-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Artigos científicos / referências</label>
+              <Button type="button" size="sm" variant="outline" onClick={() => set("artigos", [...f.artigos, { autores: "", titulo: "", revista: "", ano: "", link: "" }])} data-testid="button-novo-artigo"><Plus className="mr-1 h-4 w-4" /> Artigo</Button>
+            </div>
+            {f.artigos.map((a, i) => (
+              <div key={i} className="panel-3d-sub grid grid-cols-1 gap-1.5 p-2 sm:grid-cols-2">
+                {([["autores", "Autores"], ["titulo", "Título"], ["revista", "Revista"], ["ano", "Ano"], ["link", "DOI / Link"]] as const).map(([k, r]) => (
+                  <Input key={k} value={a[k]} placeholder={r} aria-label={r} className={`field-engraved ${k === "autores" || k === "titulo" || k === "link" ? "sm:col-span-2" : ""}`}
+                    onChange={(e) => set("artigos", f.artigos.map((x, j) => (j === i ? { ...x, [k]: e.target.value } : x)))} />
+                ))}
+                <Button type="button" size="sm" variant="ghost" className="sm:col-span-2 text-destructive" onClick={() => set("artigos", f.artigos.filter((_, j) => j !== i))}>Remover este artigo</Button>
+              </div>
+            ))}
+          </div>
           <div className="concave-3d px-3 py-2 text-xs sm:col-span-2">
             <div className="font-black uppercase tracking-wide">Onde este exame está nos blocos (leitura)</div>
             {(impacto.data?.vinculos ?? []).length === 0 ? <span className="text-muted-foreground">Nenhum vínculo na grade.</span> : (
@@ -271,7 +339,7 @@ export function AtributosDialog({ exame, atual, modalidade, onClose }: { exame: 
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button className="btn-3d" disabled={salvar.isPending} onClick={() => salvar.mutate()} data-testid="button-salvar-atributos">{salvar.isPending ? "Salvando..." : "Salvar atributos"}</Button>
+          <Button className="btn-3d" disabled={salvar.isPending || faltaImagem || idadeInvalida} onClick={() => salvar.mutate()} data-testid="button-salvar-atributos">{salvar.isPending ? "Salvando..." : "Salvar atributos"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -286,6 +354,7 @@ const TIPOS: Array<{ tipo: Tipo; rotulo: string }> = [
   { tipo: "regiao", rotulo: "Regiões" },
   { tipo: "material", rotulo: "Materiais" },
   { tipo: "gatilho", rotulo: "Gatilhos" },
+  { tipo: "diretriz", rotulo: "Diretrizes" },
 ];
 
 function PainelOpcoes({ tipo, rotulo }: { tipo: Tipo; rotulo: string }) {
@@ -363,21 +432,17 @@ export function GestaoOpcoes() {
   );
 }
 
-// ---------------- Upload do manual (PDF) + botão de conferência ----------------
+// ---------------- Upload do manual (PDF) + visualizador ----------------
 export function UploadManualExames() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [arquivo, setArquivo] = useState<File | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
-  const info = useQuery<{ id: number; nome: string; tamanho: number } | null>({
-    queryKey: ["/api/cadastros/exames/manual"],
-    queryFn: async () => {
-      const r = await fetch("/api/cadastros/exames/manual");
-      if (!r.ok) throw new Error("Falha ao consultar o manual");
-      return r.json();
-    },
-  });
+  const [aberto, setAberto] = useState(false);
+  const [url, setUrl] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [pagina, setPagina] = useState(1);
+  const [zoom, setZoom] = useState(100);
   const enviar = useMutation<unknown, Error>({
     mutationFn: async () => {
       const fd = new FormData();
@@ -393,24 +458,60 @@ export function UploadManualExames() {
     },
     onError: (e) => toast({ title: "Não foi possível enviar", description: e.message, variant: "destructive" }),
   });
-  const conferir = async () => {
-    const r = await info.refetch();
-    setOk(r.data ? "OK" : "Nenhum arquivo enviado");
-  };
-  const kb = (n: number) => `${(n / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} KB`;
+  async function abrir() {
+    setErro(null);
+    setPagina(1);
+    setZoom(100);
+    setAberto(true);
+    try {
+      const r = await fetch("/api/cadastros/exames/manual/arquivo", { headers: collabAuthHeaders() });
+      if (!r.ok) throw new Error(r.status === 404 ? "Nenhum manual foi enviado ainda." : "Não foi possível carregar o PDF.");
+      setUrl(URL.createObjectURL(await r.blob()));
+    } catch (e) {
+      setUrl(null);
+      setErro(e instanceof Error ? e.message : "Falha ao carregar o PDF");
+    }
+  }
+  function fechar() {
+    setAberto(false);
+    if (url) URL.revokeObjectURL(url);
+    setUrl(null);
+  }
   return (
     <div className="flex flex-wrap items-center gap-2" data-testid="upload-manual-exames">
-      <input ref={inputRef} type="file" accept="application/pdf,.pdf" className="max-w-[240px] text-xs" aria-label="Escolher PDF do manual"
-        onChange={(e) => { setArquivo(e.target.files?.[0] ?? null); setOk(null); }} data-testid="input-manual-pdf" />
-      <Button size="sm" className="btn-3d" disabled={!arquivo || enviar.isPending} onClick={() => enviar.mutate()} data-testid="button-enviar-manual">
+      <input ref={inputRef} type="file" accept="application/pdf,.pdf" className="max-w-[220px] text-xs" aria-label="Escolher PDF do manual"
+        onChange={(e) => setArquivo(e.target.files?.[0] ?? null)} data-testid="input-manual-pdf" />
+      <Button size="sm" variant="outline" disabled={!arquivo || enviar.isPending} onClick={() => enviar.mutate()} data-testid="button-enviar-manual">
         <Upload className="mr-1.5 h-4 w-4" /> {enviar.isPending ? "Enviando..." : "Enviar PDF"}
       </Button>
-      <Button size="sm" variant="outline" onClick={conferir} data-testid="button-conferir-manual">Conferir</Button>
-      {ok && (
-        <span role="status" data-testid="status-manual" className={`rounded-[4px] px-2 py-0.5 text-xs font-black text-white ${ok === "OK" ? "bg-emerald-700" : "bg-slate-500"}`}>
-          {ok === "OK" && info.data ? `OK — ${info.data.nome} (${kb(info.data.tamanho)})` : ok}
-        </span>
-      )}
+      <Button size="sm" onClick={abrir} data-testid="button-visualizar-manual" className="border border-[#C9A24B] bg-[#0F1E36] font-black text-[#E5C16C] hover:bg-[#16294a]">
+        Visualizar Arquitetura e Fluxo (Manual PDF)
+      </Button>
+      <Dialog open={aberto} onOpenChange={(o) => !o && fechar()}>
+        <DialogContent className="flex h-[90vh] w-[90vw] max-w-[90vw] flex-col gap-2">
+          <DialogHeader><DialogTitle>Arquitetura e Fluxo — Manual PDF</DialogTitle></DialogHeader>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <Button size="sm" variant="outline" disabled={pagina <= 1} onClick={() => setPagina((p) => Math.max(1, p - 1))} aria-label="Página anterior">‹ Anterior</Button>
+            <span className="font-black" data-testid="pagina-atual">Página {pagina}</span>
+            <Button size="sm" variant="outline" onClick={() => setPagina((p) => p + 1)} aria-label="Próxima página">Próxima ›</Button>
+            <span className="mx-2">|</span>
+            <Button size="sm" variant="outline" disabled={zoom <= 50} onClick={() => setZoom((z) => z - 25)} aria-label="Diminuir zoom">−</Button>
+            <span className="font-black">{zoom}%</span>
+            <Button size="sm" variant="outline" disabled={zoom >= 300} onClick={() => setZoom((z) => z + 25)} aria-label="Aumentar zoom">+</Button>
+            {url && (
+              <a href={url} download="manual-exames.pdf" className="ml-auto" data-testid="link-baixar-manual">
+                <Button size="sm" className="btn-3d">Baixar</Button>
+              </a>
+            )}
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden rounded border bg-muted">
+            {erro && <div className="p-4 text-sm font-bold" role="alert">{erro}</div>}
+            {!erro && !url && <div className="p-4 text-sm" role="status">Carregando o PDF...</div>}
+            {url && <iframe key={`${pagina}-${zoom}`} title="Manual PDF" src={`${url}#page=${pagina}&zoom=${zoom}`} className="h-full w-full" data-testid="iframe-manual" />}
+          </div>
+          <p className="text-[10px] text-muted-foreground">O visualizador do navegador também permite rolar todas as páginas.</p>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
