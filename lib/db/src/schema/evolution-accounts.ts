@@ -11,6 +11,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -51,11 +52,11 @@ export const evolutionAccountIdentitiesTable = pgTable(
       "evolution_conta_identidades_account_key_check",
       sql`${table.accountKey} IN ('pessoal_proprietario', 'terceira')`,
     ),
-    uniqueIndex("evolution_conta_identidades_account_key_uk").on(
+    unique("evolution_conta_identidades_account_key_uk").on(
       table.accountId,
       table.accountKey,
     ),
-    uniqueIndex("evolution_conta_identidades_owner_key_uk").on(
+    unique("evolution_conta_identidades_owner_key_uk").on(
       table.ownerProfessionalId,
       table.accountKey,
     ),
@@ -97,7 +98,7 @@ export const evolutionAccountClinicsTable = pgTable(
       name: "evolution_conta_clinicas_pkey",
       columns: [table.accountId, table.companyId],
     }),
-    uniqueIndex("evolution_conta_clinicas_empresa_key_uk").on(
+    unique("evolution_conta_clinicas_empresa_key_uk").on(
       table.companyId,
       table.accountKey,
     ),
@@ -153,13 +154,13 @@ export const evolutionAccountMessagesTable = pgTable(
       "evolution_conta_mensagens_provenance_check",
       sql`${table.provenance} = 'nao_classificada'`,
     ),
-    uniqueIndex("evolution_conta_mensagens_account_provider_uk").on(
+    unique("evolution_conta_mensagens_account_provider_uk").on(
       table.accountId,
       table.baseUrl,
       table.instanceName,
       table.providerId,
     ),
-    uniqueIndex("evolution_conta_mensagem_origem_uk").on(
+    unique("evolution_conta_mensagem_origem_uk").on(
       table.baseUrl,
       table.instanceName,
       table.providerId,

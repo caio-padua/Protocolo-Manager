@@ -86,3 +86,15 @@ Eventos enviados pelo próprio número (`fromMe`) não comprovam autoria humana;
 **Why:** a mesma conta pode ser autorizada em várias clínicas sem duplicar conversas; usar apenas a clínica como identidade fragmenta dados e segredos, enquanto inferir autoria de `fromMe` pode atribuir uma fala automática ao proprietário.
 
 **How to apply:** obter proprietário e clínica do contexto autenticado; exigir vínculo ativo em cada operação; preservar configuração empresarial e rotas legadas; validar unicidade da instância com trava transacional; usar dados sintéticos e nunca parear ou enviar mensagens nos testes.
+
+## Organograma oficial das comunicações pessoal e empresarial
+
+- O organograma aprovado permanece a referência do produto; as proteções técnicas ficam por baixo dele e não mudam caixas, setas nem o sentido dos fluxos.
+- A leitura de estilo pessoal considera somente mensagens humanas atribuídas com confiança ao proprietário; mensagens automáticas recebem marca antes do envio, grupos familiares ficam fora e origens ambíguas permanecem não classificadas.
+- No ciclo de 24 horas, melhorias de fraseologia podem alimentar a comunicação empresarial, mas números, horários, valores, orientações médicas e fatos precisam permanecer idênticos; mudanças nesses elementos ficam pendentes de revisão, com texto aprovado preservado, histórico e reversão.
+- A identidade da comunicação pessoal pertence ao perfil do proprietário, não a uma clínica; conteúdo pessoal não é copiado para clínica ou base global sem controle explícito.
+- O organograma descreve etapas futuras; não comprova que leitura horária, revisão diária ou telas estejam implementadas.
+
+**Why:** o responsável confirmou que o desenho do organograma não muda e que as proteções devem preservar autoria, conteúdo factual e separação pessoal/empresarial.
+
+**How to apply:** usar estes pontos como critérios de aceitação das telas e dos ciclos futuros; confirmar capacidade real do provedor antes de parear qualquer aparelho.
