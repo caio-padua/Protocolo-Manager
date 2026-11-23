@@ -196,7 +196,7 @@ async function processarEntradaEvolution(p: {
     canal: "whatsapp" as const,
     simulacao: false,
   };
-  await pool.query(`UPDATE evolution_mensagens SET processamento='processando',cliente_id=$3 WHERE id=$1 AND empresa_id=$2`, [p.mensagemId, p.empresaId,p.clienteId]);
+  await pool.query(`UPDATE evolution_mensagens SET processamento='processando',cliente_id=$3,atualizado_em=NOW() WHERE id=$1 AND empresa_id=$2`, [p.mensagemId, p.empresaId,p.clienteId]);
   try {
     const uso = { interprete: false, conferente: false };
     const deps = depsReaisAtendimento(p.empresaId, eventoMotorId, uso);
@@ -303,10 +303,14 @@ async function processarEntradaEvolution(p: {
       {clienteId:p.clienteId,mensagemOrigemId:p.mensagemId});
     const dados = enviado.corpo as { ok?: boolean };
     if (dados.ok && plano.documento?.acao === "ofertar_reenvio") await marcarOfertaReenvioEntregue(entrada);
+    // Só é "pendente de reenvio" o que está PROVADO como não enviado (sem registro de saída ou falha definitiva).
+    // Resultado incerto nunca é repetido automaticamente.
+    const provadoNaoEnviado = !dados.ok && (!enviado.corpo.id || enviado.corpo.status === "falha");
     await pool.query(
       `UPDATE evolution_mensagens SET processamento=$3, desfecho_atendimento=$4, orientacao_id=$5,
-        plano_atendimento=$6::jsonb WHERE id=$1 AND empresa_id=$2`,
-      [p.mensagemId, p.empresaId, dados.ok ? "concluido" : "incerto", plano.desfecho, plano.orientacaoId, JSON.stringify(plano)]);
+        plano_atendimento=$6::jsonb, atualizado_em=NOW() WHERE id=$1 AND empresa_id=$2`,
+      [p.mensagemId, p.empresaId, dados.ok ? "concluido" : provadoNaoEnviado ? "envio_pendente" : "incerto",
+        plano.desfecho, plano.orientacaoId, JSON.stringify(plano)]);
   } catch (error) {
     logger.error({ empresaId: p.empresaId, mensagemId: p.mensagemId, errorType: error instanceof Error ? error.constructor.name : typeof error }, "[evolution] falha no motor; sem repetição automática");
     await pool.query(
@@ -702,7 +706,54 @@ async function varrerAgrupamentosPendentes(): Promise<void> {
         AND criado_em > NOW() - interval '1 day'`);
   for (const x of r.rows as Array<{ empresa_id: number; contato: string }>) agrupadorEvolution.agendar(`${x.empresa_id}|${x.contato}`, 0);
 }
+
+/**
+ * Recupera SOMENTE o envio pendente: usa o plano já gravado (não reprocessa a intenção, não chama IA) e
+ * só reenvia se não existir saída aceita/incerta para a mesma origem. Resultado incerto nunca é repetido.
+ * O índice único evolution_saida_origem_unica é a trava final contra resposta duplicada.
+ */
+export async function recuperarEnviosPendentesEvolution(limite = 10, esperaSegundos = 60): Promise<number> {
+  await garantirTabelasEvolution();
+  const r = await pool.query(
+    `SELECT e.id,e.empresa_id,e.contato,e.cliente_id,e.plano_atendimento,e.corpo
+       FROM evolution_mensagens e
+      WHERE e.direcao='entrada' AND e.processamento IN ('envio_pendente','processando')
+        AND e.plano_atendimento->>'resposta' IS NOT NULL AND e.plano_atendimento->>'alerta' IS NULL
+        AND e.plano_atendimento->'documento' IS NULL AND e.cliente_id IS NOT NULL
+        AND COALESCE(e.atualizado_em,e.criado_em) < NOW() - make_interval(secs => $2)
+        AND e.criado_em > NOW() - interval '1 day' AND e.tentativas_envio < 3
+        AND NOT EXISTS (SELECT 1 FROM evolution_mensagens s WHERE s.empresa_id=e.empresa_id AND s.mensagem_origem_id=e.id
+          AND s.direcao='saida' AND s.contexto='motor_evolution' AND s.status IN ('incerto','aceito','enviado','entregue','lido'))
+      ORDER BY e.id LIMIT $1`, [limite, esperaSegundos]);
+  let reenviados = 0;
+  for (const l of r.rows as Array<{ id: number|string; empresa_id: number; contato: string; cliente_id: number; plano_atendimento: PlanoAtendimento; corpo: string }>) {
+    const claim = await pool.query(
+      `UPDATE evolution_mensagens SET processamento='reenviando',tentativas_envio=tentativas_envio+1,atualizado_em=NOW()
+        WHERE id=$1 AND empresa_id=$2 AND processamento IN ('envio_pendente','processando') RETURNING id`, [l.id, l.empresa_id]);
+    if (!claim.rows.length) continue;
+    const plano = l.plano_atendimento;
+    const entrada: EntradaAtendimento = { inboxMessageId: 1_000_000_000_000 + Number(l.id), empresaId: l.empresa_id,
+      clienteId: Number(l.cliente_id), clienteNome: "", chatId: l.contato, texto: l.corpo, canal: "whatsapp", simulacao: false };
+    try {
+      if (!await autorizarSaidaEvolution(entrada, plano)) {
+        await pool.query(`UPDATE evolution_mensagens SET processamento='autorizacao_revogada',atualizado_em=NOW() WHERE id=$1`, [l.id]);
+        continue;
+      }
+      const env = await enviarUma(l.empresa_id, l.contato, plano.resposta as string, "motor_evolution", null,
+        { clienteId: Number(l.cliente_id), mensagemOrigemId: Number(l.id) });
+      const ok = Boolean(env.corpo.ok);
+      const naoEnviado = !ok && (!env.corpo.id || env.corpo.status === "falha");
+      await pool.query(`UPDATE evolution_mensagens SET processamento=$2,atualizado_em=NOW() WHERE id=$1`,
+        [l.id, ok ? "concluido" : naoEnviado ? "envio_pendente" : "incerto"]);
+      if (ok) reenviados++;
+    } catch {
+      await pool.query(`UPDATE evolution_mensagens SET processamento='incerto',atualizado_em=NOW() WHERE id=$1`, [l.id]).catch(() => undefined);
+    }
+  }
+  return reenviados;
+}
 if (process.env.NODE_ENV !== "test") {
+  setInterval(() => void recuperarEnviosPendentesEvolution().catch(() => undefined), 30_000).unref();
   setTimeout(() => void varrerAgrupamentosPendentes().catch(() => undefined), 20_000).unref();
   setInterval(() => void varrerAgrupamentosPendentes().catch(() => undefined), 60_000).unref();
 }
