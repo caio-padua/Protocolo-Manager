@@ -399,6 +399,40 @@ router.patch("/cadastros/classificacoes/:id/ativo", async (req, res): Promise<vo
   res.json(upd.rows[0]);
 });
 
+// Excluir de verdade: SO se nenhum exame usa o nome (cadastro criado por engano).
+// Com exames vinculados => 409 e orienta desativar (Regra de Ouro).
+router.delete("/cadastros/classificacoes/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "id invalido" });
+    return;
+  }
+  await garantirClassificacoes();
+  const out = await db.transaction(async (tx) => {
+    const atual = (await tx.execute(sql`
+      SELECT campo, nome, nome_norm FROM catalogo_exame_classificacoes WHERE id = ${id} FOR UPDATE`)).rows[0] as
+      | { campo: CampoClassificacao; nome: string; nome_norm: string }
+      | undefined;
+    if (!atual) return { status: 404 as const };
+    const col = sql.raw(COLUNA_SQL[atual.campo].replace("e.", ""));
+    const uso = (await tx.execute(sql`
+      SELECT count(*)::int AS n FROM catalogo_exames WHERE upper(trim(${col})) = ${atual.nome_norm}`)).rows[0] as { n: number };
+    if (uso.n > 0) return { status: 409 as const, n: uso.n, nome: atual.nome };
+    await tx.execute(sql`DELETE FROM catalogo_exame_classificacoes WHERE id = ${id}`);
+    return { status: 200 as const, nome: atual.nome };
+  });
+  if (out.status === 404) {
+    res.status(404).json({ error: "Classificacao nao encontrada" });
+    return;
+  }
+  if (out.status === 409) {
+    res.status(409).json({ error: `"${out.nome}" e usado por ${out.n} exame(s). Desative em vez de excluir.` });
+    return;
+  }
+  req.log.info({ id, nome: out.nome }, "classificacao sem uso excluida");
+  res.json({ id, excluido: true });
+});
+
 // ---- CATEGORIAS (grupo_principal distinto + contagem) -----------------------
 router.get("/cadastros/categorias", async (_req, res): Promise<void> => {
   const rows = await db

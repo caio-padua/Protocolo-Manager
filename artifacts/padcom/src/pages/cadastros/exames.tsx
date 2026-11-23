@@ -46,6 +46,7 @@ import {
   Search,
   Plus,
   Pencil,
+  Trash2,
   TestTube,
   Layers,
   Tags,
@@ -664,6 +665,25 @@ function ClassificacaoPainel({ item }: { item: (typeof CAMPOS_CLASS)[number] }) 
     onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
   });
 
+  const excluir = useMutation<unknown, Error, { id: number }>({
+    mutationFn: async ({ id }) => {
+      const r = await fetch(`/api/cadastros/classificacoes/${id}`, {
+        method: "DELETE",
+        headers: collabAuthHeaders(),
+      });
+      if (!r.ok) {
+        const b = await r.json().catch(() => ({}));
+        throw new Error(b.error ?? "Falha ao excluir");
+      }
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/cadastros/classificacoes", item.campo] });
+      toast({ title: "Cadastro excluído" });
+    },
+    onError: (err) => toast({ title: "Não foi possível excluir", description: err.message, variant: "destructive" }),
+  });
+
   const [editId, setEditId] = useState<number | null>(null);
   const [editNome, setEditNome] = useState("");
   const renomear = useMutation<{ exames_atualizados: number }, Error, { id: number }>({
@@ -770,6 +790,19 @@ function ClassificacaoPainel({ item }: { item: (typeof CAMPOS_CLASS)[number] }) 
                   }}
                 >
                   <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {c.total === 0 && editId !== c.id && (
+                <button
+                  type="button"
+                  aria-label={`Excluir ${c.nome}`}
+                  title="Excluir (só aparece quando nenhum exame usa este nome)"
+                  data-testid={`button-excluir-classificacao-${c.id}`}
+                  className="btn-3d-soft rounded-[6px] p-1.5 text-destructive"
+                  disabled={excluir.isPending}
+                  onClick={() => excluir.mutate({ id: c.id })}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               )}
               <Switch
