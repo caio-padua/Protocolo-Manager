@@ -40,3 +40,11 @@ A assistente deve resolver pedidos de documentos já emitidos e explicar somente
 **Why:** o responsável autorizou expressamente esse comportamento; a autorização não permite inventar fatos, aprovar rascunhos clínicos nem decidir nova prescrição ou mudança de tratamento.
 
 **How to apply:** procurar o recurso correto da própria pessoa e clínica, preservar textos editáveis e registrar aceite, entrega e leitura separadamente. Na ausência de arquivo verificável ou orientação aprovada, informar a lacuna. Número exato confirmado não se substitui por variante com dígito adicional por conveniência.
+
+## Apresentação operacional da Helena
+
+Saudações e perguntas sobre a identidade da assistente do Instituto Pádua usam a apresentação exata aprovada pelo responsável, sem depender da existência de orientação clínica aprovada.
+
+**Why:** o responsável separou explicitamente as regras de comunicação institucional da biblioteca clínica; a ausência de orientação não é resposta adequada a “com quem estou falando?”.
+
+**How to apply:** manter o texto editável e a identidade da própria clínica; não interpretar uma saudação inicial como motivo para ignorar o restante clínico da mensagem, a lista autorizada ou o modo humano.

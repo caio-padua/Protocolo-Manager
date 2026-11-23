@@ -87,7 +87,8 @@ vi.mock("../lib/clinical-document-share", () => ({
 import { aplicarMigracaoAtendimento, depsReaisAtendimento, pausarParaHumano, devolverParaIA, lerConfigAtendimento,
   atenderMensagemTelegram,processarAtendimentosPendentes,pausarAtendimentoDuravel } from "../lib/atendimento-telegram-store";
 import { getModeloAtendimento } from "../lib/atendimento-ia-config";
-import { processarAtendimento, type PlanoAtendimento } from "../lib/atendimento-telegram";
+import { semearFrases } from "../lib/telegram-frases";
+import { processarAtendimento, planejarAtendimento, type PlanoAtendimento } from "../lib/atendimento-telegram";
 import { responderSobreDocumentoTelegram, respostaDocumentoAindaAtual } from "../lib/atendimento-telegram-documentos";
 import {
   autorizarOfertaReenvio, autorizarConfirmacaoReenvio, marcarOfertaReenvioEntregue,
@@ -184,6 +185,32 @@ const run = (id: number, texto: string, over: Partial<typeof base> = {}) =>
   processarAtendimento(depsReaisAtendimento(5), { ...base, ...over, inboxMessageId: id, texto });
 
 describe("SQL real", () => {
+  it("apresentação usa o texto persistido exato, editável e isolado da outra clínica, sem envio externo", async () => {
+    const original = (await pool.query("SELECT nome FROM empresas WHERE id=5")).rows[0].nome;
+    const esperado = "Olá !\n\nMe chamo Helena,\nAssistente virtual do Instituto Pádua.\n\nTudo bem ?\nComo eu poderia te ajudar?";
+    await semearFrases(h.db);
+    await pool.query("UPDATE empresas SET nome='Instituto Padua' WHERE id=5");
+    try {
+      const deps = depsReaisAtendimento(5);
+      expect(await deps.textoApresentacao!(5)).toBe(esperado);
+      expect(await deps.textoApresentacao!(7)).toBeNull();
+      const plano = await planejarAtendimento(deps, {
+        ...base, inboxMessageId: 990001, texto: "Olá com quem estou falando?",
+        canal: "whatsapp", simulacao: true,
+      });
+      expect(plano).toMatchObject({
+        resposta: esperado, desfecho: "apresentacao_enviada",
+        pausa: null, alerta: null, caminhoResolucao: "regra",
+      });
+      expect(h.enviados).toHaveLength(0);
+      await pool.query("UPDATE telegram_frases SET texto=$1 WHERE chave='atendimento_apresentacao_instituto_padua'", ["Apresentação operacional editada pelo responsável."]);
+      await semearFrases(h.db);
+      expect(await deps.textoApresentacao!(5)).toBe("Apresentação operacional editada pelo responsável.");
+    } finally {
+      await pool.query("UPDATE empresas SET nome=$1 WHERE id=5", [original]);
+      await pool.query("UPDATE telegram_frases SET texto=$1 WHERE chave='atendimento_apresentacao_instituto_padua'", [esperado]);
+    }
+  });
   it("migração é idempotente", async () => { await aplicarMigracaoAtendimento(h.db); await aplicarMigracaoAtendimento(h.db); });
   it("modelos e assistente ficam isolados por clínica e sem valor padrão fixo", async () => {
     expect(await getModeloAtendimento(5, "interprete")).toBe("modelo-teste");

@@ -1,7 +1,7 @@
 /** Atendimento por IA: só orientação aprovada, queixa clínica vai para pessoa, pausa humana, uma resposta por mensagem. */
 import { describe, it, expect, vi } from "vitest";
 import {
-  processarAtendimento, planejarAtendimento, classificarQueixa, candidatas, escolhaDeterministica, normalizar,
+  processarAtendimento, planejarAtendimento, classificarQueixa, candidatas, escolhaDeterministica, normalizar, ehPedidoApresentacao,
   TEXTOS_QUEIXA_PARA_REVISAO,
   type DepsAtendimento, type ConfigAtendimentoIA, type OrientacaoAprovada, type EntradaAtendimento,
 } from "../lib/atendimento-telegram";
@@ -34,6 +34,98 @@ function deps(over: Partial<DepsAtendimento> & { cfg?: ConfigAtendimentoIA; modo
   };
   return { d, log };
 }
+
+describe("apresentação operacional no WhatsApp", () => {
+  const apresentacao = "Olá !\n\nMe chamo Helena,\nAssistente virtual do Instituto Pádua.\n\nTudo bem ?\nComo eu poderia te ajudar?";
+  const saudacoes = [
+    "Olá com quem estou falando?", "Olá!", "Oi", "Oii!", "Oie!",
+    "Bom dia", "Boa tarde!", "Boa noite", "Olá, tudo bem?",
+    "Olá, bom dia! Com quem eu estou falando?",
+    "Com quem falo?", "Com quem eu falo?", "Estou falando com quem?",
+    "Quem é você?", "Quem é vc?", "Quem fala?", "Quem está falando?",
+    "Qual é o seu nome?", "Qual seu nome?", "Você é quem?", "É a Helena?",
+    "Oi, tudo bom? Gostaria de saber com quem estou falando.",
+    "OLÁ!\nCOM QUEM ESTOU FALANDO???", "Com quem estou falando, por favor?",
+  ];
+  it.each(saudacoes)("responde literalmente sem buscar orientação clínica: %s", async (texto) => {
+    const { d } = deps({
+      textoApresentacao: vi.fn(async () => apresentacao),
+      carregarOrientacoes: vi.fn(async () => []),
+      responderDocumento: vi.fn(async () => null),
+      buscarFaq: vi.fn(async () => null),
+    });
+    expect(ehPedidoApresentacao(texto)).toBe(true);
+    expect(await processarAtendimento(d, E(texto, { canal: "whatsapp" }))).toBe("apresentacao_enviada");
+    expect(d.enviarAoPaciente).toHaveBeenCalledExactlyOnceWith("555", apresentacao);
+    expect(d.carregarOrientacoes).not.toHaveBeenCalled();
+    expect(d.responderDocumento).not.toHaveBeenCalled();
+    expect(d.buscarFaq).not.toHaveBeenCalled();
+    expect(d.textoEncaminhado).not.toHaveBeenCalled();
+    expect(d.passarParaHumano).not.toHaveBeenCalled();
+    expect(d.alertarEquipe).not.toHaveBeenCalled();
+    expect(d.registrarSaida).toHaveBeenCalledOnce();
+  });
+  it.each([
+    "", "Olá, quero minha receita", "Oi, preciso da segunda via",
+    "Bom dia, qual a dose?", "Olá, estou com dor no peito",
+    "Quem é você? Estou com tontura", "Olá, qual o efeito colateral?",
+    "Olá, com quem estou falando? Quero renovar a receita",
+  ])("não oculta outro pedido: %s", (texto) => {
+    expect(ehPedidoApresentacao(texto)).toBe(false);
+  });
+  it.each([
+    ["Olá, estou com dor no peito", "queixa_encaminhada"],
+    ["Quem é você? Estou com tontura", "queixa_encaminhada"],
+    ["Oi, posso aumentar a dose?", "encaminhado_humano"],
+  ])("mantém triagem clínica prioritária: %s", async (texto, desfecho) => {
+    const { d } = deps({ textoApresentacao: vi.fn(async () => apresentacao) });
+    expect(await processarAtendimento(d, E(texto, { canal: "whatsapp" }))).toBe(desfecho);
+    expect(d.textoApresentacao).not.toHaveBeenCalled();
+    expect(d.passarParaHumano).toHaveBeenCalledOnce();
+  });
+  it.each([
+    [{ modo: "humano" as const }, "pausado_humano"],
+    [{ cfg: { ...CFG, modo: "desligado" as const } }, "desligado"],
+    [{ cfg: { ...CFG, modo: "lista" as const } }, "fora_da_lista"],
+    [{ reivindicadas: new Set([10]) }, "ja_tratado"],
+  ])("não contorna as barreiras existentes: %j", async (over, esperado) => {
+    const { d } = deps({ ...over, textoApresentacao: vi.fn(async () => apresentacao) });
+    expect(await processarAtendimento(d, E("Olá com quem estou falando?", { canal: "whatsapp" }))).toBe(esperado);
+    expect(d.enviarAoPaciente).not.toHaveBeenCalled();
+    expect(d.textoApresentacao).not.toHaveBeenCalled();
+  });
+  it("mantém dúvida clínica sem orientação no fluxo de equipe", async () => {
+    const { d } = deps({
+      textoApresentacao: vi.fn(async () => apresentacao), carregarOrientacoes: async () => [],
+    });
+    expect(await processarAtendimento(d, E("Olá, qual o efeito colateral?", { canal: "whatsapp" }))).toBe("encaminhado_humano");
+    expect(d.textoApresentacao).not.toHaveBeenCalled();
+    expect(d.textoEncaminhado).toHaveBeenCalledWith(5, "Paciente Teste", "sem_orientacao_aprovada");
+  });
+  it("não altera a apresentação de outro canal", async () => {
+    const { d } = deps({ textoApresentacao: vi.fn(async () => apresentacao) });
+    await processarAtendimento(d, E("Olá com quem estou falando?", { canal: "telegram" }));
+    expect(d.textoApresentacao).not.toHaveBeenCalled();
+  });
+  it("registra falha sem alegar envio e não duplica ao repetir", async () => {
+    const { d } = deps({
+      textoApresentacao: async () => apresentacao, enviarAoPaciente: vi.fn(async () => false),
+    });
+    const e = E("Olá", { canal: "whatsapp" });
+    expect(await processarAtendimento(d, e)).toBe("falha_envio");
+    expect(d.registrarSaida).not.toHaveBeenCalled();
+    expect(await processarAtendimento(d, e)).toBe("ja_tratado");
+    expect(d.enviarAoPaciente).toHaveBeenCalledOnce();
+  });
+  it("o planejamento não envia, pausa nem alerta pessoas", async () => {
+    const { d } = deps({ textoApresentacao: async () => apresentacao });
+    const plano = await planejarAtendimento(d, E("Olá com quem estou falando?", { canal: "whatsapp", simulacao: true }));
+    expect(plano).toMatchObject({ resposta: apresentacao, desfecho: "apresentacao_enviada", pausa: null, alerta: null, caminhoResolucao: "regra" });
+    expect(d.enviarAoPaciente).not.toHaveBeenCalled();
+    expect(d.alertarEquipe).not.toHaveBeenCalled();
+    expect(d.passarParaHumano).not.toHaveBeenCalled();
+  });
+});
 
 describe("detecção de queixa clínica", () => {
   it.each([

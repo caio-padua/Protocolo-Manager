@@ -74,6 +74,21 @@ export function pedidoClinicoExigeEquipe(texto: string): boolean {
   return /\b(dose|posologia|quantidade|aplicar|administrar|aumentar|reduzir|suspender|interromper|trocar|substituir|renovar|renovacao|diagnostico|interacao|misturar|combinar)\b/.test(n);
 }
 
+/** Whole-message match: a greeting must never swallow a clinical/document request. */
+export function ehPedidoApresentacao(texto: string): boolean {
+  let n = normalizar(texto);
+  if (!n) return false;
+  const abertura = /^(?:ola|oi+|oie+|opa|bom dia|boa tarde|boa noite|tudo bem|tudo bom|tudo certo|como vai)(?:\s+|$)/;
+  let cumprimentou = false;
+  while (abertura.test(n)) {
+    cumprimentou = true;
+    n = n.replace(abertura, "").trim();
+  }
+  if (!n) return cumprimentou;
+  n = n.replace(/^(?:por favor |gostaria de saber |quero saber )/, "").replace(/ por favor$/, "");
+  return /^(?:com quem (?:eu )?(?:estou|to) falando|com quem (?:eu )?falo|estou falando com quem|quem (?:e|eh) (?:voce|vc)|quem fala|quem esta falando|quem me atende|qual (?:e )?(?:o )?(?:seu|teu) nome|(?:voce|vc) (?:e|eh) quem|(?:voce|vc) (?:e|eh) (?:a )?helena|(?:e|eh) (?:a )?helena)$/.test(n);
+}
+
 const STOP = new Set(["para", "como", "qual", "quais", "quando", "onde", "porque", "pelo", "pela", "uma", "uns", "umas", "isso", "esse", "essa", "este", "esta", "meu", "minha", "tenho", "estou", "fazer", "posso", "preciso", "gostaria", "saber", "sobre", "voce", "voces", "nao", "mais", "muito", "tem", "ser", "que", "com", "dos", "das", "por", "ola", "bom", "dia", "tarde", "noite"]);
 
 function tokens(t: string): Set<string> {
@@ -112,6 +127,7 @@ export type Desfecho =
   | "desligado" | "fora_da_lista" | "pausado_humano" | "ja_tratado"
   | "orientacao_enviada" | "encaminhado_humano" | "queixa_encaminhada" | "queixa_texto_enviado"
   | "falha_envio" | "falha_alerta" | "agendamento_conduzido"
+  | "apresentacao_enviada"
   | "clarificacao_documento"
   | "reenvio_receita_ofertado" | "reenvio_receita_confirmado" | "reenvio_receita_cancelado"
   | "reenvio_documento_ofertado" | "reenvio_documento_confirmado" | "reenvio_documento_cancelado";
@@ -147,6 +163,8 @@ export interface DepsAtendimento {
   /** Reivindica a mensagem (uma resposta por mensagem). false = já tratada antes. */
   reivindicar: (inboxMessageId: number) => Promise<boolean>;
   carregarOrientacoes: (empresaId: number) => Promise<OrientacaoAprovada[]>;
+  /** Texto operacional aprovado da própria clínica, separado da orientação clínica. */
+  textoApresentacao?: (empresaId: number) => Promise<string | null>;
   /** Consulta somente dados próprios já vinculados e conteúdo clínico aprovado. */
   responderDocumento?: (e: EntradaAtendimento) => Promise<RespostaDocumento | null>;
   buscarFaq?: (texto: string, empresaId: number) => Promise<{ id: number; resposta: string } | null>;
@@ -231,6 +249,18 @@ export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAten
     const ok = await deps.enviarAoPaciente(e.chatId, texto);
     if (ok) await deps.registrarSaida({ empresaId: e.empresaId, clienteId: e.clienteId, chatId: e.chatId, texto });
     return fechar(ok ? "encaminhado_humano" : "falha_envio");
+  }
+
+  if (e.canal === "whatsapp" && ehPedidoApresentacao(e.texto) && deps.textoApresentacao) {
+    const texto = await deps.textoApresentacao(e.empresaId);
+    if (texto) {
+      caminhoResolucao = "regra";
+      const ok = await deps.enviarAoPaciente(e.chatId, texto);
+      if (ok) await deps.registrarSaida({
+        empresaId: e.empresaId, clienteId: e.clienteId, chatId: e.chatId, texto,
+      });
+      return fechar(ok ? "apresentacao_enviada" : "falha_envio");
+    }
   }
 
   const respostaDocumento = await deps.responderDocumento?.(e);

@@ -266,6 +266,12 @@ export function depsReaisAtendimento(
         id: Number(x.id), tema: x.tema, perguntasExemplo: x.perguntas_exemplo, resposta: x.resposta,
       }));
     },
+    textoApresentacao: async (eid) => {
+      const r = await db.execute(sql`SELECT nome FROM empresas WHERE id=${eid}`);
+      const nome = (r.rows[0] as { nome?: string } | undefined)?.nome;
+      if (!nome || normalizar(nome) !== "instituto padua") return null;
+      return (await carregarFrases())("atendimento_apresentacao_instituto_padua");
+    },
     responderDocumento: (e) => responderSobreDocumentoTelegram(db, e),
     buscarFaq: (texto, eid) => buscarFaqAprendida(eid, texto),
     textoEncaminhado: async (eid, clienteNome, motivo) => {
