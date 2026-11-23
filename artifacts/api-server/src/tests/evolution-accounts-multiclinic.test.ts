@@ -237,6 +237,12 @@ beforeEach(async () => {
 
 describe("contas Evolution por identidade e vínculo de clínica", () => {
   it("aplica a migração aditiva sem alterar configuração ou mensagens empresariais", async () => {
+    const businessConfigBefore = await database.pool.query(
+      "SELECT empresa_id, base_url, instance_name FROM evolution_instancias ORDER BY empresa_id",
+    );
+    const businessMessagesBefore = await database.pool.query(
+      "SELECT * FROM evolution_mensagens ORDER BY id",
+    );
     const before = await database.pool.query(`
       SELECT
         (SELECT COUNT(*)::int FROM evolution_instancias) AS configs,
@@ -248,8 +254,16 @@ describe("contas Evolution por identidade e vínculo de clínica", () => {
         (SELECT COUNT(*)::int FROM evolution_instancias) AS configs,
         (SELECT COUNT(*)::int FROM evolution_mensagens) AS mensagens
     `);
+    const businessConfigAfter = await database.pool.query(
+      "SELECT empresa_id, base_url, instance_name FROM evolution_instancias ORDER BY empresa_id",
+    );
+    const businessMessagesAfter = await database.pool.query(
+      "SELECT * FROM evolution_mensagens ORDER BY id",
+    );
     expect(after.rows).toEqual(before.rows);
     expect(before.rows[0]).toEqual({ configs: 1, mensagens: 1 });
+    expect(businessConfigAfter.rows).toEqual(businessConfigBefore.rows);
+    expect(businessMessagesAfter.rows).toEqual(businessMessagesBefore.rows);
     expect(state.secrets["evolution.apiKey.5"]).toBe("synthetic-legacy-business-api-key");
     expect(state.secrets["evolution.webhookToken.5"]).toBe("synthetic-legacy-webhook-token");
   });
@@ -444,11 +458,16 @@ describe("contas Evolution por identidade e vínculo de clínica", () => {
       `${baseUrl}/evolution/account-webhook/${account.accountId}?token=wrong-synthetic-token`,
       { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(makePayload("personal-hook", "event-wrong-token")) },
     );
+    const unknownAccount = await appFetch(
+      `${baseUrl}/evolution/account-webhook/00000000-0000-4000-8000-000000000098?token=${encodeURIComponent(token)}`,
+      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(makePayload("personal-hook", "event-unknown-account")) },
+    );
     const unknownInstance = await appFetch(
       `${baseUrl}/evolution/account-webhook/${account.accountId}?token=${encodeURIComponent(token)}`,
       { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(makePayload("unknown-instance", "event-unknown-instance")) },
     );
     expect(wrongToken.status).toBe(403);
+    expect(unknownAccount.status).toBe(403);
     expect(unknownInstance.status).toBe(403);
 
     const validUrl = `${baseUrl}/evolution/account-webhook/${account.accountId}?token=${encodeURIComponent(token)}`;

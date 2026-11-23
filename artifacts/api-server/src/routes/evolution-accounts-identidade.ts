@@ -83,6 +83,23 @@ function accountDto(account: EvolutionAccountIdentity, secrets: {
   };
 }
 
+async function legacyV1SlotExists(
+  empresaId: number,
+  accountKey: EvolutionAccountKey,
+  ownerProfessionalId: number,
+): Promise<boolean> {
+  const present = await pool.query("SELECT to_regclass('public.evolution_contas') AS accounts");
+  const table = (present.rows[0] as { accounts?: string | null } | undefined)?.accounts;
+  if (!table) return false;
+  const result = await pool.query(
+    `SELECT 1 FROM evolution_contas
+      WHERE empresa_id = $1 AND account_key = $2 AND owner_professional_id = $3
+      LIMIT 1`,
+    [empresaId, accountKey, ownerProfessionalId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
 async function authorizedAccount(
   req: Request,
   res: Response,
@@ -97,7 +114,7 @@ async function authorizedAccount(
   }
   const account = await getEvolutionAccountForClinic(empresaId, accountKey, ownerId);
   if (!account) {
-    if (await legacySlotExists(empresaId, accountKey, ownerId)) next("router");
+    if (await legacyV1SlotExists(empresaId, accountKey, ownerId)) next("router");
     else res.status(404).json({ error: "Conta não encontrada." });
     return null;
   }

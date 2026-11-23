@@ -78,9 +78,11 @@ Uma opção numérica só pertence ao menu se o contexto recente e entregue for 
 ## Contas Evolution por clínica
 
 A conta empresarial permanece na configuração legada e continua sendo a única usada pelos fluxos existentes.
-Contas pessoais e adicionais usam escopo composto por clínica e conta, segredos separados e nunca compartilham o mesmo nome de instância do provedor.
+Cada conta nova tem `account_id` próprio; proprietário profissional, conta e clínica são identidades distintas. A conta pessoal e a terceira conta pertencem ao proprietário autenticado e podem ter vínculos autorizados em várias clínicas.
+Segredos e mensagens novas são separados por `account_id`; os vínculos ativos filtram o acesso por clínica. Revogar vínculo não apaga configuração, segredo ou mensagens.
+As tabelas antigas por clínica permanecem como compatibilidade somente para registros existentes e não recebem cópia automática para o modelo novo. O diagnóstico mostra contagens e ambiguidade; a reversão de esquema só pode apagar tabelas novas vazias.
 Eventos enviados pelo próprio número (`fromMe`) não comprovam autoria humana; manter a origem como não classificada até uma etapa de atribuição validada.
 
-**Why:** mudar o canal empresarial em uso ou inferir autoria a partir de um indicador incompleto pode misturar conversas ou atribuir uma fala automática ao proprietário.
+**Why:** a mesma conta pode ser autorizada em várias clínicas sem duplicar conversas; usar apenas a clínica como identidade fragmenta dados e segredos, enquanto inferir autoria de `fromMe` pode atribuir uma fala automática ao proprietário.
 
-**How to apply:** em mudanças de contas, preservar a configuração e os consumidores legados, validar unicidade da instância, manter captura desligada por padrão e testar tokens/instâncias errados sem provedores reais.
+**How to apply:** obter proprietário e clínica do contexto autenticado; exigir vínculo ativo em cada operação; preservar configuração empresarial e rotas legadas; validar unicidade da instância com trava transacional; usar dados sintéticos e nunca parear ou enviar mensagens nos testes.
