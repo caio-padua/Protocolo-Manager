@@ -12,6 +12,7 @@ import { PainelCategorias, PainelFinanceiro, ROT_ESTADO } from "./categorias-aud
 
 type Periodo = "hoje" | "7d" | "30d" | "tudo";
 type Linha = {
+  provedor?: string; intencao?: string | null; processamento?: string | null; encaminhamento?: string | null;
   ref: string; canal: "wwp" | "tg"; clienteId: number | null; clienteNome: string | null; empresaNome: string | null;
   destino: string; direcao: "entrada" | "saida"; contexto: string | null; origem: string; entrega: string; erro: string | null;
   cobranca: string; valorCentavos: number | null; previa: string; corpo: string; criadoEm: string;
@@ -87,6 +88,9 @@ function Detalhe({ l, onFechar }: { l: Linha; onFechar: () => void }) {
             {([
               ["Data e hora (Brasília)", dh(l.criadoEm)], ["Cliente", l.clienteNome ?? "—"], ["Destino", l.destino],
               ["Contexto", l.contexto ?? "—"], ["Origem", ROT_ORIGEM[l.origem]], ["Entrega", l.entrega],
+              ["Provedor", l.provedor ?? "—"], ["Intenção reconhecida", l.intencao?.replaceAll("_"," ") ?? "—"],
+              ["Processamento", l.processamento?.replaceAll("_"," ") ?? "—"],
+              ["Encaminhamento", l.encaminhamento?.replaceAll("_"," ") ?? "—"],
               ["Tarifa da mensagem (cobrada da clínica)", ROT_COBRANCA[l.cobranca]], ["Valor da tarifa", brl(l.valorCentavos)], ["Clínica", l.empresaNome ?? "—"],
               ["Categoria", l.categoriaNome ? `${l.categoriaNome}${l.regraVersao ? ` (regra v${l.regraVersao})` : ""}` : "Sem categoria"],
               ...(l.erro ? [["Código de erro", l.erro]] : []),

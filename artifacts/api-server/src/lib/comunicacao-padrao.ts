@@ -13,8 +13,10 @@ import { enviarAnexosDaMensagem } from "./anexos-mensagem.js";
 import { vinculoTelegramAtualUnico } from "./telegram-vinculo-atual.js";
 import { renderFlyerPaxmed } from "./flyer-paxmed.js";
 import { getNomeAssistenteAtendimento } from "./atendimento-ia-config.js";
+import { FRASES_PADRAO } from "./telegram-frases";
 
-export type Categoria = "link_pagamento" | "boleto" | "documento" | "pedido_exame" | "orcamento" | "lembrete_formal" | "oferta_pam" | "duvida_cliente" | "pedido_recebido" | "anamnese_nova";
+export type CategoriaOperacional = "atendimento_menu" | "atendimento_pedido_equipe" | "atendimento_consulta_agenda" | "atendimento_falha_alerta";
+export type Categoria = "link_pagamento" | "boleto" | "documento" | "pedido_exame" | "orcamento" | "lembrete_formal" | "oferta_pam" | "duvida_cliente" | "pedido_recebido" | "anamnese_nova" | CategoriaOperacional;
 export interface DefCategoria {
   nome: string; variaveis: string[]; texto: string; flyerPadrao: boolean;
   /** Flyer: titulo e linhas (rotulo + campo vinculado). A clinica entra sempre por ultimo. */
@@ -22,7 +24,16 @@ export interface DefCategoria {
 }
 const ASSINATURA = "{assistente}, assistente virtual\n{clinica}";
 const ABERTURA = "{nome}, tudo bem?";
+function modeloOperacional(chave: CategoriaOperacional): DefCategoria {
+  const f = FRASES_PADRAO[chave];
+  return {nome:`Atendimento WhatsApp — ${f.descricao}`,variaveis:[...f.variaveis],texto:f.texto,flyerPadrao:false,
+    flyer:{titulo:"Atendimento",linhas:[]}};
+}
 export const CATEGORIAS: Record<Categoria, DefCategoria> = {
+  atendimento_menu: modeloOperacional("atendimento_menu"),
+  atendimento_pedido_equipe: modeloOperacional("atendimento_pedido_equipe"),
+  atendimento_consulta_agenda: modeloOperacional("atendimento_consulta_agenda"),
+  atendimento_falha_alerta: modeloOperacional("atendimento_falha_alerta"),
   link_pagamento: {
     nome: "Link de pagamento", variaveis: ["valor", "referencia", "link"], flyerPadrao: true,
     texto: `${ABERTURA}\n\nEu sou a {assistente}, assistente virtual de {clinica}, e estou encaminhando o seu link de pagamento.\n\nValor: {valor}\n\nReferência: {referencia}\n\nLink: {link}\n\nAgradecemos pela confiança e ficamos à disposição para qualquer dúvida.\n\n${ASSINATURA}`,
@@ -96,7 +107,7 @@ export function validarModelo(cat: Categoria, texto: unknown): string | null {
   if (estranha) return `variável {${estranha}} não existe nesta categoria`;
   const falta = def.variaveis.find((v) => !usadas.includes(v));
   if (falta) return `a variável {${falta}} é obrigatória`;
-  if (!usadas.includes("clinica")) return "a variável {clinica} é obrigatória";
+  if (!cat.startsWith("atendimento_") && !usadas.includes("clinica")) return "a variável {clinica} é obrigatória";
   return null;
 }
 /** Substitui variaveis. Variavel sem valor = ERRO (nunca sai "{valor}" nem texto inventado). Quebras preservadas. */
@@ -136,8 +147,6 @@ export async function prepararTabelas(): Promise<void> {
   await db.execute(sql`CREATE TABLE IF NOT EXISTS comunicacao_regra (
     id SERIAL PRIMARY KEY, empresa_id INTEGER, categoria TEXT NOT NULL, enviar_flyer BOOLEAN NOT NULL,
     atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), atualizado_por INTEGER)`);
-  await db.execute(sql`ALTER TABLE comunicacao_envio ADD COLUMN IF NOT EXISTS anexos_enviados INTEGER NOT NULL DEFAULT 0`);
-  await db.execute(sql`ALTER TABLE comunicacao_envio ADD COLUMN IF NOT EXISTS status_anexo TEXT`);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_com_regra ON comunicacao_regra (COALESCE(empresa_id,0), categoria)`);
   await db.execute(sql`CREATE TABLE IF NOT EXISTS comunicacao_modelo_flyer (
     id SERIAL PRIMARY KEY, categoria TEXT NOT NULL, versao INTEGER NOT NULL, titulo TEXT NOT NULL, linhas JSONB NOT NULL,
@@ -146,6 +155,8 @@ export async function prepararTabelas(): Promise<void> {
     id SERIAL PRIMARY KEY, ambiente TEXT NOT NULL, empresa_id INTEGER, cliente_id INTEGER, categoria TEXT NOT NULL,
     modelo_texto_versao INTEGER, modelo_flyer_versao INTEGER, flyer_enviado BOOLEAN NOT NULL DEFAULT FALSE,
     campos JSONB, mensagem TEXT, status TEXT NOT NULL, status_flyer TEXT, erro TEXT, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+  await db.execute(sql`ALTER TABLE comunicacao_envio ADD COLUMN IF NOT EXISTS anexos_enviados INTEGER NOT NULL DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE comunicacao_envio ADD COLUMN IF NOT EXISTS status_anexo TEXT`);
   for (const [cat, d] of Object.entries(CATEGORIAS) as Array<[Categoria, DefCategoria]>) {
     await db.execute(sql`INSERT INTO comunicacao_modelo_texto (empresa_id, categoria, texto) VALUES (NULL, ${cat}, ${d.texto}) ON CONFLICT DO NOTHING`);
     await db.execute(sql`INSERT INTO comunicacao_regra (empresa_id, categoria, enviar_flyer) VALUES (NULL, ${cat}, ${d.flyerPadrao}) ON CONFLICT DO NOTHING`);

@@ -41,7 +41,9 @@ async function enviarTextoDoCanal(
     const result = await sendTelegram(chatId, escaparHtmlTelegram(texto), { disableWebPagePreview: true });
     return { sent: result.sent && !result.mock, mock: result.mock, error: result.error };
   }
-  const result = await enviarTextoEvolution(e.empresaId, chatId, texto, contexto, null, reissueRequestId);
+  const origem = e.inboxMessageId - 1_000_000_000_000;
+  const result = await enviarTextoEvolution(e.empresaId, chatId, texto, contexto, null, reissueRequestId,
+    origem > 0 ? {clienteId:e.clienteId,mensagemOrigemId:origem} : undefined);
   return { sent: result.accepted, mock: false, error: result.error ?? undefined, providerId: result.providerId };
 }
 

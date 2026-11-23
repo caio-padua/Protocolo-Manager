@@ -54,6 +54,8 @@ export function garantirTabelasEvolution(): Promise<void> {
       ADD COLUMN IF NOT EXISTS desfecho_atendimento TEXT,
       ADD COLUMN IF NOT EXISTS orientacao_id BIGINT,
       ADD COLUMN IF NOT EXISTS plano_atendimento JSONB,
+      ADD COLUMN IF NOT EXISTS cliente_id INTEGER,
+      ADD COLUMN IF NOT EXISTS mensagem_origem_id BIGINT,
       ADD COLUMN IF NOT EXISTS reissue_request_id BIGINT`);
     await pool.query(`CREATE INDEX IF NOT EXISTS evolution_mensagens_reissue_request
       ON evolution_mensagens (empresa_id, reissue_request_id)
@@ -310,6 +312,7 @@ export async function enviarTextoEvolution(
   contexto: string,
   usuarioId: number | null,
   reissueRequestId?: string | null,
+  atendimento?: { clienteId: number; mensagemOrigemId: number },
 ): Promise<{ accepted: boolean; status: number; error?: string | null; providerId?: string | null; id?: number; messageStatus?: string }> {
   const cfg = await lerConfig(empresaId);
   if (!cfg) return { accepted: false, status: 409, error: "nao_configurado" };
@@ -320,10 +323,10 @@ export async function enviarTextoEvolution(
   if (!podeEnviarAgora(empresaId)) return { accepted: false, status: 429, error: "limite_de_envios" };
   const inserted = await pool.query(
     `INSERT INTO evolution_mensagens
-       (empresa_id, instancia, direcao, contato, corpo, provider_id, status, erro, contexto, enviado_por, reissue_request_id)
-     VALUES ($1,$2,'saida',$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+       (empresa_id, instancia, direcao, contato, corpo, provider_id, status, erro, contexto, enviado_por, reissue_request_id,cliente_id,mensagem_origem_id)
+     VALUES ($1,$2,'saida',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
     [empresaId, cfg.instanceName, destino, texto, null, "incerto", null, contexto, usuarioId,
-      reissueRequestId ?? null]);
+      reissueRequestId ?? null, atendimento?.clienteId ?? null,atendimento?.mensagemOrigemId ?? null]);
   const id = Number(inserted.rows[0]?.id);
   if (!Number.isSafeInteger(id) || id <= 0) throw new Error("registro_de_envio_indisponivel");
   const resposta = await chamar(cfg, "POST", `/message/sendText/${encodeURIComponent(cfg.instanceName)}`, { number: destino, text: texto });

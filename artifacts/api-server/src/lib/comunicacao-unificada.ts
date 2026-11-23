@@ -33,6 +33,10 @@ export type EstadoEtapa = "registrado" | "recebido" | "enviado" | "entregue" | "
 export interface EtapaMensagem { chave: "envio" | "entrega" | "leitura" | "conclusao_servico"; rotulo: string; estado: EstadoEtapa; evidencia: string }
 
 export interface LinhaConversa {
+  provedor?: string;
+  intencao?: string | null;
+  processamento?: string | null;
+  encaminhamento?: string | null;
   ref: string;
   canal: CanalConversa;
   clienteId: number | null;
@@ -87,7 +91,8 @@ WITH w AS (
   SELECT 'wwp'::text AS canal, 'w' || l.id AS ref, l.cliente_id,
          COALESCE(l.empresa_id, c.empresa_id) AS empresa_id,
          l.telefone AS destino, COALESCE(l.direcao, 'saida') AS direcao, l.contexto,
-         l.status AS status_bruto, l.error_code, l.corpo, l.criado_em AS quando
+         l.status AS status_bruto, l.error_code, l.corpo, l.criado_em AS quando,
+         'whatsapp'::text AS provedor,NULL::text AS intencao,NULL::text AS processamento,NULL::text AS encaminhamento
     FROM whatsapp_mensagens_log l
     LEFT JOIN clients c ON c.id = l.cliente_id
    WHERE l.via = 'whatsapp'
@@ -101,7 +106,8 @@ t AS (
            WHERE l.via = 'telegram' AND l.cliente_id = m.cliente_id AND l.corpo = m.texto
              AND ABS(EXTRACT(EPOCH FROM (l.criado_em - m.recebida_em))) < 120
            ORDER BY l.id LIMIT 1) AS contexto,
-         NULL::text AS status_bruto, NULL::text AS error_code, m.texto AS corpo, m.recebida_em AS quando
+         NULL::text AS status_bruto, NULL::text AS error_code, m.texto AS corpo, m.recebida_em AS quando,
+         'telegram'::text AS provedor,NULL::text AS intencao,NULL::text AS processamento,NULL::text AS encaminhamento
     FROM telegram_inbox_messages m
     JOIN clients c ON c.id = m.cliente_id
 ),
@@ -109,7 +115,8 @@ tg_log AS (
   SELECT 'tg'::text AS canal, 'w' || l.id AS ref, l.cliente_id,
          COALESCE(l.empresa_id, c.empresa_id) AS empresa_id,
          l.telefone AS destino, COALESCE(l.direcao, 'saida') AS direcao, l.contexto,
-         l.status AS status_bruto, l.error_code, l.corpo, l.criado_em AS quando
+         l.status AS status_bruto, l.error_code, l.corpo, l.criado_em AS quando,
+         'telegram'::text AS provedor,NULL::text AS intencao,NULL::text AS processamento,NULL::text AS encaminhamento
     FROM whatsapp_mensagens_log l
     LEFT JOIN clients c ON c.id = l.cliente_id
    WHERE l.via = 'telegram'
@@ -118,7 +125,19 @@ tg_log AS (
         WHERE m.cliente_id = l.cliente_id AND m.texto = l.corpo AND m.direcao <> 'entrada'
           AND ABS(EXTRACT(EPOCH FROM (l.criado_em - m.recebida_em))) < 120)
 ),
-base AS (SELECT * FROM w UNION ALL SELECT * FROM t UNION ALL SELECT * FROM tg_log),
+evo AS (
+  SELECT 'wwp'::text AS canal,'e'||m.id AS ref,m.cliente_id,m.empresa_id,m.contato AS destino,
+    m.direcao,m.contexto,
+    CASE m.status WHEN 'aceito' THEN 'queued' WHEN 'enviado' THEN 'sent' WHEN 'entregue' THEN 'delivered'
+      WHEN 'lido' THEN 'read' WHEN 'falha' THEN 'failed' ELSE m.status END AS status_bruto,
+    m.erro AS error_code,m.corpo,m.criado_em AS quando,'evolution'::text AS provedor,
+    COALESCE(m.plano_atendimento->>'intencao',p.plano_atendimento->>'intencao') AS intencao,
+    COALESCE(m.processamento,p.processamento) AS processamento,
+    COALESCE(m.plano_atendimento->>'encaminhamento',p.plano_atendimento->>'encaminhamento') AS encaminhamento
+  FROM evolution_mensagens m LEFT JOIN evolution_mensagens p
+    ON p.id=m.mensagem_origem_id AND p.empresa_id=m.empresa_id AND p.contato=m.contato
+),
+base AS (SELECT * FROM w UNION ALL SELECT * FROM t UNION ALL SELECT * FROM tg_log UNION ALL SELECT * FROM evo),
 u AS (
   SELECT b.*, e.id AS e_id, e.ambiente AS e_ambiente, e.isento AS e_isento,
          e.sem_tarifa AS e_sem_tarifa, e.valor_centavos AS e_valor
@@ -161,7 +180,7 @@ export function origemDaLinha(canal: CanalConversa, direcao: DirecaoConversa, co
 
 const ENTREGA_WWP: Record<string, string> = {
   queued: "Na fila", sent: "Enviado", delivered: "Entregue", read: "Lido",
-  failed: "Falhou", undelivered: "Falhou", link: "Só link",
+  failed: "Falhou", undelivered: "Falhou", link: "Só link", incerto:"Resultado incerto",
 };
 
 export function entregaDaLinha(canal: CanalConversa, direcao: DirecaoConversa, statusBruto: string | null): string {
@@ -212,6 +231,7 @@ function paraLinha(r: Record<string, any>): LinhaConversa {
   const cobranca = r.cobranca as EstadoCobranca;
   return {
     ref: String(r.ref),
+    provedor:r.provedor,intencao:r.intencao??null,processamento:r.processamento??null,encaminhamento:r.encaminhamento??null,
     canal,
     clienteId: r.cliente_id == null ? null : Number(r.cliente_id),
     clienteNome: r.cliente_nome ?? null,
@@ -239,7 +259,7 @@ function paraLinha(r: Record<string, any>): LinhaConversa {
 const SELECAO = `SELECT u.*, (${COBRANCA_SQL}) AS cobranca, cl.name AS cliente_nome, cl.cpf AS cliente_cpf, emp.nome AS empresa_nome,
   u.quando::text AS quando_cursor, rg.categoria_id, rg.categoria_nome, rg.categoria_natureza, rg.regra_versao
   FROM u
-  LEFT JOIN clients cl ON cl.id = u.cliente_id
+  LEFT JOIN clients cl ON cl.id = u.cliente_id AND cl.empresa_id=u.empresa_id
   LEFT JOIN empresas emp ON emp.id = u.empresa_id
   ${CLASSIFICACAO_SQL}`;
 

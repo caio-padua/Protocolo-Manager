@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   fetch: vi.fn(), dbExecute: vi.fn(async (_query?: unknown): Promise<{ rows: unknown[] }> => ({ rows: [] })),
   plan: vi.fn(async (_deps: any, _entrada: any) => ({ resposta: "Resposta aprovada pelo motor.", desfecho: "orientacao_enviada", caminhoResolucao: "regra", orientacaoId: 71, alerta: null, pausa: null })),
   clientMode: vi.fn(async () => "ia" as "ia" | "humano"),
+  alert:vi.fn(async()=>true),
   tenant: { authenticated: true, empresaId: 5, isPlatformOwner: true } as any,
 }));
 vi.stubGlobal("fetch", h.fetch);
@@ -23,11 +24,23 @@ vi.mock("../lib/secure-settings", () => ({
 }));
 vi.mock("../lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock("../lib/atendimento-telegram-store", () => ({ depsReaisAtendimento: () => ({
-  alertarEquipe: vi.fn(async () => true),
+  alertarEquipe:h.alert,
   lerConfig: vi.fn(async () => ({ modo: "ligado", permitidos: new Set(), queixaRevisada: true })),
   modoDoCliente: h.clientMode,
+  carregarOrientacoes:async()=>[],buscarFaq:async()=>null,responderDocumento:async()=>null,
+  textoEncaminhado:async()=>"Texto de encaminhamento aprovado",
+  textoApresentacao:async()=>"Olá !\n\nMe chamo Helena,\nAssistente virtual do Instituto Pádua.\n\nTudo bem ?\nComo eu poderia te ajudar?",
 }) }));
-vi.mock("../lib/atendimento-telegram", () => ({ planejarAtendimento: h.plan }));
+vi.mock("../lib/atendimento-whatsapp-store",async()=>{
+  const {FRASES_PADRAO,substituir}=await import("../lib/telegram-frases");
+  return {depsOperacionaisWhatsapp:()=>({
+    menuAtivo:async()=>false,consultarRetorno:async()=>null,agendar:async()=>null,
+    frase:async(chave:keyof typeof FRASES_PADRAO,vars:Record<string,string>)=>substituir(FRASES_PADRAO[chave].texto,vars),
+  })};
+});
+vi.mock("../lib/atendimento-telegram", async importOriginal => ({
+  ...await importOriginal<typeof import("../lib/atendimento-telegram")>(), planejarAtendimento: h.plan,
+}));
 vi.mock("node:dns/promises", () => ({ default: { lookup: vi.fn(async () => [{ address: "203.0.113.10" }]) } }));
 vi.mock("../routes/collaborator", () => ({ requireCollaborator: (_q: any, _r: any, n: () => void) => n() }));
 
@@ -103,6 +116,60 @@ const upsert = (over: any = {}) => ({ event: "messages.upsert", instance: "clini
 const wh = (path: string, body: unknown) => real(`${base}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 
 describe("webhook", () => {
+  it("falha no alerta não vira encaminhamento anunciado; registra e avisa com honestidade",async()=>{
+    const core=await vi.importActual<typeof import("../lib/atendimento-telegram")>("../lib/atendimento-telegram");
+    h.plan.mockImplementationOnce(async(deps,e)=>core.planejarAtendimento(deps,e) as any);
+    h.alert.mockResolvedValueOnce(false);
+    banco(q=>{
+      if(q.includes("motor_ativo FROM"))return {rows:[{motor_ativo:true}]};
+      if(q.includes("INSERT INTO evolution_mensagens")&&q.includes("'entrada'"))return {rows:[{id:55}]};
+      if(q.includes("LEFT JOIN evolution_vinculos_cliente"))return {rows:[{id:11,name:"Cliente sintético"}]};
+      if(q.includes("INSERT INTO evolution_mensagens")&&q.includes("'saida'"))return {rows:[{id:56}]};
+      return undefined;
+    });
+    h.fetch.mockResolvedValueOnce({ok:true,status:200,json:async()=>({instance:{state:"open"}})})
+      .mockResolvedValueOnce({ok:true,status:201,json:async()=>({key:{id:"SINTETICO-FALHA-ALERTA"}})});
+    const event=upsert({message:{conversation:"quero falar com a equipe"}});
+    await wh("/evolution/webhook/5/tok5",event);
+    const enviada=h.fetch.mock.calls.find(c=>String(c[0]).includes("/message/sendText/"));
+    expect(JSON.parse(enviada![1].body).text).toBe(mapaPadrao().atendimento_falha_alerta);
+    expect(h.query.mock.calls.some(c=>String(c[0]).includes("processamento='falha_alerta'")&&String(c[1]).includes('"encaminhamento":"falha_alerta"'))).toBe(true);
+  });
+  it.each([
+    ["Olá com quem estou falando?","apresentacao"],
+    ["menu","menu"],
+    ["quero falar com a equipe","humano"],
+    ["preciso de orçamento","orcamento"],
+  ])("recepção → cérebro real → resposta → provedor simulado: %s",async(texto,intencao)=>{
+    const core=await vi.importActual<typeof import("../lib/atendimento-telegram")>("../lib/atendimento-telegram");
+    h.plan.mockImplementationOnce(async(deps,e)=>core.planejarAtendimento(deps,e) as any);
+    let inserts=0;
+    banco((q,p)=>{
+      if(q.includes("motor_ativo FROM"))return {rows:[{motor_ativo:true}]};
+      if(q.includes("INSERT INTO evolution_mensagens")&&q.includes("'entrada'"))return {rows:++inserts===1?[{id:55}]:[]};
+      if(q.includes("LEFT JOIN evolution_vinculos_cliente"))return {rows:[{id:11,name:"Cliente sintético"}]};
+      if(q.includes("INSERT INTO evolution_mensagens")&&q.includes("'saida'"))return {rows:[{id:56}]};
+      return undefined;
+    });
+    h.fetch.mockResolvedValueOnce({ok:true,status:200,json:async()=>({instance:{state:"open"}})})
+      .mockResolvedValueOnce({ok:true,status:201,json:async()=>({key:{id:"SINTETICO-REGRAS"}})});
+    const event=upsert();event.data.message={conversation:texto};
+    expect((await wh("/evolution/webhook/5/tok5",event)).status).toBe(200);
+    await wh("/evolution/webhook/5/tok5",event);
+    expect(h.plan).toHaveBeenCalledOnce();
+    const saida=h.fetch.mock.calls.filter(c=>String(c[0]).includes("/message/sendText/"));
+    expect(saida).toHaveLength(1);
+    const enviada=JSON.parse(saida[0][1].body);
+    expect(enviada.number).toBe("5511999990000"); // apenas provedor falso
+    if(intencao==="apresentacao")expect(enviada.text).toBe(mapaPadrao().atendimento_apresentacao_instituto_padua);
+    const planos=h.query.mock.calls.filter(c=>String(c[0]).includes("plano_atendimento="))
+      .flatMap(c=>c[1]??[]).filter(v=>typeof v==="string"&&v.startsWith("{")).map(v=>JSON.parse(v));
+    expect(planos.some(p=>p.intencao===intencao)).toBe(true);
+    if(intencao==="humano"||intencao==="orcamento"){
+      expect(h.alert).toHaveBeenCalledOnce();
+      expect(planos.some(p=>p.encaminhamento==="alerta_aceito")).toBe(true);
+    }
+  });
   it("token errado: 403 e nada gravado", async () => {
     const r = await wh("/evolution/webhook/5/errado", upsert());
     expect(r.status).toBe(403);

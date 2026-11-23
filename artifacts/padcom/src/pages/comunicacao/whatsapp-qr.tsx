@@ -175,7 +175,7 @@ export default function ComunicacaoWhatsappQr() {
   }
 
   return (
-    <ConsoleShell icon={QrCode} title="WhatsApp por QR Code (provisório)" subtitle="Canal não oficial via Evolution API. O WhatsApp oficial (Twilio) e o Telegram continuam funcionando.">
+    <ConsoleShell icon={QrCode} title="WhatsApp por QR Code (provisório)" subtitle="Canal não oficial via Evolution. A conexão é consultada no provedor; a disponibilidade do WhatsApp oficial e do Telegram deve ser conferida separadamente.">
       {cfg?.homologacao && (
         <div className="concave-3d px-3 py-2 text-[13px]" data-testid="aviso-homologacao">
           Homologação: só estes contatos autorizados recebem e têm mensagens registradas: {cfg.contatosAutorizados?.length ? cfg.contatosAutorizados.join(", ") : "nenhum cadastrado (todo envio fica bloqueado)"}.
@@ -232,7 +232,7 @@ export default function ComunicacaoWhatsappQr() {
         <>
           <section className="panel-3d p-5 space-y-3">
             <BlockTitle icon={Settings2}>Parâmetros editáveis do motor</BlockTitle>
-            <p className="text-[12px] text-muted-foreground">Campos vazios deixam a etapa de inteligência artificial indisponível. Não há modelo ou texto de teste substituto escondido.</p>
+            <p className="text-[12px] text-muted-foreground">O atendimento automático deste WhatsApp usa regras, perguntas aprendidas, orientações aprovadas e a agenda real, sem depender de modelos de inteligência artificial. A apresentação fica em Frases do Assistente; menu e avisos aceitam modelo próprio da clínica em Modelos de Comunicação. Os campos de modelos abaixo são opcionais e não são chamados por este fluxo determinístico.</p>
             <label className="block text-[12px]">Modelo de seleção de orientação<input className={campo} value={configMotor.modelos.selecao} onChange={(e) => setConfigMotor({ ...configMotor, modelos: { ...configMotor.modelos, selecao: e.target.value } })} /></label>
             <label className="block text-[12px]">Modelo de interpretação<input className={campo} value={configMotor.modelos.interprete} onChange={(e) => setConfigMotor({ ...configMotor, modelos: { ...configMotor.modelos, interprete: e.target.value } })} /></label>
             <label className="block text-[12px]">Modelo de conferência<input className={campo} value={configMotor.modelos.conferente} onChange={(e) => setConfigMotor({ ...configMotor, modelos: { ...configMotor.modelos, conferente: e.target.value } })} /></label>

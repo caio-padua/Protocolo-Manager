@@ -88,13 +88,14 @@ export async function visitanteAutorizado(chatId: string): Promise<boolean> {
 
 // ─────────────────────────── agenda ───────────────────────────
 
-async function recursoDaModalidade(m: Modalidade): Promise<{ id: number; empresaId: number } | null> {
+async function recursoDaModalidade(m: Modalidade, empresaId?: number): Promise<{ id: number; empresaId: number } | null> {
   const modalidadeDb = m === "online" ? "online" : "local";
   const r = await db.execute(sql`SELECT r.id, COALESCE(r.empresa_id, l.empresa_id) AS empresa_id
     FROM agenda_resources r
     JOIN professionals p ON p.id = r.professional_id AND p.is_primary_doctor AND p.active
     LEFT JOIN locations l ON l.id = r.location_id
     WHERE r.active AND r.kind='medico' AND r.modality=${modalidadeDb}
+      ${empresaId == null ? sql`` : sql`AND COALESCE(r.empresa_id,l.empresa_id)=${empresaId}`}
     ORDER BY r.id LIMIT 1`);
   const x = r.rows[0] as { id: number; empresa_id: number } | undefined;
   return x ? { id: Number(x.id), empresaId: Number(x.empresa_id) } : null;
@@ -109,8 +110,8 @@ function somar(iso: string, n: number): string {
   const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10);
 }
 
-export async function buscarHorariosReais(p: Parameters<DepsAgendamento["buscarHorarios"]>[0]): ReturnType<DepsAgendamento["buscarHorarios"]> {
-  const rec = await recursoDaModalidade(p.modalidade);
+export async function buscarHorariosReais(p: Parameters<DepsAgendamento["buscarHorarios"]>[0], empresaId?: number): ReturnType<DepsAgendamento["buscarHorarios"]> {
+  const rec = await recursoDaModalidade(p.modalidade, empresaId);
   if (!rec) return { ofertas: [], semAgenda: true };
   const hoje = brtISODate();
   const datas = p.datas ? p.datas.filter((d) => d >= hoje) : Array.from({ length: DIAS_A_FRENTE }, (_, i) => somar(hoje, i));
@@ -158,12 +159,14 @@ async function reservarReal(clienteId: number, empresaId: number, o: Oferta): Re
   }
 }
 
-async function enderecoReal(m: Modalidade): Promise<string | null> {
+async function enderecoReal(m: Modalidade, empresaId?: number): Promise<string | null> {
   if (m !== "presencial") return null;
   const r = await db.execute(sql`SELECT l.address FROM agenda_resources r
     JOIN professionals p ON p.id=r.professional_id AND p.is_primary_doctor AND p.active
     JOIN locations l ON l.id=r.location_id
-    WHERE r.active AND r.kind='medico' AND r.modality='local' ORDER BY r.id LIMIT 1`);
+    WHERE r.active AND r.kind='medico' AND r.modality='local'
+      ${empresaId == null ? sql`` : sql`AND COALESCE(r.empresa_id,l.empresa_id)=${empresaId}`}
+    ORDER BY r.id LIMIT 1`);
   const a = (r.rows[0] as { address?: string } | undefined)?.address?.trim();
   return a || null;
 }
@@ -196,8 +199,12 @@ export interface PlanoAgendamentoCliente {
 export async function planejarAgendamentoCliente(e: {
   empresaId: number; clienteId: number; texto: string; inboxMessageId?: number;
   usoIA?: { interprete: boolean; conferente: boolean };
+  canal?: "telegram" | "whatsapp";
+  somenteLeitura?: boolean;
+  semIA?: boolean;
+  autorizarAcao?: () => Promise<boolean>;
 }): Promise<PlanoAgendamentoCliente> {
-  const chave = `cliente:${e.clienteId}`;
+  const chave = e.canal === "whatsapp" ? `whatsapp:${e.empresaId}:cliente:${e.clienteId}` : `cliente:${e.clienteId}`;
   const anterior = await lerEstado(chave);
   const emAndamento = !!anterior && anterior.etapa !== "inicio" && anterior.etapa !== "concluido";
   // Conversa que não é de agendamento nem está em andamento: não toca em mais nada, segue o fluxo de orientações.
@@ -227,15 +234,21 @@ export async function planejarAgendamentoCliente(e: {
   const deps: DepsAgendamento = {
     frase, conferirIdentidade: SEM_CONFERENCIA,
     hojeISO: () => brtISODate(),
-    buscarHorarios: buscarHorariosReais,
-    reservar: (o) => reservarReal(e.clienteId, e.empresaId, o),
+    buscarHorarios: (p) => buscarHorariosReais(p, e.empresaId),
+    reservar: async (o) => {
+      if (e.somenteLeitura || (e.canal === "whatsapp" && (!e.autorizarAcao || !await e.autorizarAcao()))) return { ok: false, motivo: "erro" };
+      return reservarReal(e.clienteId, e.empresaId, o);
+    },
     registrarPedido: async () => 0, // cliente não usa pedido: reserva direta
     encaminharEquipe: async (m) => { motivoEquipe = m; },
-    endereco: enderecoReal,
-    linkMarcacao: () => `${baseUrlFromEnv()}/agendar`,
-    interpretar: criarInterpretador(e.empresaId, e.inboxMessageId, onUso),
-    conferirEscolha: criarConferente(e.empresaId, e.inboxMessageId, onUso),
-    conferirLeitura: criarConferenteLeitura(e.empresaId, e.inboxMessageId, onUso),
+    endereco: (m) => enderecoReal(m, e.empresaId),
+    linkMarcacao: e.canal === "whatsapp" ? undefined : () => `${baseUrlFromEnv()}/agendar`,
+    interpretar: e.semIA ? undefined : criarInterpretador(e.empresaId, e.inboxMessageId, onUso),
+    conferirEscolha: e.semIA ? async ({texto,escolha,opcoes}) => {
+      const numero = normalizar(texto).match(/^(?:(?:opcao|numero|horario) )?([1-9]\d?)$/)?.[1];
+      return Number(numero) === escolha && escolha > 0 && escolha <= opcoes.length;
+    } : criarConferente(e.empresaId, e.inboxMessageId, onUso),
+    conferirLeitura: e.semIA ? undefined : criarConferenteLeitura(e.empresaId, e.inboxMessageId, onUso),
   };
   const agora = new Date().toISOString();
   const r = await conduzirAgendamento(anterior, e.texto, { ehCliente: true, primeiroNome, nomeClinica: await nomeDaClinica(e.empresaId) }, deps, agora);
@@ -244,11 +257,11 @@ export async function planejarAgendamentoCliente(e: {
     caminhoResolucao: r.caminhoResolucao, interpreteChamado: e.usoIA?.interprete ?? r.interpreteChamado,
     conferenteChamado: e.usoIA?.conferente ?? r.conferenteChamado,
   };
-  await gravarEstado(chave, r.estado);
+  if (!e.somenteLeitura) await gravarEstado(chave, r.estado);
   return {
     tratada: true,
     pausa: motivoEquipe ? `agendamento_${motivoEquipe}` : null,
-    alerta: motivoEquipe ? `Agendamento pelo Telegram precisa da equipe (${motivoEquipe}), cliente #${e.clienteId}. Abra a conversa no Cockpit protegido.` : null,
+    alerta: motivoEquipe ? `Agendamento pelo ${e.canal === "whatsapp" ? "WhatsApp" : "Telegram"} precisa da equipe (${motivoEquipe}), cliente #${e.clienteId}. Abra a conversa no Cockpit protegido.` : null,
     resposta: r.resposta,
     desfecho: r.desfecho,
     caminhoResolucao: motivoEquipe ? "equipe" : r.caminhoResolucao,

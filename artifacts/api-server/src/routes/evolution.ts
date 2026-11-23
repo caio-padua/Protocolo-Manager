@@ -11,7 +11,8 @@ import { getModeloAtendimento } from "../lib/atendimento-ia-config";
 import { logger } from "../lib/logger";
 import { requireCollaborator } from "./collaborator";
 import { depsReaisAtendimento } from "../lib/atendimento-telegram-store";
-import { planejarAtendimento } from "../lib/atendimento-telegram";
+import { planejarAtendimentoWhatsapp } from "../lib/atendimento-whatsapp";
+import { depsOperacionaisWhatsapp } from "../lib/atendimento-whatsapp-store";
 import { telefoneCanonico } from "../lib/whatsapp-seguranca";
 import { registrarStatusEvolution } from "../lib/evolution-document-delivery-status";
 import { resolverIdentidadeWhatsapp } from "../lib/evolution-client-identity";
@@ -141,8 +142,9 @@ router.get("/evolution/mensagens", requireCollaborator, async (req, res) => {
   res.json({ mensagens: (r.rows as any[]).reverse() });
 });
 
-async function enviarUma(empresaId: number, destino: string, texto: string, contexto: string, usuarioId: number | null) {
-  const envio = await enviarTextoEvolution(empresaId, destino, texto, contexto, usuarioId);
+async function enviarUma(empresaId: number, destino: string, texto: string, contexto: string, usuarioId: number | null,
+  atendimento?: {clienteId:number;mensagemOrigemId:number}) {
+  const envio = await enviarTextoEvolution(empresaId, destino, texto, contexto, usuarioId, undefined, atendimento);
   return { http: envio.status, corpo: {
     ok: envio.accepted, id: envio.id, status: envio.messageStatus,
     erro: envio.error, error: envio.error, estado: envio.id ? undefined : envio.error,
@@ -156,6 +158,15 @@ async function autorizarSaidaEvolution(entrada: EntradaAtendimento, plano: Plano
   const cfg = await depsReaisAtendimento(entrada.empresaId).lerConfig();
   if (!(cfg.modo === "ligado" || (cfg.modo === "lista" && cfg.permitidos.has(entrada.clienteId)))) return false;
   if (plano.desfecho === "queixa_texto_enviado" && !cfg.queixaRevisada) return false;
+  if (plano.desfecho === "apresentacao_enviada" &&
+    await depsReaisAtendimento(entrada.empresaId).textoApresentacao?.(entrada.empresaId) !== plano.resposta) return false;
+  if (plano.fonteOperacional) {
+    const ops = depsOperacionaisWhatsapp(entrada);
+    const f = plano.fonteOperacional;
+    if (await ops.frase(f.chave,f.variaveis) !== plano.resposta) return false;
+    if (f.chave === "atendimento_consulta_agenda" &&
+      await ops.consultarRetorno() !== f.variaveis?.compromissos) return false;
+  }
   return fonteAtendimentoAindaAutorizada(db, entrada, plano, revalidarDocumento);
 }
 const usuarioDe = (req: Request): number | null => {
@@ -182,11 +193,12 @@ async function processarEntradaEvolution(p: {
     canal: "whatsapp" as const,
     simulacao: false,
   };
-  await pool.query(`UPDATE evolution_mensagens SET processamento='processando' WHERE id=$1 AND empresa_id=$2`, [p.mensagemId, p.empresaId]);
+  await pool.query(`UPDATE evolution_mensagens SET processamento='processando',cliente_id=$3 WHERE id=$1 AND empresa_id=$2`, [p.mensagemId, p.empresaId,p.clienteId]);
   try {
     const uso = { interprete: false, conferente: false };
     const deps = depsReaisAtendimento(p.empresaId, eventoMotorId, uso);
-    const plano = await planejarAtendimento(deps, entrada);
+    const plano = await planejarAtendimentoWhatsapp(deps, entrada, depsOperacionaisWhatsapp(entrada,
+      () => autorizarSaidaEvolution(entrada, {pausa:null,alerta:null,resposta:null,orientacaoId:null,desfecho:"agendamento_conduzido"})));
     if (plano.desfecho === "desligado" || plano.desfecho === "fora_da_lista" || plano.desfecho === "pausado_humano") {
       await pool.query(
         `UPDATE evolution_mensagens SET processamento=$3, desfecho_atendimento=$4, plano_atendimento=$5::jsonb
@@ -199,6 +211,8 @@ async function processarEntradaEvolution(p: {
         [p.mensagemId, p.empresaId]);
       return;
     }
+    await pool.query(`UPDATE evolution_mensagens SET plano_atendimento=$3::jsonb,desfecho_atendimento=$4
+      WHERE id=$1 AND empresa_id=$2`,[p.mensagemId,p.empresaId,JSON.stringify(plano),plano.desfecho]);
     if (plano.pausa) {
       await pool.query(
         `INSERT INTO telegram_atendimento (cliente_id, modo, motivo, alterado_por)
@@ -206,14 +220,25 @@ async function processarEntradaEvolution(p: {
          ON CONFLICT (cliente_id) DO UPDATE SET modo='humano',motivo=EXCLUDED.motivo,alterado_em=NOW(),alterado_por=NULL
          WHERE telegram_atendimento.modo='ia'`,
         [p.clienteId, p.empresaId, plano.pausa]);
+      plano.encaminhamento = "registrado";
     }
     if (plano.alerta && !await deps.alertarEquipe(plano.alerta)) {
+      plano.encaminhamento = "falha_alerta";
+      // Nunca dizer que avisou a equipe quando o provedor recusou o alerta.
+      const falha = await depsOperacionaisWhatsapp(entrada).frase("atendimento_falha_alerta");
+      let avisoAceito = false;
+      if (await autorizarSaidaEvolution(entrada, plano, false)) {
+        const aviso = await enviarUma(p.empresaId,p.telefone,falha,"motor_evolution_falha_alerta",null,
+          {clienteId:p.clienteId,mensagemOrigemId:p.mensagemId});
+        avisoAceito = Boolean(aviso.corpo.ok);
+      }
       await pool.query(
         `UPDATE evolution_mensagens SET processamento='falha_alerta', desfecho_atendimento=$3, plano_atendimento=$4::jsonb
           WHERE id=$1 AND empresa_id=$2`,
-        [p.mensagemId, p.empresaId, plano.desfecho, JSON.stringify(plano)]);
+        [p.mensagemId, p.empresaId, plano.desfecho, JSON.stringify({...plano,alertaEquipeAceito:false,avisoFalhaAceito:avisoAceito,resposta:falha})]);
       return;
     }
+    if (plano.alerta) plano.encaminhamento = "alerta_aceito";
     if (plano.documento?.acao === "ofertar_reenvio" &&
         !await autorizarOfertaReenvio(db, entrada, plano)) {
       await pool.query(
@@ -271,7 +296,8 @@ async function processarEntradaEvolution(p: {
         [p.mensagemId, p.empresaId]);
       return;
     }
-    const enviado = await enviarUma(p.empresaId, p.telefone, plano.resposta, "motor_evolution", null);
+    const enviado = await enviarUma(p.empresaId, p.telefone, plano.resposta, "motor_evolution", null,
+      {clienteId:p.clienteId,mensagemOrigemId:p.mensagemId});
     const dados = enviado.corpo as { ok?: boolean };
     if (dados.ok && plano.documento?.acao === "ofertar_reenvio") await marcarOfertaReenvioEntregue(entrada);
     await pool.query(
@@ -514,7 +540,7 @@ router.post("/evolution/homologacao/planejar", requireCollaborator, async (req, 
     if (await deps.modoDoCliente(clienteId) === "humano") {
       res.status(409).json({ error: "Atendimento humano ativo. A conversa não foi reativada automaticamente e nada foi enviado.", desfecho: "pausado_humano" }); return;
     }
-    const plano = await planejarAtendimento(deps, entrada);
+    const plano = await planejarAtendimentoWhatsapp(deps, entrada, depsOperacionaisWhatsapp(entrada));
     if ((await resolverIdentidadeWhatsapp(db, empresaId, destino))?.id !== clienteId ||
         !await fonteAtendimentoAindaAutorizada(db, entrada, plano)) {
       res.status(409).json({ error: "Identidade ou autorização mudou durante o planejamento. Nada foi enviado." }); return;
@@ -581,7 +607,7 @@ router.post("/evolution/homologacao/enviar-resposta", requireCollaborator, async
     if (await deps.modoDoCliente(clienteId) === "humano") {
       res.status(409).json({ error: "Atendimento humano ativo. A conversa não foi reativada automaticamente e nada foi enviado.", desfecho: "pausado_humano" }); return;
     }
-    const plano = await planejarAtendimento(deps, entrada);
+    const plano = await planejarAtendimentoWhatsapp(deps, entrada, depsOperacionaisWhatsapp(entrada));
     if (!plano.resposta) {
       res.status(409).json({ error: "O motor não produziu resposta. Nenhuma mensagem foi enviada.", desfecho: plano.desfecho }); return;
     }

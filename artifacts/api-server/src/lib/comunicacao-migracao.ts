@@ -6,8 +6,10 @@
  */
 import { pool } from "@workspace/db";
 import { criarTabelasCategorias } from "./comunicacao-categorias";
+import { garantirTabelasEvolution } from "./evolution";
 
 export async function garantirTabelasComunicacao(): Promise<void> {
+  await garantirTabelasEvolution();
   await pool.query(`ALTER TABLE whatsapp_mensagens_log ADD COLUMN IF NOT EXISTS direcao TEXT NOT NULL DEFAULT 'saida'`);
   await pool.query(`DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'whatsapp_log_direcao_check') THEN

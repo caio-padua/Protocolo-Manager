@@ -48,3 +48,14 @@ Saudações e perguntas sobre a identidade da assistente do Instituto Pádua usa
 **Why:** o responsável separou explicitamente as regras de comunicação institucional da biblioteca clínica; a ausência de orientação não é resposta adequada a “com quem estou falando?”.
 
 **How to apply:** manter o texto editável e a identidade da própria clínica; não interpretar uma saudação inicial como motivo para ignorar o restante clínico da mensagem, a lista autorizada ou o modo humano.
+
+## Atendimento por regras e contexto numérico
+
+O atendimento deve priorizar regras e conteúdos aprovados e editáveis da própria clínica, sem exigir inteligência artificial para reconhecer pedidos comuns.
+Modelos institucionais não constituem fonte de fatos médicos, preços, direitos a retorno ou existência de documentos.
+O modo humano não deve ser reativado silenciosamente ao corrigir o classificador.
+
+**Why:** o responsável determinou dependência mínima de inteligência artificial e resolução pelos recursos reais; automatizar não autoriza desfazer uma decisão humana de pausa.
+
+**How to apply:** reutilizar os motores existentes, revalidar identidade e fonte antes da saída e informar lacunas sem inventar encaminhamento.
+Uma opção numérica só pertence ao menu se o contexto recente e entregue for esse menu, da mesma pessoa, canal e clínica; caso contrário, preservar o diálogo de documento ou agenda.

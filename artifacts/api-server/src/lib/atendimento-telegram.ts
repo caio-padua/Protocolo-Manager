@@ -86,7 +86,7 @@ export function ehPedidoApresentacao(texto: string): boolean {
   }
   if (!n) return cumprimentou;
   n = n.replace(/^(?:por favor |gostaria de saber |quero saber )/, "").replace(/ por favor$/, "");
-  return /^(?:com quem (?:eu )?(?:estou|to) falando|com quem (?:eu )?falo|estou falando com quem|quem (?:e|eh) (?:voce|vc)|quem fala|quem esta falando|quem me atende|qual (?:e )?(?:o )?(?:seu|teu) nome|(?:voce|vc) (?:e|eh) quem|(?:voce|vc) (?:e|eh) (?:a )?helena|(?:e|eh) (?:a )?helena)$/.test(n);
+  return /^(?:com quem (?:eu )?(?:estou|to) (?:falando|conversando)|com quem (?:eu )?(?:falo|converso)|estou (?:falando|conversando) com quem|quem (?:e|eh) (?:voce|vc)|quem fala|quem esta falando|quem (?:me atende|me responde|esta me atendendo|esta me respondendo)|como (?:(?:voce|vc) )?se chama|qual (?:e )?(?:o )?(?:seu|teu) nome|(?:voce|vc) (?:e|eh) quem|(?:voce|vc) (?:e|eh) (?:a )?helena|(?:e|eh) (?:a )?helena)$/.test(n);
 }
 
 const STOP = new Set(["para", "como", "qual", "quais", "quando", "onde", "porque", "pelo", "pela", "uma", "uns", "umas", "isso", "esse", "essa", "este", "esta", "meu", "minha", "tenho", "estou", "fazer", "posso", "preciso", "gostaria", "saber", "sobre", "voce", "voces", "nao", "mais", "muito", "tem", "ser", "que", "com", "dos", "das", "por", "ola", "bom", "dia", "tarde", "noite"]);
@@ -128,6 +128,7 @@ export type Desfecho =
   | "orientacao_enviada" | "encaminhado_humano" | "queixa_encaminhada" | "queixa_texto_enviado"
   | "falha_envio" | "falha_alerta" | "agendamento_conduzido"
   | "apresentacao_enviada"
+  | "menu_enviado" | "operacional_enviada"
   | "clarificacao_documento"
   | "reenvio_receita_ofertado" | "reenvio_receita_confirmado" | "reenvio_receita_cancelado"
   | "reenvio_documento_ofertado" | "reenvio_documento_confirmado" | "reenvio_documento_cancelado";
@@ -342,6 +343,9 @@ export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAten
 }
 
 export interface PlanoAtendimento {
+  intencao?: string;
+  encaminhamento?: "registrado" | "alerta_aceito" | "falha_alerta";
+  fonteOperacional?: { chave: string; variaveis?: Record<string,string> };
   pausa: string | null;
   alerta: string | null;
   resposta: string | null;
