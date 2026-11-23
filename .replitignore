@@ -11,3 +11,4 @@ generated-artifacts
 # arquivos (verificado: sem imports de @assets; so scripts de prova e testes citam attached_assets).
 attached_assets
 .cache
+/paxter-codigo-completo.zip

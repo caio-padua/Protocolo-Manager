@@ -1726,3 +1726,17 @@ mtime_ms = 1795474651228
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/cf76d967-6eab-4163-b7be-abeacd5f7d5c/f166e303-01a9-481d-bbf6-bc3d4b056893"
 storage_version_token = "1795474653413057"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "rOMJAwacGxa-ITvY9Pdkd"
+uri = "file://paxter-codigo-completo.zip"
+type = "unspecified"
+title = "paxter-codigo-completo.zip"
+description = "Código-fonte completo para auditoria externa"
+logical_id = "3c88b60e-add4-43b4-8fdb-7a3581b3031b"
+content_hash = "sha256:ad1ee8fa507991943f93a516cfd55b41f294d558c9857079bef1d076f4d15d8f"
+size = 18124388
+mtime_ms = 1795475452223
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/3c88b60e-add4-43b4-8fdb-7a3581b3031b/5e65def0-afdc-448a-943c-dee73c605c65"
+storage_version_token = "1795475476838512"
+content_type = "application/octet-stream"
