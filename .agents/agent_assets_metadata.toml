@@ -1684,3 +1684,45 @@ mtime_ms = 1795473771859
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/a11a9824-8a0d-44d5-b974-b9009f02a913/e306f07b-d302-418b-8551-a79b690aa040"
 storage_version_token = "1795473782706756"
 content_type = "text/csv"
+
+[[outputs]]
+id = "8gQX1Bfz2LORvlej-vpfh"
+uri = "file://generated-artifacts/extracao-cerebro/CODIGO-motor-anamnese.csv"
+type = "table"
+title = "Código do motor (planilha, com Exportar)"
+description = "Código do motor clínico, uma linha por linha de código"
+logical_id = "e63afdc1-2bc7-4d83-be75-dd21df7edb06"
+content_hash = "sha256:bd968440fd597c56448454adda6ff5b69bee13e5897561f603d30c853ac9cd6b"
+size = 11609
+mtime_ms = 1795474650940
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/e63afdc1-2bc7-4d83-be75-dd21df7edb06/725a30ea-dca9-4825-9d56-8dab8e874583"
+storage_version_token = "1795474652433559"
+content_type = "text/csv"
+
+[[outputs]]
+id = "qlilEdwQTSonhMmjcLav1"
+uri = "file://generated-artifacts/extracao-cerebro/CODIGO-anamnese-motor-ponte.csv"
+type = "table"
+title = "Código da ponte Anamnese para motor (planilha)"
+description = "Ponte da Anamnese V2 para o motor"
+logical_id = "cbf6cb93-8c1a-4a1f-b177-a592457aadc2"
+content_hash = "sha256:b586c5196390e2b0b4394bf60d74ef3d04c1921bc618e808f961447b13ddeabf"
+size = 6651
+mtime_ms = 1795474650945
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/cbf6cb93-8c1a-4a1f-b177-a592457aadc2/9a01ff45-bb9e-409b-a32f-c9b4c49b0b97"
+storage_version_token = "1795474652960289"
+content_type = "text/csv"
+
+[[outputs]]
+id = "Y_qGq4xh1wU95iMuWgHGW"
+uri = "file://generated-artifacts/extracao-cerebro/extracao-cerebro-completa.zip"
+type = "unspecified"
+title = "Pacote completo para o Gemini (ZIP)"
+description = "Todos os arquivos da extração em um só download"
+logical_id = "cf76d967-6eab-4163-b7be-abeacd5f7d5c"
+content_hash = "sha256:beb5408fd526224c7608c812ea032e9aa8d71ab704e2e126c8a00275a180c263"
+size = 35968
+mtime_ms = 1795474651228
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/cf76d967-6eab-4163-b7be-abeacd5f7d5c/f166e303-01a9-481d-bbf6-bc3d4b056893"
+storage_version_token = "1795474653413057"
+content_type = "application/octet-stream"
