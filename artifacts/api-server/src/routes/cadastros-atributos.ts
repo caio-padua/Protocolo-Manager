@@ -29,6 +29,10 @@ const REGIOES = [
   "ARTERIAS DOS MEMBROS SUPERIORES", "CORPO INTEIRO", "ARTICULACAO TEMPOROMANDIBULAR", "TECIDOS MOLES", "PELE", "LINFONODOS",
 ];
 
+const EIXOS = ["Metabólico & Glicêmico", "Tireoide", "Adrenal & Estresse", "Hormonal / Gonadal", "Cardiovascular", "Gastro & Hepático", "Autoimune & Inflamatório", "Osteoarticular & Coluna", "Neurológico & Sono", "Respiratório", "Urológico / Renal", "Nutricional & Base Integrativa", "Genética & Longevidade"];
+const GATILHOS = ["fadiga_matinal", "queda_de_cabelo", "ganho_de_peso", "dificuldade_emagrecer", "compulsao_doce", "insonia", "esgotamento", "ansiedade_noturna", "baixa_libido", "perda_massa_muscular", "distensao_pos_prandial", "refluxo", "tosse_pos_prandial", "palpitacao", "pressao_alta", "dor_lombar", "dor_cervical", "dores_articulares", "checkup_rotina", "uso_glp1", "uso_ibp"];
+const REGIOES_V2 = ["Crânio & Encéfalo", "Pescoço & Tireoide", "Tórax & Pulmão", "Coração & Grandes Vasos", "Mamas & Axilas", "Abdome Total", "Abdome Superior (Fígado/Vias)", "Parede Abdominal & Inguinal", "Trato Digestivo (Endoscópico)", "Pelve Feminina", "Pelve Masculina / Próstata", "Rins & Vias Urinárias", "Coluna Cervical", "Coluna Torácica", "Coluna Lombossacra", "Ombro", "Cotovelo/Punho/Mão", "Quadril", "Joelho", "Tornozelo/Pé", "Corpo Inteiro / Ósseo", "Vascular Cervical (Carótidas)", "Vascular Membros Inferiores", "Aorta Abdominal"];
+
 let pronta: Promise<void> | null = null;
 function garantir(): Promise<void> {
   if (!pronta) {
@@ -78,6 +82,27 @@ function garantir(): Promise<void> {
         for (const nome of MATERIAIS_NAO_BIO) {
           await db.execute(sql`UPDATE catalogo_exame_opcoes SET ativo = FALSE WHERE tipo='material' AND nome_norm = ${nome}`);
         }
+      }
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS catalogo_exame_migracoes (chave TEXT PRIMARY KEY, feito_em TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+      const nova = async (chave: string) => (await db.execute(sql`INSERT INTO catalogo_exame_migracoes (chave) VALUES (${chave}) ON CONFLICT DO NOTHING RETURNING chave`)).rows.length > 0;
+      // Pre-popular listas vazias (aditivo; ON CONFLICT nao sobrescreve nada).
+      if (await nova("seed-eixos-gatilhos-regioes-v1")) {
+        for (const [tipo, lista] of [["eixo", EIXOS], ["gatilho", GATILHOS], ["regiao", REGIOES_V2]] as Array<[string, string[]]>) {
+          for (const nome of lista) {
+            await db.execute(sql`INSERT INTO catalogo_exame_opcoes (tipo, nome, nome_norm) VALUES (${tipo}, ${nome}, ${nome}) ON CONFLICT DO NOTHING`);
+          }
+        }
+      }
+      // SANGUE = SANGUE TOTAL (mesma amostra). Migra o valor nos exames/atributos e desativa a opcao duplicada.
+      if (await nova("unificar-sangue-v1")) {
+        await db.execute(sql`INSERT INTO catalogo_exame_opcoes (tipo, nome, nome_norm) VALUES ('material','SANGUE TOTAL','SANGUE TOTAL') ON CONFLICT DO NOTHING`);
+        await db.execute(sql`UPDATE catalogo_exames SET material_ou_setor = 'SANGUE TOTAL' WHERE upper(trim(material_ou_setor)) = 'SANGUE'`);
+        await db.execute(sql`UPDATE catalogo_exame_atributos SET material = 'SANGUE TOTAL' WHERE upper(trim(material)) = 'SANGUE'`);
+        await db.execute(sql`UPDATE catalogo_exame_opcoes SET ativo = FALSE WHERE tipo='material' AND nome_norm = 'SANGUE'`);
+      }
+      // CARDIO e CARDIO / IMAGEM saem da lista de Modalidades (so desativa; exames mantem o valor).
+      if (await nova("desativar-modalidades-cardio-v1")) {
+        await db.execute(sql`UPDATE catalogo_exame_classificacoes SET ativo = FALSE WHERE campo = 'modalidade' AND upper(nome_norm) IN ('CARDIO','CARDIO / IMAGEM')`);
       }
     })().catch((e) => {
       pronta = null;

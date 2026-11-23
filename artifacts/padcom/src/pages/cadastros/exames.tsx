@@ -136,6 +136,12 @@ const CAMPOS_CLASS: Array<{ campo: CampoClass; rotulo: string; plural: string; a
   { campo: "modalidade", rotulo: "Modalidade", plural: "Modalidades", ajuda: "Tipo de método. Ex.: LABORATORIAL, USG, TC, RM, RX." },
   { campo: "material_setor", rotulo: "Setor / Especialidade", plural: "Setor / Especialidade", ajuda: "Setor executor ou especialidade. O material biológico (soro, plasma, urina...) fica em Opções > Materiais." },
 ];
+const COR_GRADE: Record<string, { backgroundColor: string; borderLeftColor: string }> = {
+  "GRADE BASICA": { backgroundColor: "#ECFDF5", borderLeftColor: "#10B981" },
+  "GRADE INTERMEDIARIA": { backgroundColor: "#EFF6FF", borderLeftColor: "#3B82F6" },
+  "GRADE AMPLIADA": { backgroundColor: "#FFFBEB", borderLeftColor: "#F59E0B" },
+  "GRADE SOFISTICADA": { backgroundColor: "#F5F3FF", borderLeftColor: "#8B5CF6" },
+};
 const SEM_VALOR = "__none__";
 
 function useClassificacoes(campo: CampoClass) {
@@ -722,7 +728,7 @@ function BlocosTab() {
               </div>
               <div className="grid grid-cols-1 gap-3 pb-2 md:grid-cols-3">
                 {b.graus.map((g) => (
-                  <div key={g.grau} className="panel-3d-sub p-3">
+                  <div key={g.grau} className="panel-3d-sub p-3 border-l-4 text-slate-900" style={COR_GRADE[g.grau] ?? undefined} data-testid={`grade-${g.grau}`}>
                     <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-primary">
                       {g.grau} ({g.exames.length})
                     </div>
@@ -1103,13 +1109,7 @@ export default function CadastroExames({ comClassificacoes = true }: { comClassi
           <BlocosTab />
         </TabsContent>
         <TabsContent value="opcoes" className="space-y-6">
-          <GestaoOpcoes />
-          {comClassificacoes && (
-            <div className="space-y-2">
-              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Classificações existentes (categoria, subgrupo, modalidade, material/setor)</div>
-              <ClassificacoesCadastro />
-            </div>
-          )}
+          <GestaoOpcoes extras={comClassificacoes ? CAMPOS_CLASS.map((c) => ({ chave: `class-${c.campo}`, rotulo: c.plural, conteudo: <ClassificacaoPainel item={c} /> })) : []} />
         </TabsContent>
       </Tabs>
     </div>

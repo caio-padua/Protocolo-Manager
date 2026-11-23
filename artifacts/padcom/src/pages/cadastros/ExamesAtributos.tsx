@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Input } from "@/components/ui/input";
@@ -417,16 +417,22 @@ function PainelOpcoes({ tipo, rotulo }: { tipo: Tipo; rotulo: string }) {
   );
 }
 
-export function GestaoOpcoes() {
+export function GestaoOpcoes({ extras = [] }: { extras?: Array<{ chave: string; rotulo: string; conteudo: ReactNode }> }) {
   return (
     <Tabs defaultValue="natureza" className="space-y-3">
       <TabsList className="concave-3d h-auto flex-wrap justify-start p-1">
         {TIPOS.map((t) => (
           <TabsTrigger key={t.tipo} value={t.tipo} className="text-[11px] font-black uppercase tracking-wide">{t.rotulo}</TabsTrigger>
         ))}
+        {extras.map((x) => (
+          <TabsTrigger key={x.chave} value={x.chave} className="text-[11px] font-black uppercase tracking-wide">{x.rotulo}</TabsTrigger>
+        ))}
       </TabsList>
       {TIPOS.map((t) => (
         <TabsContent key={t.tipo} value={t.tipo}><PainelOpcoes tipo={t.tipo} rotulo={t.rotulo} /></TabsContent>
+      ))}
+      {extras.map((x) => (
+        <TabsContent key={x.chave} value={x.chave}>{x.conteudo}</TabsContent>
       ))}
     </Tabs>
   );
