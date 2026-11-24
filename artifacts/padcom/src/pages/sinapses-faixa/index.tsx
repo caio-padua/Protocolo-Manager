@@ -128,6 +128,7 @@ export default function SinapsesFaixa() {
   const [alturaVisivel, setAlturaVisivel] = useState(480);
   // Menu de ligacoes de uma pergunta (dropdown fixo na tela, fora da area rolavel)
   const [menu, setMenu] = useState<{ perguntaId: string; x: number; y: number; acima: boolean } | null>(null);
+  const [menuSaida, setMenuSaida] = useState<{ k: string; cat: Categoria; tipo: TipoDestino; id: number; nome: string; x: number; y: number; acima: boolean } | null>(null);
   const [buscaSeletor, setBuscaSeletor] = useState("");
   const [seletorAberto, setSeletorAberto] = useState(false);
   const [telaSinapses, setTelaSinapses] = useState(false);
@@ -172,6 +173,16 @@ export default function SinapsesFaixa() {
     window.addEventListener("scroll", fechar, true);
     return () => { document.removeEventListener("pointerdown", fechar, true); document.removeEventListener("keydown", tecla); window.removeEventListener("scroll", fechar, true); };
   }, [menu]);
+
+  useEffect(() => {
+    if (!menuSaida) return;
+    const fechar = (e: Event) => { if ((e.target as HTMLElement | null)?.closest?.("[data-menu-saida]")) return; setMenuSaida(null); };
+    const tecla = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuSaida(null); };
+    document.addEventListener("pointerdown", fechar, true);
+    document.addEventListener("keydown", tecla);
+    window.addEventListener("scroll", fechar, true);
+    return () => { document.removeEventListener("pointerdown", fechar, true); document.removeEventListener("keydown", tecla); window.removeEventListener("scroll", fechar, true); };
+  }, [menuSaida]);
 
   // Lingueta do seletor: fechada ate o usuario mexer no proprio seletor (o grafo nao a abre, para nao deslocar a tela durante a ligacao); fecha ao clicar fora ou com Escape.
   useEffect(() => {
@@ -1098,6 +1109,17 @@ export default function SinapsesFaixa() {
                             {d.incompleto && <span className="shrink-0 text-[10px] font-bold text-red-700">SEM EXAMES</span>}
                             <span className="ml-auto min-w-[2.25rem] rounded-[6px] bg-black/5 px-2 py-0.5 text-center text-[10px] font-bold tabular-nums">{totalConexoes || ""}</span>
                           </Corpo>
+                          <button type="button" className="tecla-3d flex h-full w-6 shrink-0 items-center justify-center" data-menu-saida aria-haspopup="dialog" aria-expanded={menuSaida?.k === d.k}
+                            data-testid={`faixa-menu-saida-${d.k}`} aria-label={`Ver o cadastro de ${codigoDestino(d.cat, d.tipo, d.id)}`} title="Ver o cadastro desta saída (fórmula, posologia, via, observação)"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (menuSaida?.k === d.k) { setMenuSaida(null); return; }
+                              const r = e.currentTarget.getBoundingClientRect();
+                              const acima = r.bottom + 320 > window.innerHeight && r.top > 320;
+                              setMenuSaida({ k: d.k, cat: d.cat, tipo: d.tipo, id: d.id, nome: d.nome, x: Math.max(8, r.left - 436), y: acima ? r.top - 4 : r.bottom + 4, acima });
+                            }}>
+                            <ChevronDown className="h-3 w-3" />
+                          </button>
                         </div>
                       );
                     })}
@@ -1241,6 +1263,18 @@ export default function SinapsesFaixa() {
           </Faixa>
           {data.injetaveisSemVia > 0 && <p className="px-1 text-[11px] text-muted-foreground">{data.injetaveisSemVia} injetáveis sem via cadastrada não aparecem em IM, SC nem EV até a via ser preenchida no cadastro.</p>}
         </>
+      )}
+
+      {menuSaida && (
+        <div data-menu-saida role="dialog" aria-label={`Cadastro de ${codigoDestino(menuSaida.cat, menuSaida.tipo, menuSaida.id)}`} data-testid="faixa-menu-saida-painel"
+          className="panel-3d-sub fixed z-[80] w-[420px] max-w-[calc(100vw-16px)] p-1.5 shadow-xl" style={{ left: menuSaida.x, top: menuSaida.y, transform: menuSaida.acima ? "translateY(-100%)" : undefined, background: "#fdfbf5" }}>
+          <div className="mb-1 flex items-center gap-1.5 px-1">
+            <span className="concave-3d sinapse-janela-codigo font-mono text-[10px] font-bold" style={{ color: COR[menuSaida.cat] }}>{codigoDestino(menuSaida.cat, menuSaida.tipo, menuSaida.id)}</span>
+            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold" title={menuSaida.nome}>{menuSaida.nome}</span>
+            <button type="button" className="tecla-3d h-6 w-6 text-[12px] font-bold" onClick={() => setMenuSaida(null)} aria-label="Fechar cadastro">×</button>
+          </div>
+          <div className="max-h-[60vh] overflow-y-auto"><ResumoDestino tipo={menuSaida.tipo} destinoId={menuSaida.id} /></div>
+        </div>
       )}
 
       {menu && data && (() => {

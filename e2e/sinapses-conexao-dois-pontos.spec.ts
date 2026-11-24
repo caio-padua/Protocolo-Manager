@@ -351,3 +351,20 @@ test("sinapse: ampliada, o fio em andamento aparece por cima da tela e liga", as
   await page.getByTestId(`faixa-porta-destino-EXAME|exame|${destinoId}`).click();
   await expect.poll(() => estado.pedidos.length).toBe(1);
 });
+
+test("sinapse: seta da saída abre o cadastro com substâncias alinhadas, tomadas em andares e observação embaixo", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await prepararTela(page);
+  await page.route("**/api/cadastros/sinapses/resumo/**", (r) => r.fulfill({ json: {
+    titulo: "FORMULA TESTE", itens: ["TIROSINA 500 MG", "SELENIO 100 MCG"],
+    linhas: [{ rotulo: "Via", valor: "ORAL" }, { rotulo: "Apresentação", valor: "CAPSULA VEGETAL" }, { rotulo: "Posologia", valor: "UMA DOSE DE MANHA · UMA DOSE A NOITE" }, { rotulo: "Observação", valor: "AJUSTE PERMITIDO" }],
+  } }));
+  await page.getByTestId(`faixa-menu-saida-EXAME|exame|${destinoId}`).click();
+  const painel = page.getByTestId("faixa-menu-saida-painel");
+  await expect(painel.getByTestId("resumo-substancias")).toContainText("500 MG");
+  await expect(painel.getByTestId("resumo-posologia")).toContainText("1ª tomada");
+  await expect(painel.getByTestId("resumo-posologia")).toContainText("2ª tomada");
+  await expect(painel.getByTestId("resumo-atributos")).toContainText("CAPSULA VEGETAL");
+  await expect(painel.getByTestId("resumo-observacao")).toContainText("AJUSTE PERMITIDO");
+  await page.screenshot({ path: "/tmp/saida-painel.png" });
+});

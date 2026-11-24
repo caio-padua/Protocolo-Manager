@@ -61,18 +61,32 @@ export function ResumoDestino({ tipo, destinoId }: { tipo: string; destinoId: nu
   if (q.isLoading) return <p className="px-2 py-1 text-[10px] text-muted-foreground">Carregando resumo...</p>;
   if (q.isError || !q.data) return <p className="px-2 py-1 text-[10px] text-red-600">Não foi possível carregar o resumo. <button type="button" className="underline" onClick={() => q.refetch()}>Tentar de novo</button></p>;
   const d = q.data;
+  const pega = (r: string) => d.linhas.find((l) => l.rotulo === r)?.valor;
+  const poso = pega("Posologia");
+  const obs = pega("Observação");
+  const curtos = d.linhas.filter((l) => l.rotulo !== "Posologia" && l.rotulo !== "Observação");
+  // Substância + dose: a dose (número e unidade no fim do texto) vai para uma coluna vertical alinhada.
+  const partes = d.itens.map((x) => { const m = x.match(/^(.*?)\s+(\d[\d.,]*\s*[A-Za-zµ%/]+)$/); return m ? { nome: m[1], dose: m[2] } : { nome: x, dose: "" }; });
+  const rot = "text-[9px] font-black uppercase tracking-wider text-primary/80";
   return (
-    <div className="concave-3d mx-1 mb-1 grid gap-x-3 gap-y-1 px-2 py-1.5 text-[11px] sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]" data-testid="grade-saidas-resumo">
-      {d.itens.length > 0 && (
-        <ul className="space-y-0.5">
-          {d.itens.map((x, i) => <li key={i} className="truncate" title={x}>{x}</li>)}
-        </ul>
+    <div className="concave-3d mx-1 mb-1 space-y-1.5 px-2 py-1.5 text-[11px]" data-testid="grade-saidas-resumo">
+      {partes.length > 0 && (
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-0.5" data-testid="resumo-substancias">
+          {partes.map((x, i) => (<div key={i} className="contents"><span className="truncate" title={x.nome}>{x.nome}</span><span className="text-right font-mono tabular-nums">{x.dose}</span></div>))}
+        </div>
       )}
-      {d.linhas.length > 0 && (
-        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-0.5">
-          {d.linhas.map((l) => (<div key={l.rotulo} className="contents"><dt className="text-[9px] font-black uppercase tracking-wider text-primary/80">{l.rotulo}</dt><dd className="min-w-0">{l.rotulo === "Posologia" ? l.valor.split(" · ").map((t, i) => <div key={i}>{t}</div>) : l.valor}</dd></div>))}
-        </dl>
+      {poso && (
+        <div className="space-y-0.5 border-t border-black/10 pt-1" data-testid="resumo-posologia">
+          <div className={rot}>Posologia</div>
+          {poso.split(" · ").map((t, i) => (<div key={i} className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-2"><span className="font-semibold text-muted-foreground">{i + 1}ª tomada</span><span>{t}</span></div>))}
+        </div>
       )}
+      {curtos.length > 0 && (
+        <div className="flex flex-wrap gap-x-5 gap-y-1 border-t border-black/10 pt-1" data-testid="resumo-atributos">
+          {curtos.map((l) => (<div key={l.rotulo} className="min-w-0"><div className={rot}>{l.rotulo}</div><div>{l.valor}</div></div>))}
+        </div>
+      )}
+      {obs && (<div className="border-t border-black/10 pt-1" data-testid="resumo-observacao"><div className={rot}>Observação</div><div>{obs}</div></div>)}
       {d.itens.length === 0 && d.linhas.length === 0 && <p className="text-muted-foreground">Sem informações cadastradas.</p>}
     </div>
   );
