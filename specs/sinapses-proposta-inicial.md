@@ -7,7 +7,7 @@ visíveis para inspeção e edição, sem ativá-las como regras clínicas.
 
 ## Requisitos
 
-1. Preservar as seis ligações existentes, sem apagar ou reescrever nenhuma.
+1. Preservar todas as ligações ativas existentes, sem apagar ou reescrever nenhuma.
 2. Criar uma tabela separada para propostas, com estado PENDENTE, APROVADA ou RECUSADA.
 3. Cada proposta deve guardar o eixo informado, a pergunta, a categoria, o destino real do catálogo e a justificativa textual da seleção.
 4. A carga deve usar apenas perguntas e destinos existentes, ativos e vindos dos catálogos reais.
@@ -18,7 +18,8 @@ visíveis para inspeção e edição, sem ativá-las como regras clínicas.
 9. A interface deve permitir gerar a carga e aprovar ou recusar cada proposta individualmente.
 10. Contagens devem separar ligações ativas de propostas pendentes por categoria.
 11. Não conectar perguntas de identificação pessoal, códigos ausentes ou perguntas que não correspondam ao eixo descrito.
-12. Não alterar o motor, o Cockpit, prescrições, doses, vias ou cadastros de itens clínicos.
+12. Não criar, aprovar, clonar ou reativar ligação para destino ausente, inativo ou sem conteúdo.
+13. Não alterar o motor, o Cockpit, prescrições, doses, vias ou cadastros de itens clínicos.
 
 ## Escopo da proposta inicial
 
@@ -26,10 +27,17 @@ Os eixos e códigos vêm do texto fornecido pelo Dr. Caio. A seleção dos desti
 uma proposta baseada nos nomes e classificações já presentes no catálogo. Ela não
 representa indicação clínica, não será ativada e deve ser apresentada como pendente.
 
-Perguntas citadas que não existem no catálogo ficam fora da carga. Perguntas de
-identificação pessoal, como nome e CPF, nunca recebem saídas clínicas. Perguntas
-genéricas que não identificam o eixo também ficam fora, mesmo que o texto original
-inclua uma faixa de códigos ampla.
+`GAD1-7` é uma forma abreviada de mencionar as perguntas existentes `GAD1` a
+`GAD7`; cada uma será tratada pelo próprio código. `Q003` a `Q009` não existem
+no catálogo atual e ficam fora da carga.
+Perguntas de identificação pessoal (`Q001` nome completo e `Q002` CPF) nunca recebem
+saídas clínicas. `Q010` é a queixa principal, ampla demais para receber uma saída
+automática. `F02` é sobre reação alérgica grave e não será associada ao eixo
+digestivo. A pergunta de doenças já diagnosticadas (`Q013`) pode receber apenas
+propostas explicitamente identificadas como amplas e pendentes.
+Blocos vazios ou duplicados não serão escolhidos quando houver uma cópia preenchida.
+Perguntas cardíacas `C-CAR01` a `C-CAR03` e osteoarticulares `C-OSM01` e `C-OSM02`
+recebem propostas apenas do respectivo grupo de catálogo.
 
 ## Impacto
 
@@ -46,6 +54,7 @@ inclua uma faixa de códigos ampla.
 |---|---|
 | Código de pergunta citado não existe | validar contra `anamnese_questionario`; não inserir |
 | Destino inativo ou ausente | buscar apenas catálogos ativos; confirmar no servidor |
+| Bloco sem exames aparenta conduzir | mostrar como “sem saída”; impedir nova criação e aprovação |
 | Execução repetida | chave única por pergunta, categoria, tipo e destino |
 | Aprovação concorrente | transação; `ON CONFLICT` e atualização de estado atômicos |
 | Falha no meio da aprovação | transação reverte ambas as alterações |

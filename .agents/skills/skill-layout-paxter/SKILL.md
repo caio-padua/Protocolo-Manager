@@ -1025,5 +1025,44 @@ Toda tela NOVA nasce assim. Definido pelo CEO em 20/11/2026.
 7. Secoes secundarias: `BarraGrupo` + `SanfonaVertical` dentro do painel.
 Referencia viva: `pages/pedidos-medicos/FilaPedidos.tsx` e `index.tsx`.
 
+### Padrao 48 — Sinapse clínica: polos, códigos e condução pendente
+
+Fonte: tela Sinapses Clínicas. Aplicar quando uma tela mostra perguntas ou sinais
+ligados a saídas de catálogo, sem confundir desenho do vínculo com aprovação clínica.
+
+1. **Faixa horizontal do neurônio:** pergunta/código à esquerda, destino/código à
+   direita e fio no centro. As extremidades recebem mais largura que o centro; o
+   centro mantém fundo branco nítido e espaço suficiente para distinguir os fios.
+2. **Código completo nos dois polos:** mostrar o código integral, como `C-GER03` e
+   `EXA-12`, não apenas a sigla. O nome completo fica visível na sanfona e também
+   pode ser lido ao apontar o mouse; o controle precisa conservar nome acessível
+   por teclado e toque.
+3. **Condução tem estados diferentes:** fio contínuo representa ligação ativa;
+   fio tracejado representa proposta ainda pendente. Proposta não acende simulação,
+   não entra na contagem de ligações ativas e não alimenta nenhum motor clínico.
+    Ligação ativa cujo destino esteja vazio, inativo ou ausente não é condução real:
+    permanece visível com fio vermelho tracejado e rótulo “sem saída”, mas não acende
+    simulação nem pode ser criada, aprovada, clonada ou reativada.
+4. **Sanfona vertical:** cada correspondência pode abrir para mostrar código,
+   nome, eixo de origem, justificativa da proposta e ações de revisão. “Aprovar” e
+   “Recusar” só aparecem para propostas; recusa preserva o registro.
+5. **Carga inicial auditável:** a carga é idempotente, mantém as ligações ativas,
+   ignora códigos ausentes e não escolhe destino por mera semelhança quando o
+   catálogo não oferece correspondência clara. Itens sem ligação permanecem
+   visíveis com motivo escrito.
+    Ao abrir, destacar uma pergunta ligada para que a corrente seja legível; deixar
+    os outros fios disponíveis, mas visualmente discretos.
+6. **Pele:** usar o padrão Paxter de painel Saliente/Concavo, tecido claro e navy/ouro.
+   Não usar retângulos coloridos soltos; cor de categoria identifica o fio, enquanto
+   o estado pendente é identificado por tracejado e texto.
+
+**Why:** o responsável quer enxergar a relação pergunta→saída como um neurônio
+conduzindo corrente, com correspondências legíveis e editáveis, sem ligar propostas
+não revisadas ao funcionamento clínico.
+
+**How to apply:** preservar os polos e a sanfona em telas semelhantes; separar
+visualmente dados ativos de propostas e manter a condução clínica bloqueada até
+aprovação explícita.
+
 ## Gráfico de linha com faixas
 Antes de criar ou mexer em qualquer gráfico de linha (Pulso, antropometria, exames), ler `references/grafico-linha-faixas.md`: espessura, faixas, quadradinho preto vazado e setas vêm de `graficoPadrao.ts`.

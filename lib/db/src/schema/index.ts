@@ -1,4 +1,5 @@
 export * from "./clients";
+export * from "./sinapses-clinicas-propostas";
 export * from "./client-service-addresses";
 export * from "./substances";
 export * from "./fornecedores";

@@ -228,6 +228,12 @@ import type {
   SimpleOk,
   SimulacaoInput,
   SimulacaoResultado,
+  SinapseClinicalPanel,
+  SinapseProposal,
+  SinapseProposalGenerationInput,
+  SinapseProposalGenerationResult,
+  SinapseProposalStatusResult,
+  SinapseProposalUpdate,
   SiteContent,
   SncrQuota,
   SncrRange,
@@ -18394,4 +18400,433 @@ export const useSendEvolutionHomologacaoResponse = <
   return useMutation(
     getSendEvolutionHomologacaoResponseMutationOptions(options),
   );
+};
+
+/**
+ * @summary Lista perguntas, destinos, ligações ativas e propostas
+ */
+export const getGetSinapsesClinicasPainelUrl = () => {
+  return `/api/cadastros/sinapses/painel`;
+};
+
+export const getSinapsesClinicasPainel = async (
+  options?: RequestInit,
+): Promise<SinapseClinicalPanel> => {
+  return customFetch<SinapseClinicalPanel>(getGetSinapsesClinicasPainelUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSinapsesClinicasPainelQueryKey = () => {
+  return [`/api/cadastros/sinapses/painel`] as const;
+};
+
+export const getGetSinapsesClinicasPainelQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSinapsesClinicasPainel>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSinapsesClinicasPainel>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetSinapsesClinicasPainelQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSinapsesClinicasPainel>>
+  > = ({ signal }) => getSinapsesClinicasPainel({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSinapsesClinicasPainel>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSinapsesClinicasPainelQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSinapsesClinicasPainel>>
+>;
+export type GetSinapsesClinicasPainelQueryError = ErrorType<void>;
+
+/**
+ * @summary Lista perguntas, destinos, ligações ativas e propostas
+ */
+
+export function useGetSinapsesClinicasPainel<
+  TData = Awaited<ReturnType<typeof getSinapsesClinicasPainel>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSinapsesClinicasPainel>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSinapsesClinicasPainelQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Grava propostas idempotentes sem ativá-las
+ */
+export const getGenerateInitialSinapseProposalsUrl = () => {
+  return `/api/cadastros/sinapses/propostas/carga-inicial`;
+};
+
+export const generateInitialSinapseProposals = async (
+  sinapseProposalGenerationInput: SinapseProposalGenerationInput,
+  options?: RequestInit,
+): Promise<SinapseProposalGenerationResult> => {
+  return customFetch<SinapseProposalGenerationResult>(
+    getGenerateInitialSinapseProposalsUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(sinapseProposalGenerationInput),
+    },
+  );
+};
+
+export const getGenerateInitialSinapseProposalsMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateInitialSinapseProposals>>,
+    TError,
+    { data: BodyType<SinapseProposalGenerationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateInitialSinapseProposals>>,
+  TError,
+  { data: BodyType<SinapseProposalGenerationInput> },
+  TContext
+> => {
+  const mutationKey = ["generateInitialSinapseProposals"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateInitialSinapseProposals>>,
+    { data: BodyType<SinapseProposalGenerationInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return generateInitialSinapseProposals(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateInitialSinapseProposalsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateInitialSinapseProposals>>
+>;
+export type GenerateInitialSinapseProposalsMutationBody =
+  BodyType<SinapseProposalGenerationInput>;
+export type GenerateInitialSinapseProposalsMutationError = ErrorType<void>;
+
+/**
+ * @summary Grava propostas idempotentes sem ativá-las
+ */
+export const useGenerateInitialSinapseProposals = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateInitialSinapseProposals>>,
+    TError,
+    { data: BodyType<SinapseProposalGenerationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generateInitialSinapseProposals>>,
+  TError,
+  { data: BodyType<SinapseProposalGenerationInput> },
+  TContext
+> => {
+  return useMutation(
+    getGenerateInitialSinapseProposalsMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Altera o destino de uma proposta ainda pendente
+ */
+export const getUpdateSinapseProposalUrl = (id: number) => {
+  return `/api/cadastros/sinapses/propostas/${id}`;
+};
+
+export const updateSinapseProposal = async (
+  id: number,
+  sinapseProposalUpdate: SinapseProposalUpdate,
+  options?: RequestInit,
+): Promise<SinapseProposal> => {
+  return customFetch<SinapseProposal>(getUpdateSinapseProposalUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(sinapseProposalUpdate),
+  });
+};
+
+export const getUpdateSinapseProposalMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSinapseProposal>>,
+    TError,
+    { id: number; data: BodyType<SinapseProposalUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSinapseProposal>>,
+  TError,
+  { id: number; data: BodyType<SinapseProposalUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateSinapseProposal"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSinapseProposal>>,
+    { id: number; data: BodyType<SinapseProposalUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateSinapseProposal(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSinapseProposalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSinapseProposal>>
+>;
+export type UpdateSinapseProposalMutationBody = BodyType<SinapseProposalUpdate>;
+export type UpdateSinapseProposalMutationError = ErrorType<void>;
+
+/**
+ * @summary Altera o destino de uma proposta ainda pendente
+ */
+export const useUpdateSinapseProposal = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSinapseProposal>>,
+    TError,
+    { id: number; data: BodyType<SinapseProposalUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSinapseProposal>>,
+  TError,
+  { id: number; data: BodyType<SinapseProposalUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateSinapseProposalMutationOptions(options));
+};
+
+/**
+ * @summary Move uma proposta pendente para as ligações ativas da tela
+ */
+export const getApproveSinapseProposalUrl = (id: number) => {
+  return `/api/cadastros/sinapses/propostas/${id}/aprovar`;
+};
+
+export const approveSinapseProposal = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SinapseProposalStatusResult> => {
+  return customFetch<SinapseProposalStatusResult>(
+    getApproveSinapseProposalUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getApproveSinapseProposalMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveSinapseProposal>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof approveSinapseProposal>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["approveSinapseProposal"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof approveSinapseProposal>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return approveSinapseProposal(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ApproveSinapseProposalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof approveSinapseProposal>>
+>;
+
+export type ApproveSinapseProposalMutationError = ErrorType<void>;
+
+/**
+ * @summary Move uma proposta pendente para as ligações ativas da tela
+ */
+export const useApproveSinapseProposal = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveSinapseProposal>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof approveSinapseProposal>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getApproveSinapseProposalMutationOptions(options));
+};
+
+/**
+ * @summary Recusa uma proposta sem apagar seu registro
+ */
+export const getRejectSinapseProposalUrl = (id: number) => {
+  return `/api/cadastros/sinapses/propostas/${id}/recusar`;
+};
+
+export const rejectSinapseProposal = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SinapseProposalStatusResult> => {
+  return customFetch<SinapseProposalStatusResult>(
+    getRejectSinapseProposalUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getRejectSinapseProposalMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rejectSinapseProposal>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rejectSinapseProposal>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["rejectSinapseProposal"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rejectSinapseProposal>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return rejectSinapseProposal(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RejectSinapseProposalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rejectSinapseProposal>>
+>;
+
+export type RejectSinapseProposalMutationError = ErrorType<void>;
+
+/**
+ * @summary Recusa uma proposta sem apagar seu registro
+ */
+export const useRejectSinapseProposal = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rejectSinapseProposal>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof rejectSinapseProposal>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getRejectSinapseProposalMutationOptions(options));
 };

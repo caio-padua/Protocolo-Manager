@@ -43,6 +43,8 @@ tags:
     description: Atendimento e histórico do Telegram com escopo por clínica
   - name: evolution
     description: Integração WhatsApp, identidade e homologação supervisionada
+  - name: sinapses
+    description: Ligações clínicas propostas e aprovadas entre perguntas e saídas do catálogo
 
 paths:
   /cockpit/{clientId}/telegram-inbox:
@@ -4249,6 +4251,107 @@ paths:
         "409": { description: Motor sem resposta ou texto de teste ausente. }
         "502": { description: Provedor recusou o envio. }
         "500": { description: Falha ao gerar ou enviar; conferir o histórico antes de repetir. }
+
+  /cadastros/sinapses/painel:
+    get:
+      operationId: getSinapsesClinicasPainel
+      tags: [sinapses]
+      summary: Lista perguntas, destinos, ligações ativas e propostas
+      responses:
+        "200":
+          description: Painel completo para a tela de sinapses.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SinapseClinicalPanel" }
+        "500": { description: Falha ao consultar os catálogos. }
+  /cadastros/sinapses/propostas/carga-inicial:
+    post:
+      operationId: generateInitialSinapseProposals
+      tags: [sinapses]
+      security: [{ collaboratorBearer: [] }]
+      summary: Grava propostas idempotentes sem ativá-las
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SinapseProposalGenerationInput" }
+      responses:
+        "201":
+          description: Quantidade gravada e avisos sobre códigos ausentes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SinapseProposalGenerationResult" }
+        "401": { description: Colaborador não autenticado. }
+        "403": { description: Colaborador sem permissão para escrever. }
+  /cadastros/sinapses/propostas/{id}:
+    patch:
+      operationId: updateSinapseProposal
+      tags: [sinapses]
+      security: [{ collaboratorBearer: [] }]
+      summary: Altera o destino de uma proposta ainda pendente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SinapseProposalUpdate" }
+      responses:
+        "200":
+          description: Proposta atualizada.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SinapseProposal" }
+        "400": { description: Categoria ou destino incompatível. }
+        "401": { description: Colaborador não autenticado. }
+        "403": { description: Colaborador sem permissão para escrever. }
+        "404": { description: Proposta ou destino não encontrado. }
+        "409": { description: Proposta revisada ou repetida. }
+  /cadastros/sinapses/propostas/{id}/aprovar:
+    post:
+      operationId: approveSinapseProposal
+      tags: [sinapses]
+      security: [{ collaboratorBearer: [] }]
+      summary: Move uma proposta pendente para as ligações ativas da tela
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Proposta aprovada; o motor clínico não consome essa tabela.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SinapseProposalStatusResult" }
+        "401": { description: Colaborador não autenticado. }
+        "403": { description: Colaborador sem permissão para escrever. }
+        "404": { description: Proposta não encontrada. }
+        "409": { description: Proposta já revisada ou destino inativo. }
+  /cadastros/sinapses/propostas/{id}/recusar:
+    post:
+      operationId: rejectSinapseProposal
+      tags: [sinapses]
+      security: [{ collaboratorBearer: [] }]
+      summary: Recusa uma proposta sem apagar seu registro
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Proposta preservada como recusada.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SinapseProposalStatusResult" }
+        "401": { description: Colaborador não autenticado. }
+        "403": { description: Colaborador sem permissão para escrever. }
+        "404": { description: Proposta não encontrada. }
+        "409": { description: Proposta já revisada. }
 
 components:
   securitySchemes:
@@ -10129,3 +10232,122 @@ components:
         catalogInserted: { type: integer }
         catalogTotal: { type: integer }
         settingsCreated: { type: boolean }
+    SinapseCategoria:
+      type: string
+      enum: [EXAME, PRESCRICAO, INJETAVEL_IM, INJETAVEL_SC, INJETAVEL_EV, IMPLANTE]
+    SinapseQuestion:
+      type: object
+      additionalProperties: false
+      required: [perguntaId, pergunta, bloco, eSinalAlarme]
+      properties:
+        perguntaId: { type: string }
+        pergunta: { type: string }
+        bloco: { type: ["string", "null"] }
+        eSinalAlarme: { type: boolean }
+    SinapseDestination:
+      type: object
+      additionalProperties: false
+      required: [tipo, id, nome]
+      properties:
+        tipo: { type: string, enum: [exame, bloco_exames, formula, injetavel, implante] }
+        id: { type: integer }
+        nome: { type: string }
+        detalhe: { type: ["string", "null"] }
+        incompleto: { type: boolean }
+    SinapseLink:
+      type: object
+      additionalProperties: false
+      required: [id, perguntaId, categoria, destinoTipo, destinoId, cloneDe]
+      properties:
+        id: { type: integer }
+        perguntaId: { type: string }
+        categoria: { $ref: "#/components/schemas/SinapseCategoria" }
+        destinoTipo: { type: string, enum: [exame, bloco_exames, formula, injetavel, implante] }
+        destinoId: { type: integer }
+        cloneDe: { type: ["integer", "null"] }
+    SinapseProposal:
+      type: object
+      additionalProperties: false
+      required: [id, perguntaId, categoria, destinoTipo, destinoId, eixo, justificativa, status]
+      properties:
+        id: { type: integer }
+        perguntaId: { type: string }
+        categoria: { $ref: "#/components/schemas/SinapseCategoria" }
+        destinoTipo: { type: string, enum: [exame, bloco_exames, formula, injetavel, implante] }
+        destinoId: { type: integer }
+        eixo: { type: string }
+        justificativa: { type: string }
+        status: { type: string, enum: [PENDENTE, APROVADA, RECUSADA] }
+    SinapseClinicalPanel:
+      type: object
+      additionalProperties: false
+      required: [perguntas, destinos, injetaveisSemVia, sinapses, propostas]
+      properties:
+        perguntas:
+          type: array
+          items: { $ref: "#/components/schemas/SinapseQuestion" }
+        destinos:
+          type: object
+          additionalProperties: false
+          required: [EXAME, PRESCRICAO, INJETAVEL_IM, INJETAVEL_SC, INJETAVEL_EV, IMPLANTE]
+          properties:
+            EXAME: { type: array, items: { $ref: "#/components/schemas/SinapseDestination" } }
+            PRESCRICAO: { type: array, items: { $ref: "#/components/schemas/SinapseDestination" } }
+            INJETAVEL_IM: { type: array, items: { $ref: "#/components/schemas/SinapseDestination" } }
+            INJETAVEL_SC: { type: array, items: { $ref: "#/components/schemas/SinapseDestination" } }
+            INJETAVEL_EV: { type: array, items: { $ref: "#/components/schemas/SinapseDestination" } }
+            IMPLANTE: { type: array, items: { $ref: "#/components/schemas/SinapseDestination" } }
+        injetaveisSemVia: { type: integer }
+        sinapses:
+          type: array
+          items: { $ref: "#/components/schemas/SinapseLink" }
+        propostas:
+          type: array
+          items: { $ref: "#/components/schemas/SinapseProposal" }
+    SinapseProposalGenerationInput:
+      type: object
+      additionalProperties: false
+    SinapseProposalGenerationResult:
+      type: object
+      additionalProperties: false
+      required: [inseridas, propostasEncontradas, porCategoria, codigosAusentes, perguntasIgnoradas]
+      properties:
+        inseridas: { type: integer }
+        propostasEncontradas: { type: integer }
+        porCategoria:
+          type: object
+          additionalProperties: false
+          required: [EXAME, PRESCRICAO, INJETAVEL_IM, INJETAVEL_SC, INJETAVEL_EV, IMPLANTE]
+          properties:
+            EXAME: { type: integer }
+            PRESCRICAO: { type: integer }
+            INJETAVEL_IM: { type: integer }
+            INJETAVEL_SC: { type: integer }
+            INJETAVEL_EV: { type: integer }
+            IMPLANTE: { type: integer }
+        codigosAusentes:
+          type: array
+          items: { type: string }
+        perguntasIgnoradas:
+          type: array
+          items:
+            type: object
+            required: [perguntaId, motivo]
+            properties:
+              perguntaId: { type: string }
+              motivo: { type: string }
+    SinapseProposalUpdate:
+      type: object
+      additionalProperties: false
+      required: [categoria, destinoTipo, destinoId]
+      properties:
+        categoria: { $ref: "#/components/schemas/SinapseCategoria" }
+        destinoTipo: { type: string, enum: [exame, bloco_exames, formula, injetavel, implante] }
+        destinoId: { type: integer, minimum: 1 }
+    SinapseProposalStatusResult:
+      type: object
+      additionalProperties: false
+      required: [id, status]
+      properties:
+        id: { type: integer }
+        status: { type: string, enum: [APROVADA, RECUSADA] }

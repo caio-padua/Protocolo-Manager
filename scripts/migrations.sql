@@ -659,3 +659,23 @@ ALTER TABLE substance_ofertas ADD COLUMN IF NOT EXISTS produto_fonte text;
 UPDATE substance_ofertas
    SET produto_fonte = btrim(split_part(fonte_texto, '|', 3))
  WHERE produto_fonte IS NULL AND origem_chave LIKE 'farmatec-%' AND split_part(fonte_texto, '|', 3) <> '';
+
+-- Propostas de sinapses clínicas ficam separadas das ligações ativas até revisão humana.
+CREATE TABLE IF NOT EXISTS sinapses_clinicas_propostas (
+  id SERIAL PRIMARY KEY,
+  pergunta_id TEXT NOT NULL,
+  categoria TEXT NOT NULL,
+  destino_tipo TEXT NOT NULL,
+  destino_id INTEGER NOT NULL,
+  eixo TEXT NOT NULL,
+  justificativa TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDENTE'
+    CHECK (status IN ('PENDENTE', 'APROVADA', 'RECUSADA')),
+  criado_por INTEGER,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT sinapses_clinicas_propostas_uk
+    UNIQUE (pergunta_id, categoria, destino_tipo, destino_id)
+);
+CREATE INDEX IF NOT EXISTS sinapses_clinicas_propostas_status_idx
+  ON sinapses_clinicas_propostas (status, id);

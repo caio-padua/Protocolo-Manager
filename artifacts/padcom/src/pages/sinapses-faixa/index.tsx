@@ -1,6 +1,13 @@
 import "../matriz-fornecedores/matriz.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useApproveSinapseProposal,
+  useGenerateInitialSinapseProposals,
+  useGetSinapsesClinicasPainel,
+  useRejectSinapseProposal,
+  useUpdateSinapseProposal,
+} from "@workspace/api-client-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -15,6 +22,7 @@ import { ChevronDown, ChevronRight, Lock, Unlock, Search, Pencil, Play, Eye, Ale
 // ============================================================================
 
 type Categoria = "EXAME" | "PRESCRICAO" | "INJETAVEL_IM" | "INJETAVEL_SC" | "INJETAVEL_EV" | "IMPLANTE";
+type TipoDestino = "exame" | "bloco_exames" | "formula" | "injetavel" | "implante";
 type Modo = "VISUALIZACAO" | "EDICAO" | "SIMULACAO";
 const CATEGORIAS: Array<{ chave: Categoria; rotulo: string; sigla: string; cor: string }> = [
   { chave: "EXAME", rotulo: "Exames", sigla: "EXA", cor: "#2563eb" },
@@ -30,12 +38,14 @@ const SIGLA = Object.fromEntries(CATEGORIAS.map((c) => [c.chave, c.sigla])) as R
 const ROW_H = 24;
 
 interface Pergunta { perguntaId: string; pergunta: string; bloco: string | null; eSinalAlarme: boolean }
-interface Destino { tipo: string; id: number; nome: string; detalhe?: string | null; incompleto?: boolean }
-interface Sinapse { id: number; perguntaId: string; categoria: Categoria; destinoTipo: string; destinoId: number; cloneDe: number | null }
-interface Painel { perguntas: Pergunta[]; destinos: Record<Categoria, Destino[]>; injetaveisSemVia: number; sinapses: Sinapse[] }
+interface Destino { tipo: TipoDestino; id: number; nome: string; detalhe?: string | null; incompleto?: boolean }
+interface Sinapse { id: number; perguntaId: string; categoria: Categoria; destinoTipo: TipoDestino; destinoId: number; cloneDe: number | null }
+interface Proposta { id: number; perguntaId: string; categoria: Categoria; destinoTipo: TipoDestino; destinoId: number; eixo: string; justificativa: string; status: "PENDENTE" | "APROVADA" | "RECUSADA" }
+interface Painel { perguntas: Pergunta[]; destinos: Record<Categoria, Destino[]>; injetaveisSemVia: number; sinapses: Sinapse[]; propostas: Proposta[] }
+interface ConexaoGrafico { id: string; perguntaId: string; categoria: Categoria; destinoTipo: TipoDestino; destinoId: number; estado: "ATIVA" | "PENDENTE" | "SEM_SAIDA" }
 
 const chave = (c: Categoria, tipo: string, id: number) => `${c}|${tipo}|${id}`;
-const codigoDestino = (c: Categoria, tipo: string, id: number) => `${tipo === "bloco_exames" ? "BLK" : SIGLA[c]}-${id}`;
+const codigoDestino = (c: Categoria, _tipo: string, id: number) => `${SIGLA[c]}-${id}`;
 const semAcento = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const emCampo = (t: EventTarget | null) => {
   const el = t as HTMLElement | null;
@@ -60,19 +70,13 @@ function Faixa({ titulo, aberta, onToggle, direita, children, testid }: { titulo
 export default function SinapsesFaixa() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { data, isLoading, isError, refetch } = useQuery<Painel>({
-    queryKey: ["/api/cadastros/sinapses/painel"],
-    queryFn: async () => {
-      const r = await fetch("/api/cadastros/sinapses/painel");
-      if (!r.ok) throw new Error("Falha ao carregar as sinapses");
-      return r.json();
-    },
-  });
+  const { data: painelGerado, isLoading, isError, refetch } = useGetSinapsesClinicasPainel();
+  const data = painelGerado as Painel | undefined;
 
   const [modo, setModo] = useState<Modo>("VISUALIZACAO");
   const [busca, setBusca] = useState("");
   const [cats, setCats] = useState<Categoria[]>([]);
-  const [todos, setTodos] = useState(true);
+  const [todos, setTodos] = useState(false);
   const [faixaAberta, setFaixaAberta] = useState(true);
   const [sanfonaAberta, setSanfonaAberta] = useState(true);
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
@@ -80,6 +84,10 @@ export default function SinapsesFaixa() {
   const [ancora, setAncora] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
   const [copia, setCopia] = useState<number[]>([]);
+  const [propostaEditando, setPropostaEditando] = useState<number | null>(null);
+  const [categoriaEdicao, setCategoriaEdicao] = useState<Categoria>("EXAME");
+  const [buscaDestinoEdicao, setBuscaDestinoEdicao] = useState("");
+  const [aprovarArmado, setAprovarArmado] = useState<number | null>(null);
   const [armadas, setArmadas] = useState<Set<number>>(new Set());
   const [arraste, setArraste] = useState<{ de: string; x0: number; y0: number; x: number; y: number; clonar: boolean } | null>(null);
   const arrasteRef = useRef(arraste);
@@ -110,6 +118,36 @@ export default function SinapsesFaixa() {
     onSuccess: () => { invalidar(); toast({ title: "Ligação desativada", description: "Nada foi apagado: ela só deixou de valer." }); },
     onError: onErro,
   });
+  const gerarCarga = useGenerateInitialSinapseProposals({
+    mutation: {
+      onSuccess: (r) => {
+        invalidar();
+        toast({
+          title: `${r.inseridas} proposta(s) nova(s) gravada(s)`,
+          description: r.codigosAusentes.length ? `Códigos ausentes: ${r.codigosAusentes.join(", ")}` : `${r.propostasEncontradas} correspondência(s) encontrada(s); a carga é idempotente.`,
+        });
+      },
+      onError: onErro,
+    },
+  });
+  const editarProposta = useUpdateSinapseProposal({
+    mutation: {
+      onSuccess: () => { invalidar(); setPropostaEditando(null); setBuscaDestinoEdicao(""); toast({ title: "Proposta atualizada" }); },
+      onError: onErro,
+    },
+  });
+  const aprovarProposta = useApproveSinapseProposal({
+    mutation: {
+      onSuccess: () => { invalidar(); setAprovarArmado(null); toast({ title: "Ligação aprovada", description: "Ela agora aparece como ativa nesta tela. O motor clínico continua sem consumir sinapses." }); },
+      onError: onErro,
+    },
+  });
+  const recusarProposta = useRejectSinapseProposal({
+    mutation: {
+      onSuccess: () => { invalidar(); toast({ title: "Proposta recusada", description: "O registro foi preservado e não virou ligação ativa." }); },
+      onError: onErro,
+    },
+  });
 
   const nomeDe = useMemo(() => {
     const m = new Map<string, Destino>();
@@ -124,50 +162,121 @@ export default function SinapsesFaixa() {
     }
     return m;
   }, [data, cats]);
+  const propostasPorPergunta = useMemo(() => {
+    const m = new Map<string, Proposta[]>();
+    for (const proposta of data?.propostas ?? []) {
+      if (proposta.status !== "PENDENTE" || (cats.length && !cats.includes(proposta.categoria))) continue;
+      const a = m.get(proposta.perguntaId); if (a) a.push(proposta); else m.set(proposta.perguntaId, [proposta]);
+    }
+    return m;
+  }, [data, cats]);
+  const conexoesPorPergunta = useMemo(() => {
+    const m = new Map<string, ConexaoGrafico[]>();
+    for (const s of data?.sinapses ?? []) {
+      if (cats.length && !cats.includes(s.categoria)) continue;
+      const a = m.get(s.perguntaId) ?? [];
+      const destinoChave = chave(s.categoria, s.destinoTipo, s.destinoId);
+      const destino = nomeDe.get(destinoChave);
+      a.push({
+        id: `ativa-${s.id}`,
+        perguntaId: s.perguntaId,
+        categoria: s.categoria,
+        destinoTipo: s.destinoTipo,
+        destinoId: s.destinoId,
+        estado: destino && !destino.incompleto ? "ATIVA" : "SEM_SAIDA",
+      });
+      m.set(s.perguntaId, a);
+    }
+    if (modo !== "SIMULACAO") for (const p of data?.propostas ?? []) {
+      if (p.status !== "PENDENTE" || (cats.length && !cats.includes(p.categoria))) continue;
+      const a = m.get(p.perguntaId) ?? [];
+      a.push({ id: `proposta-${p.id}`, perguntaId: p.perguntaId, categoria: p.categoria, destinoTipo: p.destinoTipo, destinoId: p.destinoId, estado: "PENDENTE" });
+      m.set(p.perguntaId, a);
+    }
+    return m;
+  }, [data, cats, modo, nomeDe]);
+
+  useEffect(() => {
+    if (!data || sel.length) return;
+    const primeira = data.perguntas.find((p) => p.perguntaId === "C-GER03" && conexoesPorPergunta.has(p.perguntaId))
+      ?? data.perguntas.find((p) => conexoesPorPergunta.has(p.perguntaId));
+    if (primeira) setSel([primeira.perguntaId]);
+  }, [data, sel.length, conexoesPorPergunta]);
 
   const q = semAcento(busca.trim());
   // Esquerda: na EDICAO todas as perguntas (para ligar); nos demais modos so as que tem ligacao.
   const esquerda = useMemo(() => {
     return (data?.perguntas ?? []).filter((p) => {
-      const lig = porPergunta.get(p.perguntaId) ?? [];
+      const lig = conexoesPorPergunta.get(p.perguntaId) ?? [];
       if (!todos && modo !== "EDICAO" && lig.length === 0) return false;
       if (!q) return true;
       return semAcento(`${p.perguntaId} ${p.pergunta} ${p.bloco ?? ""}`).includes(q) || lig.some((s) => semAcento(nomeDe.get(chave(s.categoria, s.destinoTipo, s.destinoId))?.nome ?? "").includes(q));
-    }).sort((a, b) => Number((porPergunta.get(b.perguntaId)?.length ?? 0) > 0) - Number((porPergunta.get(a.perguntaId)?.length ?? 0) > 0));
-  }, [data, porPergunta, modo, q, nomeDe, todos]);
+    }).sort((a, b) => Number((conexoesPorPergunta.get(b.perguntaId)?.length ?? 0) > 0) - Number((conexoesPorPergunta.get(a.perguntaId)?.length ?? 0) > 0));
+  }, [data, porPergunta, conexoesPorPergunta, modo, q, nomeDe, todos]);
 
   // Direita: destinos ligados; na EDICAO com saida escolhida, o catalogo inteiro dela.
   const direita = useMemo(() => {
-    const m = new Map<string, { k: string; cat: Categoria; tipo: string; id: number; nome: string; n: number }>();
+    const m = new Map<string, { k: string; cat: Categoria; tipo: TipoDestino; id: number; nome: string; nAtivas: number; nPropostas: number; nSemSaida: number; incompleto?: boolean }>();
     if (todos || modo === "EDICAO") {
       for (const c of (cats.length ? cats : CATEGORIAS.map((x) => x.chave))) for (const d of data?.destinos[c] ?? []) {
         if (q && !semAcento(d.nome).includes(q)) continue;
-        m.set(chave(c, d.tipo, d.id), { k: chave(c, d.tipo, d.id), cat: c, tipo: d.tipo, id: d.id, nome: d.nome, n: 0 });
+        m.set(chave(c, d.tipo, d.id), {
+          k: chave(c, d.tipo, d.id),
+          cat: c,
+          tipo: d.tipo,
+          id: d.id,
+          nome: d.nome,
+          nAtivas: 0,
+          nPropostas: 0,
+          nSemSaida: 0,
+          incompleto: d.incompleto,
+        });
       }
     }
     const visiveis = new Set(esquerda.map((p) => p.perguntaId));
-    porPergunta.forEach((lig, pid) => {
+    conexoesPorPergunta.forEach((lig, pid) => {
       if (!visiveis.has(pid)) return;
       for (const s of lig) {
         const k = chave(s.categoria, s.destinoTipo, s.destinoId);
         const e = m.get(k);
-        if (e) e.n++; else m.set(k, { k, cat: s.categoria, tipo: s.destinoTipo, id: s.destinoId, nome: nomeDe.get(k)?.nome ?? `#${s.destinoId}`, n: 1 });
+        if (e) {
+          if (s.estado === "ATIVA") e.nAtivas++;
+          else if (s.estado === "PENDENTE") e.nPropostas++;
+          else e.nSemSaida++;
+        } else {
+          const destino = nomeDe.get(k);
+          m.set(k, {
+            k, cat: s.categoria, tipo: s.destinoTipo, id: s.destinoId,
+            nome: nomeDe.get(k)?.nome ?? `#${s.destinoId}`,
+            nAtivas: s.estado === "ATIVA" ? 1 : 0,
+            nPropostas: s.estado === "PENDENTE" ? 1 : 0,
+            nSemSaida: s.estado === "SEM_SAIDA" ? 1 : 0,
+            incompleto: !destino || destino.incompleto,
+          });
+        }
       }
     });
-    return Array.from(m.values()).sort((a, b) => Number(b.n > 0) - Number(a.n > 0) || a.cat.localeCompare(b.cat) || a.nome.localeCompare(b.nome));
-  }, [data, modo, cats, q, esquerda, porPergunta, nomeDe, todos]);
+    return Array.from(m.values()).sort((a, b) => Number((b.nAtivas + b.nPropostas + b.nSemSaida) > 0) - Number((a.nAtivas + a.nPropostas + a.nSemSaida) > 0) || a.cat.localeCompare(b.cat) || a.nome.localeCompare(b.nome));
+  }, [data, modo, cats, q, esquerda, conexoesPorPergunta, nomeDe, todos]);
 
   const yE = useMemo(() => new Map(esquerda.map((p, i) => [p.perguntaId, (i + 0.5) * ROW_H])), [esquerda]);
   const yD = useMemo(() => new Map(direita.map((d, i) => [d.k, (i + 0.5) * ROW_H])), [direita]);
   const altura = Math.max(esquerda.length, direita.length, 1) * ROW_H;
-  const fios = useMemo(() => esquerda.flatMap((p) => (porPergunta.get(p.perguntaId) ?? []).map((s) => ({ s, y1: yE.get(p.perguntaId)!, y2: yD.get(chave(s.categoria, s.destinoTipo, s.destinoId)) }))).filter((f) => f.y2 !== undefined), [esquerda, porPergunta, yE, yD]);
+  const fios = useMemo(() => esquerda.flatMap((p) => (conexoesPorPergunta.get(p.perguntaId) ?? []).map((s) => ({ s, y1: yE.get(p.perguntaId)!, y2: yD.get(chave(s.categoria, s.destinoTipo, s.destinoId)) }))).filter((f) => f.y2 !== undefined), [esquerda, conexoesPorPergunta, yE, yD]);
 
   const foco = hover ?? (sel.length === 1 ? sel[0] : null);
   const simAcesos = useMemo(() => {
     const set = new Set<string>();
-    if (modo === "SIMULACAO") for (const pid of sel) for (const s of porPergunta.get(pid) ?? []) set.add(chave(s.categoria, s.destinoTipo, s.destinoId));
+    if (modo === "SIMULACAO") {
+      for (const pid of sel) {
+        for (const s of porPergunta.get(pid) ?? []) {
+          const destino = nomeDe.get(chave(s.categoria, s.destinoTipo, s.destinoId));
+          if (destino && !destino.incompleto) set.add(chave(s.categoria, s.destinoTipo, s.destinoId));
+        }
+      }
+    }
     return set;
-  }, [modo, sel, porPergunta]);
+  }, [modo, sel, porPergunta, nomeDe]);
   const resumoSim = useMemo(() => {
     const r = Object.fromEntries(CATEGORIAS.map((c) => [c.chave, 0])) as Record<Categoria, number>;
     simAcesos.forEach((k) => { r[k.split("|")[0] as Categoria] += 1; });
@@ -252,6 +361,18 @@ export default function SinapsesFaixa() {
   };
 
   const total = data?.sinapses.length ?? 0;
+  const totalPropostasPendentes = data?.propostas.filter((p) => p.status === "PENDENTE").length ?? 0;
+  const ligacoesComSaidaReal = (data?.sinapses ?? []).filter((sinapse) => {
+    const destino = nomeDe.get(chave(sinapse.categoria, sinapse.destinoTipo, sinapse.destinoId));
+    return !!destino && !destino.incompleto;
+  });
+  const perguntasComSaidaReal = new Set(ligacoesComSaidaReal.map((sinapse) => sinapse.perguntaId)).size;
+  const ligacoesSemSaida = total - ligacoesComSaidaReal.length;
+  const propostasPorCategoria = useMemo(() => {
+    const r = Object.fromEntries(CATEGORIAS.map((c) => [c.chave, 0])) as Record<Categoria, number>;
+    for (const proposta of data?.propostas ?? []) if (proposta.status === "PENDENTE") r[proposta.categoria]++;
+    return r;
+  }, [data]);
   const ajuda =
     modo === "EDICAO"
       ? "Escolha uma saída (EXA, FOR, IM, SC, EV, IMP) para ver o catálogo e puxe o círculo da pergunta até o código da saída. Alt + soltar noutra pergunta copia as ligações. Ctrl+clique e Shift+clique selecionam várias; Ctrl+C e Ctrl+V copiam."
@@ -274,7 +395,9 @@ export default function SinapsesFaixa() {
               </button>
             ))}
           </div>
-          <div className="screen-3d px-3 py-2 text-xs font-black tracking-wide" data-testid="faixa-contagem">{total} ligações ativas</div>
+          <div className="screen-3d px-3 py-2 text-xs font-black tracking-wide" data-testid="faixa-contagem">
+            {total} registros ativos · {totalPropostasPendentes} propostas
+          </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <div className="relative w-72">
@@ -290,6 +413,15 @@ export default function SinapsesFaixa() {
             );
           })}
           {cats.length > 0 && <button type="button" className="text-[11px] text-muted-foreground underline" onClick={() => setCats([])}>limpar saídas</button>}
+          <button
+            type="button"
+            className="bevel-3d ml-auto min-h-10 px-3 text-[10px] font-bold uppercase"
+            onClick={() => gerarCarga.mutate({ data: {} })}
+            disabled={gerarCarga.isPending}
+            data-testid="button-gerar-propostas"
+          >
+            {gerarCarga.isPending ? "Gravando propostas…" : "Gerar propostas iniciais"}
+          </button>
         </div>
         <p className="mt-2 text-[11px] text-muted-foreground" data-testid="faixa-ajuda">{ajuda}</p>
         {modo === "SIMULACAO" && (
@@ -312,10 +444,12 @@ export default function SinapsesFaixa() {
         <>
           <div className="panel-3d-sub flex flex-wrap items-center gap-3 px-3 py-2 text-[11px]" data-testid="faixa-conducao">
             <span className="font-bold uppercase tracking-wider text-primary/80">Condução</span>
-            <span><b>{new Set(data.sinapses.map((x) => x.perguntaId)).size}</b> de <b>{data.perguntas.length}</b> perguntas têm saída ligada</span>
+            <span><b>{perguntasComSaidaReal}</b> de <b>{data.perguntas.length}</b> perguntas têm saída real</span>
+            {ligacoesSemSaida > 0 && <span className="rounded border border-red-300 bg-red-50 px-2 py-1 font-semibold text-red-700">{ligacoesSemSaida} ligações ativas sem saída</span>}
+            <span className="concave-3d px-2 py-1"><b>{totalPropostasPendentes}</b> propostas pendentes</span>
             <span>·</span>
-            <span>Saídas ligadas: {CATEGORIAS.map((c) => `${c.sigla} ${new Set(data.sinapses.filter((x) => x.categoria === c.chave).map((x) => `${x.destinoTipo}${x.destinoId}`)).size}/${data.destinos[c.chave].length}`).join(" · ")}</span>
-            <span className="text-muted-foreground">Círculo cheio = com condução. Círculo vazio = fio sem corrente (ainda sem par).</span>
+            <span>Registros ativos / propostas: {CATEGORIAS.map((c) => `${c.sigla} ${data.sinapses.filter((x) => x.categoria === c.chave).length}/${propostasPorCategoria[c.chave]}`).join(" · ")}</span>
+            <span className="text-muted-foreground">Contínuo = saída real. Tracejado dourado = proposta. Tracejado vermelho = ligação ativa sem saída.</span>
             <button type="button" onClick={() => setTodos((v) => !v)} className="evo-bevel ml-auto px-2 py-1 text-[10px] font-bold" data-testid="faixa-todos">{todos ? "Mostrar só os ligados" : "Mostrar todos os terminais"}</button>
           </div>
           <Faixa testid="faixa-grafo" titulo={`Faixa da sinapse · ${esquerda.length} perguntas · ${direita.length} saídas`} aberta={faixaAberta} onToggle={() => setFaixaAberta((v) => !v)}>
@@ -325,17 +459,25 @@ export default function SinapsesFaixa() {
               </div>
             ) : (
               <div className="concave-3d max-h-[26rem] overflow-y-auto">
-                <div className="relative grid" style={{ gridTemplateColumns: "minmax(190px,30%) 1fr minmax(190px,30%)", height: altura }}>
+                <div className="relative grid" style={{ gridTemplateColumns: "minmax(0,1.55fr) minmax(84px,0.9fr) minmax(0,1.55fr)", height: altura }}>
                   {/* DENDRITOS ESQUERDA */}
                   <div className="relative border-r border-black/10">
                     {esquerda.map((p) => {
-                      const n = porPergunta.get(p.perguntaId)?.length ?? 0;
+                      const ligacoesDaPergunta = porPergunta.get(p.perguntaId) ?? [];
+                      const nSemSaida = ligacoesDaPergunta.filter((ligacao) => {
+                        const destino = nomeDe.get(chave(ligacao.categoria, ligacao.destinoTipo, ligacao.destinoId));
+                        return !destino || destino.incompleto;
+                      }).length;
+                      const nAtivas = ligacoesDaPergunta.length;
+                      const nPendentes = propostasPorPergunta.get(p.perguntaId)?.length ?? 0;
+                      const n = nAtivas + nPendentes;
                       const marcada = sel.includes(p.perguntaId);
                       return (
                         <div key={p.perguntaId} data-pergunta={p.perguntaId} className="absolute flex w-full items-center gap-1 px-1" style={{ top: (yE.get(p.perguntaId) ?? 0) - (ROW_H - 3) / 2, height: ROW_H - 3 }}
-                          onMouseEnter={() => setHover(p.perguntaId)} onMouseLeave={() => setHover(null)} title={`${p.perguntaId} · ${p.pergunta}`}>
+                          onMouseEnter={() => setHover(p.perguntaId)} onMouseLeave={() => setHover(null)} title={`${p.perguntaId} · ${p.pergunta}`} aria-label={`${p.perguntaId}: ${p.pergunta}. ${nAtivas} ligações registradas, ${nSemSaida} sem saída e ${nPendentes} propostas pendentes.`}>
                           <button type="button" onClick={(e) => clicar(e, p.perguntaId)} data-testid={`faixa-dendrito-${p.perguntaId}`}
                             className={`tecla-3d flex h-full min-w-0 flex-1 items-center gap-1 px-1.5 text-left select-none ${marcada ? "evo-bevel-ativo" : ""}`}>
+                            {nSemSaida > 0 && <AlertTriangle className="h-3 w-3 shrink-0 text-red-600" aria-label={`${nSemSaida} ligação(ões) ativa(s) sem saída real`} role="img" />}
                             {p.eSinalAlarme && <AlertTriangle className="h-3 w-3 shrink-0 text-red-600" />}
                             <span className="h-2 w-2 shrink-0 rounded-full" style={n ? { background: "#f59e0b", boxShadow: marcada || foco === p.perguntaId ? "0 0 6px 2px #fbbf24" : "0 0 2px #d9770688" } : { border: "1.5px solid #94a3b8", background: "transparent" }} title={n ? "Com condução" : "Sem condução: nenhuma saída ligada"} aria-hidden />
                             <span className="shrink-0 font-mono text-[10px] font-bold">{p.perguntaId}</span>
@@ -356,25 +498,29 @@ export default function SinapsesFaixa() {
                     {fios.map(({ s, y1, y2 }) => {
                       const em = foco === s.perguntaId || (modo === "SIMULACAO" && sel.includes(s.perguntaId));
                       const apagado = (foco !== null || (modo === "SIMULACAO" && sel.length > 0)) && !em;
+                      const semSaida = s.estado === "SEM_SAIDA";
+                      const corFio = s.estado === "ATIVA" ? COR[s.categoria] : semSaida ? "#dc2626" : "#b8892b";
                       return (
-                        <path key={s.id} d={`M 0 ${y1} C 50 ${y1}, 50 ${y2}, 100 ${y2}`} fill="none" stroke={COR[s.categoria]} strokeWidth={em ? 3.5 : 1.3} vectorEffect="non-scaling-stroke"
-                          style={{ opacity: apagado ? 0.1 : 0.9, filter: em ? `drop-shadow(0 0 3px ${COR[s.categoria]})` : undefined }} data-testid={`faixa-fio-${s.id}`} />
+                        <path key={s.id} d={`M 0 ${y1} C 50 ${y1}, 50 ${y2}, 100 ${y2}`} fill="none" stroke={corFio} strokeWidth={em ? 3.5 : 1.3} strokeDasharray={s.estado === "ATIVA" ? undefined : "5 3"} vectorEffect="non-scaling-stroke"
+                          style={{ opacity: apagado ? 0.035 : em ? 0.98 : s.estado === "ATIVA" ? 0.9 : 0.72, filter: em ? `drop-shadow(0 0 3px ${corFio})` : undefined }} data-testid={`faixa-fio-${s.id}`} />
                       );
                     })}
                   </svg>
                   {/* DENDRITOS DIREITA */}
                   <div className="relative border-l border-black/10">
                     {direita.map((d) => {
-                      const aceso = simAcesos.has(d.k) || (foco !== null && (porPergunta.get(foco) ?? []).some((s) => chave(s.categoria, s.destinoTipo, s.destinoId) === d.k));
+                      const aceso = simAcesos.has(d.k) || (foco !== null && (conexoesPorPergunta.get(foco) ?? []).some((s) => chave(s.categoria, s.destinoTipo, s.destinoId) === d.k));
                       const apagado = modo === "SIMULACAO" && sel.length > 0 && !aceso;
+                      const totalConexoes = d.nAtivas + d.nPropostas + d.nSemSaida;
                       return (
-                        <div key={d.k} data-dest={d.k} className={`absolute flex w-full items-center gap-1 px-1 ${apagado ? "opacity-35" : !d.n && modo !== "EDICAO" ? "opacity-60" : ""}`} style={{ top: (yD.get(d.k) ?? 0) - (ROW_H - 3) / 2, height: ROW_H - 3 }}
-                          title={`${ROTULO[d.cat]} · ${d.nome}`} data-testid={`faixa-saida-${d.k}`}>
+                        <div key={d.k} data-dest={d.incompleto ? undefined : d.k} className={`absolute flex w-full items-center gap-1 px-1 ${apagado ? "opacity-35" : !totalConexoes && modo !== "EDICAO" ? "opacity-60" : ""}`} style={{ top: (yD.get(d.k) ?? 0) - (ROW_H - 3) / 2, height: ROW_H - 3 }}
+                          title={`${codigoDestino(d.cat, d.tipo, d.id)} · ${ROTULO[d.cat]} · ${d.nome}${nomeDe.get(d.k)?.detalhe ? ` · ${nomeDe.get(d.k)?.detalhe}` : ""}${d.incompleto ? " · SEM SAÍDA: bloco sem exames cadastrados" : ""}`} aria-label={`${codigoDestino(d.cat, d.tipo, d.id)}: ${d.nome}. ${d.nAtivas} saídas conectadas, ${d.nSemSaida} ligações sem saída e ${d.nPropostas} propostas pendentes.`} data-testid={`faixa-saida-${d.k}`}>
                           <div className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1.5 px-1.5" style={aceso ? { boxShadow: `inset 3px 0 0 ${COR[d.cat]}` } : undefined}>
-                            <span className="h-2 w-2 shrink-0 rounded-full" style={d.n ? { background: COR[d.cat] } : { border: `1.5px solid ${COR[d.cat]}`, background: "transparent" }} title={d.n ? "Com condução" : "Sem condução: nenhuma pergunta ligada"} aria-hidden />
+                            <span className="h-2 w-2 shrink-0 rounded-full" style={d.nAtivas ? { background: COR[d.cat] } : d.nPropostas ? { border: `1.5px dashed ${COR[d.cat]}`, background: "transparent" } : d.nSemSaida ? { border: "1.5px dashed #dc2626", background: "transparent" } : { border: `1.5px solid ${COR[d.cat]}`, background: "transparent" }} title={d.nAtivas ? "Tem saída ativa" : d.nPropostas ? "Tem proposta pendente" : d.nSemSaida ? "Ligação ativa sem saída real" : "Ainda sem ligação"} aria-hidden />
                             <span className="shrink-0 font-mono text-[10px] font-bold" style={{ color: COR[d.cat] }}>{codigoDestino(d.cat, d.tipo, d.id)}</span>
                             <span className="truncate text-[10px] opacity-80">{d.nome}</span>
-                            <span className="ml-auto text-[9px] tabular-nums opacity-60">{d.n || ""}</span>
+                            {d.incompleto && <span className="shrink-0 text-[8px] font-bold text-red-700">SEM EXAMES</span>}
+                            <span className="ml-auto text-[9px] tabular-nums opacity-60">{totalConexoes || ""}</span>
                           </div>
                         </div>
                       );
@@ -385,7 +531,7 @@ export default function SinapsesFaixa() {
             )}
           </Faixa>
 
-          <Faixa testid="faixa-sanfona" titulo={`Sanfona das correspondências · ${esquerda.length} perguntas`} aberta={sanfonaAberta} onToggle={() => setSanfonaAberta((v) => !v)}
+          <Faixa testid="faixa-sanfona" titulo={`Sanfona das correspondências · ${esquerda.length} perguntas · ${totalPropostasPendentes} propostas pendentes`} aberta={sanfonaAberta} onToggle={() => setSanfonaAberta((v) => !v)}
             direita={sanfonaAberta ? (
               <div className="flex gap-1">
                 <button type="button" className="evo-bevel px-2 py-1 text-[10px] font-bold" onClick={() => setAbertos(new Set(esquerda.map((p) => p.perguntaId)))}>Abrir todas</button>
@@ -396,6 +542,7 @@ export default function SinapsesFaixa() {
               {esquerda.length === 0 && <div className="p-6 text-center text-sm text-muted-foreground">Nenhuma pergunta para mostrar.</div>}
               {esquerda.map((p, i) => {
                 const lig = porPergunta.get(p.perguntaId) ?? [];
+                  const pendentes = propostasPorPergunta.get(p.perguntaId) ?? [];
                 const aberto = abertos.has(p.perguntaId);
                 const marcada = sel.includes(p.perguntaId);
                 return (
@@ -407,25 +554,33 @@ export default function SinapsesFaixa() {
                       <span className="w-24 shrink-0 font-mono text-[11px] font-bold text-[#5b6578]">{p.perguntaId}</span>
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#1b2433]">{p.pergunta}</span>
                       {p.bloco && <span className="hidden shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground md:inline">{p.bloco}</span>}
-                      <span className="concave-3d flex h-6 min-w-8 shrink-0 items-center justify-center px-1 text-[10px] font-bold tabular-nums">{lig.length}</span>
+                      <span className="concave-3d flex h-6 min-w-8 shrink-0 items-center justify-center gap-1 px-1 text-[10px] font-bold tabular-nums" title={`${lig.length} ativas; ${pendentes.length} propostas`}>
+                        <span>{lig.length}</span><span className="text-[#9b6b11]">/{pendentes.length}</span>
+                      </span>
                     </button>
                     {aberto && (
                       <div className="space-y-1.5 px-10 pb-2.5">
-                        {lig.length === 0 && <div className="text-xs text-muted-foreground">Nenhuma correspondência ativa para esta pergunta.</div>}
+                        {lig.length === 0 && pendentes.length === 0 && <div className="text-xs text-muted-foreground">Nenhuma correspondência ativa ou proposta para esta pergunta.</div>}
                         {CATEGORIAS.map((c) => {
                           const itens = lig.filter((s) => s.categoria === c.chave);
-                          if (!itens.length) return null;
+                          const itensPendentes = pendentes.filter((s) => s.categoria === c.chave);
+                          if (!itens.length && !itensPendentes.length) return null;
                           return (
-                            <div key={c.chave} className="flex flex-wrap items-center gap-1.5">
+                            <div key={c.chave} className="space-y-1.5">
+                              <div className="flex flex-wrap items-center gap-1.5">
                               <span className="w-24 shrink-0 text-[10px] font-bold uppercase tracking-wider" style={{ color: c.cor }}>{c.rotulo}</span>
                               {itens.map((s) => {
                                 const d = nomeDe.get(chave(s.categoria, s.destinoTipo, s.destinoId));
+                                const semSaida = !d || d.incompleto;
                                 const armada = armadas.has(s.id);
                                 return (
-                                  <span key={s.id} className="inline-flex max-w-full items-center gap-1 rounded-[4px] border px-1.5 py-0.5 text-[11px] font-semibold"
-                                    style={{ color: c.cor, borderColor: `color-mix(in srgb, ${c.cor} 45%, transparent)`, background: `color-mix(in srgb, ${c.cor} 10%, white)` }}>
+                                    <span key={s.id} title={`${codigoDestino(s.categoria, s.destinoTipo, s.destinoId)} · ${d?.nome ?? `#${s.destinoId}`}${d?.detalhe ? ` · ${d.detalhe}` : ""}${semSaida ? " · sem saída real: destino ausente, inativo ou bloco vazio" : ""}`} className="inline-flex max-w-full items-center gap-1 rounded-[4px] border px-1.5 py-0.5 text-[11px] font-semibold"
+                                    style={semSaida
+                                      ? { color: "#b91c1c", borderColor: "#fecaca", background: "#fef2f2" }
+                                      : { color: c.cor, borderColor: `color-mix(in srgb, ${c.cor} 45%, transparent)`, background: `color-mix(in srgb, ${c.cor} 10%, white)` }}>
                                     <span className="font-mono text-[9px] opacity-70">{codigoDestino(s.categoria, s.destinoTipo, s.destinoId)}</span>
                                     <span className="truncate">{d?.nome ?? `#${s.destinoId}`}</span>
+                                    {semSaida && <span className="shrink-0 text-[8px] font-bold text-red-700">SEM SAÍDA</span>}
                                     {s.cloneDe && <span className="text-[9px] opacity-60">cópia</span>}
                                     {modo === "EDICAO" && (
                                       <button type="button" onClick={() => cliqueExcluir(s.id)} data-testid={`faixa-excluir-${s.id}`}
@@ -435,6 +590,60 @@ export default function SinapsesFaixa() {
                                       </button>
                                     )}
                                   </span>
+                                );
+                              })}
+                              </div>
+                              {itensPendentes.map((proposta) => {
+                                const d = nomeDe.get(chave(proposta.categoria, proposta.destinoTipo, proposta.destinoId));
+                                const destinosFiltrados = (data.destinos[categoriaEdicao] ?? [])
+                                  .filter((item) => !item.incompleto && semAcento(`${codigoDestino(categoriaEdicao, item.tipo, item.id)} ${item.nome}`).includes(semAcento(buscaDestinoEdicao.trim())))
+                                  .slice(0, 8);
+                                const editando = propostaEditando === proposta.id;
+                                const armada = aprovarArmado === proposta.id;
+                                return (
+                                  <div key={proposta.id} className="rounded-[4px] border border-dashed border-[#b8892b]/60 bg-[#fff9e9]/80 p-2" data-testid={`proposta-pendente-${proposta.id}`}>
+                                    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                                      <span className="w-24 shrink-0 text-[10px] font-bold uppercase tracking-wider text-[#8b681f]">Proposta</span>
+                                      <span className="font-mono text-[10px] font-bold text-[#8b681f]" title={`${proposta.eixo} · ${d?.detalhe ?? ""}`}>{codigoDestino(proposta.categoria, proposta.destinoTipo, proposta.destinoId)}</span>
+                                      <span className="min-w-0 flex-1 truncate text-[#30384a]" title={`${d?.nome ?? `#${proposta.destinoId}`} · ${proposta.eixo} · ${proposta.justificativa}`}>
+                                        {d?.nome ?? `#${proposta.destinoId}`} · {proposta.eixo}
+                                      </span>
+                                      <button type="button" className="bevel-3d min-h-9 px-2 text-[9px] font-bold uppercase" onClick={() => { setPropostaEditando(editando ? null : proposta.id); setCategoriaEdicao(proposta.categoria); setBuscaDestinoEdicao(""); }} data-testid={`button-editar-proposta-${proposta.id}`}>Editar</button>
+                                      <button type="button" className="bevel-3d min-h-9 px-2 text-[9px] font-bold uppercase" onClick={() => { if (armada) aprovarProposta.mutate({ id: proposta.id }); else setAprovarArmado(proposta.id); }} disabled={aprovarProposta.isPending} data-testid={`button-aprovar-proposta-${proposta.id}`}>
+                                        {armada ? "Confirmar aprovação" : "Aprovar"}
+                                      </button>
+                                      <button type="button" className="bevel-3d min-h-9 px-2 text-[9px] font-bold uppercase text-red-700" onClick={() => recusarProposta.mutate({ id: proposta.id })} disabled={recusarProposta.isPending} data-testid={`button-recusar-proposta-${proposta.id}`}>Recusar</button>
+                                    </div>
+                                    <p className="mt-1 pl-24 text-[10px] text-[#6b5b38]">{proposta.justificativa}</p>
+                                    {armada && <p className="mt-1 pl-24 text-[10px] font-semibold text-[#6b5b38]">Confirme para mover esta linha para as ligações ativas desta tela. Isso não conecta o motor clínico.</p>}
+                                    {editando && (
+                                      <div className="mt-2 space-y-2 pl-24" data-testid={`editor-proposta-${proposta.id}`}>
+                                        <div className="flex flex-wrap gap-1">
+                                          {CATEGORIAS.map((categoria) => (
+                                            <button key={categoria.chave} type="button" aria-pressed={categoriaEdicao === categoria.chave}
+                                              className={`bevel-3d min-h-9 px-2 text-[9px] font-bold ${categoriaEdicao === categoria.chave ? "evo-bevel-ativo" : ""}`}
+                                              onClick={() => setCategoriaEdicao(categoria.chave)} data-testid={`button-categoria-edicao-${proposta.id}-${categoria.chave}`}>
+                                              {categoria.sigla}
+                                            </button>
+                                          ))}
+                                        </div>
+                                        <Input value={buscaDestinoEdicao} onChange={(e) => setBuscaDestinoEdicao(e.target.value)} placeholder="Buscar código ou nome do destino..." className="h-9 field-engraved text-xs" data-testid={`input-destino-proposta-${proposta.id}`} />
+                                        <div className="grid gap-1 sm:grid-cols-2">
+                                          {destinosFiltrados.map((item) => (
+                                              <button key={`${item.tipo}-${item.id}`} type="button"
+                                               className="concave-3d min-h-10 px-2 text-left text-[10px] hover:ring-1 hover:ring-[#b8892b]"
+                                              onClick={() => editarProposta.mutate({ id: proposta.id, data: { categoria: categoriaEdicao, destinoTipo: item.tipo, destinoId: item.id } })}
+                                              data-testid={`button-destino-proposta-${proposta.id}-${item.id}`}>
+                                               <span className="mr-2 font-mono font-bold">{codigoDestino(categoriaEdicao, item.tipo, item.id)}</span>{item.nome}
+                                               {item.detalhe && <span className="ml-2 text-muted-foreground">{item.detalhe}</span>}
+                                            </button>
+                                          ))}
+                                          {destinosFiltrados.length === 0 && <p className="text-[10px] text-muted-foreground">Nenhum destino ativo corresponde à busca.</p>}
+                                        </div>
+                                        <button type="button" className="min-h-9 text-[10px] underline" onClick={() => setPropostaEditando(null)}>Fechar edição</button>
+                                      </div>
+                                    )}
+                                  </div>
                                 );
                               })}
                             </div>

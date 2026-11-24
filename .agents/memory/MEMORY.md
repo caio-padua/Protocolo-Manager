@@ -29,7 +29,7 @@
 - [Asaas integration quirks](asaas-integration-quirks.md) — header access_token (não Bearer); base prod /v3 vs sandbox /api/v3; criar customer antes do payment; saque bloqueado por padrão (insufficien
 - [NULL nao colide em UNIQUE (Postgres)](postgres-null-unique-idempotencia.md) — onConflictDoNothing falha em coluna nullable do indice unico; idempotencia exige guarda de existencia manual.
 - [PUT/PATCH descarta campos fora do contrato](substancias-put-contrato.md) — campo editavel deve estar no OpenAPI body; zod.object faz strip, 200 nao prova persistencia; nao marcar nullable em coluna
-- [Documentos clínicos e PDF](indice-documentos-clinicos.md) — emissão, assinatura, segurança, paginação, fontes e layout.
+- [Documentos clínicos e PDF](indice-documentos-clinicos.md) · [prévia e emissão](protocolo-document-pdf-envia-email.md) — assinatura, segurança, paginação e conferência dos efeitos antes de enviar.
 - [Testes de banco descartável](testes-banco-descartavel.md) — migração e escrita em banco próprio isolado, nunca na conexão configurada da aplicação.
 - [Governança multiclínica autorizada](governanca-multiclinica-parada.md) — isolamento completo autorizado em 30/10/2026; executar sequencialmente; sem alterar cobranças.
 - **Acesso profissional** — [transição de login](login-transicao-email-cpf.md) · [solicitação depende de aprovação](login-solicitacao-acesso-aprovacao.md).
@@ -109,7 +109,6 @@
 - [Entrada do Licenciado — regras comerciais](entrada-licenciado-regras.md) — 2 logins (CEO x licenciado); adesao promo 48h, 10% so na adesao por indicacao, mensalidade fixa; valores placeholders.
 - [Motor de Avatar — Tier system + metering](avatar-motor-tiers.md) — 3 tiers (texto/voz/video) com módulos contratados; avatar_uso_log mede chars+segundos; audio-temp cache serve MP3 p/ Twilio.
 - [Órgão Dieta — 2 motores + gaps](dieta-dois-motores-e-gaps.md) — manual=TS determinístico, PDF=IA/Claude; Cockpit/Prontuário NÃO mostram Dieta/Treino; sem receitas/lista de compras.
-- [Prévia e emissão clínica](protocolo-document-pdf-envia-email.md) — conferir aparência não autoriza envio; verificar efeitos atuais, sem confiar no verbo da rota ou em descrições históricas.
 - **Git e sincronização** — [transporte gerenciado](git-http-auth-fallback.md) · [rebase travada](git-panel-rebase-travada.md) · [conflito semântico](rebase-limpo-conflito-semantico.md).
 - [Cache Vite após alinhar React](vite-cache-react-peer.md) — após atualizar React/React DOM, erro de versão pode persistir no otimizador Vite; confirmar a origem resolvida e limpar apenas o cache do
 - ["Tipo de dieta" reaproveita protocolo existente](tipo-dieta-reutiliza-protocolo.md) — antes de criar tabela nova p/ conceito de negócio, checar se uma tabela existente já É esse conceito com outro
@@ -198,3 +197,4 @@
 - [Cascata de 3 IAs (isolada)](cascata-sinapses-ia-isolada.md) — desativada; só liga após testes reais Dayana/Carlúcia; ratificar exige validação e conflito zero.
 - [Negociação extraordinária + cadência 30 min](negociacao-extraordinaria-orcamento.md) — centavos inteiros, trava de margem, cadência desligada por padrão, trilha em budget_eventos/cascata_eventos.
 - [Exames: classificações e código semântico](exames-classificacoes-codigo-semantico.md) — tabela de classificações dos dropdowns; código de 5 blocos existe nos dados, sem spec escrita.
+- [Sinapses clínicas pendentes](sinapses-propostas-pendentes.md) — propostas não conduzem até aprovação; destino vazio ou inativo nunca é saída real nem entra na simulação.

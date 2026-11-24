@@ -4272,6 +4272,172 @@ export interface BudgetSeedResult {
   settingsCreated: boolean;
 }
 
+export type SinapseCategoria =
+  (typeof SinapseCategoria)[keyof typeof SinapseCategoria];
+
+export const SinapseCategoria = {
+  EXAME: "EXAME",
+  PRESCRICAO: "PRESCRICAO",
+  INJETAVEL_IM: "INJETAVEL_IM",
+  INJETAVEL_SC: "INJETAVEL_SC",
+  INJETAVEL_EV: "INJETAVEL_EV",
+  IMPLANTE: "IMPLANTE",
+} as const;
+
+export interface SinapseQuestion {
+  perguntaId: string;
+  pergunta: string;
+  /** @nullable */
+  bloco: string | null;
+  eSinalAlarme: boolean;
+}
+
+export type SinapseDestinationTipo =
+  (typeof SinapseDestinationTipo)[keyof typeof SinapseDestinationTipo];
+
+export const SinapseDestinationTipo = {
+  exame: "exame",
+  bloco_exames: "bloco_exames",
+  formula: "formula",
+  injetavel: "injetavel",
+  implante: "implante",
+} as const;
+
+export interface SinapseDestination {
+  tipo: SinapseDestinationTipo;
+  id: number;
+  nome: string;
+  /** @nullable */
+  detalhe?: string | null;
+  incompleto?: boolean;
+}
+
+export type SinapseLinkDestinoTipo =
+  (typeof SinapseLinkDestinoTipo)[keyof typeof SinapseLinkDestinoTipo];
+
+export const SinapseLinkDestinoTipo = {
+  exame: "exame",
+  bloco_exames: "bloco_exames",
+  formula: "formula",
+  injetavel: "injetavel",
+  implante: "implante",
+} as const;
+
+export interface SinapseLink {
+  id: number;
+  perguntaId: string;
+  categoria: SinapseCategoria;
+  destinoTipo: SinapseLinkDestinoTipo;
+  destinoId: number;
+  /** @nullable */
+  cloneDe: number | null;
+}
+
+export type SinapseProposalDestinoTipo =
+  (typeof SinapseProposalDestinoTipo)[keyof typeof SinapseProposalDestinoTipo];
+
+export const SinapseProposalDestinoTipo = {
+  exame: "exame",
+  bloco_exames: "bloco_exames",
+  formula: "formula",
+  injetavel: "injetavel",
+  implante: "implante",
+} as const;
+
+export type SinapseProposalStatus =
+  (typeof SinapseProposalStatus)[keyof typeof SinapseProposalStatus];
+
+export const SinapseProposalStatus = {
+  PENDENTE: "PENDENTE",
+  APROVADA: "APROVADA",
+  RECUSADA: "RECUSADA",
+} as const;
+
+export interface SinapseProposal {
+  id: number;
+  perguntaId: string;
+  categoria: SinapseCategoria;
+  destinoTipo: SinapseProposalDestinoTipo;
+  destinoId: number;
+  eixo: string;
+  justificativa: string;
+  status: SinapseProposalStatus;
+}
+
+export type SinapseClinicalPanelDestinos = {
+  EXAME: SinapseDestination[];
+  PRESCRICAO: SinapseDestination[];
+  INJETAVEL_IM: SinapseDestination[];
+  INJETAVEL_SC: SinapseDestination[];
+  INJETAVEL_EV: SinapseDestination[];
+  IMPLANTE: SinapseDestination[];
+};
+
+export interface SinapseClinicalPanel {
+  perguntas: SinapseQuestion[];
+  destinos: SinapseClinicalPanelDestinos;
+  injetaveisSemVia: number;
+  sinapses: SinapseLink[];
+  propostas: SinapseProposal[];
+}
+
+export interface SinapseProposalGenerationInput {
+  [key: string]: unknown;
+}
+
+export type SinapseProposalGenerationResultPorCategoria = {
+  EXAME: number;
+  PRESCRICAO: number;
+  INJETAVEL_IM: number;
+  INJETAVEL_SC: number;
+  INJETAVEL_EV: number;
+  IMPLANTE: number;
+};
+
+export type SinapseProposalGenerationResultPerguntasIgnoradasItem = {
+  perguntaId: string;
+  motivo: string;
+};
+
+export interface SinapseProposalGenerationResult {
+  inseridas: number;
+  propostasEncontradas: number;
+  porCategoria: SinapseProposalGenerationResultPorCategoria;
+  codigosAusentes: string[];
+  perguntasIgnoradas: SinapseProposalGenerationResultPerguntasIgnoradasItem[];
+}
+
+export type SinapseProposalUpdateDestinoTipo =
+  (typeof SinapseProposalUpdateDestinoTipo)[keyof typeof SinapseProposalUpdateDestinoTipo];
+
+export const SinapseProposalUpdateDestinoTipo = {
+  exame: "exame",
+  bloco_exames: "bloco_exames",
+  formula: "formula",
+  injetavel: "injetavel",
+  implante: "implante",
+} as const;
+
+export interface SinapseProposalUpdate {
+  categoria: SinapseCategoria;
+  destinoTipo: SinapseProposalUpdateDestinoTipo;
+  /** @minimum 1 */
+  destinoId: number;
+}
+
+export type SinapseProposalStatusResultStatus =
+  (typeof SinapseProposalStatusResultStatus)[keyof typeof SinapseProposalStatusResultStatus];
+
+export const SinapseProposalStatusResultStatus = {
+  APROVADA: "APROVADA",
+  RECUSADA: "RECUSADA",
+} as const;
+
+export interface SinapseProposalStatusResult {
+  id: number;
+  status: SinapseProposalStatusResultStatus;
+}
+
 export type GetClientTelegramInboxParams = {
   quantidade?: GetClientTelegramInboxQuantidade;
   direcao?: GetClientTelegramInboxDirecao;
