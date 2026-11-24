@@ -228,7 +228,7 @@ const VAZIO = (id: number): Atributos => ({ exameId: id, natureza: null, metodo:
 // Faixa horizontal retrátil (minimizar/maximizar) com resumo à direita.
 function Faixa({ titulo, resumo, aberta, onToggle, children, id }: { titulo: string; resumo?: string; aberta: boolean; onToggle: () => void; children: ReactNode; id: string }) {
   return (
-    <section className="panel-3d-sub overflow-hidden" data-testid={`faixa-${id}`}>
+    <section className="panel-3d-sub shrink-0 overflow-hidden" data-testid={`faixa-${id}`}>
       <button type="button" onClick={onToggle} aria-expanded={aberta} className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-primary/5">
         <span className="flex-1 text-[11px] font-black uppercase tracking-widest text-primary">{titulo}</span>
         {resumo && <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{resumo}</span>}
@@ -311,7 +311,7 @@ export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antes
   const resPer = [f.periodizacaoModo, f.repetirMeses ? `a cada ${f.repetirMeses} meses` : null].filter(Boolean).join(" • ") || "não definida";
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="fixed left-auto right-0 top-0 h-screen max-h-screen w-full max-w-2xl translate-x-0 translate-y-0 overflow-y-auto rounded-none sm:rounded-none" data-testid="gaveta-exame">
+      <DialogContent className="fixed left-auto right-0 top-0 flex h-screen max-h-screen w-full max-w-2xl flex-col translate-x-0 translate-y-0 overflow-y-auto rounded-none sm:rounded-none" data-testid="gaveta-exame">
         <DialogHeader><DialogTitle>{titulo}</DialogTitle></DialogHeader>
         <div className="flex items-center gap-2">
           <div className="screen-3d flex flex-1 items-center gap-2 px-3 py-1.5 text-xs font-black">
