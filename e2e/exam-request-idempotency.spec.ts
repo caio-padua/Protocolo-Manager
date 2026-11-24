@@ -2221,6 +2221,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     for (const currentOutcome of [
       "sucesso", "401-atual", "500-atual", "500-atual-recuperacao-automatica", "rede-atual", "rede-atual-troca-B",
       "500-atual-recuperacao-automatica-sem-pendencias",
+      "json-invalido-recuperacao-automatica",
       "500-recuperacao-troca-B-sucesso", "500-recuperacao-troca-B-401-atrasado",
       "500-recuperacao-troca-B-recusada",
     ] as const) {
@@ -2239,12 +2240,17 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       const switchAfterTransportFailure = currentOutcome === "rede-atual-troca-B";
       const transportFailure = currentOutcome === "rede-atual" || switchAfterTransportFailure;
       const switchDuringRecovery = currentOutcome.startsWith("500-recuperacao-troca-B");
+      const invalidJson = currentOutcome === "json-invalido-recuperacao-automatica";
       const resolvedPending = currentOutcome === "500-atual-recuperacao-automatica-sem-pendencias";
-      const automaticRecovery = currentOutcome === "500-atual-recuperacao-automatica" || resolvedPending || switchDuringRecovery;
+      const automaticRecovery = currentOutcome === "500-atual-recuperacao-automatica" || resolvedPending || invalidJson || switchDuringRecovery;
       const held: { identity?: Route; oldPage?: Route; historyB?: Route; returned?: Route; recovery?: Route } = {};
       let navigations = 0;
       const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
         status, contentType: "application/json", body: JSON.stringify(body),
+      });
+      // A successful HTTP status must not make an unreadable body authoritative.
+      const replyInvalidJson = (route: Route) => route.fulfill({
+        status: 200, contentType: "application/json", body: '{"documents":',
       });
       const historyBody = (key: string, id: number, nextOffset: number | null = null) => ({
         documents: [{ ...document, id, fileName: `${key}.pdf` }],
@@ -2272,9 +2278,12 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           const response = await originalFetch(input, { ...init, signal: undefined });
           const originalJson = response.json.bind(response);
           response.json = async () => {
-            const data = await originalJson();
-            (window as any).__roundtripParsed++;
-            return data;
+            try {
+              return await originalJson();
+            } finally {
+              // Count settled parsing attempts, including malformed JSON.
+              (window as any).__roundtripParsed++;
+            }
           };
           return response;
         };
@@ -2420,10 +2429,13 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       // Fail the NEW offset-zero request, not the old offset-40 response.
       const currentError = currentOutcome === "401-atual"
         ? "Sessão atual sem autorização para atualizar o histórico de A."
+        : invalidJson ? "JSON"
         : transportFailure ? "Failed to fetch"
         : "Servidor indisponível ao atualizar o histórico atual de A.";
       if (transportFailure) {
         await held.returned!.abort("failed");
+      } else if (invalidJson) {
+        await replyInvalidJson(held.returned!);
       } else {
         await reply(held.returned!, currentOutcome === "sucesso"
           ? historyBody(markers.fresh, 95, 20) : { error: currentError },
@@ -2511,7 +2523,8 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           await expect(knownPending).toContainText(markers.first);
           await expect(knownPending).toContainText(staleWarning);
           await cleared();
-          await reply(held.recovery!, { error: currentError }, 500);
+          if (invalidJson) await replyInvalidJson(held.recovery!);
+          else await reply(held.recovery!, { error: currentError }, 500);
           await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(5 + cycle);
           await expect(currentAlert).toContainText(currentError);
           await expect(currentAlert).toContainText("Isso não confirma falha no envio nem libera as reservas.");
