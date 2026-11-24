@@ -97,6 +97,10 @@ export default function SinapsesFaixa() {
   const [alturaLinha, setAlturaLinha] = useState(ROW_H_DESKTOP);
   const [fioRecemSalvo, setFioRecemSalvo] = useState<string | null>(null);
   const brilhoTimer = useRef<number | null>(null);
+  const [fioAberto, setFioAberto] = useState<string | null>(null);
+  const graficoRef = useRef<HTMLDivElement | null>(null);
+  const [loteArmado, setLoteArmado] = useState<string | null>(null);
+  const [loteEmCurso, setLoteEmCurso] = useState(false);
 
   useEffect(() => {
     const consulta = window.matchMedia("(max-width: 639px)");
@@ -334,6 +338,44 @@ export default function SinapsesFaixa() {
     if (e.ctrlKey || e.metaKey || modo === "SIMULACAO") { setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id])); return; }
     setSel((s) => (s.length === 1 && s[0] === id ? [] : [id]));
   };
+  const centralizar = (perguntaId: string) => {
+    const caixa = graficoRef.current;
+    const y = yE.get(perguntaId);
+    if (!caixa || y === undefined) return;
+    const ys = [y, ...(conexoesPorPergunta.get(perguntaId) ?? []).map((c) => yD.get(chave(c.categoria, c.destinoTipo, c.destinoId))).filter((v): v is number => v !== undefined)];
+    const centro = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const reduzir = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    caixa.scrollTo({ top: Math.max(0, centro - caixa.clientHeight / 2), behavior: reduzir ? "auto" : "smooth" });
+  };
+  const propostasFiltradas = (perguntaId?: string) => {
+    const visiveis = new Set(esquerda.map((p) => p.perguntaId));
+    return (data?.propostas ?? []).filter((p) => p.status === "PENDENTE" && visiveis.has(p.perguntaId) && (!perguntaId || p.perguntaId === perguntaId) && (!cats.length || cats.includes(p.categoria)));
+  };
+  const aprovarLote = async (escopo: string, perguntaId?: string) => {
+    if (loteEmCurso) return;
+    const fila = propostasFiltradas(perguntaId).map((p) => p.id);
+    if (loteArmado !== escopo) { setLoteArmado(escopo); window.setTimeout(() => setLoteArmado((v) => (v === escopo ? null : v)), 5000); return; }
+    setLoteArmado(null);
+    setLoteEmCurso(true);
+    let ok = 0;
+    const falhas: string[] = [];
+    let i = 0;
+    const trabalhador = async () => {
+      while (i < fila.length) {
+        const id = fila[i++];
+        try { await enviar(`/api/cadastros/sinapses/propostas/${id}/aprovar`, "POST", {}); ok++; }
+        catch (e) { falhas.push((e as Error).message); }
+      }
+    };
+    await Promise.all([trabalhador(), trabalhador(), trabalhador(), trabalhador()]);
+    setLoteEmCurso(false);
+    invalidar();
+    toast({
+      title: falhas.length ? `${ok} aprovada(s), ${falhas.length} não aprovada(s)` : `${ok} proposta(s) aprovada(s)`,
+      description: falhas.length ? `Primeiro motivo: ${falhas[0]}` : "Elas agora aparecem como ligações ativas.",
+      variant: falhas.length ? "destructive" : undefined,
+    });
+  };
   const alternarAberto = (id: string) => setAbertos((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   const copiar = useCallback(() => {
@@ -370,14 +412,24 @@ export default function SinapsesFaixa() {
     if (!arraste) return;
     const mover = (e: PointerEvent) => setArraste((a) => {
       if (!a) return a;
-      const proximo = { ...a, x: e.clientX, y: e.clientY };
+      let x = e.clientX;
+      let y = e.clientY;
+      if (!a.clonar) {
+        let melhor = 24;
+        document.querySelectorAll<HTMLElement>("[data-pino-destino]").forEach((el) => {
+          const r = el.getBoundingClientRect();
+          const dist = Math.hypot(r.left + r.width / 2 - e.clientX, r.top + r.height / 2 - e.clientY);
+          if (dist < melhor) { melhor = dist; x = r.left + r.width / 2; y = r.top + r.height / 2; }
+        });
+      }
+      const proximo = { ...a, x, y };
       arrasteRef.current = proximo;
       return proximo;
     });
     const soltar = (e: PointerEvent) => {
       const a = arrasteRef.current;
       if (!a) return;
-      const alvo = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      const alvo = document.elementFromPoint(a.clonar ? e.clientX : a.x, a.clonar ? e.clientY : a.y) as HTMLElement | null;
       if (a.clonar) {
         const destino = (alvo?.closest("[data-pergunta]") as HTMLElement | null)?.dataset.pergunta;
         if (destino && destino !== a.de) {
@@ -528,6 +580,11 @@ export default function SinapsesFaixa() {
             <span><b>{perguntasComSaidaReal}</b> de <b>{data.perguntas.length}</b> perguntas têm saída real</span>
             {ligacoesSemSaida > 0 && <span className="rounded border border-red-300 bg-red-50 px-2 py-1 font-semibold text-red-700">{ligacoesSemSaida} ligações ativas sem saída</span>}
             <span className="concave-3d px-2 py-1"><b>{totalPropostasPendentes}</b> propostas pendentes</span>
+            {modo === "EDICAO" && propostasFiltradas().length > 0 && (
+              <button type="button" disabled={loteEmCurso} onClick={() => aprovarLote("todas")} className="evo-bevel px-2 py-1 text-[10px] font-bold" data-testid="button-aprovar-lote" title="Aprova todas as propostas pendentes das perguntas e filtros visíveis agora">
+                {loteEmCurso ? "Aprovando..." : loteArmado === "todas" ? `Confirmar ${propostasFiltradas().length}` : "Aprovar propostas filtradas"}
+              </button>
+            )}
             <span>·</span>
             <span>Registros ativos / propostas: {CATEGORIAS.map((c) => `${c.sigla} ${data.sinapses.filter((x) => x.categoria === c.chave).length}/${propostasPorCategoria[c.chave]}`).join(" · ")}</span>
             <span className="text-muted-foreground">Contínuo = saída real. Tracejado dourado = proposta. Tracejado vermelho = ligação ativa sem saída.</span>
@@ -539,7 +596,7 @@ export default function SinapsesFaixa() {
                 {total === 0 ? "Ainda não há ligações ativas. Entre em Edição (E), escolha uma saída e puxe o fio da pergunta." : "Nada corresponde à busca ou aos filtros."}
               </div>
             ) : (
-              <div className="concave-3d max-h-[26rem] overflow-y-auto">
+              <div ref={graficoRef} className="concave-3d max-h-[26rem] overflow-y-auto" data-testid="faixa-grafo-rolagem">
                 <div className="relative grid" style={{ gridTemplateColumns: "minmax(0,1.55fr) minmax(84px,0.9fr) minmax(0,1.55fr)", height: altura }}>
                   {/* DENDRITOS ESQUERDA */}
                   <div className="relative border-r border-black/10">
@@ -573,10 +630,10 @@ export default function SinapsesFaixa() {
                                 iniciarNoPonto(p.perguntaId, r.left + r.width / 2, r.top + r.height / 2);
                               }
                             }} data-testid={`faixa-porta-${p.perguntaId}`}
-                              className={`bevel-3d flex h-10 w-10 shrink-0 cursor-crosshair touch-none items-center justify-center sm:h-6 sm:w-6 ${arraste?.de === p.perguntaId ? "sinapse-porta-origem-ativa" : ""}`} style={{ borderRadius: 999 }}
+                              className={`sinapse-pino-area cursor-crosshair touch-none ${arraste?.de === p.perguntaId ? "sinapse-porta-origem-ativa" : ""}`}
                               aria-label={`Iniciar ligação a partir da pergunta ${p.perguntaId}`} aria-pressed={arraste?.de === p.perguntaId}
                               title="Clique aqui e depois no ponto de uma saída. Escape cancela.">
-                              <span className={`block h-2 w-2 rounded-full ${arraste?.de === p.perguntaId ? "bg-amber-300" : "bg-current"}`} aria-hidden="true" />
+                              <span className="sinapse-pino" data-estado={arraste?.de === p.perguntaId ? "armado" : nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} aria-hidden="true" />
                             </button>
                           )}
                         </div>
@@ -584,21 +641,63 @@ export default function SinapsesFaixa() {
                     })}
                   </div>
                   {/* FIOS */}
-                  <svg className="h-full w-full" style={{ background: "#fff", backgroundImage: "linear-gradient(#f1f5f9 1px,transparent 1px),linear-gradient(90deg,#f1f5f9 1px,transparent 1px)", backgroundSize: "24px 24px" }} viewBox={`0 0 100 ${altura}`} preserveAspectRatio="none" aria-hidden>
+                  <div className="relative w-full" style={{ height: altura, background: "#FFFFFF", boxShadow: "inset 12px 0 20px -15px rgba(15,30,54,0.12), inset -12px 0 20px -15px rgba(15,30,54,0.12)" }} onClick={() => setFioAberto(null)}>
+                  <svg className="block" width="100%" height={altura} viewBox={`0 0 100 ${altura}`} preserveAspectRatio="none" aria-hidden>
+                    <defs>
+                      <linearGradient id="sinapse-gradiente-fibra" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="100" y2="0">
+                        <stop offset="0%" stopColor="#1D4ED8" />
+                        <stop offset="100%" stopColor="#D97706" />
+                      </linearGradient>
+                    </defs>
                     {fios.map(({ s, y1, y2 }) => {
                       const fioKey = `${s.perguntaId}|${chave(s.categoria, s.destinoTipo, s.destinoId)}`;
                       const acendidoAgora = fioRecemSalvo === fioKey;
-                      const em = foco === s.perguntaId || (modo === "SIMULACAO" && sel.includes(s.perguntaId)) || acendidoAgora;
+                      const emPerg = foco === s.perguntaId || (modo === "SIMULACAO" && sel.includes(s.perguntaId));
+                      const em = emPerg || acendidoAgora || fioAberto === s.id;
                       const apagado = (foco !== null || (modo === "SIMULACAO" && sel.length > 0)) && !em;
                       const semSaida = s.estado === "SEM_SAIDA";
-                      const corFio = s.estado === "ATIVA" ? COR[s.categoria] : semSaida ? "#dc2626" : "#b8892b";
+                      const d = `M 0 ${y1} C 50 ${y1}, 50 ${y2}, 100 ${y2}`;
+                      const corFio = s.estado === "ATIVA" ? "url(#sinapse-gradiente-fibra)" : semSaida ? "#dc2626" : "#b8892b";
                       return (
-                        <path key={s.id} d={`M 0 ${y1} C 50 ${y1}, 50 ${y2}, 100 ${y2}`} fill="none" stroke={corFio} strokeWidth={em ? 3.5 : 1.3} strokeDasharray={s.estado === "ATIVA" ? undefined : "5 3"} vectorEffect="non-scaling-stroke"
-                          className={acendidoAgora ? "sinapse-fio-ignicao" : undefined}
-                          style={{ opacity: apagado ? 0.035 : em ? 0.98 : s.estado === "ATIVA" ? 0.9 : 0.72, filter: em ? `drop-shadow(0 0 3px ${corFio})` : undefined }} data-testid={`faixa-fio-${s.id}`} />
+                        <g key={s.id}>
+                          <path d={d} fill="none" stroke={corFio} strokeWidth={em ? 2 : 1.25} strokeDasharray={s.estado === "ATIVA" ? undefined : "5 3"} vectorEffect="non-scaling-stroke"
+                            className={acendidoAgora ? "sinapse-fio-ignicao" : undefined}
+                            style={{ opacity: apagado ? 0.05 : em ? 1 : 0.85, filter: em ? "drop-shadow(0 0 2px rgba(217,119,6,0.55))" : undefined }} data-testid={`faixa-fio-${s.id}`} />
+                          {emPerg && s.estado === "ATIVA" && (
+                            <path d={d} fill="none" stroke="#FDE68A" strokeWidth={3.5} strokeLinecap="round" strokeDasharray="1 24" vectorEffect="non-scaling-stroke" className="sinapse-impulso" style={{ pointerEvents: "none", filter: "drop-shadow(0 0 4px #F59E0B)" }} />
+                          )}
+                          <path d={d} fill="none" stroke="transparent" strokeWidth={14} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                            onClick={(e) => { e.stopPropagation(); setFioAberto((v) => (v === s.id ? null : s.id)); }} data-testid={`faixa-fio-clique-${s.id}`} />
+                        </g>
                       );
                     })}
                   </svg>
+                  {(() => {
+                    const f = fios.find((x) => x.s.id === fioAberto);
+                    if (!f) return null;
+                    const dst = nomeDe.get(chave(f.s.categoria, f.s.destinoTipo, f.s.destinoId));
+                    const proposta = f.s.id.startsWith("proposta-");
+                    const idReal = Number(f.s.id.split("-")[1]);
+                    const armada = proposta ? aprovarArmado === idReal : armadas.has(idReal);
+                    return (
+                      <div className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-[#d9b25f] bg-white px-2 py-1 text-[10px] shadow-md" style={{ left: "50%", top: (f.y1 + (f.y2 as number)) / 2 }} onClick={(e) => e.stopPropagation()} data-testid="faixa-pilula-fio">
+                        <span className="font-mono font-bold">{f.s.perguntaId}</span>
+                        <span aria-hidden="true">→</span>
+                        <span className="max-w-[9rem] truncate font-semibold" style={{ color: COR[f.s.categoria] }}>{codigoDestino(f.s.categoria, f.s.destinoTipo, f.s.destinoId)} {dst?.nome ?? ""}</span>
+                        {modo === "EDICAO" && proposta && (
+                          <button type="button" onClick={() => { if (armada) aprovarProposta.mutate({ id: idReal }); else setAprovarArmado(idReal); }} disabled={aprovarProposta.isPending} className="inline-flex items-center gap-0.5 rounded-full border border-current px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700" data-testid="faixa-pilula-aprovar" title={armada ? "Clique de novo para aprovar" : "Aprovar esta proposta"}>
+                            {armada ? "Confirmar" : "Aprovar"}
+                          </button>
+                        )}
+                        {modo === "EDICAO" && !proposta && (
+                          <button type="button" onClick={() => cliqueExcluir(idReal)} className="inline-flex items-center gap-0.5 rounded-full border border-current px-1.5 py-0.5 text-[9px] font-bold uppercase text-red-700" data-testid="faixa-pilula-desvincular" title={armada ? "Clique de novo para confirmar" : "Desvincular (desativa, não apaga)"}>
+                            {armada ? <><Unlock className="h-3 w-3" />Confirmar</> : <><Lock className="h-3 w-3" />Desvincular</>}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  </div>
                   {/* DENDRITOS DIREITA */}
                   <div className="relative border-l border-black/10">
                     {direita.map((d) => {
@@ -611,11 +710,12 @@ export default function SinapsesFaixa() {
                           <div className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1.5 px-1.5" style={aceso ? { boxShadow: `inset 3px 0 0 ${COR[d.cat]}` } : undefined}>
                             {modo === "EDICAO" ? (
                               <button type="button" disabled={!!d.incompleto} onClick={(e) => { e.stopPropagation(); concluirNoDestino(d.k); }}
-                                className="bevel-3d flex h-10 w-10 shrink-0 items-center justify-center disabled:cursor-not-allowed disabled:opacity-40 sm:h-6 sm:w-6"
+                                className="sinapse-pino-area disabled:cursor-not-allowed disabled:opacity-40"
+                                data-pino-destino={d.incompleto ? undefined : d.k}
                                 data-testid={`faixa-porta-destino-${d.k}`}
                                 aria-label={d.incompleto ? `Destino ${codigoDestino(d.cat, d.tipo, d.id)} sem conteúdo; indisponível` : `Concluir ligação na saída ${codigoDestino(d.cat, d.tipo, d.id)}`}
                                 title={d.incompleto ? "Bloco vazio: não pode receber ligação." : "Clique para concluir o fio iniciado numa pergunta."}>
-                                <span className="block h-2 w-2 rounded-full" style={d.nAtivas ? { background: COR[d.cat] } : d.nPropostas ? { border: `1.5px dashed ${COR[d.cat]}`, background: "transparent" } : d.nSemSaida ? { border: "1.5px dashed #dc2626", background: "transparent" } : { border: `1.5px solid ${COR[d.cat]}`, background: "transparent" }} aria-hidden="true" />
+                                <span className={`sinapse-pino ${fioRecemSalvo?.endsWith(`|${d.k}`) ? "sinapse-pino-onda" : ""}`} data-estado={d.nAtivas ? "ativo" : d.nPropostas ? "proposta" : "livre"} aria-hidden="true" />
                               </button>
                             ) : (
                               <span className="h-2 w-2 shrink-0 rounded-full" style={d.nAtivas ? { background: COR[d.cat] } : d.nPropostas ? { border: `1.5px dashed ${COR[d.cat]}`, background: "transparent" } : d.nSemSaida ? { border: "1.5px dashed #dc2626", background: "transparent" } : { border: `1.5px solid ${COR[d.cat]}`, background: "transparent" }} aria-hidden="true" />
@@ -652,7 +752,7 @@ export default function SinapsesFaixa() {
                   <div key={p.perguntaId} data-testid={`faixa-item-${p.perguntaId}`}
                     style={{ background: marcada ? "rgba(217,119,6,0.16)" : i % 2 === 0 ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.18)" }}
                     onMouseEnter={() => setHover(p.perguntaId)} onMouseLeave={() => setHover(null)}>
-                    <button type="button" aria-expanded={aberto} onClick={(e) => { clicar(e, p.perguntaId); alternarAberto(p.perguntaId); }} className="flex w-full items-center gap-3 px-3 py-1.5 text-left">
+                    <button type="button" aria-expanded={aberto} onClick={(e) => { clicar(e, p.perguntaId); alternarAberto(p.perguntaId); centralizar(p.perguntaId); }} className="flex w-full items-center gap-3 px-3 py-1.5 text-left">
                       {aberto ? <ChevronDown className="h-4 w-4 shrink-0 opacity-60" /> : <ChevronRight className="h-4 w-4 shrink-0 opacity-60" />}
                       <span className="w-24 shrink-0 font-mono text-[11px] font-bold text-[#5b6578]">{p.perguntaId}</span>
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#1b2433]">{p.pergunta}</span>
@@ -664,6 +764,11 @@ export default function SinapsesFaixa() {
                     {aberto && (
                       <div className="space-y-1.5 px-10 pb-2.5">
                         {lig.length === 0 && pendentes.length === 0 && <div className="text-xs text-muted-foreground">Nenhuma correspondência ativa ou proposta para esta pergunta.</div>}
+                        {modo === "EDICAO" && propostasFiltradas(p.perguntaId).length > 0 && (
+                          <button type="button" disabled={loteEmCurso} onClick={() => aprovarLote(p.perguntaId, p.perguntaId)} className="evo-bevel px-2 py-1 text-[10px] font-bold" data-testid={`button-aprovar-lote-${p.perguntaId}`}>
+                            {loteEmCurso ? "Aprovando..." : loteArmado === p.perguntaId ? `Confirmar ${propostasFiltradas(p.perguntaId).length}` : "Aprovar propostas filtradas"}
+                          </button>
+                        )}
                         {CATEGORIAS.map((c) => {
                           const itens = lig.filter((s) => s.categoria === c.chave);
                           const itensPendentes = pendentes.filter((s) => s.categoria === c.chave);

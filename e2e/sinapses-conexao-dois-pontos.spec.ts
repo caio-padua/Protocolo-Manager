@@ -3,8 +3,10 @@ import { expect, test, type Page } from "@playwright/test";
 const perguntaId = "C-GER03";
 const destinoId = 12;
 
-async function prepararTela(page: Page, falharGravacao = false) {
+async function prepararTela(page: Page, falharGravacao = false, propostasIniciais = 0) {
   const estado = {
+    propostas: Array.from({ length: propostasIniciais }, (_, i) => ({ id: 500 + i, perguntaId, categoria: "EXAME", destinoTipo: "exame", destinoId, eixo: "TESTE", justificativa: "Proposta sintética", status: "PENDENTE" })),
+    aprovadas: [] as number[],
     ligacoes: [] as Array<{ id: number; perguntaId: string; categoria: string; destinoTipo: string; destinoId: number; cloneDe: null }>,
     pedidos: [] as Array<Record<string, unknown>>,
   };
@@ -39,8 +41,15 @@ async function prepararTela(page: Page, falharGravacao = false) {
         },
         injetaveisSemVia: 0,
         sinapses: estado.ligacoes,
-        propostas: [],
+        propostas: estado.propostas,
       });
+    }
+    const aprovar = path.match(/^\/api\/cadastros\/sinapses\/propostas\/(\d+)\/aprovar$/);
+    if (aprovar && request.method() === "POST") {
+      const id = Number(aprovar[1]);
+      estado.aprovadas.push(id);
+      estado.propostas = estado.propostas.map((p) => (p.id === id ? { ...p, status: "APROVADA" } : p));
+      return json({ id, status: "APROVADA" });
     }
     if (path === "/api/cadastros/sinapses" && request.method() === "POST") {
       const body = request.postDataJSON() as Record<string, unknown>;
@@ -101,12 +110,24 @@ for (const viewport of [
     await expect(page.getByText("Ligação salva", { exact: true })).toBeVisible();
     const fioSalvo = page.getByTestId("faixa-fio-ativa-901");
     await expect(fioSalvo).toHaveClass(/sinapse-fio-ignicao/);
-    await expect(fioSalvo).toHaveAttribute("stroke-width", "3.5");
-    await expect(fioSalvo).toHaveAttribute("style", /opacity: 0\.98/);
+    await expect(fioSalvo).toHaveAttribute("stroke-width", "2");
+    await expect(fioSalvo).toHaveAttribute("style", /opacity: 1/);
     await expect(fioSalvo).not.toHaveClass(/sinapse-fio-ignicao/, { timeout: 3000 });
-    await expect(fioSalvo).toHaveAttribute("style", /opacity: 0\.98/);
+    await expect(fioSalvo).toHaveAttribute("style", /opacity: 1/);
   });
 }
+
+test("sinapse: clicar na fibra mostra a etiqueta com desvincular", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const estado = await prepararTela(page);
+  await page.getByTestId(`faixa-porta-${perguntaId}`).click();
+  await page.getByTestId(`faixa-porta-destino-EXAME|exame|${destinoId}`).click();
+  await expect.poll(() => estado.pedidos.length).toBe(1);
+  await expect(page.getByTestId("faixa-fio-clique-ativa-901")).toBeAttached();
+  await page.getByTestId("faixa-fio-clique-ativa-901").click({ force: true });
+  await expect(page.getByTestId("faixa-pilula-fio")).toContainText(perguntaId);
+  await expect(page.getByTestId("faixa-pilula-desvincular")).toBeVisible();
+});
 
 test("sinapse: Escape cancela sem gravar e erro não acende o fio", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -154,4 +175,25 @@ test("sinapse: mantém o arraste e permite ligar pelos dois pontos com teclado",
   await destino.focus();
   await page.keyboard.press("Enter");
   await expect.poll(() => estado.pedidos.length).toBe(2);
+});
+
+test("sinapse: aprovação em lote pede confirmação e usa a rota de cada proposta", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const estado = await prepararTela(page, false, 3);
+  const botao = page.getByTestId("button-aprovar-lote");
+  await expect(botao).toHaveText("Aprovar propostas filtradas");
+  await botao.click();
+  await expect(botao).toHaveText("Confirmar 3");
+  expect(estado.aprovadas).toHaveLength(0);
+  await botao.click();
+  await expect.poll(() => estado.aprovadas.length).toBe(3);
+  await expect(page.getByTestId("button-aprovar-lote")).toHaveCount(0);
+});
+
+test("sinapse: clicar na pergunta da sanfona rola o grafo até ela", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await prepararTela(page, false, 1);
+  await page.getByTestId(`faixa-item-${perguntaId}`).getByRole("button").first().click();
+  await expect(page.getByTestId("faixa-item-" + perguntaId)).toBeVisible();
+  await expect(page.getByTestId("faixa-grafo-rolagem")).toBeAttached();
 });

@@ -31,3 +31,74 @@
     animation: none;
   }
 }
+
+/* Pino circular idêntico nas duas extremidades (10 px visíveis, área de toque maior) */
+.sinapse-pino-area {
+  display: flex;
+  height: 40px;
+  width: 40px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+@media (min-width: 640px) {
+  .sinapse-pino-area { height: 24px; width: 24px; }
+}
+.sinapse-pino {
+  position: relative;
+  display: block;
+  height: 10px;
+  width: 10px;
+  border-radius: 999px;
+  border: 1.5px solid #94a3b8;
+  background: #ffffff;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.sinapse-pino[data-estado="ativo"] {
+  border-color: #1e3a8a;
+  background: radial-gradient(circle, #93c5fd 0 25%, #1e3a8a 70%);
+}
+.sinapse-pino[data-estado="proposta"] {
+  border-color: #d97706;
+  background: radial-gradient(circle, #fff7d6 0 25%, #f59e0b 70%);
+}
+.sinapse-pino[data-estado="armado"] {
+  border-color: #b45309;
+  background: radial-gradient(circle, #ffffff 0 25%, #fbbf24 70%);
+  box-shadow: 0 0 8px 2px #fbbf24;
+}
+.sinapse-pino-area:hover .sinapse-pino:not(:disabled) {
+  box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.18);
+}
+.sinapse-pino-area.sinapse-porta-origem-ativa {
+  outline: none;
+  filter: none;
+}
+.sinapse-pino-onda::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 999px;
+  border: 2px solid #f59e0b;
+  animation: sinapse-onda 0.9s ease-out both;
+  pointer-events: none;
+}
+@keyframes sinapse-onda {
+  from { transform: scale(1); opacity: 0.9; }
+  to { transform: scale(3.6); opacity: 0; }
+}
+
+/* Impulso elétrico percorrendo a fibra da esquerda para a direita */
+.sinapse-impulso {
+  animation: sinapse-impulso 1.6s linear infinite;
+}
+@keyframes sinapse-impulso {
+  from { stroke-dashoffset: 25; }
+  to { stroke-dashoffset: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sinapse-impulso, .sinapse-pino-onda::after { animation: none; }
+}
