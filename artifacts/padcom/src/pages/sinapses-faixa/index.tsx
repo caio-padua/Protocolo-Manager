@@ -264,7 +264,7 @@ export default function SinapsesFaixa() {
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold uppercase tracking-widest text-primary">Sinapses Clínicas</h1>
-            <p className="text-xs text-muted-foreground">Esquerda: códigos das perguntas. Direita: códigos das saídas. Passe o mouse num código para ver o texto completo. Esta tela só cadastra ligações; não emite nem envia nada.</p>
+            <p className="text-xs text-muted-foreground">Esquerda: códigos das perguntas. Direita: códigos das saídas. Passe o mouse numa linha para ver o texto completo. A pergunta é a ignição: clique nela para acender os fios até as saídas. Esta tela só cadastra ligações; não emite nem envia nada.</p>
           </div>
           <div className="mx-ev-g w-[26rem]" style={{ gridTemplateColumns: "repeat(3,1fr)" }} role="group" aria-label="Modo da tela">
             {([["VISUALIZACAO", "Visualização (V)", Eye], ["EDICAO", "Edição (E)", Pencil], ["SIMULACAO", "Simulação (S)", Play]] as const).map(([m, rot, Ic]) => (
@@ -316,7 +316,7 @@ export default function SinapsesFaixa() {
               </div>
             ) : (
               <div className="concave-3d max-h-[22rem] overflow-y-auto">
-                <div className="relative grid" style={{ gridTemplateColumns: "92px 1fr 112px", height: altura }}>
+                <div className="relative grid" style={{ gridTemplateColumns: "minmax(190px,30%) 1fr minmax(190px,30%)", height: altura }}>
                   {/* DENDRITOS ESQUERDA */}
                   <div className="relative border-r border-black/10">
                     {esquerda.map((p) => {
@@ -328,7 +328,9 @@ export default function SinapsesFaixa() {
                           <button type="button" onClick={(e) => clicar(e, p.perguntaId)} data-testid={`faixa-dendrito-${p.perguntaId}`}
                             className={`tecla-3d flex h-full min-w-0 flex-1 items-center gap-1 px-1.5 text-left select-none ${marcada ? "evo-bevel-ativo" : ""}`}>
                             {p.eSinalAlarme && <AlertTriangle className="h-3 w-3 shrink-0 text-red-600" />}
-                            <span className="truncate font-mono text-[10px] font-bold">{p.perguntaId}</span>
+                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: marcada || foco === p.perguntaId ? "#f59e0b" : "#d97706", boxShadow: marcada || foco === p.perguntaId ? "0 0 6px 2px #fbbf24" : "0 0 2px #d9770688" }} aria-hidden />
+                            <span className="shrink-0 font-mono text-[10px] font-bold">{p.perguntaId}</span>
+                            <span className="truncate text-[10px] opacity-80">{p.pergunta}</span>
                             <span className="ml-auto text-[9px] tabular-nums opacity-60">{n || ""}</span>
                           </button>
                           {modo === "EDICAO" && (
@@ -341,13 +343,13 @@ export default function SinapsesFaixa() {
                     })}
                   </div>
                   {/* FIOS */}
-                  <svg className="h-full w-full" viewBox={`0 0 100 ${altura}`} preserveAspectRatio="none" aria-hidden>
+                  <svg className="h-full w-full" style={{ background: "#fff", backgroundImage: "linear-gradient(#f1f5f9 1px,transparent 1px),linear-gradient(90deg,#f1f5f9 1px,transparent 1px)", backgroundSize: "24px 24px" }} viewBox={`0 0 100 ${altura}`} preserveAspectRatio="none" aria-hidden>
                     {fios.map(({ s, y1, y2 }) => {
                       const em = foco === s.perguntaId || (modo === "SIMULACAO" && sel.includes(s.perguntaId));
                       const apagado = (foco !== null || (modo === "SIMULACAO" && sel.length > 0)) && !em;
                       return (
-                        <path key={s.id} d={`M 0 ${y1} C 50 ${y1}, 50 ${y2}, 100 ${y2}`} fill="none" stroke={COR[s.categoria]} strokeWidth={em ? 3 : 1.6} vectorEffect="non-scaling-stroke"
-                          style={{ opacity: apagado ? 0.12 : 0.9 }} data-testid={`faixa-fio-${s.id}`} />
+                        <path key={s.id} d={`M 0 ${y1} C 50 ${y1}, 50 ${y2}, 100 ${y2}`} fill="none" stroke={COR[s.categoria]} strokeWidth={em ? 3.5 : 1.3} vectorEffect="non-scaling-stroke"
+                          style={{ opacity: apagado ? 0.1 : 0.9, filter: em ? `drop-shadow(0 0 3px ${COR[s.categoria]})` : undefined }} data-testid={`faixa-fio-${s.id}`} />
                       );
                     })}
                   </svg>
@@ -360,7 +362,8 @@ export default function SinapsesFaixa() {
                         <div key={d.k} data-dest={d.k} className={`absolute flex w-full items-center gap-1 px-1 ${apagado ? "opacity-35" : ""}`} style={{ top: (yD.get(d.k) ?? 0) - (ROW_H - 3) / 2, height: ROW_H - 3 }}
                           title={`${ROTULO[d.cat]} · ${d.nome}`} data-testid={`faixa-saida-${d.k}`}>
                           <div className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1.5 px-1.5" style={aceso ? { boxShadow: `inset 3px 0 0 ${COR[d.cat]}` } : undefined}>
-                            <span className="font-mono text-[10px] font-bold" style={{ color: COR[d.cat] }}>{codigoDestino(d.cat, d.tipo, d.id)}</span>
+                            <span className="shrink-0 font-mono text-[10px] font-bold" style={{ color: COR[d.cat] }}>{codigoDestino(d.cat, d.tipo, d.id)}</span>
+                            <span className="truncate text-[10px] opacity-80">{d.nome}</span>
                             <span className="ml-auto text-[9px] tabular-nums opacity-60">{d.n || ""}</span>
                           </div>
                         </div>
