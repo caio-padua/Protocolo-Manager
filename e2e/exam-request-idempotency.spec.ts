@@ -1877,10 +1877,12 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
 
 // Keep valid-empty revalidation independent of the tab-resume/polling journey:
 // stale pages must be consumed after the empty response, not while hidden.
+// An empty document list does not imply that pending dispatches are empty.
 for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
   for (const [delivery, outcome] of [
     ["em-B", "preenchido"], ["em-B", "vazio"],
     ["apos-retorno-A", "preenchido"], ["apos-retorno-A", "vazio"],
+    ["em-B", "vazio-com-pendencia"], ["apos-retorno-A", "vazio-com-pendencia"],
   ] as const) {
     test(`Pedidos: voltar à clínica em cache reinicia histórico A → B → A → B — ${transition} — ${delivery} — ${outcome}`, async ({ context, page }, testInfo) => {
       const clinicA = { id: 303, empresaId: 404, name: "Clínica A sintética" };
@@ -2135,16 +2137,34 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       const emptyHistory = async () => {
         await expect(panel.getByText("Nenhum pedido registrado para este cliente.", { exact: true })).toBeVisible();
         await expect(panel.getByRole("checkbox", { name: /^Selecionar documento / })).toHaveCount(0);
-        await expect(panel.getByRole("alert")).toHaveCount(0);
-        for (const marker of Object.values(markers)) await expect(panel).not.toContainText(marker);
+        await expect(panel.locator("tbody tr")).toHaveCount(0);
+        if (outcome === "vazio-com-pendencia") {
+          const pending = panel.getByRole("alert");
+          await expect(pending).toHaveCount(1);
+          await expect(pending).toBeVisible();
+          await expect(pending.getByRole("listitem")).toHaveCount(1);
+          await expect(pending).toContainText(`Operação: ${markers.bFresh}`);
+          await expect(pending).toContainText("Envios pendentes de conferência");
+          await expect(pending).toContainText("Requer conferência");
+          await expect(pending).toContainText("Confira o provedor antes de repetir.");
+          await expect(pending).toContainText("Sem confirmação de resultado; confira antes de repetir.");
+        } else {
+          await expect(panel.getByRole("alert")).toHaveCount(0);
+        }
+        for (const marker of Object.values(markers)) {
+          if (outcome === "vazio-com-pendencia" && marker === markers.bFresh) continue;
+          await expect(panel).not.toContainText(marker);
+        }
         await cleared();
         await expect(panel.getByRole("button", { name: "Mais antigos", exact: true })).toBeDisabled();
         // Neither button may restore an old page while the result is empty.
         await expect(panel.getByRole("button", { name: "Atualizar histórico", exact: true })).toBeEnabled();
       };
-      if (outcome === "vazio") {
+      if (outcome !== "preenchido") {
         await reply(held.secondB!, {
-          documents: [], dispatches: [], pendingOperations: [], nextOffset: null,
+          documents: [], dispatches: [], nextOffset: null,
+          pendingOperations: outcome === "vazio-com-pendencia"
+            ? historyBody(markers.bFresh, 98).pendingOperations : [],
         });
         await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(6);
         await emptyHistory();
@@ -2159,10 +2179,10 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       // to be consumed after returning to B, including the old B scope itself.
       await reply(held.bPage!, historyBody(markers.bLate, 96));
       await reply(held.aReturnPage!, historyBody(markers.aLate, 97));
-      await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(outcome === "vazio" ? 8 : 7);
+      await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(outcome !== "preenchido" ? 8 : 7);
       await page.evaluate(() => new Promise<void>(resolve =>
         requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-      if (outcome === "vazio") {
+      if (outcome !== "preenchido") {
         await emptyHistory();
       } else {
         await expect(doc(92)).toBeVisible();
