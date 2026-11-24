@@ -49,7 +49,7 @@ import {
   Plus,
   Pencil,
   Trash2,
-  MoveRight,
+  FolderInput,
   ArrowLeft,
   ArrowRight,
   MinusCircle,
@@ -784,12 +784,12 @@ function BlocosTab() {
                           <button
                             type="button"
                             aria-label={`Mover ${ex.nomeExame}`}
-                            title="Mover para outro bloco (abre janela)"
+                            title="Levar para outro bloco ou outra categoria (abre janela)"
                             data-testid={`button-mover-exame-${ex.id}`}
                             className="btn-3d-soft rounded-[6px] p-1"
                             onClick={() => setMover({ id: ex.id, nome: ex.nomeExame, blocoId: b.codigoBloco, grau: g.grau })}
                           >
-                            <MoveRight className="h-3 w-3" />
+                            <FolderInput className="h-3 w-3" />
                           </button>
                           <button
                             type="button"
