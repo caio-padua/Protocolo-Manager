@@ -141,22 +141,21 @@
 .sinapse-sem-trilho { scrollbar-width: none; -ms-overflow-style: none; }
 .sinapse-sem-trilho::-webkit-scrollbar { display: none; }
 
-/* Termostato: trilho Côncavo quadrado + botão retangular Saliente */
+/* Termostato discreto: sulco fino + botão estreito, quase imperceptível até o mouse chegar perto */
 .sinapse-termostato {
-  position: absolute; top: 12px; bottom: 12px; width: 18px; z-index: 5;
-  border-radius: 3px; overflow: hidden;
-  background: linear-gradient(90deg, #e7dfca, #f6f1e4);
-  box-shadow: inset 0 2px 4px rgba(7,22,43,0.22), inset 0 -1px 0 rgba(255,255,255,0.9);
+  position: absolute; top: 14px; bottom: 14px; width: 8px; z-index: 5;
+  border-radius: 3px; overflow: hidden; opacity: 0.55; transition: opacity 0.2s ease;
+  background: #e9e2cf;
+  box-shadow: inset 0 1px 2px rgba(7,22,43,0.22);
 }
+.sinapse-termostato:hover, .sinapse-termostato:focus-within { opacity: 1; }
 .sinapse-termostato-botao {
-  position: absolute; left: 1px; right: 1px; border-radius: 3px; cursor: grab; touch-action: none;
-  background: linear-gradient(180deg, #fff9e6, #d9bf86);
-  border: 1px solid rgba(120,92,36,0.6);
-  box-shadow: 0 2px 4px rgba(7,22,43,0.35), inset 0 1px 0 #fff;
+  position: absolute; left: 0; right: 0; border-radius: 3px; cursor: grab; touch-action: none;
+  background: linear-gradient(90deg, #fff9e6, #d9bf86);
+  border: 1px solid rgba(120,92,36,0.45);
+  box-shadow: 0 1px 2px rgba(7,22,43,0.3), inset 0 1px 0 #fff;
 }
-.sinapse-termostato-botao::after { content: ""; position: absolute; left: 2px; right: 2px; top: 50%; height: 3px; margin-top: -1px;
-  border-top: 1px solid rgba(120,92,36,0.55); border-bottom: 1px solid rgba(120,92,36,0.55); }
-.sinapse-termostato-botao:active { cursor: grabbing; transform: translateY(1px); box-shadow: inset 0 2px 4px rgba(7,22,43,0.3); }
+.sinapse-termostato-botao:active { cursor: grabbing; }
 
 /* Moldura retangular de vidro (escotilha de craniotomia): aço azul-marinho, filete dourado fino, cantos de 10 px */
 .sinapse-escafandro {

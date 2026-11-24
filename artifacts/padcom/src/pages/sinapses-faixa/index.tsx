@@ -747,7 +747,7 @@ export default function SinapsesFaixa() {
       {/* PAINEL DE COMANDO UNICO E CONGELADO: linha 1 = titulo/contagem/ajuda; linha 2 = busca + correspondencia; mini console central de 2 andares */}
       <section className="sinapse-comando panel-3d-sub p-2" data-testid="faixa-comando">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="bevel-3d px-4 py-1.5 text-[13px] font-bold uppercase tracking-[0.18em] text-primary">Sinapses Clínicas</h1>
+          <h1 className="bevel-3d px-4 py-1.5 text-[13px] font-bold uppercase tracking-[0.18em] text-primary">Sinapse Clínica</h1>
           <div className="flex flex-wrap items-center gap-3" data-testid="faixa-contagem" title="Ligação ativa = saída real conectada à pergunta. Proposta = sugestão ainda não aprovada; não alimenta o motor clínico.">
             <FichaContador rotulo="Ativas" valor={total} cor="#166534" />
             <FichaContador rotulo="Propostas" valor={totalPropostasPendentes} cor="#9b6b11" />
@@ -892,7 +892,7 @@ export default function SinapsesFaixa() {
                 {([["ATIVA", "Ativas", "#1e3a8a"], ["PROPOSTA", "Propostas", "#b8892b"], ["SEM_SAIDA", "Sem saída", "#dc2626"]] as const).map(([k, r, cor]) => (
                   <button key={k} type="button" aria-pressed={mostrar[k]} onClick={() => setMostrar((m) => ({ ...m, [k]: !m[k] }))} title={`${mostrar[k] ? "Esconder" : "Mostrar"} sinapses: ${r}`} data-testid={`faixa-mostrar-${k}`}
                     className={`${mostrar[k] ? "tecla-3d" : "concave-3d"} flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-1 text-[9px] font-black uppercase leading-none`} style={{ opacity: mostrar[k] ? 1 : 0.55 }}>
-                    <svg width="100%" height="6" aria-hidden="true"><line x1="3" y1="3" x2="97%" y2="3" stroke={cor} strokeWidth="2.5" strokeLinecap="round" strokeDasharray={k === "ATIVA" ? undefined : k === "PROPOSTA" ? "0.1 5" : "5 4"} /></svg>
+                    <svg width="100%" height="6" aria-hidden="true"><line x1="3" y1="3" x2="97%" y2="3" stroke={k === "SEM_SAIDA" ? cor : (foco !== null ? corDaPergunta.get(foco) : undefined) ?? cor} strokeWidth={k === "ATIVA" ? 2.5 : 1.8} strokeLinecap="round" strokeDasharray={k === "ATIVA" ? undefined : k === "PROPOSTA" ? "9 4" : "2 4"} /></svg>
                     <span className="truncate">{r}</span>
                   </button>
                 ))}
@@ -917,11 +917,11 @@ export default function SinapsesFaixa() {
               </div>
             ) : (
               <div ref={graficoRef} className="concave-3d" style={{ height: ampliada ? "calc(100vh - 15rem)" : "max(20rem, calc(100vh - 25rem))" }} data-testid="faixa-grafo-rolagem">
-                <div className="relative grid h-full" style={{ gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }}>
-                  <div className="absolute bottom-0 left-1.5 top-0 z-20"><Termostato alvo={colEsqRef} rotulo="Rolar perguntas" testid="faixa-termostato-perguntas" /></div>
-                  <div className="absolute bottom-0 right-1.5 top-0 z-20"><Termostato alvo={colDirRef} rotulo="Rolar saídas" testid="faixa-termostato-saidas" /></div>
+                <div className="relative grid h-full min-h-0 overflow-hidden" style={{ gridTemplateRows: "minmax(0,1fr)", gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }}>
+                  <div className="absolute bottom-0 left-1 top-0 z-20"><Termostato alvo={colEsqRef} rotulo="Rolar perguntas" testid="faixa-termostato-perguntas" /></div>
+                  <div className="absolute bottom-0 right-2 top-0 z-20"><Termostato alvo={colDirRef} rotulo="Rolar saídas" testid="faixa-termostato-saidas" /></div>
                   {/* DENDRITOS ESQUERDA: rolagem propria */}
-                  <div ref={colEsqRef} onScroll={(e) => setRolE(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-r border-black/10 pl-7" data-testid="faixa-coluna-perguntas">
+                  <div ref={colEsqRef} onScroll={(e) => setRolE(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-r border-black/10 pl-4" data-testid="faixa-coluna-perguntas">
                   <div className="relative" style={{ height: altura }}>
                     {linhasE.map((linha, idx) => {
                       const topo = idx * alturaLinha + 1.5;
@@ -1020,8 +1020,8 @@ export default function SinapsesFaixa() {
                       if (!mostrar[semSaida ? "SEM_SAIDA" : s.estado === "ATIVA" ? "ATIVA" : "PROPOSTA"] && !em) return null;
                       return (
                         <g key={s.id}>
-                          <path d={d} fill="none" stroke={corFio} strokeWidth={em ? 2.4 : s.estado === "ATIVA" ? 1.1 : 2} strokeLinecap="round" strokeDasharray={s.estado === "ATIVA" ? undefined : semSaida ? "5 4" : "0.1 6"} vectorEffect="non-scaling-stroke"
-                            style={{ opacity: apagado ? 0.06 : em ? 1 : s.estado === "ATIVA" ? 0.7 : 0.7, filter: em ? "drop-shadow(0 0 2px rgba(217,119,6,0.55))" : undefined }} data-testid={`faixa-fio-${s.id}`} />
+                          <path d={d} fill="none" stroke={corFio} strokeWidth={em ? 2.4 : s.estado === "ATIVA" ? 1.1 : 1.3} strokeLinecap="round" strokeDasharray={s.estado === "ATIVA" ? undefined : semSaida ? "2 4" : "9 4"} vectorEffect="non-scaling-stroke"
+                            style={{ opacity: apagado ? 0.06 : em ? 1 : s.estado === "ATIVA" ? 0.7 : 0.55, filter: em ? "drop-shadow(0 0 2px rgba(217,119,6,0.55))" : undefined }} data-testid={`faixa-fio-${s.id}`} />
                           {emPerg && s.estado === "ATIVA" && (
                             <path d={d} fill="none" stroke="#FDE68A" strokeWidth={3.5} strokeLinecap="round" strokeDasharray="1 24" vectorEffect="non-scaling-stroke" className="sinapse-impulso" style={{ pointerEvents: "none", filter: "drop-shadow(0 0 4px #F59E0B)" }} />
                           )}
@@ -1069,7 +1069,7 @@ export default function SinapsesFaixa() {
                     );
                   })()}
                   {/* DENDRITOS DIREITA: rolagem propria */}
-                  <div ref={colDirRef} onScroll={(e) => setRolD(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-l border-black/10 pr-7" data-testid="faixa-coluna-saidas">
+                  <div ref={colDirRef} onScroll={(e) => setRolD(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-l border-black/10 pr-4" data-testid="faixa-coluna-saidas">
                   <div className="relative" style={{ height: altura }}>
                     {linhasD.map((linha, idx) => {
                       const topo = idx * alturaLinha + 1.5;
@@ -1130,7 +1130,7 @@ export default function SinapsesFaixa() {
             )}
           </Faixa>
 
-          <Faixa testid="faixa-sanfona" titulo="Sanfona das correspondências" fichas={[{ rotulo: "Perguntas", valor: esquerda.length }, { rotulo: "Propostas pendentes", valor: totalPropostasPendentes, cor: "#9b6b11" }]} aberta={sanfonaAberta} onToggle={() => setSanfonaAberta((v) => !v)}
+          <Faixa testid="faixa-sanfona" titulo="Mapa das ligações" fichas={[{ rotulo: "Perguntas", valor: esquerda.length }, { rotulo: "Propostas pendentes", valor: totalPropostasPendentes, cor: "#9b6b11" }]} aberta={sanfonaAberta} onToggle={() => setSanfonaAberta((v) => !v)}
             direita={sanfonaAberta ? (
               <div className="flex gap-1">
                 <button type="button" className="tecla-3d px-2 py-1 text-[10px] font-bold" onClick={() => setAbertos(new Set(esquerda.map((p) => p.perguntaId)))}>Abrir todas</button>
@@ -1149,17 +1149,20 @@ export default function SinapsesFaixa() {
                     className={destaqueAprov === p.perguntaId ? "ring-2 ring-[#b8892b] ring-inset transition-shadow" : ""}
                     style={{ background: marcada ? "rgba(217,119,6,0.16)" : i % 2 === 0 ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.18)" }}
                     onMouseEnter={() => setHover(p.perguntaId)} onMouseLeave={() => setHover(null)}>
-                    <button type="button" aria-expanded={aberto} onClick={(e) => { clicar(e, p.perguntaId); alternarAberto(p.perguntaId); centralizar(p.perguntaId); }} className="flex w-full items-center gap-3 px-3 py-1.5 text-left">
-                      {aberto ? <ChevronDown className="h-4 w-4 shrink-0 opacity-60" /> : <ChevronRight className="h-4 w-4 shrink-0 opacity-60" />}
-                      <span className="w-24 shrink-0 font-mono text-[11px] font-bold text-[#5b6578]">{p.perguntaId}</span>
-                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#1b2433]">{p.pergunta}</span>
-                      {p.bloco && <span className="hidden shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground md:inline">{p.bloco}</span>}
-                      <span className="concave-3d flex h-7 min-w-[4.5rem] shrink-0 items-center justify-center gap-1 px-3 text-[11px] font-bold tabular-nums" title={`${lig.length} ativas; ${pendentes.length} propostas`}>
+                    <button type="button" aria-expanded={aberto} onClick={(e) => { clicar(e, p.perguntaId); alternarAberto(p.perguntaId); centralizar(p.perguntaId); }} className="grid w-full items-center gap-2 px-2 py-1.5 text-left" style={{ gridTemplateColumns: "1rem 4.75rem minmax(0,1fr) 12rem 4.5rem" }}>
+                      {aberto ? <ChevronDown className="h-4 w-4 opacity-60" /> : <ChevronRight className="h-4 w-4 opacity-60" />}
+                      <span className="concave-3d flex h-7 items-center justify-center font-mono text-[10px] font-bold text-[#0f1e36]">{p.perguntaId}</span>
+                      <span className="min-w-0 truncate text-[12px] font-semibold text-[#1b2433]" title={p.pergunta}>{p.pergunta}</span>
+                      <span className="flex min-w-0 items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground" title={p.bloco ?? ""}>
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ background: corDaPergunta.get(p.perguntaId) ?? "#64748b" }} />
+                        <span className="truncate">{p.bloco}</span>
+                      </span>
+                      <span className="concave-3d flex h-7 items-center justify-center gap-1 text-[11px] font-bold tabular-nums" title={`${lig.length} ativas; ${pendentes.length} propostas`}>
                         <span className="text-[#166534]">{lig.length}</span><span className="text-[#9b6b11]">/{pendentes.length}</span>
                       </span>
                     </button>
                     {aberto && (
-                      <div className="space-y-1.5 px-10 pb-2.5">
+                      <div className="space-y-2 pb-2.5 pl-[2.25rem] pr-2">
                         {lig.length === 0 && pendentes.length === 0 && <div className="text-xs text-muted-foreground">Nenhuma correspondência ativa ou proposta para esta pergunta.</div>}
                         {modo === "EDICAO" && propostasFiltradas(p.perguntaId).length > 0 && (
                           <button type="button" disabled={loteEmCurso} onClick={() => aprovarLote(p.perguntaId, p.perguntaId)} className="tecla-3d px-2 py-1 text-[10px] font-bold" data-testid={`button-aprovar-lote-${p.perguntaId}`}>
@@ -1171,33 +1174,34 @@ export default function SinapsesFaixa() {
                           const itensPendentes = pendentes.filter((s) => s.categoria === c.chave);
                           if (!itens.length && !itensPendentes.length) return null;
                           return (
-                            <div key={c.chave} className="space-y-1.5">
-                              <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="w-24 shrink-0 text-[10px] font-bold uppercase tracking-wider" style={{ color: c.cor }}>{c.rotulo}</span>
+                            <div key={c.chave} className="space-y-1">
+                              <div className="flex items-center gap-2 border-b border-black/10 pb-0.5">
+                                <span className="h-2.5 w-2.5 rounded-[2px]" style={{ background: c.cor }} />
+                                <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: c.cor }}>{c.rotulo}</span>
+                                <span className="text-[10px] tabular-nums text-muted-foreground">{itens.length + itensPendentes.length}</span>
+                              </div>
                               {itens.map((s) => {
                                 const d = nomeDe.get(chave(s.categoria, s.destinoTipo, s.destinoId));
                                 const semSaida = !d || d.incompleto;
                                 const armada = armadas.has(s.id);
                                 return (
-                                    <span key={s.id} title={`${codigoDestino(s.categoria, s.destinoTipo, s.destinoId)} · ${d?.nome ?? `#${s.destinoId}`}${d?.detalhe ? ` · ${d.detalhe}` : ""}${semSaida ? " · sem saída real: destino ausente, inativo ou bloco vazio" : ""}`} className="inline-flex max-w-full items-center gap-1 rounded-[6px] border px-1.5 py-0.5 text-[11px] font-semibold"
-                                    style={semSaida
-                                      ? { color: "#b91c1c", borderColor: "#fecaca", background: "#fef2f2" }
-                                      : { color: c.cor, borderColor: `color-mix(in srgb, ${c.cor} 45%, transparent)`, background: `color-mix(in srgb, ${c.cor} 10%, white)` }}>
-                                    <span className="font-mono text-[10px] opacity-70">{codigoDestino(s.categoria, s.destinoTipo, s.destinoId)}</span>
-                                    <span className="truncate">{d?.nome ?? `#${s.destinoId}`}</span>
-                                    {semSaida && <span className="shrink-0 text-[10px] font-bold text-red-700">SEM SAÍDA</span>}
-                                    {s.cloneDe && <span className="text-[10px] opacity-60">cópia</span>}
-                                    {modo === "EDICAO" && (
+                                  <div key={s.id} className="grid grid-cols-[4.75rem_minmax(0,1fr)_5.5rem_5.5rem_5.5rem] items-center gap-2" title={`${codigoDestino(s.categoria, s.destinoTipo, s.destinoId)} · ${d?.nome ?? `#${s.destinoId}`}${d?.detalhe ? ` · ${d.detalhe}` : ""}${semSaida ? " · sem saída real: destino ausente, inativo ou bloco vazio" : ""}`}>
+                                    <span className="concave-3d flex h-7 items-center justify-center font-mono text-[10px] font-bold" style={{ color: semSaida ? "#b91c1c" : c.cor }}>{codigoDestino(s.categoria, s.destinoTipo, s.destinoId)}</span>
+                                    <span className="flex min-w-0 items-center gap-2 text-[11px] font-semibold" style={{ color: semSaida ? "#b91c1c" : "#1b2433" }}>
+                                      <span className="truncate">{d?.nome ?? `#${s.destinoId}`}</span>
+                                      {semSaida && <span className="shrink-0 text-[10px] font-bold text-red-700">SEM SAÍDA</span>}
+                                      {s.cloneDe && <span className="shrink-0 text-[10px] opacity-60">cópia</span>}
+                                    </span>
+                                    {modo === "EDICAO" ? (
                                       <button type="button" onClick={() => cliqueExcluir(s.id)} data-testid={`faixa-excluir-${s.id}`}
-                                        className="inline-flex shrink-0 items-center gap-0.5 rounded-[6px] border border-current px-1 text-[10px] uppercase"
+                                        className="tecla-3d col-start-5 flex h-7 items-center justify-center gap-1 text-[10px] font-bold uppercase text-red-700"
                                         title={armada ? "Clique de novo para confirmar" : "Excluir esta ligação (desativa, não apaga)"}>
                                         {armada ? <><Unlock className="h-3 w-3" />Confirmar</> : <><Lock className="h-3 w-3" />Excluir</>}
                                       </button>
-                                    )}
-                                  </span>
+                                    ) : null}
+                                  </div>
                                 );
                               })}
-                              </div>
                               {itensPendentes.map((proposta) => {
                                 const d = nomeDe.get(chave(proposta.categoria, proposta.destinoTipo, proposta.destinoId));
                                 const destinosFiltrados = (data.destinos[categoriaEdicao] ?? [])
@@ -1206,23 +1210,22 @@ export default function SinapsesFaixa() {
                                 const editando = propostaEditando === proposta.id;
                                 const armada = aprovarArmado === proposta.id;
                                 return (
-                                  <div key={proposta.id} className="rounded-[6px] concave-3d p-2" data-testid={`proposta-pendente-${proposta.id}`}>
-                                    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                                      <span className="w-24 shrink-0 text-[10px] font-bold uppercase tracking-wider text-[#8b681f]">Proposta</span>
-                                      <span className="font-mono text-[10px] font-bold text-[#8b681f]" title={`${proposta.eixo} · ${d?.detalhe ?? ""}`}>{codigoDestino(proposta.categoria, proposta.destinoTipo, proposta.destinoId)}</span>
-                                      <span className="min-w-0 flex-1 truncate text-[#30384a]" title={`${d?.nome ?? `#${proposta.destinoId}`} · ${proposta.eixo} · ${proposta.justificativa}`}>
+                                  <div key={proposta.id} className="space-y-1" data-testid={`proposta-pendente-${proposta.id}`}>
+                                    <div className="grid grid-cols-[4.75rem_minmax(0,1fr)_5.5rem_5.5rem_5.5rem] items-center gap-2 text-[11px]">
+                                      <span className="concave-3d flex h-7 items-center justify-center font-mono text-[10px] font-bold text-[#8b681f]" title={`${proposta.eixo} · ${d?.detalhe ?? ""}`}>{codigoDestino(proposta.categoria, proposta.destinoTipo, proposta.destinoId)}</span>
+                                      <span className="min-w-0 truncate text-[#30384a]" title={`${d?.nome ?? `#${proposta.destinoId}`} · ${proposta.eixo} · ${proposta.justificativa}`}>
                                         {d?.nome ?? `#${proposta.destinoId}`} · {proposta.eixo}
                                       </span>
-                                      <button type="button" className="tecla-3d h-9 min-w-[5.5rem] px-3 text-[10px] font-bold uppercase" onClick={() => { setPropostaEditando(editando ? null : proposta.id); setCategoriaEdicao(proposta.categoria); setBuscaDestinoEdicao(""); }} data-testid={`button-editar-proposta-${proposta.id}`}>Editar</button>
-                                      <button type="button" className="tecla-3d h-9 min-w-[5.5rem] px-3 text-[10px] font-bold uppercase" onClick={() => { if (armada) aprovarProposta.mutate({ id: proposta.id }); else setAprovarArmado(proposta.id); }} disabled={aprovarProposta.isPending} data-testid={`button-aprovar-proposta-${proposta.id}`}>
-                                        {armada ? "Confirmar aprovação" : "Aprovar"}
+                                      <button type="button" className="tecla-3d h-7 text-[10px] font-bold uppercase" onClick={() => { setPropostaEditando(editando ? null : proposta.id); setCategoriaEdicao(proposta.categoria); setBuscaDestinoEdicao(""); }} data-testid={`button-editar-proposta-${proposta.id}`}>Editar</button>
+                                      <button type="button" className="tecla-3d h-7 text-[10px] font-bold uppercase" onClick={() => { if (armada) aprovarProposta.mutate({ id: proposta.id }); else setAprovarArmado(proposta.id); }} disabled={aprovarProposta.isPending} data-testid={`button-aprovar-proposta-${proposta.id}`}>
+                                        {armada ? "Confirmar" : "Aprovar"}
                                       </button>
-                                      <button type="button" className="tecla-3d h-9 min-w-[5.5rem] px-3 text-[10px] font-bold uppercase text-red-700" onClick={() => recusarProposta.mutate({ id: proposta.id })} disabled={recusarProposta.isPending} data-testid={`button-recusar-proposta-${proposta.id}`}>Recusar</button>
+                                      <button type="button" className="tecla-3d h-7 text-[10px] font-bold uppercase text-red-700" onClick={() => recusarProposta.mutate({ id: proposta.id })} disabled={recusarProposta.isPending} data-testid={`button-recusar-proposta-${proposta.id}`}>Recusar</button>
                                     </div>
-                                    <p className="mt-1 pl-28 text-[10px] text-[#6b5b38]">{proposta.justificativa}</p>
-                                    {armada && <p className="mt-1 pl-28 text-[10px] font-semibold text-[#6b5b38]">Confirme para mover esta linha para as ligações ativas desta tela. Isso não conecta o motor clínico.</p>}
+                                    <p className="pl-[5.25rem] text-[10px] text-[#6b5b38]">{proposta.justificativa}</p>
+                                    {armada && <p className="pl-[5.25rem] text-[10px] font-semibold text-[#6b5b38]">Confirme para mover esta linha para as ligações ativas desta tela. Isso não conecta o motor clínico.</p>}
                                     {editando && (
-                                      <div className="mt-2 space-y-2 pl-28" data-testid={`editor-proposta-${proposta.id}`}>
+                                      <div className="mt-1 space-y-2 pl-[5.25rem]" data-testid={`editor-proposta-${proposta.id}`}>
                                         <div className="flex flex-wrap gap-1">
                                           {CATEGORIAS.map((categoria) => (
                                             <button key={categoria.chave} type="button" aria-pressed={categoriaEdicao === categoria.chave}
