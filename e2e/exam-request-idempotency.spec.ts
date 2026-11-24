@@ -2656,7 +2656,7 @@ for (const currentOutcome of ["sucesso", "401"] as const) {
           held.recovery = route;
           return;
         }
-        return reply(route, []);
+        return reply(route, url.pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
       });
       await page.clock.install();
       await page.goto("/cockpit/42/exames");
@@ -2846,7 +2846,7 @@ for (const outcome of ["sucesso-atrasado", "401-atrasado", "401-atual"] as const
         held.recovery = route;
         return;
       }
-      return reply(route, []);
+      return reply(route, url.pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
     });
     await page.clock.install();
     await page.goto("/cockpit/42/exames");
@@ -2962,6 +2962,236 @@ for (const outcome of ["sucesso-atrasado", "401-atrasado", "401-atual"] as const
     await expect(page).toHaveURL(/\/cockpit\/43\/exames$/);
     await panel.screenshot({ path: testInfo.outputPath("recuperacao-automatica-paciente-isolado.png") });
   });
+}
+
+// Revisit the SAME doctor/cache scope while its old interval recovery is in flight.
+// Patient and clinic never change; only the doctor goes A -> B -> A. The cockpit's
+// history panel starts collapsed and is remounted per doctor, so each visit must
+// reopen it, and only the cache (never the old open form state) may come back.
+for (const returnedOutcome of ["sucesso", "401"] as const) {
+  for (const lateOutcome of ["sucesso", "401"] as const) {
+    test(`Pedidos: retornar ao médico durante recuperação automática — retorno ${returnedOutcome} — anterior ${lateOutcome}`, async ({ context, page }, testInfo) => {
+      const doctorB = { ...professional, id: 203, name: "Médico B Sintético" };
+      const clinic = { id: 303, empresaId: 404, name: "Clínica Sintética" };
+      const markers = { initial: "A-pendencia-inicial", b: "B-pendencia-exclusiva",
+        fresh: "A-pendencia-revalidada", late: "A-recuperacao-obsoleta" };
+      const errors = { initial: "Falha 500 inicial de A.", fresh: "Retorno de A recusado por 401.",
+        late: "Recuperação obsoleta de A recusada por 401." };
+      let stage: "initial" | "B" | "return" = "initial";
+      const offsets: Record<"initial" | "B" | "return", number[]> = { initial: [], B: [], return: [] };
+      const methods: string[] = [];
+      let navigations = 0;
+      const held: { identity?: Route; recovery?: Route; returned?: Route } = {};
+      const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
+        status, contentType: "application/json", body: JSON.stringify(body),
+      });
+      const followup = (id: number) => ({
+        id, state: "receipt_pending", intervalHours: 24, providerAcceptedAt: null,
+        receiptDueAt: "2026-10-30T15:00:00Z", bookingDueAt: null, receiptSentAt: null, bookingSentAt: null,
+        receiptAnswer: null, bookingAnswer: null, receiptDeliveryState: "not_sent",
+        bookingDeliveryState: "not_sent", receiptAckState: "not_sent", bookingAckState: "not_sent",
+        teamAlertState: "not_sent", closeReason: null, requiresReview: false,
+        createdAt: document.createdAt, closedAt: null,
+      });
+      const historyBody = (key: string, id: number, followupId: number | null) => ({
+        documents: [{ ...document, id, fileName: `${key}.pdf` }],
+        dispatches: [], nextOffset: null,
+        followups: followupId === null ? [] : [followup(followupId)],
+        pendingOperations: [{
+          operationKey: key, state: "needs_review", createdAt: document.createdAt,
+          documentIds: [id], channels: ["EMAIL"], results: [],
+        }],
+      });
+      const identityBody = () => ({
+        professional: stage === "B" ? doctorB : professional, client, clinic,
+        canPrescribe: true, canRequestExams: true, canPrepareExamRequest: true, issue: null,
+      });
+      page.on("request", request => {
+        if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
+      });
+      await context.addInitScript(() => {
+        localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
+        localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
+        const originalFetch = window.fetch.bind(window);
+        (window as any).__doctorReturnParsed = 0;
+        window.fetch = async (input, init) => {
+          const url = input instanceof Request ? input.url : String(input);
+          if (!/\/exam-requests\/42\/history/.test(url)) return originalFetch(input, init);
+          // Cancellation alone must not make this isolation test pass.
+          const response = await originalFetch(input, { ...init, signal: undefined });
+          const originalJson = response.json.bind(response);
+          response.json = async () => {
+            const data = await originalJson();
+            (window as any).__doctorReturnParsed++;
+            return data;
+          };
+          return response;
+        };
+      });
+      await context.route("**/api/**", async route => {
+        const request = route.request();
+        const url = new URL(request.url());
+        methods.push(request.method());
+        // Never allow a write or an unhandled request through to real services.
+        if (request.method() !== "GET") return reply(route, { error: "Somente GET permitido." }, 405);
+        if (url.pathname === "/api/collaborator/me") return reply(route, { professional: identityBody().professional });
+        if (url.pathname === "/api/clients") return reply(route, [client]);
+        if (url.pathname === "/api/clients/42") return reply(route, client);
+        if (url.pathname === "/api/clinical-context/42") {
+          if (stage !== "initial") { held.identity = route; return; }
+          return reply(route, identityBody());
+        }
+        if (url.pathname === "/api/exam-requests/42/history") {
+          expect(request.headers().authorization).toBe(stage === "B"
+            ? "Bearer synthetic-next-token" : "Bearer synthetic-ui-token");
+          offsets[stage].push(Number(url.searchParams.get("offset")));
+          if (stage === "B") return reply(route, historyBody(markers.b, 92, null));
+          if (stage === "return") { held.returned = route; return; }
+          if (offsets.initial.length === 1) return reply(route, historyBody(markers.initial, 91, 501));
+          if (offsets.initial.length === 2) return reply(route, { error: errors.initial }, 500);
+          expect(offsets.initial).toEqual([0, 0, 0]);
+          held.recovery = route;
+          return;
+        }
+        if (url.pathname.endsWith("/fotos-corpo")) return reply(route, { series: [] });
+        return reply(route, []);
+      });
+      await page.clock.install();
+      await page.goto("/cockpit/42/exames");
+      const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
+      const toggle = panel.getByRole("switch", { name: "Histórico de pedidos de exames" });
+      const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
+      const openForm = panel.getByTestId("abrir-encerrar-followup-501");
+      const closeForm = panel.getByTestId("motivo-encerrar-followup-501");
+      const error = panel.getByRole("alert").filter({ hasText: /Falha 500|Retorno de A|Recuperação obsoleta/ });
+      const pending = panel.getByRole("alert").filter({ hasText: "Envios anteriores pendentes de conferência" });
+      const openHistory = async () => {
+        await expect(panel).toBeVisible();
+        await expect(toggle).not.toBeChecked();
+        await toggle.click();
+        await expect(toggle).toBeChecked();
+      };
+      await openHistory();
+      await expect(pending).toContainText(markers.initial);
+      await openForm.click();
+      await expect(closeForm).toBeVisible();
+      await panel.getByRole("button", { name: "Atualizar histórico", exact: true }).click();
+      await expect(error).toContainText(errors.initial);
+      await expect(pending).toContainText(markers.initial);
+      await expect.poll(() => page.evaluate(() => (window as any).__doctorReturnParsed)).toBe(2);
+      expect(offsets.initial).toEqual([0, 0]);
+      // The only new trigger is the pending-operation timer, not focus/refresh.
+      await page.clock.fastForward(10_001);
+      await expect.poll(() => !!held.recovery).toBe(true);
+      expect(offsets.initial).toEqual([0, 0, 0]);
+
+      const watch = (forbidden: string[]) => page.evaluate(forbidden => {
+        (window as any).__doctorReturnLeaks ??= [];
+        (window as any).__doctorReturnForbidden = forbidden;
+        if ((window as any).__doctorReturnObserver) return;
+        (window as any).__doctorReturnObserver = new MutationObserver(records => {
+          const names: string[] = (window as any).__doctorReturnForbidden;
+          const region = document.querySelector('[aria-label="Histórico de pedidos de exames"]');
+          const leaked = (node: Node) => {
+            const element = node instanceof Element ? node : node.parentElement;
+            return !!element?.closest('[aria-label="Histórico de pedidos de exames"]')
+              && names.some(key => node.textContent?.includes(key));
+          };
+          if ((region && names.some(key => region.textContent?.includes(key)))
+            || records.some(record => [...record.addedNodes].some(leaked)
+              || (record.type === "characterData" && leaked(record.target)))) {
+            (window as any).__doctorReturnLeaks.push("histórico fora do contexto atual");
+          }
+          if (region?.querySelector('[data-testid="motivo-encerrar-followup-501"]')
+            && (window as any).__doctorReturnFormForbidden) {
+            (window as any).__doctorReturnLeaks.push("formulário de encerramento restaurado");
+          }
+        });
+        (window as any).__doctorReturnObserver.observe(document.body,
+          { subtree: true, childList: true, characterData: true, attributes: true });
+      }, forbidden);
+      const revalidate = async (next: "B" | "return") => {
+        stage = next;
+        held.identity = undefined;
+        await page.evaluate(({ prof, token }) => {
+          localStorage.setItem("padcom_collab_token", token);
+          localStorage.setItem("padcom_collab_prof", JSON.stringify(prof));
+          window.dispatchEvent(new Event("collab-auth-changed"));
+        }, { prof: next === "B" ? doctorB : professional,
+          token: next === "B" ? "synthetic-next-token" : "synthetic-ui-token" });
+        await expect.poll(() => !!held.identity).toBe(true);
+        await expect(panel).toBeHidden();
+        await reply(held.identity!, identityBody());
+        await expect(draft).toContainText(next === "B" ? doctorB.name : professional.name);
+        await expect(draft).toContainText(client.name);
+        await expect(draft).toContainText(clinic.name);
+      };
+      await watch([markers.b, markers.late, errors.late]);
+      await page.evaluate(() => { (window as any).__doctorReturnForbidden = [
+        "A-pendencia-inicial", "A-pendencia-revalidada", "A-recuperacao-obsoleta",
+        "Falha 500 inicial de A.", "Retorno de A recusado por 401.", "Recuperação obsoleta de A recusada por 401.",
+      ]; (window as any).__doctorReturnFormForbidden = true; });
+      await revalidate("B");
+      // B starts closed: nothing from A may render before B opens its own history.
+      await expect(toggle).not.toBeChecked();
+      await openHistory();
+      await expect(pending).toContainText(markers.b);
+      await expect(openForm).toHaveCount(0);
+      await expect(closeForm).toHaveCount(0);
+      await expect.poll(() => page.evaluate(() => (window as any).__doctorReturnParsed)).toBe(3);
+
+      await page.evaluate(() => { (window as any).__doctorReturnForbidden = [
+        "B-pendencia-exclusiva", "A-recuperacao-obsoleta", "Recuperação obsoleta de A recusada por 401.",
+      ]; });
+      await revalidate("return");
+      await expect(panel).not.toContainText(markers.initial);
+      await expect(toggle).not.toBeChecked();
+      await openHistory();
+      await expect.poll(() => !!held.returned).toBe(true);
+      // Reusing A's cache is legitimate but not required; B's data and A's
+      // previously open closing form must never appear before A's fresh answer.
+      await expect(panel).not.toContainText(markers.b);
+      await expect(closeForm).toHaveCount(0);
+      await page.evaluate(() => { (window as any).__doctorReturnFormForbidden = false; });
+      await reply(held.returned!, returnedOutcome === "401"
+        ? { error: errors.fresh } : historyBody(markers.fresh, 95, 502), returnedOutcome === "401" ? 401 : 200);
+      await expect.poll(() => page.evaluate(() => (window as any).__doctorReturnParsed)).toBe(4);
+      if (returnedOutcome === "401") {
+        await expect(error).toContainText(errors.fresh);
+        await expect(panel).not.toContainText(markers.b);
+        await expect(closeForm).toHaveCount(0);
+      } else {
+        await expect(pending).toContainText(markers.fresh);
+        await expect(panel).not.toContainText(markers.initial);
+        await expect(error).toHaveCount(0);
+        await expect(panel.getByTestId("abrir-encerrar-followup-502")).toBeVisible();
+        await expect(openForm).toHaveCount(0);
+      }
+      const snapshot = () => panel.evaluate(element => ({
+        text: element.textContent,
+        inputs: [...element.querySelectorAll("input,select")].map(input => ({
+          label: input.getAttribute("aria-label") ?? input.id, checked: (input as HTMLInputElement).checked,
+        })),
+        buttons: [...element.querySelectorAll("button")].map(button => ({
+          text: button.textContent, disabled: button.disabled,
+        })),
+      }));
+      const beforeLate = await snapshot();
+      await reply(held.recovery!, lateOutcome === "401"
+        ? { error: errors.late } : historyBody(markers.late, 94, 503), lateOutcome === "401" ? 401 : 200);
+      await expect.poll(() => page.evaluate(() => (window as any).__doctorReturnParsed)).toBe(5);
+      // Run scheduled query notifications and DOM mutations without another poll.
+      await page.clock.runFor(100);
+      expect(await snapshot()).toEqual(beforeLate);
+      expect(await page.evaluate(() => (window as any).__doctorReturnLeaks)).toEqual([]);
+      await expect(panel.getByTestId("abrir-encerrar-followup-503")).toHaveCount(0);
+      expect(offsets).toEqual({ initial: [0, 0, 0], B: [0], return: [0] });
+      expect([...new Set(methods)]).toEqual(["GET"]);
+      expect(navigations).toBe(1);
+      await expect(page).toHaveURL(/\/cockpit\/42\/exames$/);
+      await panel.screenshot({ path: testInfo.outputPath("retorno-medico-recuperacao-isolada.png") });
+    });
+  }
 }
 
 // Transition contract: render A's pending operation, hold a refresh, switch scope
