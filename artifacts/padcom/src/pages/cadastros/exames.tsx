@@ -42,6 +42,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { type Atributos, AtributosDialog, GestaoOpcoes, UploadManualExames, NaturezaChip, naturezaSugerida, useAtributos, useCores } from "./ExamesAtributos";
 import {
   Search,
@@ -49,6 +50,8 @@ import {
   Pencil,
   Trash2,
   MoveRight,
+  ArrowLeft,
+  ArrowRight,
   MinusCircle,
   TestTube,
   Layers,
@@ -613,13 +616,33 @@ function BlocosTab() {
     },
     onError: (err) => toast({ title: "Não foi possível mover", description: err.message, variant: "destructive" }),
   });
-  const tirarMut = useMutation<unknown, Error, { id: number }>({
-    mutationFn: ({ id }) => chamar(`/api/cadastros/blocos/exames/${id}/ativo`, "PATCH", { ativo: false }, "Falha ao tirar do bloco"),
+  const devolverMut = useMutation<unknown, Error, { id: number }>({
+    mutationFn: ({ id }) => chamar(`/api/cadastros/blocos/exames/${id}/ativo`, "PATCH", { ativo: true }, "Falha ao devolver ao bloco"),
     onSuccess: () => {
       refazer();
-      toast({ title: "Exame tirado do bloco", description: "Continua no catálogo; só deixou de fazer parte deste bloco." });
+      toast({ title: "Exame devolvido ao bloco" });
     },
     onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
+  });
+  const tirarMut = useMutation<unknown, Error, { id: number }>({
+    mutationFn: ({ id }) => chamar(`/api/cadastros/blocos/exames/${id}/ativo`, "PATCH", { ativo: false }, "Falha ao tirar do bloco"),
+    onSuccess: (_d, { id }) => {
+      refazer();
+      toast({
+        title: "Exame tirado do bloco",
+        description: "Continua no catálogo; só deixou de fazer parte deste bloco.",
+        action: <ToastAction altText="Desfazer" onClick={() => devolverMut.mutate({ id })} data-testid="button-desfazer-tirar">Desfazer</ToastAction>,
+      });
+    },
+    onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
+  });
+  const moverGrauMut = useMutation<unknown, Error, { id: number; blocoId: string; grau: string }>({
+    mutationFn: ({ id, blocoId, grau }) => chamar(`/api/cadastros/blocos/exames/${id}/mover`, "PATCH", { blocoId, grau }, "Falha ao mover"),
+    onSuccess: (_d, v) => {
+      refazer();
+      toast({ title: "Exame movido", description: `Agora em ${v.grau}.` });
+    },
+    onError: (err) => toast({ title: "Não foi possível mover", description: err.message, variant: "destructive" }),
   });
   const incluirMut = useMutation<unknown, Error>({
     mutationFn: () => chamar("/api/cadastros/blocos/exames", "POST", { blocoId: incluir!.blocoId, grau: incluir!.grau, exameId: Number(incluir!.exameId) }, "Falha ao incluir"),
@@ -727,7 +750,7 @@ function BlocosTab() {
                 </Button>
               </div>
               <div className="grid grid-cols-1 gap-3 pb-2 md:grid-cols-3">
-                {b.graus.map((g) => (
+                {b.graus.map((g, gi) => (
                   <div key={g.grau} className="panel-3d-sub p-3 border-l-4 text-slate-900" style={{ borderLeftColor: coresUi.grade(g.grau), backgroundColor: `color-mix(in srgb, ${coresUi.grade(g.grau)} 10%, white)` }} data-testid={`grade-${g.grau}`}>
                     <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-primary">
                       {g.grau} ({g.exames.length})
@@ -738,8 +761,30 @@ function BlocosTab() {
                           <span className="min-w-0 flex-1">{ex.nomeExame}</span>
                           <button
                             type="button"
+                            aria-label={`Mover ${ex.nomeExame} para ${b.graus[gi - 1]?.grau ?? "grau anterior"}`}
+                            title={gi > 0 ? `Mover para ${b.graus[gi - 1].grau}` : "Já está no primeiro grau"}
+                            data-testid={`button-grau-anterior-${ex.id}`}
+                            className="btn-3d-soft rounded-[6px] p-1 disabled:opacity-30"
+                            disabled={gi === 0 || moverGrauMut.isPending}
+                            onClick={() => moverGrauMut.mutate({ id: ex.id, blocoId: b.codigoBloco, grau: b.graus[gi - 1].grau })}
+                          >
+                            <ArrowLeft className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Mover ${ex.nomeExame} para ${b.graus[gi + 1]?.grau ?? "próximo grau"}`}
+                            title={gi < b.graus.length - 1 ? `Mover para ${b.graus[gi + 1].grau}` : "Já está no último grau"}
+                            data-testid={`button-grau-seguinte-${ex.id}`}
+                            className="btn-3d-soft rounded-[6px] p-1 disabled:opacity-30"
+                            disabled={gi >= b.graus.length - 1 || moverGrauMut.isPending}
+                            onClick={() => moverGrauMut.mutate({ id: ex.id, blocoId: b.codigoBloco, grau: b.graus[gi + 1].grau })}
+                          >
+                            <ArrowRight className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
                             aria-label={`Mover ${ex.nomeExame}`}
-                            title="Mover para outro bloco ou grau"
+                            title="Mover para outro bloco (abre janela)"
                             data-testid={`button-mover-exame-${ex.id}`}
                             className="btn-3d-soft rounded-[6px] p-1"
                             onClick={() => setMover({ id: ex.id, nome: ex.nomeExame, blocoId: b.codigoBloco, grau: g.grau })}
