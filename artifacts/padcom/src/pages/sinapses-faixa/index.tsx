@@ -86,7 +86,7 @@ export default function SinapsesFaixa() {
     return (bloco: string | null) => { const b = bloco ?? "SEM BLOCO"; return data?.blocoCores?.[b] ?? PALETA_BLOCOS[Math.max(0, ordem.indexOf(b)) % PALETA_BLOCOS.length]; };
   }, [data]);
   const corDaPergunta = useMemo(() => { const m = new Map<string, string>(); for (const p of data?.perguntas ?? []) m.set(p.perguntaId, corDoBloco(p.bloco)); return m; }, [data, corDoBloco]);
-  const [modo, setModo] = useState<Modo>("VISUALIZACAO");
+  const [modo, setModo] = useState<Modo>("EDICAO");
   const [busca, setBusca] = useState("");
   const [cats, setCats] = useState<Categoria[]>([]);
   const [todos, setTodos] = useState(false);
@@ -502,6 +502,7 @@ export default function SinapsesFaixa() {
     if (e.ctrlKey || e.metaKey || modo === "SIMULACAO") { setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id])); return; }
     if (sel.length === 1 && sel[0] === id) { setSel([]); setHover(null); setTravada((t) => (t === id ? null : t)); return; }
     setSel([id]);
+    if (modo === "EDICAO") setTravada(id); // Ligações: a pergunta clicada já fica travada para receber saídas
   };
   const centralizar = (perguntaId: string) => {
     const esq = colEsqRef.current;
@@ -566,7 +567,7 @@ export default function SinapsesFaixa() {
         arrasteRef.current = null;
         setArraste(null);
         setTravada(null);
-        setModo(t === "v" ? "VISUALIZACAO" : "SIMULACAO");
+        setModo(t === "v" ? "EDICAO" : "SIMULACAO");
       }
       if (t === "e") setModo("EDICAO");
       if (t === "escape") { setSel([]); setTravada(null); arrasteRef.current = null; setArraste(null); }
@@ -722,29 +723,29 @@ export default function SinapsesFaixa() {
   const controlesFaixa = (
     <div className="flex w-full flex-wrap items-center justify-between gap-3" data-testid="faixa-mini-console">
           <div className="flex gap-3" role="group" aria-label="Modo da tela">
-            {([["VISUALIZACAO", "Visualização", "V", Eye], ["EDICAO", "Edição", "E", Pencil], ["SIMULACAO", "Simulação", "S", Play]] as const).map(([m, rot, tecla, Ic]) => (
-              <button key={m} type="button" aria-pressed={modo === m} title={`${rot} (${tecla})`} onClick={() => { if (m !== "EDICAO") { arrasteRef.current = null; setArraste(null); setTravada(null); } setModo(m); }} className="tecla-3d flex h-8 items-center gap-1.5 px-2.5 text-[11px] font-bold uppercase tracking-wide" data-testid={`faixa-modo-${m}`}>
+            {([["EDICAO", "Operar", "E", Pencil, "Ver, criar, aprovar e excluir as ligações entre perguntas e saídas. Clique numa pergunta e depois nas saídas."], ["SIMULACAO", "Testar respostas", "S", Play, "Marque perguntas como respondidas “sim” e veja quais saídas acenderiam. Nada é gravado."]] as const).map(([m, rot, tecla, Ic, dica]) => (
+              <button key={m} type="button" aria-pressed={modo === m} title={`${dica} (tecla ${tecla})`} onClick={() => { if (m !== "EDICAO") { arrasteRef.current = null; setArraste(null); setTravada(null); } setModo(m); }} className="tecla-3d flex h-8 items-center gap-1.5 px-2.5 text-[11px] font-bold uppercase tracking-wide" data-testid={`faixa-modo-${m}`}>
                 <Ic className="h-3.5 w-3.5" />{rot}
               </button>
             ))}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3" data-testid="faixa-mini-console-acoes">
-            {modo === "EDICAO" && perguntaAtiva && (
-              <button type="button" aria-pressed={travada === perguntaAtiva.perguntaId} onClick={() => setTravada((v) => (v === perguntaAtiva.perguntaId ? null : perguntaAtiva.perguntaId))} className="tecla-3d flex h-8 shrink-0 items-center gap-1 px-2 text-[10px] font-bold uppercase" data-testid="faixa-travar" title="Com a pergunta travada, cada clique numa saída à direita liga essa saída a ela.">
-                {travada === perguntaAtiva.perguntaId ? <><Lock className="h-3 w-3" />Travada</> : <><Unlock className="h-3 w-3" />Travar pergunta</>}
+            {modo === "EDICAO" && perguntaAtiva ? (
+              <button type="button" aria-pressed={travada === perguntaAtiva.perguntaId} onClick={() => setTravada((v) => (v === perguntaAtiva.perguntaId ? null : perguntaAtiva.perguntaId))} className="tecla-3d flex h-8 w-[8.5rem] shrink-0 items-center justify-center gap-1 text-[10px] font-bold uppercase" data-testid="faixa-travar" title="A pergunta clicada já fica travada: cada clique numa saída à direita liga a saída a ela. Clique aqui para soltar.">
+                {travada === perguntaAtiva.perguntaId ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}Travar pergunta
               </button>
-            )}
+            ) : <span className="h-8 w-[8.5rem] shrink-0" aria-hidden="true" />}
             {modo === "EDICAO" && perguntaAtiva && propostasAtiva.length > 0 && (
               <button type="button" disabled={loteEmCurso} onClick={() => aprovarLote(`q-${perguntaAtiva.perguntaId}`, perguntaAtiva.perguntaId)} className="tecla-3d h-8 shrink-0 px-2 text-[10px] font-bold uppercase" data-testid="faixa-aprovar-da-pergunta">
                 {loteEmCurso ? "Aprovando..." : loteArmado === `q-${perguntaAtiva.perguntaId}` ? `Confirmar ${propostasAtiva.length}` : `Aprovar ${propostasAtiva.length} proposta(s)`}
               </button>
             )}
             {modo === "EDICAO" && propostasFiltradas().length > 0 && (
-              <button type="button" disabled={loteEmCurso} onClick={() => aprovarLote("todas")} className="tecla-3d h-8 px-2 text-[10px] font-bold uppercase" data-testid="button-aprovar-lote" title="Aprova todas as propostas pendentes das perguntas e filtros visíveis agora">
+              <button type="button" disabled={loteEmCurso} onClick={() => aprovarLote("todas")} className="tecla-3d h-8 px-2 text-[10px] font-bold uppercase" data-testid="button-aprovar-lote" title="Aprova de uma vez as propostas pendentes que estão visíveis agora (pede confirmação)">
                 {loteEmCurso ? "Aprovando..." : loteArmado === "todas" ? `Confirmar ${propostasFiltradas().length}` : "Aprovar propostas filtradas"}
               </button>
             )}
-            <button type="button" className="tecla-3d h-8 px-2 text-[10px] font-bold uppercase" onClick={() => gerarCarga.mutate({ data: {} })} disabled={gerarCarga.isPending} data-testid="button-gerar-propostas">
+            <button type="button" className="tecla-3d h-8 px-2 text-[10px] font-bold uppercase" onClick={() => gerarCarga.mutate({ data: {} })} disabled={gerarCarga.isPending} data-testid="button-gerar-propostas" title="O sistema cria propostas pendentes de ligação. Nada vira ligação até você aprovar.">
               {gerarCarga.isPending ? "Gravando propostas…" : "Gerar propostas iniciais"}
             </button>
           </div>
@@ -903,9 +904,13 @@ export default function SinapsesFaixa() {
       ) : (
         <>
           <Faixa testid="faixa-grafo" titulo="Faixa da sinapse" fichas={[{ rotulo: "Perguntas", valor: esquerda.length }, { rotulo: "Saídas", valor: direita.length }]} aberta={faixaAberta} onToggle={() => setFaixaAberta((v) => !v)} ampliada={ampliada} direita={<>{controlesFaixa}</>}>
-            <div className="mb-1.5 grid items-end gap-x-1" style={{ gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }} data-testid="faixa-cabecalho-colunas">
+            <div className="bevel-3d mb-1.5 grid h-8 items-center gap-x-1 text-[12px] font-black uppercase tracking-[0.25em] text-[#0f1e36]" style={{ gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }} data-testid="faixa-titulos">
+              <span className="text-center">Anamnese</span>
+              <span className="relative flex h-full items-center justify-center">Craniotomia<button type="button" onClick={() => setAmpliada((v) => !v)} aria-pressed={ampliada} className="tecla-3d absolute right-1 top-1 flex h-6 w-6 items-center justify-center" data-testid="faixa-ampliar" title={ampliada ? "Voltar ao tamanho normal (Esc)" : "Ampliar a craniotomia para a tela inteira"} aria-label={ampliada ? "Reduzir a craniotomia" : "Ampliar a craniotomia"}>{ampliada ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button></span>
+              <span className="text-center">Procedimentos</span>
+            </div>
+            <div className="mb-1.5 grid items-center gap-x-1" style={{ gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }} data-testid="faixa-cabecalho-colunas">
               <div className="min-w-0" data-testid="faixa-cabecalho-anamnese">
-                <div className="mb-1 text-center text-[12px] font-black uppercase tracking-[0.25em] text-[#0f1e36]">Anamnese</div>
                 <div className="flex items-center justify-between gap-1">
                   {modo !== "EDICAO" ? <button type="button" aria-pressed={todos} onClick={() => setTodos((v) => !v)} className="tecla-3d h-7 px-2 text-[10px] font-bold" data-testid="faixa-todos">{todos ? "Só os ligados" : "Mostrar todos"}</button> : <span />}
                   {(() => {
@@ -916,14 +921,10 @@ export default function SinapsesFaixa() {
                 </div>
               </div>
               <div className="min-w-0" role="group" aria-label="Quais sinapses mostrar" data-testid="faixa-mostrar-fios">
-                <div className="mb-1 flex items-center justify-center gap-2 text-[12px] font-black uppercase tracking-[0.25em] text-[#0f1e36]">
-                  <span>Craniotomia</span>
-                  <button type="button" onClick={() => setAmpliada((v) => !v)} aria-pressed={ampliada} className="tecla-3d flex h-6 w-6 items-center justify-center" data-testid="faixa-ampliar" title={ampliada ? "Voltar ao tamanho normal (Esc)" : "Ampliar a craniotomia para a tela inteira"} aria-label={ampliada ? "Reduzir a craniotomia" : "Ampliar a craniotomia"}>{ampliada ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button>
-                </div>
                 <div className="flex items-stretch justify-center gap-2">
                 {([["ATIVA", "Ativas", "#1e3a8a"], ["PROPOSTA", "Propostas", "#b8892b"], ["SEM_SAIDA", "Sem saída", "#dc2626"]] as const).map(([k, r, cor]) => (
                   <button key={k} type="button" aria-pressed={mostrar[k]} onClick={() => setMostrar((m) => ({ ...m, [k]: !m[k] }))} title={`${mostrar[k] ? "Esconder" : "Mostrar"} sinapses: ${r}`} data-testid={`faixa-mostrar-${k}`}
-                    className={`${mostrar[k] ? "tecla-3d" : "concave-3d"} flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-2 py-1.5 text-[9px] font-black uppercase leading-none`} style={{ opacity: 1 }}>
+                    className={`tecla-3d flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-2 py-1.5 text-[9px] font-black uppercase leading-none`} style={{ opacity: 1 }}>
                     <svg width="100%" height="6" aria-hidden="true"><line x1="3" y1="3" x2="97%" y2="3" stroke={k === "SEM_SAIDA" ? cor : (foco !== null ? corDaPergunta.get(foco) : undefined) ?? cor} strokeWidth={k === "ATIVA" ? 2.5 : 1.8} strokeLinecap="round" strokeDasharray={k === "ATIVA" ? undefined : k === "PROPOSTA" ? "9 4" : "2 4"} /></svg>
                     <span className="truncate">{r}</span>
                   </button>
@@ -931,7 +932,6 @@ export default function SinapsesFaixa() {
                 </div>
               </div>
               <div className="min-w-0" data-testid="faixa-cabecalho-procedimentos">
-                <div className="mb-1 text-center text-[12px] font-black uppercase tracking-[0.25em] text-[#0f1e36]">Procedimentos</div>
                 <div className="flex items-center justify-between gap-2">
                   <button type="button" aria-pressed={cats.length === 0} onClick={() => setCats([])} className="tecla-3d h-7 px-2 text-[10px] font-black" data-testid="faixa-cat-TODAS" title="Todas as saídas, em blocos separados por tipo">TODAS</button>
                   <div className="flex flex-wrap items-center justify-center gap-1" role="group" aria-label="Filtrar saídas por tipo">
@@ -1192,9 +1192,10 @@ export default function SinapsesFaixa() {
                 return (
                   <div key={p.perguntaId} data-testid={`faixa-item-${p.perguntaId}`}
                     className={destaqueAprov === p.perguntaId ? "ring-2 ring-[#b8892b] ring-inset transition-shadow" : ""}
-                    style={{ background: marcada ? `color-mix(in srgb, ${corDaPergunta.get(p.perguntaId) ?? "#64748b"} 14%, white)` : i % 2 === 0 ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.18)", boxShadow: marcada ? `inset 4px 0 0 ${corDaPergunta.get(p.perguntaId) ?? "#64748b"}` : undefined }}
+                    style={{ background: marcada ? "rgba(15,30,54,0.07)" : i % 2 === 0 ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.18)" }}
                     onMouseEnter={() => setHover(p.perguntaId)} onMouseLeave={() => setHover(null)}>
-                    <button type="button" aria-expanded={aberto} onClick={(e) => { clicar(e, p.perguntaId); alternarAberto(p.perguntaId); centralizar(p.perguntaId); }} className="grid w-full items-center gap-2 px-2 py-1.5 text-left" style={{ gridTemplateColumns: "1rem 4.75rem minmax(0,1fr) 12rem 4.5rem" }}>
+                    <button type="button" aria-expanded={aberto} onClick={(e) => { clicar(e, p.perguntaId); alternarAberto(p.perguntaId); centralizar(p.perguntaId); }} className="grid w-full items-center gap-2 px-2 py-1.5 text-left" style={{ gridTemplateColumns: "0.875rem 1rem 4.75rem minmax(0,1fr) 12rem 4.5rem" }}>
+                      <span className="h-6 w-3.5 rounded-[3px]" style={{ background: `linear-gradient(180deg, rgba(255,255,255,0.35), rgba(0,0,0,0.18)), ${corDaPergunta.get(p.perguntaId) ?? "#64748b"}` }} data-testid={`faixa-quadrado-${p.perguntaId}`} aria-hidden="true" />
                       {aberto ? <ChevronDown className="h-4 w-4 opacity-60" /> : <ChevronRight className="h-4 w-4 opacity-60" />}
                       <span className="concave-3d flex h-7 items-center justify-center font-mono text-[10px] font-bold text-[#0f1e36]">{p.perguntaId}</span>
                       <span className="min-w-0 truncate text-[12px] font-semibold text-[#1b2433]" title={p.pergunta}>{p.pergunta}</span>

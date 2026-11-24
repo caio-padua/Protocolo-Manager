@@ -205,8 +205,7 @@ test("sinapse: travar a pergunta e clicar na saída liga sem arrastar", async ({
   const estado = await prepararTela(page);
   await page.getByTestId(`faixa-dendrito-${perguntaId}`).click();
   await expect(page.getByTestId("faixa-painel-pergunta")).toContainText(perguntaId);
-  await page.getByTestId("faixa-travar").click();
-  await expect(page.getByTestId("faixa-travar")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("faixa-travar")).toHaveAttribute("aria-pressed", "true"); // travada sozinha ao clicar
   await page.getByTestId(`faixa-ligar-EXAME|exame|${destinoId}`).click();
   await expect.poll(() => estado.pedidos.length).toBe(1);
   await page.getByTestId("faixa-ver-ativas").click();
