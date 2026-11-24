@@ -730,54 +730,42 @@ function BlocosTab({ slot }: { slot: HTMLElement | null }) {
 
   return (
     <div className="space-y-4">
-      {slot && createPortal(<div className="space-y-2" data-testid="filtros-blocos">
-      <div className="flex items-center justify-between gap-3">
-        <div className="relative w-full sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar bloco..."
-            className="pl-9 field-engraved"
-          />
+      {slot && createPortal(<div className="mx-ev !mt-0 !p-0" data-testid="filtros-blocos">
+        <div className="grid items-center gap-2 md:grid-cols-[minmax(0,1fr)_150px]">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar bloco..." className="h-10 pl-9 field-engraved" />
+          </div>
+          <div className="screen-3d flex h-10 items-center justify-center text-xs font-black whitespace-nowrap tracking-wide">{filtered.length} blocos</div>
         </div>
-        <div className="screen-3d px-3 py-1.5 text-xs font-black whitespace-nowrap tracking-wide">
-          {filtered.length} blocos
+        <div className="grid items-center gap-2 md:grid-cols-[minmax(0,1fr)_150px_150px]">
+          <div className="concave-3d flex h-10 min-w-0 items-center gap-2 px-3 text-[11px] text-muted-foreground" title="No Prescritor de Exames você adiciona um painel inteiro de uma só vez.">
+            <Boxes className="h-4 w-4 shrink-0 text-primary" />
+            <span className="truncate">Cada bloco é um painel de exames com graus (Básica, Intermediária, Sofisticada).</span>
+          </div>
+          <button type="button" className="evo-bevel mx-ev-b h40" onClick={() => setAbertos(filtered.map((b) => b.codigoBloco))} data-testid="button-expandir-blocos">Expandir todos</button>
+          <button type="button" className="evo-bevel mx-ev-b h40" onClick={() => setAbertos([])} data-testid="button-recolher-blocos">Recolher todos</button>
         </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="concave-3d flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-[11px] text-muted-foreground" title="No Prescritor de Exames você adiciona um painel inteiro de uma só vez.">
-          <Boxes className="h-4 w-4 shrink-0 text-primary" />
-          <span className="truncate">Cada bloco é um painel de exames com graus (Básica, Intermediária, Sofisticada).</span>
-        </div>
-        <Button type="button" size="sm" variant="outline" className="paxter-seletor h-8 w-32 shrink-0 text-[11px] font-black uppercase" onClick={() => setAbertos(filtered.map((b) => b.codigoBloco))} data-testid="button-expandir-blocos">Expandir todos</Button>
-        <Button type="button" size="sm" variant="outline" className="paxter-seletor h-8 w-32 shrink-0 text-[11px] font-black uppercase" onClick={() => setAbertos([])} data-testid="button-recolher-blocos">Recolher todos</Button>
-      </div>
       </div>, slot)}
 
-      <Accordion type="multiple" value={abertos} onValueChange={setAbertos} className="space-y-2">
-        {filtered.map((b) => (
-          <AccordionItem
-            key={b.codigoBloco}
-            value={b.codigoBloco}
-            className="panel-3d-sub border-l-4 border-primary/50 px-4"
-          >
-            <AccordionTrigger className="hover:no-underline neon-hover">
-              <div className="flex flex-1 items-center justify-between pr-3">
-                <span className="text-xs font-black uppercase tracking-wide">{b.nomeBloco}</span>
-                <div className="flex items-center gap-2">
-                  {b.tipoMacro && (
-                    <Badge variant="secondary" className="text-[10px] uppercase">
-                      {b.tipoMacro}
-                    </Badge>
-                  )}
-                  <Badge variant="outline" className="text-[10px]">
-                    {b.graus.length} graus
-                  </Badge>
-                </div>
-              </div>
+      <Accordion type="multiple" value={abertos} onValueChange={setAbertos} className="flex flex-col gap-2">
+        {filtered.map((b, bi) => {
+          const hue = FAIXA_MATIZES[bi % FAIXA_MATIZES.length];
+          const cor = `hsl(${hue} 60% 55%)`;
+          return (
+          <AccordionItem key={b.codigoBloco} value={b.codigoBloco} className="panel-3d-sub border-b-0 p-2">
+            <AccordionTrigger className="tecla-3d w-full gap-3 px-3 py-1.5 hover:no-underline [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60">
+              <span
+                aria-hidden="true"
+                className="bevel-3d inline-flex h-6 w-10 shrink-0"
+                style={{ borderRadius: 5, border: "1px solid", background: `linear-gradient(180deg, rgba(255,255,255,.30) 0%, rgba(255,255,255,0) 48%, rgba(0,0,0,.16) 100%), ${cor}`, borderColor: `color-mix(in srgb, ${cor} 55%, #b8924d)` }}
+              />
+              <span className="concave-3d flex h-5 w-9 shrink-0 items-center justify-center text-[10px] font-bold tabular-nums text-primary/80">{b.graus.length}</span>
+              <span className="min-w-0 flex-1 truncate text-left text-[11px] font-semibold uppercase tracking-widest text-primary/80">{b.nomeBloco}</span>
+              {b.tipoMacro && <span className="concave-3d shrink-0 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary/70">{b.tipoMacro}</span>}
             </AccordionTrigger>
-            <AccordionContent>
+            <AccordionContent className="pb-0">
+              <div className="concave-3d mt-2 p-3">
               <div className="flex justify-end pb-2">
                 <Button
                   size="sm"
@@ -790,20 +778,21 @@ function BlocosTab({ slot }: { slot: HTMLElement | null }) {
               </div>
               <div className="grid grid-cols-1 gap-3 pb-2 md:grid-cols-3">
                 {b.graus.map((g, gi) => (
-                  <div key={g.grau} className="panel-3d-sub p-3 border-l-4 text-slate-900" style={{ borderLeftColor: coresUi.grade(g.grau), backgroundColor: `color-mix(in srgb, ${coresUi.grade(g.grau)} 10%, white)` }} data-testid={`grade-${g.grau}`}>
-                    <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-primary">
+                  <div key={g.grau} className="panel-3d-sub p-3 text-slate-900" style={{ ["--ev" as string]: coresUi.grade(g.grau) }} data-testid={`grade-${g.grau}`}>
+                    <div className="mb-1 text-[10px] font-black uppercase tracking-widest text-primary">
                       {g.grau} ({g.exames.length})
                     </div>
-                    <ul className="space-y-0.5">
+                    <span className="ag-vidro mb-2 block w-full" aria-hidden />
+                    <ul className="space-y-1">
                       {g.exames.map((ex, i) => (
-                        <li key={ex.id ?? i} className="flex items-center justify-between gap-1 text-xs text-muted-foreground">
+                        <li key={ex.id ?? i} className="flex items-center justify-between gap-1 rounded-[4px] px-1.5 py-1 text-xs font-semibold text-[#1b2433]" style={{ background: i % 2 === 0 ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.25)" }}>
                           <span className="min-w-0 flex-1">{ex.nomeExame}</span>
                           <button
                             type="button"
                             aria-label={`Mover ${ex.nomeExame} para ${b.graus[gi - 1]?.grau ?? "grau anterior"}`}
                             title={gi > 0 ? `Mover para ${b.graus[gi - 1].grau}` : "Já está no primeiro grau"}
                             data-testid={`button-grau-anterior-${ex.id}`}
-                            className="btn-3d-soft rounded-[6px] p-1 disabled:opacity-30"
+                            className="evo-bevel inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] disabled:opacity-30"
                             disabled={gi === 0 || moverGrauMut.isPending}
                             onClick={() => moverGrauMut.mutate({ id: ex.id, blocoId: b.codigoBloco, grau: b.graus[gi - 1].grau })}
                           >
@@ -814,7 +803,7 @@ function BlocosTab({ slot }: { slot: HTMLElement | null }) {
                             aria-label={`Mover ${ex.nomeExame} para ${b.graus[gi + 1]?.grau ?? "próximo grau"}`}
                             title={gi < b.graus.length - 1 ? `Mover para ${b.graus[gi + 1].grau}` : "Já está no último grau"}
                             data-testid={`button-grau-seguinte-${ex.id}`}
-                            className="btn-3d-soft rounded-[6px] p-1 disabled:opacity-30"
+                            className="evo-bevel inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] disabled:opacity-30"
                             disabled={gi >= b.graus.length - 1 || moverGrauMut.isPending}
                             onClick={() => moverGrauMut.mutate({ id: ex.id, blocoId: b.codigoBloco, grau: b.graus[gi + 1].grau })}
                           >
@@ -825,7 +814,7 @@ function BlocosTab({ slot }: { slot: HTMLElement | null }) {
                             aria-label={`Mover ${ex.nomeExame}`}
                             title="Levar para outro bloco ou outra categoria (abre janela)"
                             data-testid={`button-mover-exame-${ex.id}`}
-                            className="btn-3d-soft rounded-[6px] p-1"
+                            className="evo-bevel inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px]"
                             onClick={() => setMover({ id: ex.id, nome: ex.nomeExame, blocoId: b.codigoBloco, grau: g.grau })}
                           >
                             <FolderInput className="h-3 w-3" />
@@ -835,7 +824,7 @@ function BlocosTab({ slot }: { slot: HTMLElement | null }) {
                             aria-label={`Tirar ${ex.nomeExame} do bloco`}
                             title="Tirar do bloco (não apaga o exame)"
                             data-testid={`button-tirar-exame-${ex.id}`}
-                            className="btn-3d-soft rounded-[6px] p-1 text-destructive"
+                            className="evo-bevel inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] text-destructive"
                             disabled={tirarMut.isPending}
                             onClick={() => tirarMut.mutate({ id: ex.id })}
                           >
@@ -847,9 +836,11 @@ function BlocosTab({ slot }: { slot: HTMLElement | null }) {
                   </div>
                 ))}
               </div>
+              </div>
             </AccordionContent>
           </AccordionItem>
-        ))}
+          );
+        })}
       </Accordion>
 
       <Dialog open={mover !== null} onOpenChange={(o) => !o && setMover(null)}>
