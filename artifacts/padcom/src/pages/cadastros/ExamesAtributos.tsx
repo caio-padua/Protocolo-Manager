@@ -722,13 +722,16 @@ export function UploadManualExames() {
   }
   return (
     <div className="flex flex-wrap items-center gap-2" data-testid="upload-manual-exames">
-      <input ref={inputRef} type="file" accept="application/pdf,.pdf" className="max-w-[220px] text-xs" aria-label="Escolher PDF do manual"
+      <input ref={inputRef} type="file" accept="application/pdf,.pdf" className="hidden" aria-label="Escolher PDF do manual"
         onChange={(e) => setArquivo(e.target.files?.[0] ?? null)} data-testid="input-manual-pdf" />
-      <Button size="sm" variant="outline" disabled={!arquivo || enviar.isPending} onClick={() => enviar.mutate()} data-testid="button-enviar-manual">
-        <Upload className="mr-1.5 h-4 w-4" /> {enviar.isPending ? "Enviando..." : "Enviar PDF"}
+      <Button type="button" size="sm" variant="ghost" className="paxter-seletor h-8 w-32 text-[11px] font-black uppercase" title={arquivo?.name ?? "Nenhum arquivo escolhido"} onClick={() => inputRef.current?.click()}>
+        <span className="truncate">{arquivo ? arquivo.name : "Escolher PDF"}</span>
       </Button>
-      <Button size="sm" onClick={abrir} data-testid="button-visualizar-manual" className="border border-[#C9A24B] bg-[#0F1E36] font-black text-[#E5C16C] hover:bg-[#16294a]">
-        Visualizar Arquitetura e Fluxo (Manual PDF)
+      <Button size="sm" variant="ghost" className="paxter-seletor h-8 w-28 text-[11px] font-black uppercase" disabled={!arquivo || enviar.isPending} onClick={() => enviar.mutate()} data-testid="button-enviar-manual">
+        <Upload className="mr-1.5 h-3.5 w-3.5" /> {enviar.isPending ? "Enviando" : "Enviar PDF"}
+      </Button>
+      <Button size="sm" onClick={abrir} data-testid="button-visualizar-manual" title="Visualizar Arquitetura e Fluxo (Manual PDF)" className="h-8 border border-[#C9A24B] bg-[#0F1E36] px-3 text-[11px] font-black uppercase text-[#E5C16C] hover:bg-[#16294a]">
+        Arquitetura e Fluxo (PDF)
       </Button>
       <Dialog open={aberto} onOpenChange={(o) => !o && fechar()}>
         <DialogContent className="flex h-[90vh] w-[90vw] max-w-[90vw] flex-col gap-2">

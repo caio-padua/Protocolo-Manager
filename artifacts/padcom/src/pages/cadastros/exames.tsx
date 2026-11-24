@@ -387,7 +387,7 @@ function ExamesTab() {
 
   return (
     <div className="space-y-4">
-      <div ref={congeladaRef} className="sticky -top-4 z-30 -mx-4 space-y-2 bg-background px-4 pb-2 pt-4 md:-top-6 md:-mx-8 md:px-8 md:pt-6" data-testid="barra-congelada-exames">
+      <div ref={congeladaRef} className="sticky z-30 -mx-4 space-y-2 bg-background px-4 pb-2 md:-mx-8 md:px-8" style={{ top: "var(--topo-off, 0px)" }} data-testid="barra-congelada-exames">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -483,7 +483,7 @@ function ExamesTab() {
                     onClick={() => setFechados((s) => { const n = new Set(s); if (n.has(g.nome)) n.delete(g.nome); else n.add(g.nome); return n; })}
                     className={`paxter-seletor sticky z-20 flex w-full items-center gap-3 px-3 py-2 text-left ${fechado ? "" : "text-white"}`}
                     style={{
-                      top: alturaCongelada - 24,
+                      top: `calc(var(--topo-off, 0px) + ${alturaCongelada}px)`,
                       ...(fechado ? {} : { background: `linear-gradient(90deg, hsl(${hue} 55% 24%), hsl(${hue} 50% 38%) 70%, hsl(${hue} 55% 46%))` }),
                     }}
                     aria-expanded={!fechado}
@@ -753,6 +753,7 @@ function BlocosTab() {
 
   return (
     <div className="space-y-4">
+      <div className="sticky z-30 -mx-4 space-y-2 bg-background px-4 pb-2 md:-mx-8 md:px-8" style={{ top: "var(--topo-off, 0px)" }} data-testid="barra-congelada-blocos">
       <div className="flex items-center justify-between gap-3">
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -767,17 +768,14 @@ function BlocosTab() {
           {filtered.length} blocos
         </div>
       </div>
-      <div className="concave-3d flex items-start gap-2.5 px-3 py-2.5 text-sm text-muted-foreground">
-        <Boxes className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
-        <span>
-          Cada bloco é um painel de exames com graus (Básica, Intermediária, Sofisticada). No Prescritor de Exames você
-          adiciona um painel inteiro de uma só vez.
-        </span>
+      <div className="flex items-center gap-2">
+        <div className="concave-3d flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-[11px] text-muted-foreground" title="No Prescritor de Exames você adiciona um painel inteiro de uma só vez.">
+          <Boxes className="h-4 w-4 shrink-0 text-primary" />
+          <span className="truncate">Cada bloco é um painel de exames com graus (Básica, Intermediária, Sofisticada).</span>
+        </div>
+        <Button type="button" size="sm" variant="outline" className="paxter-seletor h-8 w-32 shrink-0 text-[11px] font-black uppercase" onClick={() => setAbertos(filtered.map((b) => b.codigoBloco))} data-testid="button-expandir-blocos">Expandir todos</Button>
+        <Button type="button" size="sm" variant="outline" className="paxter-seletor h-8 w-32 shrink-0 text-[11px] font-black uppercase" onClick={() => setAbertos([])} data-testid="button-recolher-blocos">Recolher todos</Button>
       </div>
-
-      <div className="flex justify-end gap-2">
-        <Button type="button" size="sm" variant="outline" onClick={() => setAbertos(filtered.map((b) => b.codigoBloco))} data-testid="button-expandir-blocos">Expandir todos</Button>
-        <Button type="button" size="sm" variant="outline" onClick={() => setAbertos([])} data-testid="button-recolher-blocos">Recolher todos</Button>
       </div>
 
       <Accordion type="multiple" value={abertos} onValueChange={setAbertos} className="space-y-2">
@@ -1206,33 +1204,48 @@ export function ClassificacoesCadastro() {
 const MOSTRAR_CLASSIFICACOES_LEGADAS = false;
 
 export default function CadastroExames({ comClassificacoes = MOSTRAR_CLASSIFICACOES_LEGADAS }: { comClassificacoes?: boolean }) {
-  return (
-    <div className="space-y-6">
-      <div className="panel-3d p-4 flex items-center gap-4 border-l-4 border-primary/60">
-        <div className="bevel-3d w-12 h-12 flex items-center justify-center text-primary shrink-0">
-          <FolderTree className="h-6 w-6" />
-        </div>
-        <div className="min-w-0">
-          <h1 className="text-2xl md:text-3xl font-black tracking-tight uppercase">Cadastro de Exames</h1>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
-            Cadastre e organize exames, blocos e categorias do sistema.
-          </p>
-        </div>
-        <div className="ml-auto"><UploadManualExames /></div>
-      </div>
+  // Topo congelado e compacto: título + abas + envio de PDF numa faixa só. A altura medida vira a variável
+  // --topo-off, que as barras de baixo (busca/filtros/títulos das colunas) usam para congelar logo abaixo.
+  const topoRef = useRef<HTMLDivElement>(null);
+  const raizRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = topoRef.current;
+    const raiz = raizRef.current;
+    if (!el || !raiz) return;
+    const medir = () => {
+      const pad = window.matchMedia("(min-width: 768px)").matches ? 24 : 16;
+      raiz.style.setProperty("--topo-off", `${el.offsetHeight - pad}px`);
+    };
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    window.addEventListener("resize", medir);
+    return () => { ro.disconnect(); window.removeEventListener("resize", medir); };
+  }, []);
 
+  return (
+    <div ref={raizRef} className="space-y-4">
       <Tabs defaultValue="exames" className="space-y-4">
-        <TabsList className="h-auto flex-wrap justify-start gap-2 bg-transparent p-0">
-          <TabsTrigger value="exames" className="paxter-seletor h-10 gap-1.5 px-5 text-xs font-black uppercase tracking-wide">
-            <TestTube className="h-4 w-4" /> Catálogo
-          </TabsTrigger>
-          <TabsTrigger value="blocos" className="paxter-seletor h-10 gap-1.5 px-5 text-xs font-black uppercase tracking-wide">
-            <Layers className="h-4 w-4" /> Blocos clínicos e grades
-          </TabsTrigger>
-          <TabsTrigger value="opcoes" className="paxter-seletor h-10 gap-1.5 px-5 text-xs font-black uppercase tracking-wide">
-            <Tags className="h-4 w-4" /> Gerenciamento de opções
-          </TabsTrigger>
-        </TabsList>
+        <div ref={topoRef} className="sticky -top-4 z-40 -mx-4 bg-background px-4 pb-2 pt-4 md:-top-6 md:-mx-8 md:px-8 md:pt-6" data-testid="topo-cadastro-exames">
+          <div className="panel-3d flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <div className="bevel-3d flex h-8 w-8 shrink-0 items-center justify-center text-primary"><FolderTree className="h-4 w-4" /></div>
+              <h1 className="text-sm font-black uppercase leading-none tracking-wide md:text-base">Cadastro de Exames</h1>
+            </div>
+            <TabsList className="h-auto flex-wrap justify-start gap-2 bg-transparent p-0">
+              <TabsTrigger value="exames" className="paxter-seletor h-8 gap-1.5 px-4 text-[11px] font-black uppercase tracking-wide">
+                <TestTube className="h-3.5 w-3.5" /> Catálogo
+              </TabsTrigger>
+              <TabsTrigger value="blocos" className="paxter-seletor h-8 gap-1.5 px-4 text-[11px] font-black uppercase tracking-wide">
+                <Layers className="h-3.5 w-3.5" /> Blocos clínicos e grades
+              </TabsTrigger>
+              <TabsTrigger value="opcoes" className="paxter-seletor h-8 gap-1.5 px-4 text-[11px] font-black uppercase tracking-wide">
+                <Tags className="h-3.5 w-3.5" /> Gerenciamento de opções
+              </TabsTrigger>
+            </TabsList>
+            <div className="ml-auto"><UploadManualExames /></div>
+          </div>
+        </div>
         <TabsContent value="exames">
           <ExamesTab />
         </TabsContent>
