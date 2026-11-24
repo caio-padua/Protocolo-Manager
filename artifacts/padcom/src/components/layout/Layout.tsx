@@ -146,7 +146,6 @@ const navigation: NavEntry[] = [
       { name: "Monitor do Motor", href: "/exames/monitor", icon: Activity },
       { name: "Cadastro de Exames", href: "/cadastros/cadastro-exames", icon: FolderTree },
       { name: "Sinapses Clínicas", href: "/sinapses-clinicas", icon: Network },
-      { name: "Craniotomia V4", href: "/sinapses-clinicas/v4", icon: Network },
       // "Exames & Blocos" (/cadastros/exames) e "Console de Exames" (/cadastros/console-exames): rotas preservadas, ocultas do menu (unificadas em "Cadastro de Exames").
       { name: "Configuração de Exames", href: "/cadastros/config-exames", icon: FlaskConical },
       { name: "Importar Exames do Drive", href: "/importar-drive", icon: DownloadCloud },

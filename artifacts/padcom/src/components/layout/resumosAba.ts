@@ -22,7 +22,7 @@ export const RESUMO_ABA: Record<string, string> = {
   "/exames": "Solicitar exames ao cliente",
   "/exames/monitor": "Leitura automática dos exames",
   "/cadastros/cadastro-exames": "Catálogo de exames",
-  "/sinapses-clinicas": "Sinapses Clínicas",
+  "/sinapses-clinicas": "Ligar perguntas da anamnese às saídas clínicas",
   "/sinapses-clinicas/v4": "Craniotomia V4",
   "/cadastros/exames": "Exames agrupados em blocos",
   "/cadastros/console-exames": "Ajuste fino do catálogo",

@@ -1,33 +1,64 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=IBM+Plex+Serif:wght@400;500;600&display=swap');
 
-/* Paleta da Craniotomia V4 (copiada do pacote de referencia, _group.css).
+/* Craniotomia V4 (layout do IHE) vestida na skill CLARA PAX MED:
+   fundo #F8FAFC, cartoes brancos, cabecalho azul-marinho #0F1E36, detalhes dourado #D97706.
    Escopo restrito a .craniotomia-root para nao vazar para o resto do Manager. */
 .craniotomia-root {
-  --crn-bg: #0b1426;
-  --crn-bg-panel: #0f1b30;
-  --crn-bg-row: #131f36;
-  --crn-bg-row-alt: #0d1729;
-  --crn-bg-row-hover: #1a2742;
-  --crn-fg: #e6ecf5;
-  --crn-fg-muted: #8a98b3;
-  --crn-fg-dim: #5b6a87;
-  --crn-border: #1e2c47;
-  --crn-border-strong: #2a3d63;
-  --crn-accent: #93b8e8;
-  --crn-accent-strong: #5b8dd1;
+  --crn-bg: #f8fafc;
+  --crn-bg-panel: #ffffff;
+  --crn-bg-row: #ffffff;
+  --crn-bg-row-alt: #f1f5f9;
+  --crn-bg-row-hover: #fef3c7;
+  --crn-fg: #0f1e36;
+  --crn-fg-muted: #475569;
+  --crn-fg-dim: #64748b;
+  --crn-border: #e2e8f0;
+  --crn-border-strong: #cbd5e1;
+  --crn-accent: #d97706;
+  --crn-accent-strong: #b45309;
 
-  --crn-tipo-form: #34d399;
-  --crn-tipo-inje: #fb923c;
-  --crn-tipo-impl: #67e8f9;
-  --crn-tipo-exam: #facc15;
+  --crn-tipo-form: #059669;
+  --crn-tipo-inje: #ea580c;
+  --crn-tipo-impl: #0891b2;
+  --crn-tipo-exam: #ca8a04;
 
-  --crn-estado-ativo: #22c55e;
-  --crn-estado-bloqueado: #7d1d2e;
-  --crn-estado-validacao: #eab308;
+  --crn-estado-ativo: #16a34a;
+  --crn-estado-bloqueado: #b91c1c;
+  --crn-estado-validacao: #b45309;
 
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   background: var(--crn-bg);
   color: var(--crn-fg);
+}
+
+/* Cabecalho azul-marinho: reescopa as variaveis para texto claro sobre fundo escuro. */
+.craniotomia-root .crn-header {
+  --crn-bg: #0b1426;
+  --crn-bg-panel: #0f1e36;
+  --crn-bg-row: #16264a;
+  --crn-bg-row-alt: #0d1729;
+  --crn-bg-row-hover: #1a2742;
+  --crn-fg: #e6ecf5;
+  --crn-fg-muted: #9fb0cc;
+  --crn-fg-dim: #7b8cab;
+  --crn-border: #22345a;
+  --crn-border-strong: #2f4675;
+  --crn-accent: #fbbf24;
+  --crn-accent-strong: #d97706;
+  --crn-estado-ativo: #22c55e;
+  --crn-estado-bloqueado: #f87171;
+  --crn-estado-validacao: #fbbf24;
+  background: #0f1e36;
+  color: var(--crn-fg);
+}
+
+/* Canvas do grafo: fundo claro com grade sutil. */
+.craniotomia-root .crn-canvas {
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(#f1f5f9 1px, transparent 1px),
+    linear-gradient(90deg, #f1f5f9 1px, transparent 1px);
+  background-size: 26px 26px;
 }
 
 .craniotomia-root *,

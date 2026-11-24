@@ -47,7 +47,7 @@ const TipoIcon: Record<Tipo, React.ElementType> = { EXAM: Activity, FORM: Beaker
 const ROTULO_CAT: Record<Categoria, string> = {
   EXAME: "Exame", PRESCRICAO: "Prescrição", INJETAVEL_IM: "Injetável IM", INJETAVEL_SC: "Injetável SC", INJETAVEL_EV: "Injetável EV", IMPLANTE: "Implante",
 };
-const ROW_H = 36;
+const ROW_H = 26;
 
 function usePersisted<T>(key: string, initial: T): [T, (v: T | ((p: T) => T)) => void] {
   const [val, setVal] = useState<T>(() => {
@@ -92,7 +92,14 @@ export default function SinapsesV4() {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [isolatedNode, setIsolatedNode] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [simulacao, setSimulacao] = useState<string[]>([]); // perguntas "respondidas sim" (efêmero)
+  const [selPerg, setSelPerg] = useState<string[]>([]); // perguntas selecionadas / "respondidas sim" (efêmero)
+  const [ancora, setAncora] = useState<string | null>(null);
+  const [copia, setCopia] = useState<number[]>([]);
+  const [arraste, setArraste] = useState<{ de: string; x0: number; y0: number; x: number; y: number; clonar: boolean } | null>(null);
+  const arrasteRef = useRef(arraste);
+  arrasteRef.current = arraste;
+  const [filtroCatArr, setFiltroCatArr] = usePersisted<Categoria[]>("sv4-filtro-cat", []);
+  const filtroCat = useMemo(() => new Set(filtroCatArr), [filtroCatArr]);
   const [armada, setArmada] = useState<number | null>(null);
   const [novaAberta, setNovaAberta] = useState(false);
 
@@ -137,41 +144,64 @@ export default function SinapsesV4() {
     const t = semAcento(search.trim());
     return linhas.filter((s) => {
       if (filtroBloco.size > 0 && !filtroBloco.has(s.bloco)) return false;
+      if (filtroCat.size > 0 && !filtroCat.has(s.categoria)) return false;
       if (isolatedNode && s.perguntaId !== isolatedNode && s.destinoChave !== isolatedNode) return false;
       if (t) return semAcento(`${s.perguntaId} ${s.pergunta} ${s.destinoNome} ${s.bloco}`).includes(t);
       return true;
     });
-  }, [linhas, search, filtroBloco, isolatedNode]);
+  }, [linhas, search, filtroBloco, filtroCat, isolatedNode]);
 
+  // Esquerda: na EDIÇÃO mostra todas as perguntas (para poder ligar); nos outros modos só as ligadas.
   const leftNodes = useMemo(() => {
     const m = new Map<string, { id: string; bloco: string; texto: string; count: number }>();
+    const t = semAcento(search.trim());
+    if (modo === "EDICAO" && !isolatedNode) {
+      for (const p of data?.perguntas ?? []) {
+        const b = p.bloco ?? "SEM BLOCO";
+        if (filtroBloco.size > 0 && !filtroBloco.has(b)) continue;
+        if (t && !semAcento(`${p.perguntaId} ${p.pergunta} ${b}`).includes(t) && !filtradas.some((s) => s.perguntaId === p.perguntaId)) continue;
+        m.set(p.perguntaId, { id: p.perguntaId, bloco: b, texto: p.pergunta, count: 0 });
+      }
+    }
     for (const s of filtradas) {
       const n = m.get(s.perguntaId);
       if (n) n.count++; else m.set(s.perguntaId, { id: s.perguntaId, bloco: s.bloco, texto: s.pergunta, count: 1 });
     }
     return Array.from(m.values()).sort((a, b) => a.bloco.localeCompare(b.bloco) || a.id.localeCompare(b.id));
-  }, [filtradas]);
+  }, [filtradas, modo, data, search, filtroBloco, isolatedNode]);
 
+  // Direita: saídas ligadas; com filtro de saída ativo, também o catálogo inteiro daquela saída (para ligar).
   const rightNodes = useMemo(() => {
     const m = new Map<string, { id: string; tipo: Tipo; categoria: Categoria; nome: string; count: number }>();
+    const t = semAcento(search.trim());
+    if (modo === "EDICAO" && !isolatedNode && data) {
+      for (const c of CATEGORIAS) {
+        if (!filtroCat.has(c)) continue;
+        for (const d of data.destinos[c]) {
+          if (t && !semAcento(d.nome).includes(t)) continue;
+          const k = `${c}|${d.tipo}|${d.id}`;
+          m.set(k, { id: k, tipo: TIPO_DE[c], categoria: c, nome: d.nome, count: 0 });
+        }
+      }
+    }
     for (const s of filtradas) {
       const n = m.get(s.destinoChave);
       if (n) n.count++; else m.set(s.destinoChave, { id: s.destinoChave, tipo: s.tipo, categoria: s.categoria, nome: s.destinoNome, count: 1 });
     }
     return Array.from(m.values()).sort((a, b) => a.categoria.localeCompare(b.categoria) || a.nome.localeCompare(b.nome));
-  }, [filtradas]);
+  }, [filtradas, modo, data, search, filtroCat, isolatedNode]);
 
   const grafoH = Math.max(leftNodes.length, rightNodes.length, 1) * ROW_H + 8;
-  const yEsq = useMemo(() => new Map(leftNodes.map((n, i) => [n.id, (i + 0.5) * (grafoH / leftNodes.length)])), [leftNodes, grafoH]);
-  const yDir = useMemo(() => new Map(rightNodes.map((n, i) => [n.id, (i + 0.5) * (grafoH / rightNodes.length)])), [rightNodes, grafoH]);
+  const yEsq = useMemo(() => new Map(leftNodes.map((n, i) => [n.id, (i + 0.5) * ROW_H + 4])), [leftNodes]);
+  const yDir = useMemo(() => new Map(rightNodes.map((n, i) => [n.id, (i + 0.5) * ROW_H + 4])), [rightNodes]);
 
   // ---------- Simulação (nada é gravado) ----------
-  const simAtiva = modo === "SIMULACAO" && simulacao.length > 0;
+  const simAtiva = modo === "SIMULACAO" && selPerg.length > 0;
   const destinosAcesos = useMemo(() => {
     const s = new Set<string>();
-    if (simAtiva) for (const l of linhas) if (simulacao.includes(l.perguntaId)) s.add(l.destinoChave);
+    if (simAtiva) for (const l of linhas) if (selPerg.includes(l.perguntaId)) s.add(l.destinoChave);
     return s;
-  }, [simAtiva, simulacao, linhas]);
+  }, [simAtiva, selPerg, linhas]);
   const resumoSim = useMemo(() => {
     const r: Record<Tipo, number> = { EXAM: 0, FORM: 0, INJE: 0, IMPL: 0 };
     destinosAcesos.forEach((k) => { r[TIPO_DE[k.split("|")[0] as Categoria]] += 1; });
@@ -204,21 +234,85 @@ export default function SinapsesV4() {
     onError: onErro,
   });
 
+  const clonar = useMutation({
+    mutationFn: (v: { perguntaOrigemId?: string; sinapseIds?: number[]; perguntaDestinoId: string }) => enviar("/api/cadastros/sinapses/clonar", "POST", v),
+    onSuccess: (r: { copiadas: number }) => { invalidar(); toast({ title: `${r.copiadas} ligação(ões) copiada(s)`, description: "As originais não foram alteradas." }); },
+    onError: onErro,
+  });
+
+  // ---------- Seleção de perguntas (clique, Ctrl, Shift) ----------
+  const cliqueNo = (e: React.MouseEvent, id: string) => {
+    if (e.shiftKey && ancora) {
+      const ordem = leftNodes.map((n) => n.id);
+      const a = ordem.indexOf(ancora), b = ordem.indexOf(id);
+      if (a >= 0 && b >= 0) { const [i, j] = a < b ? [a, b] : [b, a]; setSelPerg(ordem.slice(i, j + 1)); return; }
+    }
+    if (e.ctrlKey || e.metaKey) { setSelPerg((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id])); setAncora(id); return; }
+    setAncora(id);
+    setSelPerg((s) => (modo === "SIMULACAO" ? (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]) : s.length === 1 && s[0] === id ? [] : [id]));
+  };
+
+  const copiarSelecionadas = useCallback(() => {
+    const ids = linhas.filter((l) => selPerg.includes(l.perguntaId)).map((l) => l.id);
+    setCopia(ids);
+    toast({ title: ids.length ? `${ids.length} ligação(ões) copiada(s)` : "Nada para copiar", description: ids.length ? "Selecione outras perguntas e use Ctrl+V." : "As perguntas selecionadas não têm ligações." });
+  }, [linhas, selPerg, toast]);
+  const colarNasSelecionadas = useCallback(() => {
+    if (!copia.length) { toast({ title: "Nada copiado ainda" }); return; }
+    for (const pid of selPerg) clonar.mutate({ sinapseIds: copia, perguntaDestinoId: pid });
+  }, [copia, selPerg, clonar, toast]);
+
   // ---------- Atalhos ----------
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      const k = e.key.toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && k === "c" && modo === "EDICAO") { e.preventDefault(); copiarSelecionadas(); return; }
+      if ((e.ctrlKey || e.metaKey) && k === "v" && modo === "EDICAO") { e.preventDefault(); colarNasSelecionadas(); return; }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === "?") setShowShortcuts((v) => !v);
-      if (e.key === "Escape") { setShowShortcuts(false); setIsolatedNode(null); setArmada(null); setSimulacao([]); }
-      if (e.key === "v" || e.key === "V") setModo("VISUALIZACAO");
-      if (e.key === "e" || e.key === "E") setModo("EDICAO");
-      if (e.key === "s" || e.key === "S") setModo("SIMULACAO");
+      if (e.key === "Escape") { setShowShortcuts(false); setIsolatedNode(null); setArmada(null); setSelPerg([]); setArraste(null); }
+      if (k === "v") setModo("VISUALIZACAO");
+      if (k === "e") setModo("EDICAO");
+      if (k === "s") setModo("SIMULACAO");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [setModo]);
+  }, [setModo, modo, copiarSelecionadas, colarNasSelecionadas]);
+
+  // ---------- Puxar o fio (ponteiro): solta num destino = cria; Alt + solta noutra pergunta = copia ----------
+  useEffect(() => {
+    if (!arraste) return;
+    const mover = (e: PointerEvent) => setArraste((a) => (a ? { ...a, x: e.clientX, y: e.clientY } : a));
+    const soltar = (e: PointerEvent) => {
+      const a = arrasteRef.current;
+      setArraste(null);
+      if (!a) return;
+      const alvo = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      if (a.clonar) {
+        const p = alvo?.closest("[data-pergunta]") as HTMLElement | null;
+        const destino = p?.dataset.pergunta;
+        if (destino && destino !== a.de) clonar.mutate({ perguntaOrigemId: a.de, perguntaDestinoId: destino });
+        return;
+      }
+      const d = alvo?.closest("[data-dest]") as HTMLElement | null;
+      if (!d?.dataset.dest) return;
+      const [categoria, destinoTipo, id] = d.dataset.dest.split("|");
+      const origens = selPerg.includes(a.de) && selPerg.length > 1 ? selPerg : [a.de];
+      for (const perguntaId of origens) criar.mutate({ perguntaId, categoria: categoria as Categoria, destinoTipo, destinoId: Number(id) });
+    };
+    window.addEventListener("pointermove", mover);
+    window.addEventListener("pointerup", soltar, { once: true });
+    return () => { window.removeEventListener("pointermove", mover); window.removeEventListener("pointerup", soltar); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!arraste]);
+  const iniciarArraste = (e: React.PointerEvent, de: string) => {
+    if (modo !== "EDICAO") return;
+    e.preventDefault(); e.stopPropagation();
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setArraste({ de, x0: r.left + r.width / 2, y0: r.top + r.height / 2, x: e.clientX, y: e.clientY, clonar: e.altKey });
+  };
 
   useEffect(() => {
     if (selectedId !== null) tableRowRefs.current.get(selectedId)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -277,9 +371,6 @@ export default function SinapsesV4() {
   const modoCorEdicao = "#0e7490";
   const modoCor = (m: Modo) => (m === "EDICAO" ? modoCorEdicao : m === "SIMULACAO" ? "var(--crn-accent)" : "var(--crn-fg-dim)");
 
-  const cliqueNo = (id: string) => {
-    if (modo === "SIMULACAO") setSimulacao((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
-  };
 
   const contagemTipo = useMemo(() => {
     const r: Record<Tipo, number> = { EXAM: 0, FORM: 0, INJE: 0, IMPL: 0 };
@@ -300,7 +391,7 @@ export default function SinapsesV4() {
   return (
     <div className="craniotomia-root flex h-[calc(100vh-7rem)] min-h-[640px] w-full flex-col overflow-hidden text-[11px] leading-tight" data-testid="pagina-sinapses-v4">
       {/* ============ CABEÇALHO ============ */}
-      <header className="flex-none border-b border-[var(--crn-border)] bg-[var(--crn-bg-panel)] px-3 py-2">
+      <header className="crn-header flex-none border-b border-[var(--crn-border)] px-3 py-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Activity className="h-4 w-4 text-[var(--crn-accent-strong)]" />
@@ -343,6 +434,16 @@ export default function SinapsesV4() {
             <KpiPill label="MARCADAS" value={marcadas.size} color="var(--crn-accent-strong)" />
           </div>
           <div className="flex flex-wrap items-center gap-1" aria-label="Filtro por bloco da anamnese">
+            {([["EXAME", "EXAM"], ["PRESCRICAO", "PRESC"], ["INJETAVEL_IM", "IM"], ["INJETAVEL_SC", "SC"], ["INJETAVEL_EV", "EV"], ["IMPLANTE", "IMPL"]] as Array<[Categoria, string]>).map(([c, rot]) => {
+              const ativo = filtroCat.has(c);
+              return (
+                <button key={c} onClick={() => setFiltroCatArr(ativo ? filtroCatArr.filter((x) => x !== c) : [...filtroCatArr, c])} data-testid={`v4-cat-${c}`}
+                  title={`Saída: ${ROTULO_CAT[c]} (mostra o catálogo inteiro na edição)`}
+                  className="border px-1.5 py-0.5 text-[9px] font-bold"
+                  style={{ borderColor: TIPO_COR[TIPO_DE[c]], color: ativo ? "#fff" : TIPO_COR[TIPO_DE[c]], backgroundColor: ativo ? TIPO_COR[TIPO_DE[c]] : "transparent" }}>{rot}</button>
+              );
+            })}
+            <span className="mx-1 h-3 w-px bg-[var(--crn-border-strong)]" />
             {blocosOrdem.map((b) => {
               const ativo = filtroBloco.has(b);
               return (
@@ -353,8 +454,8 @@ export default function SinapsesV4() {
                 </button>
               );
             })}
-            {(filtroBloco.size > 0 || isolatedNode) && (
-              <button onClick={() => { setFiltroBlocoArr([]); setIsolatedNode(null); }} className="ml-1 border border-[var(--crn-border)] px-1.5 py-0.5 text-[9px] text-[var(--crn-fg-dim)] hover:text-[var(--crn-fg)]">LIMPAR</button>
+            {(filtroBloco.size > 0 || filtroCat.size > 0 || isolatedNode) && (
+              <button onClick={() => { setFiltroBlocoArr([]); setFiltroCatArr([]); setIsolatedNode(null); }} className="ml-1 border border-[var(--crn-border)] px-1.5 py-0.5 text-[9px] text-[var(--crn-fg-dim)] hover:text-[var(--crn-fg)]">LIMPAR</button>
             )}
           </div>
         </div>
@@ -371,11 +472,11 @@ export default function SinapsesV4() {
             <FlaskConical className="h-3 w-3" />
             <span className="font-bold">SIMULAÇÃO — nada é gravado.</span>
             <span>Clique nas perguntas (à esquerda do grafo) como se o cliente tivesse respondido sim.</span>
-            {simulacao.length > 0 && (
+            {selPerg.length > 0 && (
               <>
-                <span>{simulacao.length} pergunta(s) → acenderiam:</span>
+                <span>{selPerg.length} pergunta(s) → acenderiam:</span>
                 {(Object.keys(TIPO_LABEL) as Tipo[]).map((t) => <span key={t} style={{ color: TIPO_COR[t] }}>{TIPO_LABEL[t]}: {resumoSim[t]}</span>)}
-                <button onClick={() => setSimulacao([])} className="border border-[var(--crn-border)] px-1.5 py-0.5 text-[9px] text-[var(--crn-fg-dim)] hover:text-[var(--crn-fg)]">LIMPAR SIMULAÇÃO</button>
+                <button onClick={() => setSelPerg([])} className="border border-[var(--crn-border)] px-1.5 py-0.5 text-[9px] text-[var(--crn-fg-dim)] hover:text-[var(--crn-fg)]">LIMPAR SIMULAÇÃO</button>
               </>
             )}
           </div>
@@ -448,65 +549,74 @@ export default function SinapsesV4() {
             <div className="absolute left-0 right-0 top-0 z-20 flex justify-center">
               <div className="pointer-events-none px-2 py-0.5 text-[9px] uppercase tracking-wider" style={{ color: modoCor(modo), borderBottom: `1px solid ${modoCor(modo)}` }}>GRAFO · MODO {modo}</div>
             </div>
-            {linhas.length === 0 ? (
+            {leftNodes.length === 0 && rightNodes.length === 0 ? (
               <div className="flex h-full items-center justify-center px-6 text-center text-[var(--crn-fg-dim)]" data-testid="v4-vazio">
-                Ainda não há ligações ativas. Ative o modo EDIÇÃO (tecla E) e use NOVA SINAPSE, ou cadastre pela tela Sinapses Clínicas.
+                {linhas.length === 0
+                  ? "Ainda não há ligações ativas. Ative o modo EDIÇÃO (tecla E), escolha uma saída na barra (EXAME, PRESC, IM, SC, EV, IMPL) e puxe o fio da pergunta até ela."
+                  : "Nenhuma ligação corresponde à busca ou aos filtros."}
               </div>
-            ) : filtradas.length === 0 ? (
-              <div className="flex h-full items-center justify-center px-6 text-center text-[var(--crn-fg-dim)]">Nenhuma ligação corresponde à busca ou aos filtros.</div>
             ) : (
-              <div className="absolute inset-0 overflow-y-auto pt-5">
+              <div className="crn-canvas absolute inset-0 overflow-y-auto pt-5">
+                {modo === "EDICAO" && filtroCat.size === 0 && (
+                  <div className="pointer-events-none sticky top-0 z-30 -mt-1 bg-[var(--crn-bg-row-hover)] px-2 py-0.5 text-center text-[9px] text-[var(--crn-accent-strong)]">
+                    Para ligar: escolha uma saída na barra do topo (EXAME, PRESC, IM, SC, EV, IMPL) e puxe o círculo da pergunta até o destino. Alt + soltar noutra pergunta copia as ligações.
+                  </div>
+                )}
                 <div className="relative" style={{ height: grafoH }}>
-                  <div className="absolute inset-y-0 left-[220px] right-[240px]">
+                  <div className="absolute inset-y-0 left-[260px] right-[260px]">
                     <svg className="h-full w-full" viewBox={`0 0 100 ${grafoH}`} preserveAspectRatio="none">
                       {filtradas.map((s) => {
                         const y1 = yEsq.get(s.perguntaId); const y2 = yDir.get(s.destinoChave);
                         if (y1 === undefined || y2 === undefined) return null;
                         const ativa = hoveredId === s.id || selectedId === s.id;
                         const cor = corDoBloco(s.bloco);
-                        const foraSim = simAtiva && !simulacao.includes(s.perguntaId);
-                        const opacity = foraSim ? 0.08 : hoveredId === null && selectedId === null ? 0.85 : ativa ? 1 : 0.18;
-                        const w = ativa ? 4 : simAtiva && !foraSim ? 3.5 : 2;
+                        const foraSim = simAtiva && !selPerg.includes(s.perguntaId);
+                        const opacity = foraSim ? 0.1 : hoveredId === null && selectedId === null ? 0.9 : ativa ? 1 : 0.2;
+                        const w = ativa ? 3.5 : simAtiva && !foraSim ? 3 : 1.6;
                         return (
                           <path key={s.id} d={`M 0 ${y1} C 50 ${y1}, 50 ${y2}, 100 ${y2}`} fill="none" stroke={cor} strokeWidth={w} vectorEffect="non-scaling-stroke"
                             data-testid={`v4-aresta-${s.id}`}
-                            style={{ opacity, cursor: "pointer", filter: ativa ? `drop-shadow(0 0 4px ${cor}) drop-shadow(0 0 9px ${cor})` : `drop-shadow(0 0 0.8px ${cor})`, transition: "opacity 70ms ease-out, stroke-width 70ms ease-out" }}
+                            style={{ opacity, cursor: "pointer", filter: ativa ? `drop-shadow(0 0 3px ${cor})` : undefined, transition: "opacity 70ms ease-out, stroke-width 70ms ease-out" }}
                             onMouseEnter={() => setHoveredId(s.id)} onMouseLeave={() => setHoveredId(null)} onClick={() => setSelectedId(s.id)} />
                         );
                       })}
                     </svg>
                   </div>
 
-                  {/* COLUNA ESQUERDA: perguntas */}
-                  <div className="absolute inset-y-0 left-0 z-10 w-[220px] border-r border-[var(--crn-border)] bg-[var(--crn-bg-panel)]/60 p-2 backdrop-blur-sm">
+                  {/* COLUNA ESQUERDA: perguntas (linhas finas de 26px) */}
+                  <div className="absolute inset-y-0 left-0 z-10 w-[260px] border-r border-[var(--crn-border)] bg-[var(--crn-bg-panel)]/85 px-1">
                     <div className="relative h-full">
                       {leftNodes.map((node) => {
                         const top = yEsq.get(node.id) ?? 0;
                         const destaque = filtradas.some((s) => (s.id === hoveredId || s.id === selectedId) && s.perguntaId === node.id);
-                        const simulada = simulacao.includes(node.id);
+                        const marcada = selPerg.includes(node.id);
                         return (
-                          <div key={node.id} className="absolute flex w-full items-center pr-2" style={{ top, transform: "translateY(-50%)" }}
-                            onDoubleClick={() => setIsolatedNode(node.id)} title={`${node.id} · ${node.texto}\nDuplo clique isola a vizinhança`}>
-                            <div onClick={() => cliqueNo(node.id)} data-testid={`v4-no-pergunta-${node.id}`}
-                              className={`flex h-7 flex-1 cursor-pointer items-stretch border transition-all ${simulada ? "border-[var(--crn-accent)] bg-[var(--crn-bg-row-hover)]" : destaque ? "border-[var(--crn-accent)] bg-[var(--crn-bg-row-hover)]" : "border-[var(--crn-border)] bg-[var(--crn-bg)] hover:border-[var(--crn-fg-dim)]"}`}>
-                              <div className="w-2 flex-none" style={{ backgroundColor: corDoBloco(node.bloco) }} />
-                              <div className="flex flex-1 items-center justify-between truncate px-1.5 py-0.5">
-                                <div className="flex min-w-0 flex-col leading-tight">
-                                  <span className="text-[8px] font-bold text-[var(--crn-fg-dim)]">{node.bloco} · {node.id}</span>
-                                  <span className="truncate text-[10px] font-medium text-[var(--crn-fg)]">{node.texto}</span>
-                                </div>
-                                <span className="ml-1 border border-[var(--crn-border)] bg-[var(--crn-bg-row)] px-1 text-[9px] text-[var(--crn-fg-dim)]">{node.count}</span>
+                          <div key={node.id} data-pergunta={node.id} className="absolute flex w-full items-center" style={{ top, height: ROW_H - 4, transform: "translateY(-50%)" }}
+                            onDoubleClick={() => setIsolatedNode(node.id)} title={`${node.id} · ${node.texto}\nCtrl+clique: salteada · Shift+clique: faixa · duplo clique: isola`}>
+                            <div onClick={(e) => cliqueNo(e, node.id)} data-testid={`v4-no-pergunta-${node.id}`}
+                              className={`flex h-full flex-1 cursor-pointer items-stretch border select-none ${marcada || destaque ? "border-[var(--crn-accent)] bg-[var(--crn-bg-row-hover)]" : "border-[var(--crn-border)] bg-[var(--crn-bg-row)] hover:border-[var(--crn-fg-dim)]"}`}>
+                              <div className="w-1.5 flex-none" style={{ backgroundColor: corDoBloco(node.bloco) }} />
+                              <div className="flex min-w-0 flex-1 items-center gap-1 px-1.5">
+                                <span className="flex-none font-mono text-[8px] font-bold text-[var(--crn-fg-dim)]">{node.id}</span>
+                                <span className="truncate text-[10px] font-medium text-[var(--crn-fg)]">{node.texto}</span>
                               </div>
+                              <span className="flex-none self-center px-1 font-mono text-[9px] text-[var(--crn-fg-dim)]">{node.count || ""}</span>
                             </div>
-                            <div className="ml-1 h-1.5 w-1.5" style={{ backgroundColor: corDoBloco(node.bloco) }} />
+                            {modo === "EDICAO" ? (
+                              <button type="button" onPointerDown={(e) => iniciarArraste(e, node.id)} onClick={(e) => e.stopPropagation()} data-testid={`v4-porta-${node.id}`}
+                                className="ml-1 h-3 w-3 flex-none cursor-crosshair touch-none border-2" style={{ borderColor: corDoBloco(node.bloco), backgroundColor: "#fff", borderRadius: 999 }}
+                                title="Puxe o fio até uma saída. Alt: solte noutra pergunta para copiar as ligações." aria-label={`Ligar a pergunta ${node.id}`} />
+                            ) : (
+                              <div className="ml-1.5 h-1.5 w-1.5 flex-none" style={{ backgroundColor: corDoBloco(node.bloco) }} />
+                            )}
                           </div>
                         );
                       })}
                     </div>
                   </div>
 
-                  {/* COLUNA DIREITA: saídas */}
-                  <div className="absolute inset-y-0 right-0 z-10 w-[240px] border-l border-[var(--crn-border)] bg-[var(--crn-bg-panel)]/60 p-2 backdrop-blur-sm">
+                  {/* COLUNA DIREITA: saídas (linhas finas de 26px) */}
+                  <div className="absolute inset-y-0 right-0 z-10 w-[260px] border-l border-[var(--crn-border)] bg-[var(--crn-bg-panel)]/85 px-1">
                     <div className="relative h-full">
                       {rightNodes.map((node) => {
                         const top = yDir.get(node.id) ?? 0;
@@ -514,20 +624,18 @@ export default function SinapsesV4() {
                         const destaque = filtradas.some((s) => (s.id === hoveredId || s.id === selectedId) && s.destinoChave === node.id);
                         const aceso = destinosAcesos.has(node.id);
                         return (
-                          <div key={node.id} className="absolute flex w-full items-center pl-2" style={{ top, transform: "translateY(-50%)" }}
+                          <div key={node.id} data-dest={node.id} className="absolute flex w-full items-center" style={{ top, height: ROW_H - 4, transform: "translateY(-50%)" }}
                             onDoubleClick={() => setIsolatedNode(node.id)} title={`${ROTULO_CAT[node.categoria]} · ${node.nome}\nDuplo clique isola a vizinhança`}>
-                            <div className="mr-1 h-1.5 w-1.5" style={{ backgroundColor: TIPO_COR[node.tipo] }} />
+                            <div className="mr-1.5 h-1.5 w-1.5 flex-none" style={{ backgroundColor: TIPO_COR[node.tipo] }} />
                             <div data-testid={`v4-no-saida-${node.id}`}
-                              className={`flex h-7 flex-1 cursor-pointer items-stretch border transition-all ${aceso ? "bg-[var(--crn-bg-row-hover)]" : destaque ? "border-[var(--crn-accent)] bg-[var(--crn-bg-row-hover)]" : "border-[var(--crn-border)] bg-[var(--crn-bg)] hover:border-[var(--crn-fg-dim)]"}`}
-                              style={aceso ? { borderColor: TIPO_COR[node.tipo], boxShadow: `0 0 8px ${TIPO_COR[node.tipo]}88` } : undefined}>
-                              <div className="flex w-6 flex-none items-center justify-center border-r border-[var(--crn-border)]" style={{ color: TIPO_COR[node.tipo] }}><Ic className="h-3 w-3" /></div>
-                              <div className="flex flex-1 items-center justify-between truncate px-1.5 py-0.5">
-                                <div className="flex min-w-0 flex-col leading-tight">
-                                  <span className="text-[8px] font-bold text-[var(--crn-fg-dim)]">{ROTULO_CAT[node.categoria].toUpperCase()}</span>
-                                  <span className="truncate text-[10px] font-medium text-[var(--crn-fg)]">{node.nome}</span>
-                                </div>
-                                <span className="ml-1 border border-[var(--crn-border)] bg-[var(--crn-bg-row)] px-1 text-[9px] text-[var(--crn-fg-dim)]">{node.count}</span>
+                              className={`flex h-full flex-1 cursor-pointer items-stretch border select-none ${aceso || destaque ? "bg-[var(--crn-bg-row-hover)]" : "bg-[var(--crn-bg-row)] hover:border-[var(--crn-fg-dim)]"} ${destaque ? "border-[var(--crn-accent)]" : "border-[var(--crn-border)]"}`}
+                              style={aceso ? { borderColor: TIPO_COR[node.tipo], boxShadow: `0 0 6px ${TIPO_COR[node.tipo]}88` } : undefined}>
+                              <div className="flex w-5 flex-none items-center justify-center border-r border-[var(--crn-border)]" style={{ color: TIPO_COR[node.tipo] }}><Ic className="h-3 w-3" /></div>
+                              <div className="flex min-w-0 flex-1 items-center gap-1 px-1.5">
+                                <span className="flex-none text-[8px] font-bold text-[var(--crn-fg-dim)]">{ROTULO_CAT[node.categoria].replace("Injetável ", "").toUpperCase().slice(0, 4)}</span>
+                                <span className="truncate text-[10px] font-medium text-[var(--crn-fg)]">{node.nome}</span>
                               </div>
+                              <span className="flex-none self-center px-1 font-mono text-[9px] text-[var(--crn-fg-dim)]">{node.count || ""}</span>
                             </div>
                           </div>
                         );
@@ -683,6 +791,13 @@ export default function SinapsesV4() {
         </span>
       </footer>
 
+      {arraste && (
+        <svg className="pointer-events-none fixed inset-0 z-[60]" width="100%" height="100%" aria-hidden>
+          <path d={`M ${arraste.x0} ${arraste.y0} C ${arraste.x0 + 80} ${arraste.y0}, ${arraste.x - 80} ${arraste.y}, ${arraste.x} ${arraste.y}`} fill="none" stroke={arraste.clonar ? "#2563eb" : "#d97706"} strokeWidth={2.5} strokeDasharray={arraste.clonar ? "6 4" : undefined} />
+          <circle cx={arraste.x} cy={arraste.y} r={5} fill={arraste.clonar ? "#2563eb" : "#d97706"} />
+        </svg>
+      )}
+
       {showShortcuts && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setShowShortcuts(false)}>
           <div className="w-[420px] max-w-[92vw] border border-[var(--crn-accent)] bg-[var(--crn-bg-panel)] p-4" onClick={(e) => e.stopPropagation()}>
@@ -693,6 +808,9 @@ export default function SinapsesV4() {
               <li>Duplo clique num nó: isola a vizinhança</li>
               <li>Clique numa aresta ou linha: seleciona a mesma ligação</li>
               <li>Caixa ✓: marca a ligação (diferente de selecionar)</li>
+              <li>Ctrl + clique: seleção salteada · Shift + clique: faixa de perguntas</li>
+              <li>Edição: puxe o círculo da pergunta até uma saída para ligar (vale para todas as selecionadas)</li>
+              <li>Edição: Alt + soltar noutra pergunta copia as ligações · Ctrl+C / Ctrl+V copia das selecionadas</li>
             </ul>
           </div>
         </div>
