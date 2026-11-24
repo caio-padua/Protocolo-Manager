@@ -1049,6 +1049,13 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
         // Só entrega quando o desafio acabou de ser criado (isNew=true).
         // Desafios reutilizados não disparam novo envio — usar
         // /scheduling/send-verification-code (com cooldown 60s) para reenvio.
+        // Criação do desafio não comprova envio; preservar só a confirmação real.
+        if (!isNew) {
+          const sentRow = await db.execute<{ code_sent_at: string | null }>(sql`
+            SELECT code_sent_at FROM device_contact_verifications WHERE id = ${cid} LIMIT 1
+          `);
+          codeSent = sentRow.rows[0]?.code_sent_at != null;
+        }
         if (isNew) {
           const codeRow = await db.execute<{ code: string }>(sql`
             SELECT code FROM device_contact_verifications WHERE id = ${cid} LIMIT 1
@@ -1082,6 +1089,12 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
                 const tg = await sendTelegram(patient.telegramChatId, otpMessage);
                 codeSent = tg.sent;
               } catch { /* best-effort */ }
+            }
+            if (codeSent) {
+              await db.execute(sql`
+                UPDATE device_contact_verifications SET code_sent_at = NOW()
+                WHERE id = ${cid}
+              `);
             }
           }
         }
