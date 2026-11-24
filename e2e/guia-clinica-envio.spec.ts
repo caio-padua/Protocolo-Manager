@@ -30,7 +30,10 @@ async function setup(page: Page, slug: string | null, failFirst = false) {
         body = { slug, clinicaNome: slug ? "Clínica Licenciada" : "Instituto Pádua" };
       }
     } else if (path === "/api/onboarding/clientes") {
-      body = [{ id: 42, name: "Cliente Teste", phone: "+5500000000000", cpf: null, photoUrl: null }];
+      body = [
+        { id: 42, name: "Cliente Teste", phone: "+5500000000000", cpf: null, photoUrl: null },
+        { id: 73, name: "Outro Cliente Teste", phone: "+5500000000001", cpf: null, photoUrl: null },
+      ];
     } else if (path.endsWith("/telegram-status")) {
       body = { vinculado: true, desde: null };
     } else if (path === "/api/onboarding/enviar-guia") {
@@ -55,6 +58,55 @@ async function selectClient(page: Page) {
 for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
   test.describe(`Guia da clínica — ${viewport.width}px`, () => {
     test.use({ viewport });
+
+    for (const slug of ["licenciada", null]) {
+      test(`link acompanha seleção, troca e limpeza — tenant ${slug ?? "ausente"}`, async ({ page }) => {
+        const { sent } = await setup(page, slug);
+        // Capture the actual copy action without depending on OS clipboard permissions.
+        await page.addInitScript(() => {
+          Object.defineProperty(navigator, "clipboard", {
+            configurable: true,
+            value: {
+              writeText: async (text: string) => {
+                (window as unknown as { copiedGuide: string }).copiedGuide = text;
+              },
+            },
+          });
+        });
+        await page.goto("/comunicacao/guia-paciente");
+        const copy = page.getByRole("button", { name: /^(Copiar|Copiado!)$/ });
+        const displayedLink = page.locator("span.font-mono").filter({ hasText: "guia-digital" });
+        await expect(copy).toBeEnabled();
+
+        async function expectLink(clientId: string | null) {
+          const text = await displayedLink.innerText();
+          const url = new URL(text);
+          expect(url.searchParams.getAll("c")).toEqual(clientId === null ? [] : [clientId]);
+          expect(url.searchParams.get("tenant")).toBe(slug);
+          expect(url.searchParams.get("v")).toBeTruthy();
+          await copy.click();
+          await expect.poll(() => page.evaluate(
+            () => (window as unknown as { copiedGuide: string }).copiedGuide,
+          )).toBe(text);
+          return text;
+        }
+
+        const genericLink = await expectLink(null);
+        await selectClient(page);
+        await expectLink("42");
+        await page.getByRole("button", { name: /Cliente Teste/ }).first().click();
+        await page.getByText("Outro Cliente Teste", { exact: true }).click();
+        await expectLink("73");
+        await page.getByRole("button", { name: "Limpar seleção", exact: true }).click();
+        expect(await expectLink(null)).toBe(genericLink);
+        await expect(page.locator("button", { hasText: /Selecionar cliente/i })).toBeVisible();
+        expect(sent).toHaveLength(0);
+        await page.screenshot({
+          path: `generated-artifacts/screenshots/guia-link-generico-${slug ?? "legado"}-${viewport.width}.png`,
+          fullPage: true,
+        });
+      });
+    }
 
     test("envia o mesmo slug do link e autenticação do colaborador", async ({ page }) => {
       const { sent, configHeaders } = await setup(page, "licenciada");
