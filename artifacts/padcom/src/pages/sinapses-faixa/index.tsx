@@ -902,35 +902,54 @@ export default function SinapsesFaixa() {
         </div>
       ) : (
         <>
-          <Faixa testid="faixa-grafo" titulo="Faixa da sinapse" fichas={[{ rotulo: "Perguntas", valor: esquerda.length }, { rotulo: "Saídas", valor: direita.length }]} aberta={faixaAberta} onToggle={() => setFaixaAberta((v) => !v)} ampliada={ampliada} direita={<>{controlesFaixa}<button type="button" onClick={() => setAmpliada((v) => !v)} aria-pressed={ampliada} className="tecla-3d flex h-8 items-center gap-2 px-3 text-[10px] font-black uppercase" data-testid="faixa-ampliar" title={ampliada ? "Voltar ao tamanho normal (Esc)" : "Ampliar a faixa para a tela inteira"}>{ampliada ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}{ampliada ? "Reduzir" : "Ampliar"}</button></>}>
-            <div className="mb-1.5 grid items-center gap-x-1" style={{ gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }} data-testid="faixa-cabecalho-colunas">
-              <div className="flex flex-wrap items-center gap-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-primary/80">Perguntas</span>
-                <button type="button" className="tecla-3d h-7 px-2 text-[10px] font-bold" onClick={() => setFechadosE(new Set())} title="Abrir todos os blocos de perguntas">Abrir blocos +</button>
-                <button type="button" className="tecla-3d h-7 px-2 text-[10px] font-bold" onClick={() => setFechadosE(new Set(linhasE.filter((l) => l.tipo === "grupo").map((l) => l.k)))} title="Recolher todos os blocos de perguntas">Recolher −</button>
-                {modo !== "EDICAO" && <button type="button" aria-pressed={todos} onClick={() => setTodos((v) => !v)} className="tecla-3d h-7 px-2 text-[10px] font-bold" data-testid="faixa-todos">{todos ? "Só os ligados" : "Mostrar todos"}</button>}
+          <Faixa testid="faixa-grafo" titulo="Faixa da sinapse" fichas={[{ rotulo: "Perguntas", valor: esquerda.length }, { rotulo: "Saídas", valor: direita.length }]} aberta={faixaAberta} onToggle={() => setFaixaAberta((v) => !v)} ampliada={ampliada} direita={<>{controlesFaixa}</>}>
+            <div className="mb-1.5 grid items-end gap-x-1" style={{ gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }} data-testid="faixa-cabecalho-colunas">
+              <div className="min-w-0" data-testid="faixa-cabecalho-anamnese">
+                <div className="mb-1 text-center text-[12px] font-black uppercase tracking-[0.25em] text-[#0f1e36]">Anamnese</div>
+                <div className="flex items-center justify-between gap-1">
+                  {modo !== "EDICAO" ? <button type="button" aria-pressed={todos} onClick={() => setTodos((v) => !v)} className="tecla-3d h-7 px-2 text-[10px] font-bold" data-testid="faixa-todos">{todos ? "Só os ligados" : "Mostrar todos"}</button> : <span />}
+                  {(() => {
+                    const grupos = linhasE.filter((l) => l.tipo === "grupo").map((l) => l.k);
+                    const tudoFechado = grupos.length > 0 && grupos.every((k) => fechadosE.has(k));
+                    return <button type="button" className="tecla-3d h-7 w-9 text-[14px] font-bold" data-testid="faixa-blocos-alternar" onClick={() => setFechadosE(tudoFechado ? new Set() : new Set(grupos))} title={tudoFechado ? "Abrir todos os blocos de perguntas" : "Recolher todos os blocos de perguntas"} aria-label={tudoFechado ? "Abrir todos os blocos de perguntas" : "Recolher todos os blocos de perguntas"}>{tudoFechado ? "+" : "−"}</button>;
+                  })()}
+                </div>
               </div>
-              <div className="concave-3d flex items-stretch gap-1 p-1" role="group" aria-label="Quais sinapses mostrar" title="Ligue ou desligue cada tipo de fio" data-testid="faixa-mostrar-fios">
+              <div className="min-w-0" role="group" aria-label="Quais sinapses mostrar" data-testid="faixa-mostrar-fios">
+                <div className="mb-1 flex items-center justify-center gap-2 text-[12px] font-black uppercase tracking-[0.25em] text-[#0f1e36]">
+                  <span>Craniotomia</span>
+                  <button type="button" onClick={() => setAmpliada((v) => !v)} aria-pressed={ampliada} className="tecla-3d flex h-6 w-6 items-center justify-center" data-testid="faixa-ampliar" title={ampliada ? "Voltar ao tamanho normal (Esc)" : "Ampliar a craniotomia para a tela inteira"} aria-label={ampliada ? "Reduzir a craniotomia" : "Ampliar a craniotomia"}>{ampliada ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button>
+                </div>
+                <div className="flex items-stretch justify-center gap-2">
                 {([["ATIVA", "Ativas", "#1e3a8a"], ["PROPOSTA", "Propostas", "#b8892b"], ["SEM_SAIDA", "Sem saída", "#dc2626"]] as const).map(([k, r, cor]) => (
                   <button key={k} type="button" aria-pressed={mostrar[k]} onClick={() => setMostrar((m) => ({ ...m, [k]: !m[k] }))} title={`${mostrar[k] ? "Esconder" : "Mostrar"} sinapses: ${r}`} data-testid={`faixa-mostrar-${k}`}
-                    className={`${mostrar[k] ? "tecla-3d" : "concave-3d"} flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-1 text-[9px] font-black uppercase leading-none`} style={{ opacity: 1 }}>
+                    className={`${mostrar[k] ? "tecla-3d" : "concave-3d"} flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-2 py-1.5 text-[9px] font-black uppercase leading-none`} style={{ opacity: 1 }}>
                     <svg width="100%" height="6" aria-hidden="true"><line x1="3" y1="3" x2="97%" y2="3" stroke={k === "SEM_SAIDA" ? cor : (foco !== null ? corDaPergunta.get(foco) : undefined) ?? cor} strokeWidth={k === "ATIVA" ? 2.5 : 1.8} strokeLinecap="round" strokeDasharray={k === "ATIVA" ? undefined : k === "PROPOSTA" ? "9 4" : "2 4"} /></svg>
                     <span className="truncate">{r}</span>
                   </button>
                 ))}
+                </div>
               </div>
-              <div className="flex flex-wrap items-center justify-end gap-1" role="group" aria-label="Filtrar saídas por tipo">
-                <button type="button" aria-pressed={cats.length === 0} onClick={() => setCats([])} className="tecla-3d h-7 px-2 text-[10px] font-black" data-testid="faixa-cat-TODAS" title="Todas as saídas, em blocos separados por tipo">TODAS</button>
-                {CATEGORIAS.map((c) => {
-                  const ativo = cats.includes(c.chave);
-                  return (
-                    <button key={c.chave} type="button" aria-pressed={ativo} title={c.rotulo} data-testid={`faixa-cat-${c.chave}`}
-                      onClick={() => setCats((v) => (ativo ? v.filter((x) => x !== c.chave) : [...v, c.chave]))}
-                      className="tecla-3d h-7 px-2 text-[10px] font-black" style={{ color: c.cor }}>{c.sigla}</button>
-                  );
-                })}
-                <button type="button" className="tecla-3d h-7 w-7 text-[12px] font-bold" onClick={() => setFechadosD(new Set())} title="Abrir todos os blocos de saídas" aria-label="Abrir todos os blocos de saídas">+</button>
-                <button type="button" className="tecla-3d h-7 w-7 text-[12px] font-bold" onClick={() => setFechadosD(new Set(linhasD.filter((l) => l.tipo === "grupo").map((l) => l.k)))} title="Recolher todos os blocos de saídas" aria-label="Recolher todos os blocos de saídas">−</button>
+              <div className="min-w-0" data-testid="faixa-cabecalho-procedimentos">
+                <div className="mb-1 text-center text-[12px] font-black uppercase tracking-[0.25em] text-[#0f1e36]">Procedimentos</div>
+                <div className="flex items-center justify-between gap-2">
+                  <button type="button" aria-pressed={cats.length === 0} onClick={() => setCats([])} className="tecla-3d h-7 px-2 text-[10px] font-black" data-testid="faixa-cat-TODAS" title="Todas as saídas, em blocos separados por tipo">TODAS</button>
+                  <div className="flex flex-wrap items-center justify-center gap-1" role="group" aria-label="Filtrar saídas por tipo">
+                    {CATEGORIAS.map((c) => {
+                      const ativo = cats.includes(c.chave);
+                      return (
+                        <button key={c.chave} type="button" aria-pressed={ativo} title={c.rotulo} data-testid={`faixa-cat-${c.chave}`}
+                          onClick={() => setCats((v) => (ativo ? v.filter((x) => x !== c.chave) : [...v, c.chave]))}
+                          className="tecla-3d h-7 px-2 text-[10px] font-black" style={{ color: c.cor }}>{c.sigla}</button>
+                      );
+                    })}
+                  </div>
+                  {(() => {
+                    const grupos = linhasD.filter((l) => l.tipo === "grupo").map((l) => l.k);
+                    const tudoFechado = grupos.length > 0 && grupos.every((k) => fechadosD.has(k));
+                    return <button type="button" className="tecla-3d h-7 w-9 text-[14px] font-bold" data-testid="faixa-saidas-alternar" onClick={() => setFechadosD(tudoFechado ? new Set() : new Set(grupos))} title={tudoFechado ? "Abrir todos os blocos de saídas" : "Recolher todos os blocos de saídas"} aria-label={tudoFechado ? "Abrir todos os blocos de saídas" : "Recolher todos os blocos de saídas"}>{tudoFechado ? "+" : "−"}</button>;
+                  })()}
+                </div>
               </div>
             </div>
             {esquerda.length === 0 && direita.length === 0 ? (
