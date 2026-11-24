@@ -18,3 +18,10 @@ periódica: integrações podem deixar de funcionar ou ficar desatualizadas.
 Conferir também efeitos das primeiras requisições, pois uma leitura pode
 executar inicialização e escrever no banco. Um teste de boot sem requisições
 não prova a segurança operacional depois de abrir a porta.
+
+**Why:** em testes entre pacotes pnpm, um mock pelo nome do pacote pode atingir
+somente a versão instalada no pacote do teste, deixando a versão do worker real.
+
+**How to apply:** ao isolar agendadores em testes de boot, conferir a resolução
+da dependência no consumidor e mockar essa instalação. Um mock com zero chamadas
+não prova que os agendamentos foram desativados.
