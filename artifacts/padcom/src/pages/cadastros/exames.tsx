@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Input } from "@/components/ui/input";
@@ -193,7 +194,7 @@ function ClassSelect({
 }
 
 // ============================ ABA EXAMES =====================================
-function ExamesTab() {
+function ExamesTab({ slot }: { slot: HTMLElement | null }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -387,7 +388,7 @@ function ExamesTab() {
 
   return (
     <div className="space-y-4">
-      <div ref={congeladaRef} className="sticky z-30 -mx-4 space-y-2 bg-background px-4 pb-2 md:-mx-8 md:px-8" style={{ top: "var(--topo-off, 0px)" }} data-testid="barra-congelada-exames">
+      {slot && createPortal(<div className="space-y-2" data-testid="filtros-exames">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -453,6 +454,8 @@ function ExamesTab() {
           <button key={k} type="button" aria-pressed={agrupar === k} onClick={() => setAgrupar(k)} className="paxter-seletor h-8 w-32 text-[11px] font-black uppercase tracking-wide" data-testid={`agrupar-${k}`}>{rot}</button>
         ))}
       </div>
+      </div>, slot)}
+      <div ref={congeladaRef} className="sticky z-30 -mx-4 bg-background px-4 pb-2 md:-mx-8 md:px-8" style={{ top: "var(--topo-off, 0px)" }} data-testid="barra-congelada-exames">
       <div className="panel-3d hidden md:grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_112px_48px] gap-3 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-primary">
         <div>Exame</div>
         <div>Natureza / Modalidade</div>
@@ -481,11 +484,8 @@ function ExamesTab() {
                   <button
                     type="button"
                     onClick={() => setFechados((s) => { const n = new Set(s); if (n.has(g.nome)) n.delete(g.nome); else n.add(g.nome); return n; })}
-                    className={`paxter-seletor sticky z-20 flex w-full items-center gap-3 px-3 py-2 text-left ${fechado ? "" : "text-white"}`}
-                    style={{
-                      top: `calc(var(--topo-off, 0px) + ${alturaCongelada}px)`,
-                      ...(fechado ? {} : { background: `linear-gradient(90deg, hsl(${hue} 55% 24%), hsl(${hue} 50% 38%) 70%, hsl(${hue} 55% 46%))` }),
-                    }}
+                    className="paxter-seletor sticky z-20 flex w-full items-center gap-3 px-3 py-2 text-left"
+                    style={{ top: `calc(var(--topo-off, 0px) + ${alturaCongelada}px)` }}
                     aria-expanded={!fechado}
                   >
                     <span className="concave-3d flex h-7 w-11 shrink-0 items-center justify-center text-[11px] font-black tabular-nums text-primary">{g.itens.length}</span>
@@ -493,13 +493,14 @@ function ExamesTab() {
                     <span className="min-w-0 flex-1 truncate text-xs font-black uppercase tracking-widest">{g.nome}</span>
                     <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${fechado ? "-rotate-90" : ""}`} />
                   </button>
-                  {!fechado && g.itens.map((e, i) => {
+                  {!fechado && (<div style={{ background: `linear-gradient(180deg, hsl(${hue} 60% 80%) 0%, hsl(${hue} 45% 90%) 35%, hsl(${hue} 35% 96%) 100%)` }}>
+                  {g.itens.map((e, i) => {
                     const nat = attrPorId.get(e.id)?.natureza;
                     return (
                       <div
                         key={e.id}
                         className={`neon-hover grid grid-cols-[minmax(0,1fr)_112px_48px] md:grid-cols-[minmax(0,2.6fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_112px_48px] items-center gap-3 px-4 py-2.5 ${e.ativo === false ? "opacity-50" : ""}`}
-                        style={{ background: i % 2 === 0 ? "rgba(255,255,255,0.65)" : "rgba(236,228,210,0.55)" }}
+                        style={{ background: i % 2 === 0 ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.18)" }}
                       >
                         <div className="min-w-0">
                           <div className="break-words text-sm font-bold leading-tight text-[#1b2433]">{txt(e.nomeExame)}</div>
@@ -521,6 +522,7 @@ function ExamesTab() {
                       </div>
                     );
                   })}
+                  </div>)}
                 </section>
               );
             })
@@ -626,7 +628,7 @@ function ExamesTab() {
 }
 
 // ============================ ABA BLOCOS =====================================
-function BlocosTab() {
+function BlocosTab({ slot }: { slot: HTMLElement | null }) {
   const coresUi = useCores();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -753,7 +755,7 @@ function BlocosTab() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky z-30 -mx-4 space-y-2 bg-background px-4 pb-2 md:-mx-8 md:px-8" style={{ top: "var(--topo-off, 0px)" }} data-testid="barra-congelada-blocos">
+      {slot && createPortal(<div className="space-y-2" data-testid="filtros-blocos">
       <div className="flex items-center justify-between gap-3">
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -776,7 +778,7 @@ function BlocosTab() {
         <Button type="button" size="sm" variant="outline" className="paxter-seletor h-8 w-32 shrink-0 text-[11px] font-black uppercase" onClick={() => setAbertos(filtered.map((b) => b.codigoBloco))} data-testid="button-expandir-blocos">Expandir todos</Button>
         <Button type="button" size="sm" variant="outline" className="paxter-seletor h-8 w-32 shrink-0 text-[11px] font-black uppercase" onClick={() => setAbertos([])} data-testid="button-recolher-blocos">Recolher todos</Button>
       </div>
-      </div>
+      </div>, slot)}
 
       <Accordion type="multiple" value={abertos} onValueChange={setAbertos} className="space-y-2">
         {filtered.map((b) => (
@@ -1208,6 +1210,7 @@ export default function CadastroExames({ comClassificacoes = MOSTRAR_CLASSIFICAC
   // --topo-off, que as barras de baixo (busca/filtros/títulos das colunas) usam para congelar logo abaixo.
   const topoRef = useRef<HTMLDivElement>(null);
   const raizRef = useRef<HTMLDivElement>(null);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
     const el = topoRef.current;
     const raiz = raizRef.current;
@@ -1226,31 +1229,32 @@ export default function CadastroExames({ comClassificacoes = MOSTRAR_CLASSIFICAC
   return (
     <div ref={raizRef} className="space-y-4">
       <Tabs defaultValue="exames" className="space-y-4">
-        <div ref={topoRef} className="sticky -top-4 z-40 -mx-4 bg-background px-4 pb-2 pt-4 md:-top-6 md:-mx-8 md:px-8 md:pt-6" data-testid="topo-cadastro-exames">
-          <div className="panel-3d flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2">
-            <div className="flex items-center gap-2">
-              <div className="bevel-3d flex h-8 w-8 shrink-0 items-center justify-center text-primary"><FolderTree className="h-4 w-4" /></div>
+        {/* Painel único congelado: título, abas, PDF e (embaixo, via portal) busca e filtros da aba ativa. */}
+        <div ref={topoRef} className="sticky -top-4 z-40 -mx-4 bg-background px-4 pb-2 md:-top-6 md:-mx-8 md:px-8" data-testid="topo-cadastro-exames">
+          <div className="panel-3d space-y-2 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <h1 className="text-sm font-black uppercase leading-none tracking-wide md:text-base">Cadastro de Exames</h1>
+              <TabsList className="h-auto flex-wrap justify-start gap-2 bg-transparent p-0">
+                <TabsTrigger value="exames" className="paxter-seletor h-8 gap-1.5 px-3 text-[11px] font-black uppercase tracking-wide">
+                  <TestTube className="h-3.5 w-3.5" /> Catálogo
+                </TabsTrigger>
+                <TabsTrigger value="blocos" className="paxter-seletor h-8 gap-1.5 px-3 text-[11px] font-black uppercase tracking-wide">
+                  <Layers className="h-3.5 w-3.5" /> Blocos e grades
+                </TabsTrigger>
+                <TabsTrigger value="opcoes" className="paxter-seletor h-8 gap-1.5 px-3 text-[11px] font-black uppercase tracking-wide">
+                  <Tags className="h-3.5 w-3.5" /> Opções
+                </TabsTrigger>
+              </TabsList>
+              <div className="ml-auto"><UploadManualExames /></div>
             </div>
-            <TabsList className="h-auto flex-wrap justify-start gap-2 bg-transparent p-0">
-              <TabsTrigger value="exames" className="paxter-seletor h-8 gap-1.5 px-4 text-[11px] font-black uppercase tracking-wide">
-                <TestTube className="h-3.5 w-3.5" /> Catálogo
-              </TabsTrigger>
-              <TabsTrigger value="blocos" className="paxter-seletor h-8 gap-1.5 px-4 text-[11px] font-black uppercase tracking-wide">
-                <Layers className="h-3.5 w-3.5" /> Blocos clínicos e grades
-              </TabsTrigger>
-              <TabsTrigger value="opcoes" className="paxter-seletor h-8 gap-1.5 px-4 text-[11px] font-black uppercase tracking-wide">
-                <Tags className="h-3.5 w-3.5" /> Gerenciamento de opções
-              </TabsTrigger>
-            </TabsList>
-            <div className="ml-auto"><UploadManualExames /></div>
+            <div ref={setSlot} className="border-t border-border/60 pt-2 empty:hidden" />
           </div>
         </div>
         <TabsContent value="exames">
-          <ExamesTab />
+          <ExamesTab slot={slot} />
         </TabsContent>
         <TabsContent value="blocos">
-          <BlocosTab />
+          <BlocosTab slot={slot} />
         </TabsContent>
         <TabsContent value="opcoes" className="space-y-6">
           <GestaoOpcoes extras={comClassificacoes ? CAMPOS_CLASS.map((c) => ({ chave: `class-${c.campo}`, rotulo: c.plural, conteudo: <ClassificacaoPainel item={c} /> })) : []} />

@@ -10,7 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Check, X, Upload, ChevronDown, ExternalLink, RotateCcw } from "lucide-react";
+import { Plus, Pencil, Check, X, Upload, FileUp, ChevronDown, ExternalLink, RotateCcw } from "lucide-react";
 import { SeletorCorVidro } from "@/components/VidroCor";
 import { useRef } from "react";
 
@@ -724,11 +724,11 @@ export function UploadManualExames() {
     <div className="flex flex-wrap items-center gap-2" data-testid="upload-manual-exames">
       <input ref={inputRef} type="file" accept="application/pdf,.pdf" className="hidden" aria-label="Escolher PDF do manual"
         onChange={(e) => setArquivo(e.target.files?.[0] ?? null)} data-testid="input-manual-pdf" />
-      <Button type="button" size="sm" variant="ghost" className="paxter-seletor h-8 w-32 text-[11px] font-black uppercase" title={arquivo?.name ?? "Nenhum arquivo escolhido"} onClick={() => inputRef.current?.click()}>
-        <span className="truncate">{arquivo ? arquivo.name : "Escolher PDF"}</span>
+      <Button type="button" size="icon" variant="ghost" className="paxter-seletor h-8 w-8" aria-label="Escolher PDF do manual" title={arquivo?.name ?? "Escolher PDF do manual"} onClick={() => inputRef.current?.click()}>
+        <FileUp className="h-4 w-4" />
       </Button>
-      <Button size="sm" variant="ghost" className="paxter-seletor h-8 w-28 text-[11px] font-black uppercase" disabled={!arquivo || enviar.isPending} onClick={() => enviar.mutate()} data-testid="button-enviar-manual">
-        <Upload className="mr-1.5 h-3.5 w-3.5" /> {enviar.isPending ? "Enviando" : "Enviar PDF"}
+      <Button size="icon" variant="ghost" className="paxter-seletor h-8 w-8" aria-label="Enviar PDF" title={arquivo ? `Enviar ${arquivo.name}` : "Escolha um PDF primeiro"} disabled={!arquivo || enviar.isPending} onClick={() => enviar.mutate()} data-testid="button-enviar-manual">
+        <Upload className="h-4 w-4" />
       </Button>
       <Button size="sm" onClick={abrir} data-testid="button-visualizar-manual" title="Visualizar Arquitetura e Fluxo (Manual PDF)" className="h-8 border border-[#C9A24B] bg-[#0F1E36] px-3 text-[11px] font-black uppercase text-[#E5C16C] hover:bg-[#16294a]">
         Arquitetura e Fluxo (PDF)
