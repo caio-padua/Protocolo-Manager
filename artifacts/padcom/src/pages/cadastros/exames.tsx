@@ -590,22 +590,6 @@ function ExamesTab() {
                   className="field-engraved"
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Grupo / Categoria</label>
-                <ClassSelect campo="categoria" value={form.grupoPrincipal} onChange={(v) => setForm((f) => ({ ...f, grupoPrincipal: v }))} />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Subgrupo</label>
-                <ClassSelect campo="subgrupo" value={form.subgrupo} onChange={(v) => setForm((f) => ({ ...f, subgrupo: v }))} />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Modalidade</label>
-                <ClassSelect campo="modalidade" value={form.modalidade} onChange={(v) => setForm((f) => ({ ...f, modalidade: v }))} />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Setor / Especialidade</label>
-                <ClassSelect campo="material_setor" value={form.materialOuSetor} onChange={(v) => setForm((f) => ({ ...f, materialOuSetor: v }))} />
-              </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Finalidade principal</label>
                 <Input
@@ -624,6 +608,16 @@ function ExamesTab() {
                   className="field-engraved"
                 />
               </div>
+              {form.id !== null && (
+                <div className="flex items-center gap-3 sm:col-span-2">
+                  <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Situação do exame</label>
+                  <BotaoAtivo
+                    ativo={exams?.find((x) => x.id === form.id)?.ativo !== false}
+                    rotulo={form.nomeExame}
+                    onChange={(v) => toggleMutation.mutate({ id: form.id as number, ativo: v })}
+                  />
+                </div>
+              )}
             </div>
         )}
       />

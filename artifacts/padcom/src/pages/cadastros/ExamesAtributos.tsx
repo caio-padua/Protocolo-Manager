@@ -385,7 +385,15 @@ export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antes
             {ehImg && <Simples k="contraste" rotulo="Contraste *" opcoes={["COM CONTRASTE", "SEM CONTRASTE", "COM E SEM CONTRASTE", "NAO SE APLICA"]} />}
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Tipo de resultado</label>
-              <Input value={f.tipoResultado ?? ""} onChange={(e) => set("tipoResultado", e.target.value || null)} placeholder="Ex.: numérico, laudo descritivo" className="field-engraved" />
+              <div className="grid grid-cols-2 gap-2" data-testid="grade-tipo-resultado">
+                {Array.from(new Set(["VALOR NUMERICO", "LAUDO DESCRITIVO", "CURVA / TRACADO", "IMAGEM", ...(f.tipoResultado ? [f.tipoResultado] : [])])).map((t) => (
+                  <button key={t} type="button" aria-pressed={f.tipoResultado === t} title={t}
+                    onClick={() => set("tipoResultado", f.tipoResultado === t ? null : t)}
+                    className="paxter-seletor flex h-9 items-center justify-center px-2 text-center text-[10px] font-black uppercase tracking-wide">
+                    <span className="line-clamp-2 break-words">{t}</span>
+                  </button>
+                ))}
+              </div>
             </div>
             <Simples k="prioridade" rotulo="Prioridade" opcoes={["ROTINA", "PRIORITARIO", "URGENTE"]} />
             <div className="sm:col-span-2"><OpcaoMulti tipo="eixo" rotulo="Eixos clínicos" valores={f.eixos} onChange={(v) => set("eixos", v)} /></div>
@@ -418,8 +426,8 @@ export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antes
         </Faixa>
 
         <Faixa id="periodizacao" titulo="4. Periodização preventiva (check-up)" resumo={resPer} aberta={!!abertas.periodizacao} onToggle={() => alterna("periodizacao")}>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
+            <div className="space-y-1.5 sm:col-span-3">
               <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Modo</label>
               <Select value={f.periodizacaoModo ?? "__none__"} onValueChange={(v) => v !== "" && set("periodizacaoModo", v === "__none__" ? null : v)}>
                 <SelectTrigger className="field-engraved"><SelectValue /></SelectTrigger>
@@ -431,7 +439,7 @@ export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antes
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 sm:col-span-3">
               <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Público-alvo</label>
               <Select value={f.publicoAlvo ?? "__none__"} onValueChange={(v) => v !== "" && set("publicoAlvo", v === "__none__" ? null : v)}>
                 <SelectTrigger className="field-engraved"><SelectValue /></SelectTrigger>
@@ -444,16 +452,16 @@ export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antes
               </Select>
             </div>
             {([["idadeMinima", "Idade mínima"], ["idadeMaxima", "Idade máxima"], ["repetirMeses", "Repetir a cada (meses)"]] as const).map(([k, r]) => (
-              <div key={k} className="space-y-1.5">
+              <div key={k} className="space-y-1.5 sm:col-span-2">
                 <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{r}</label>
                 <Input type="number" min={0} value={f[k] ?? ""} onChange={(e) => set(k, e.target.value === "" ? null : Math.trunc(Number(e.target.value)))} className="field-engraved" />
               </div>
             ))}
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-1.5 sm:col-span-6">
               <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Regra de antecipação</label>
               <Input value={f.regraAntecipacao ?? ""} onChange={(e) => set("regraAntecipacao", e.target.value || null)} placeholder="Texto livre, definido pelo médico" className="field-engraved" />
             </div>
-            {idadeInvalida && <div className="text-xs font-bold text-destructive sm:col-span-2" role="alert">A idade mínima não pode ser maior que a máxima.</div>}
+            {idadeInvalida && <div className="text-xs font-bold text-destructive sm:col-span-6" role="alert">A idade mínima não pode ser maior que a máxima.</div>}
             <div className="text-[10px] text-muted-foreground sm:col-span-2">Cadastro de referência. Não gera regra clínica automática nem altera as sugestões do cérebro.</div>
           </div>
         </Faixa>
@@ -473,8 +481,15 @@ export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antes
                   <div key={i} className="concave-3d space-y-1.5 p-2">
                     <Textarea rows={3} value={a.texto ?? textoArtigo(a)} aria-label="Referência bibliográfica completa" placeholder="Cole aqui a referência completa (autores, título, revista, ano). Se houver link no texto, ele é detectado."
                       className="field-engraved" onChange={(e) => set("artigos", f.artigos.map((x, j) => (j === i ? { ...x, texto: e.target.value } : x)))} />
-                    <Input value={a.link} aria-label="Link ou DOI" placeholder="Link / URL do artigo (https://...)" className="field-engraved"
-                      onChange={(e) => set("artigos", f.artigos.map((x, j) => (j === i ? { ...x, link: e.target.value } : x)))} />
+                    <div className="flex items-center gap-2">
+                      <Input value={a.link} aria-label="Link ou DOI" placeholder="Link / URL do artigo (https://...)" className="field-engraved flex-1"
+                        onChange={(e) => set("artigos", f.artigos.map((x, j) => (j === i ? { ...x, link: e.target.value } : x)))} />
+                      <Button type="button" variant="ghost" size="sm" className="btn-3d-soft h-9 w-28 shrink-0 text-[11px] font-black" disabled={!/^https?:\/\//i.test((a.link ?? "").trim())}
+                        title="Abre o artigo em uma nova aba para conferir o link" data-testid={`abrir-link-${i}`}
+                        onClick={() => window.open(a.link.trim(), "_blank", "noopener,noreferrer")}>
+                        Abrir Link <ExternalLink className="ml-1 h-3 w-3" aria-hidden="true" />
+                      </Button>
+                    </div>
                     <div className="flex items-center gap-2">
                       {link && /^https?:\/\//i.test(link) && (
                         <a href={link} target="_blank" rel="noopener noreferrer" className="btn-3d-soft inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[11px] font-black" data-testid={`link-artigo-${i}`}>
