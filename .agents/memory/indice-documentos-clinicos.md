@@ -8,6 +8,7 @@ description: Índice das decisões para emissão e entrega de documentos clínic
 - [Assinatura PDF embarcada](assinatura-pades-padcom.md) — embutir assinatura digital; validar separadamente a confiança da cadeia de certificados.
 - [Fábrica de Padrão de Documentos](fabrica-padrao-documentos.md) — identidade institucional e distribuição de recursos para documentos.
 - [Reenvio de documentos clínicos](historico-documentos-clinicos.md) — transmitir o documento já emitido; resultado incerto exige conferência humana.
+- [Homologação operacional de reenvio](homologacao-reenvio-legado.md) — emissão passada não comprova elegibilidade clínica atual para um novo envio.
 - [Prescrição sem assinatura com certificado vencido](certificado-expirado-prescricao-sem-assinatura.md) — exceção restrita ao Cockpit e sem envio.
 - [Entregar documento para o CEO conferir](entregar-documento-visual-ao-ceo.md) — imagens por página no chat; no aplicativo, abrir em aba nova.
 - [Fotos em PDF clínico sem metadados](pdf-foto-sem-metadados.md) — remover metadados antes de inserir a imagem no documento.

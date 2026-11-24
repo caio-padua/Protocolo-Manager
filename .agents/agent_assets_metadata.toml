@@ -1768,3 +1768,17 @@ mtime_ms = 1795478737809
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/860af9d2-f348-48b9-94b6-b7898a87472f/25a0a14f-4750-495a-80d0-03b63c9525fc"
 storage_version_token = "1795478743219230"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "v6vXraZUjGxHg-ExIcLvi"
+uri = "file://generated-artifacts/ras-fap-real/apos-recarregar.png"
+type = "image"
+title = "Histórico preservado após recarregar"
+description = "Captura real do botão e da data de último reenvio, após recarregar a página autenticada."
+logical_id = "9bca1bfb-e83e-4b73-80d2-ae6da90febb8"
+content_hash = "sha256:dc4dcc6967f8bb325c959ac0bc3b7153d71ecd9ea0c7414f48794f1ae922e387"
+size = 8930
+mtime_ms = 1795527113543
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9bca1bfb-e83e-4b73-80d2-ae6da90febb8/3b437ef3-c1a6-47c4-965b-600eb49c4f4a"
+storage_version_token = "1795527203114527"
+content_type = "image/png"
