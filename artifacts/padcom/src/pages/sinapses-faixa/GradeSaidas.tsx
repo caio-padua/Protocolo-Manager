@@ -101,3 +101,13 @@ export function LinhaGradeSaidas({ codigo, corCodigo, nome, estado, ligada, desa
     </div>
   );
 }
+
+/** Ficha de contador: retângulo Côncavo de largura estável, rótulo escrito + número, com respiro (nunca apertada). */
+export function FichaContador({ rotulo, valor, cor, destaque = false }: { rotulo: string; valor: number | string; cor?: string; destaque?: boolean }) {
+  return (
+    <span className="concave-3d inline-flex h-8 min-w-[6.5rem] shrink-0 items-center justify-between gap-3 px-3" style={{ opacity: destaque || valor !== 0 ? 1 : 0.6 }}>
+      <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">{rotulo}</span>
+      <b className="min-w-[1.5rem] text-right text-[13px] tabular-nums" style={{ color: cor }}>{valor}</b>
+    </span>
+  );
+}

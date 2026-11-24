@@ -12,7 +12,7 @@ import {
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
-import { CabecalhoGradeSaidas, LinhaGradeSaidas } from "./GradeSaidas";
+import { CabecalhoGradeSaidas, LinhaGradeSaidas, FichaContador } from "./GradeSaidas";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronDown, ChevronRight, Lock, Unlock, Search, Pencil, Play, Eye, AlertTriangle } from "lucide-react";
@@ -56,13 +56,14 @@ const emCampo = (t: EventTarget | null) => {
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
 };
 
-function Faixa({ titulo, aberta, onToggle, direita, children, testid }: { titulo: string; aberta: boolean; onToggle: () => void; direita?: React.ReactNode; children: React.ReactNode; testid: string }) {
+function Faixa({ titulo, fichas, aberta, onToggle, direita, children, testid }: { titulo: string; fichas?: Array<{ rotulo: string; valor: number; cor?: string }>; aberta: boolean; onToggle: () => void; direita?: React.ReactNode; children: React.ReactNode; testid: string }) {
   return (
     <section className="panel-3d-sub p-2" data-testid={testid}>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={onToggle} aria-expanded={aberta} className="tecla-3d flex min-w-[12rem] flex-1 items-center gap-2 px-3 py-1 text-left" data-testid={`${testid}-toggle`}>
           {aberta ? <ChevronDown className="h-4 w-4 opacity-70" /> : <ChevronRight className="h-4 w-4 opacity-70" />}
           <span className="text-[11px] font-semibold uppercase tracking-widest text-primary/80">{titulo}</span>
+          {fichas && <span className="ml-auto flex flex-wrap items-center gap-3">{fichas.map((f) => <FichaContador key={f.rotulo} {...f} />)}</span>}
         </button>
         {direita}
       </div>
@@ -619,7 +620,7 @@ export default function SinapsesFaixa() {
     if (!travada || modo !== "EDICAO") return;
     if (d.incompleto) { toast({ title: "Saída sem conteúdo", description: "Este bloco está vazio e não pode receber ligação.", variant: "destructive" }); return; }
     const jaLigada = (data?.sinapses ?? []).some((x) => x.perguntaId === travada && chave(x.categoria, x.destinoTipo, x.destinoId) === d.k);
-    if (jaLigada) { toast({ title: "Esta saída já está ligada", description: "Para desfazer, use o × na correspondência atual, no painel do topo." }); return; }
+    if (jaLigada) { toast({ title: "Esta saída já está ligada", description: "Para desfazer, use “Ver sinapses desta pergunta” (olho) ao lado da busca." }); return; }
     const proposta = (data?.propostas ?? []).find((x) => x.status === "PENDENTE" && x.perguntaId === travada && chave(x.categoria, x.destinoTipo, x.destinoId) === d.k);
     if (proposta) { aprovarProposta.mutate({ id: proposta.id }); return; }
     criar.mutate({ perguntaId: travada, categoria: d.cat, destinoTipo: d.tipo, destinoId: d.id });
@@ -658,15 +659,15 @@ export default function SinapsesFaixa() {
   const ligacoesAtiva = ativa ? (data?.sinapses ?? []).filter((x) => x.perguntaId === ativa) : [];
   const propostasAtiva = ativa ? (data?.propostas ?? []).filter((x) => x.status === "PENDENTE" && x.perguntaId === ativa) : [];
   const controlesFaixa = (
-    <div className="flex flex-wrap items-center justify-end gap-1.5" data-testid="faixa-mini-console">
-          <div className="flex gap-1" role="group" aria-label="Modo da tela">
+    <div className="flex w-full flex-wrap items-center justify-between gap-3" data-testid="faixa-mini-console">
+          <div className="flex gap-3" role="group" aria-label="Modo da tela">
             {([["VISUALIZACAO", "Visualização", "V", Eye], ["EDICAO", "Edição", "E", Pencil], ["SIMULACAO", "Simulação", "S", Play]] as const).map(([m, rot, tecla, Ic]) => (
               <button key={m} type="button" aria-pressed={modo === m} title={`${rot} (${tecla})`} onClick={() => { if (m !== "EDICAO") { arrasteRef.current = null; setArraste(null); setTravada(null); } setModo(m); }} className="tecla-3d flex h-8 items-center gap-1.5 px-2.5 text-[11px] font-bold uppercase tracking-wide" data-testid={`faixa-modo-${m}`}>
                 <Ic className="h-3.5 w-3.5" />{rot}
               </button>
             ))}
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-1.5" data-testid="faixa-mini-console-acoes">
+          <div className="flex flex-wrap items-center justify-end gap-3" data-testid="faixa-mini-console-acoes">
             {modo === "EDICAO" && perguntaAtiva && (
               <button type="button" aria-pressed={travada === perguntaAtiva.perguntaId} onClick={() => setTravada((v) => (v === perguntaAtiva.perguntaId ? null : perguntaAtiva.perguntaId))} className="tecla-3d flex h-8 shrink-0 items-center gap-1 px-2 text-[10px] font-bold uppercase" data-testid="faixa-travar" title="Com a pergunta travada, cada clique numa saída à direita liga essa saída a ela.">
                 {travada === perguntaAtiva.perguntaId ? <><Lock className="h-3 w-3" />Travada</> : <><Unlock className="h-3 w-3" />Travar pergunta</>}
@@ -697,7 +698,7 @@ export default function SinapsesFaixa() {
     <button type="button" onClick={onClick} aria-expanded={!fechado} aria-pressed={fechado} data-testid={testid}
       className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1.5 px-1.5 text-left" title={`${titulo}: ${nLig} com ligação, ${n} no total. ${fechado ? "Clique para abrir." : "Clique para recolher."}`}>
       <span className="truncate text-[10px] font-black uppercase tracking-wider" style={{ color: cor }}>{titulo}</span>
-      <span className="ml-auto shrink-0 text-[9px] tabular-nums opacity-70">{nLig}/{n}</span>
+      <span className="ml-auto min-w-[2.75rem] rounded-[6px] bg-black/5 px-2 py-0.5 text-center text-[10px] font-bold tabular-nums">{nLig}/{n}</span>
       <span className="w-3 shrink-0 text-center text-[12px] font-bold leading-none" aria-hidden="true">{fechado ? "+" : "−"}</span>
     </button>
   );
@@ -707,12 +708,12 @@ export default function SinapsesFaixa() {
       {/* PAINEL DE COMANDO UNICO E CONGELADO: linha 1 = titulo/contagem/ajuda; linha 2 = busca + correspondencia; mini console central de 2 andares */}
       <section className="sinapse-comando panel-3d-sub p-2" data-testid="faixa-comando">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="bevel-3d px-3 py-1.5 text-[13px] font-bold uppercase tracking-[0.18em] text-primary">Sinapses Clínicas</h1>
-          <div className="concave-3d flex h-9 flex-wrap items-center gap-x-3 px-3 text-[11px]" data-testid="faixa-contagem" title="Ligação ativa = saída real conectada à pergunta. Proposta = sugestão ainda não aprovada; não alimenta o motor clínico.">
-            <span><b>{total}</b> ativas</span>
-            <span><b>{totalPropostasPendentes}</b> propostas</span>
-            <span><b>{perguntasComSaidaReal}</b>/{data?.perguntas.length ?? 0} com saída</span>
-            {ligacoesSemSaida > 0 && <span className="font-semibold text-red-700">{ligacoesSemSaida} sem saída</span>}
+          <h1 className="bevel-3d px-4 py-1.5 text-[13px] font-bold uppercase tracking-[0.18em] text-primary">Sinapses Clínicas</h1>
+          <div className="flex flex-wrap items-center gap-3" data-testid="faixa-contagem" title="Ligação ativa = saída real conectada à pergunta. Proposta = sugestão ainda não aprovada; não alimenta o motor clínico.">
+            <FichaContador rotulo="Ativas" valor={total} cor="#166534" />
+            <FichaContador rotulo="Propostas" valor={totalPropostasPendentes} cor="#9b6b11" />
+            <FichaContador rotulo="Com saída" valor={`${perguntasComSaidaReal}/${data?.perguntas.length ?? 0}`} />
+            {ligacoesSemSaida > 0 && <FichaContador rotulo="Sem saída" valor={ligacoesSemSaida} cor="#b91c1c" />}
           </div>
           <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground" aria-live="polite" data-testid="faixa-ajuda" title={ajuda}>{ajuda}</p>
           <button type="button" aria-pressed={ajudaAberta} onClick={() => setAjudaAberta((v) => !v)} className="tecla-3d ml-auto h-9 w-9 text-[13px] font-bold" aria-label="Como usar esta tela" title="Como usar esta tela">?</button>
@@ -728,9 +729,9 @@ export default function SinapsesFaixa() {
 
         {/* BUSCA + CORRESPONDENCIA ATUAL */}
         {modo === "SIMULACAO" && (
-          <div className="mt-2 grid grid-cols-3 gap-1.5 md:grid-cols-6" data-testid="faixa-resumo-simulacao">
+          <div className="mt-2 grid grid-cols-3 gap-3 md:grid-cols-6" data-testid="faixa-resumo-simulacao">
             {CATEGORIAS.map((c) => (
-              <div key={c.chave} className="concave-3d px-2 py-1 text-center text-[10px] font-bold uppercase" style={{ color: c.cor, opacity: resumoSim[c.chave] ? 1 : 0.45 }}>{c.sigla}: {resumoSim[c.chave]}</div>
+              <div key={c.chave} className="concave-3d px-3 py-2 text-center text-[10px] font-bold uppercase" style={{ color: c.cor, opacity: resumoSim[c.chave] ? 1 : 0.45 }}>{c.sigla}: {resumoSim[c.chave]}</div>
             ))}
           </div>
         )}
@@ -741,22 +742,22 @@ export default function SinapsesFaixa() {
         <section className="bevel-3d grid w-full gap-2 p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" style={{ background: "#fbfcfe" }} data-testid="faixa-painel-pergunta">
           <div className="concave-3d min-w-0 self-start p-1.5" data-testid="faixa-painel-pergunta-texto">
             {/* Andar 1: busca + olho (gemeo do andar 1 do seletor: busca + seta) */}
-            <div className="mb-1 flex items-center gap-1">
+            <div className="mb-2 flex items-center gap-3">
               <div className="relative min-w-0 flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar código, pergunta ou saída..." className="h-8 pl-9 field-engraved" data-testid="faixa-busca" />
               </div>
-              <button type="button" disabled={!perguntaAtiva} onClick={() => abrirTela("TUDO")} aria-label="Ver sinapses desta pergunta" title={perguntaAtiva ? `Ver sinapses desta pergunta (${ligacoesAtiva.length} ativa(s), ${propostasAtiva.length} proposta(s))` : "Escolha uma pergunta"} className="tecla-3d flex h-8 w-8 shrink-0 items-center justify-center disabled:opacity-50" data-testid="faixa-ver-sinapses">
+              <button type="button" disabled={!perguntaAtiva} onClick={() => abrirTela("TUDO")} aria-label="Ver sinapses desta pergunta" title={perguntaAtiva ? `Ver sinapses desta pergunta ` : "Escolha uma pergunta"} className="tecla-3d flex h-8 w-8 shrink-0 items-center justify-center disabled:opacity-50" data-testid="faixa-ver-sinapses">
                 <Eye className="h-4 w-4" />
               </button>
             </div>
             {perguntaAtiva ? (
               <>
                 {/* Andar 2: categoria e contagens, em fichas (gemeo da linha de grupos TODAS/EXA/FOR...) */}
-                <div className="mb-1 flex flex-wrap items-center gap-1" data-testid="faixa-painel-pergunta-subtitulo">
+                <div className="mb-2 flex flex-wrap items-center gap-3" data-testid="faixa-painel-pergunta-subtitulo">
                   <span className="bevel-3d flex h-7 max-w-full items-center px-2 text-[10px] font-black uppercase tracking-wide" title={perguntaAtiva.bloco ?? "Sem bloco"}><span className="truncate">{perguntaAtiva.bloco ?? "Sem bloco"}</span></span>
-                  <button type="button" onClick={() => abrirTela("ATIVAS")} title="Ver só as ligações ativas" className="tecla-3d flex h-7 items-center px-2 text-[10px] font-black" style={{ color: "#166534" }} data-testid="faixa-ver-ativas">{ligacoesAtiva.length} ligação(ões) ativa(s)</button>
-                  <button type="button" onClick={() => (propostasAtiva.length > 0 ? irParaAprovacao(perguntaAtiva.perguntaId) : abrirTela("PROPOSTAS"))} title={propostasAtiva.length > 0 ? "Conferir e aprovar na sanfona, logo abaixo" : "Sem propostas nesta pergunta"} className="tecla-3d flex h-7 items-center px-2 text-[10px] font-black" style={{ color: "#9b6b11" }} data-testid="faixa-ver-propostas">{propostasAtiva.length} proposta(s)</button>
+                  <button type="button" onClick={() => abrirTela("ATIVAS")} title="Ver só as ligações ativas" className="tecla-3d flex h-8 min-w-[6.5rem] items-center justify-between px-3 text-[10px] font-black uppercase" style={{ color: "#166534" }} data-testid="faixa-ver-ativas">Ativas <b className="ml-2 tabular-nums">{ligacoesAtiva.length}</b></button>
+                  <button type="button" onClick={() => (propostasAtiva.length > 0 ? irParaAprovacao(perguntaAtiva.perguntaId) : abrirTela("PROPOSTAS"))} title={propostasAtiva.length > 0 ? "Conferir e aprovar na sanfona, logo abaixo" : "Sem propostas nesta pergunta"} className="tecla-3d flex h-8 min-w-[6.5rem] items-center justify-between px-3 text-[10px] font-black uppercase" style={{ color: "#9b6b11" }} data-testid="faixa-ver-propostas">Propostas <b className="ml-2 tabular-nums">{propostasAtiva.length}</b></button>
                   {perguntaAtiva.eSinalAlarme && <span className="bevel-3d flex h-7 items-center px-2 text-[10px] font-black text-red-700">sinal de alarme</span>}
                 </div>
                 {/* Andar 3: a pergunta (gemeo da lista de saidas) */}
@@ -770,6 +771,7 @@ export default function SinapsesFaixa() {
             )}
           </div>
           <div className="relative flex items-start" data-seletor-sinapse>
+            {!perguntaAtiva && <div className="concave-3d flex min-h-[5.5rem] w-full items-center justify-center p-3 text-[12px] text-muted-foreground" data-testid="faixa-seletor-vazio">As saídas aparecem aqui quando você escolher uma pergunta.</div>}
             {perguntaAtiva && data && (() => {
               const editar = modo === "EDICAO";
               const ocupado = criar.isPending || desativar.isPending || aprovarProposta.isPending;
@@ -778,13 +780,13 @@ export default function SinapsesFaixa() {
               const propostasPorChave = new Map(propostasAtiva.map((x) => [chave(x.categoria, x.destinoTipo, x.destinoId), x]));
               return (
                 <div className="concave-3d w-full p-1.5" data-testid="faixa-seletor-lista" role="listbox" aria-label={`Saídas de ${perguntaAtiva.perguntaId}`}>
-                  <div className="mb-1 flex items-center gap-1">
+                  <div className="mb-2 flex items-center gap-3">
                     <Input value={buscaSeletor} onFocus={() => setSeletorAberto(true)} onClick={() => setSeletorAberto(true)} onChange={(e) => { setBuscaSeletor(e.target.value); setSeletorAberto(true); }} placeholder="Pesquisar saída..." className="h-8 flex-1 field-engraved" data-testid="faixa-seletor-busca" />
                     <button type="button" aria-expanded={seletorAberto} aria-label={seletorAberto ? "Fechar lista de saídas" : "Abrir lista de saídas"} onClick={() => setSeletorAberto((v) => !v)} className="tecla-3d flex h-8 w-8 shrink-0 items-center justify-center" data-testid="faixa-seletor-lingueta">
                       {seletorAberto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     </button>
                   </div>
-                  <div className="mb-1 flex flex-wrap items-center gap-1" role="group" aria-label="Filtrar saídas por grupo" data-testid="faixa-seletor-grupos">
+                  <div className="mb-2 flex flex-wrap items-center gap-3" role="group" aria-label="Filtrar saídas por grupo" data-testid="faixa-seletor-grupos">
                     <button type="button" aria-pressed={seletorCats.length === 0} onClick={() => { setSeletorCats([]); setSeletorAberto(true); }} className="tecla-3d h-7 min-w-[3.25rem] px-2 text-[10px] font-black" data-testid="faixa-seletor-cat-TODAS">TODAS</button>
                     {CATEGORIAS.map((c) => (
                       <button key={c.chave} type="button" aria-pressed={seletorCats.includes(c.chave)} title={c.rotulo} data-testid={`faixa-seletor-cat-${c.chave}`}
@@ -839,21 +841,21 @@ export default function SinapsesFaixa() {
         </div>
       ) : (
         <>
-          <Faixa testid="faixa-grafo" titulo={`Faixa da sinapse · ${esquerda.length} perguntas · ${direita.length} saídas`} aberta={faixaAberta} onToggle={() => setFaixaAberta((v) => !v)} direita={controlesFaixa}>
+          <Faixa testid="faixa-grafo" titulo="Faixa da sinapse" fichas={[{ rotulo: "Perguntas", valor: esquerda.length }, { rotulo: "Saídas", valor: direita.length }]} aberta={faixaAberta} onToggle={() => setFaixaAberta((v) => !v)} direita={controlesFaixa}>
             <div className="mb-1.5 grid items-center gap-x-1" style={{ gridTemplateColumns: "minmax(0,1.55fr) minmax(84px,0.9fr) minmax(0,1.55fr)" }} data-testid="faixa-cabecalho-colunas">
               <div className="flex flex-wrap items-center gap-1">
-                <span className="text-[9px] font-black uppercase tracking-wider text-primary/80">Perguntas</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-primary/80">Perguntas</span>
                 <button type="button" className="tecla-3d h-7 px-2 text-[10px] font-bold" onClick={() => setFechadosE(new Set())} title="Abrir todos os blocos de perguntas">Abrir blocos +</button>
                 <button type="button" className="tecla-3d h-7 px-2 text-[10px] font-bold" onClick={() => setFechadosE(new Set(linhasE.filter((l) => l.tipo === "grupo").map((l) => l.k)))} title="Recolher todos os blocos de perguntas">Recolher −</button>
                 {modo !== "EDICAO" && <button type="button" aria-pressed={todos} onClick={() => setTodos((v) => !v)} className="tecla-3d h-7 px-2 text-[10px] font-bold" data-testid="faixa-todos">{todos ? "Só os ligados" : "Mostrar todos"}</button>}
               </div>
-              <div className="px-1 text-center text-[9px] leading-tight text-muted-foreground">contínuo = ativa<br />tracejado = proposta</div>
+              <div className="px-1 text-center text-[10px] leading-tight text-muted-foreground">contínuo = ativa<br />tracejado = proposta</div>
               <div className="flex flex-wrap items-center justify-end gap-1" role="group" aria-label="Filtrar saídas por tipo">
                 <button type="button" aria-pressed={cats.length === 0} onClick={() => setCats([])} className="tecla-3d h-7 px-2 text-[10px] font-black" data-testid="faixa-cat-TODAS" title="Todas as saídas, em blocos separados por tipo">TODAS</button>
                 {CATEGORIAS.map((c) => {
                   const ativo = cats.includes(c.chave);
                   return (
-                    <button key={c.chave} type="button" aria-pressed={ativo} title={`${c.rotulo}: ${data.sinapses.filter((x) => x.categoria === c.chave).length} ligações ativas, ${propostasPorCategoria[c.chave]} propostas`} data-testid={`faixa-cat-${c.chave}`}
+                    <button key={c.chave} type="button" aria-pressed={ativo} title={c.rotulo} data-testid={`faixa-cat-${c.chave}`}
                       onClick={() => setCats((v) => (ativo ? v.filter((x) => x !== c.chave) : [...v, c.chave]))}
                       className="tecla-3d h-7 px-2 text-[10px] font-black" style={{ color: c.cor }}>{c.sigla}</button>
                   );
@@ -906,7 +908,7 @@ export default function SinapsesFaixa() {
                             </span>
                             <span className="concave-3d sinapse-janela-codigo font-mono text-[10px] font-bold text-[#0f1e36]">{p.perguntaId}</span>
                             <span className="min-w-0 flex-1 truncate text-[10px] opacity-90">{p.pergunta}</span>
-                            <span className="ml-auto text-[9px] tabular-nums opacity-60">{n || ""}</span>
+                            <span className="ml-auto min-w-[2.25rem] rounded-[6px] bg-black/5 px-2 py-0.5 text-center text-[10px] font-bold tabular-nums">{n || ""}</span>
                           </button>
                           <button type="button" className="tecla-3d flex h-full w-6 shrink-0 items-center justify-center" data-menu-sinapse aria-haspopup="menu" aria-expanded={menu?.perguntaId === p.perguntaId}
                             data-testid={`faixa-menu-${p.perguntaId}`} aria-label={`Ligações da pergunta ${p.perguntaId}`} title="Ver e ligar ou desligar as ligações desta pergunta"
@@ -981,17 +983,17 @@ export default function SinapsesFaixa() {
                     const idReal = Number(f.s.id.split("-")[1]);
                     const armada = proposta ? aprovarArmado === idReal : armadas.has(idReal);
                     return (
-                      <div className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-[#d9b25f] bg-white px-2 py-1 text-[10px] shadow-md" style={{ left: "50%", top: Math.min(Math.max((f.y1 - rolE + ((f.y2 as number) - rolD)) / 2, 16), alturaVisivel - 16) }} onClick={(e) => e.stopPropagation()} data-testid="faixa-pilula-fio">
+                      <div className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-[6px] border border-[#d9b25f] bg-white px-2 py-1 text-[10px] shadow-md" style={{ left: "50%", top: Math.min(Math.max((f.y1 - rolE + ((f.y2 as number) - rolD)) / 2, 16), alturaVisivel - 16) }} onClick={(e) => e.stopPropagation()} data-testid="faixa-pilula-fio">
                         <span className="font-mono font-bold">{f.s.perguntaId}</span>
                         <span aria-hidden="true">→</span>
                         <span className="max-w-[9rem] truncate font-semibold" style={{ color: COR[f.s.categoria] }}>{codigoDestino(f.s.categoria, f.s.destinoTipo, f.s.destinoId)} {dst?.nome ?? ""}</span>
                         {modo === "EDICAO" && proposta && (
-                          <button type="button" onClick={() => { if (armada) aprovarProposta.mutate({ id: idReal }); else setAprovarArmado(idReal); }} disabled={aprovarProposta.isPending} className="inline-flex items-center gap-0.5 rounded-full border border-current px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700" data-testid="faixa-pilula-aprovar" title={armada ? "Clique de novo para aprovar" : "Aprovar esta proposta"}>
+                          <button type="button" onClick={() => { if (armada) aprovarProposta.mutate({ id: idReal }); else setAprovarArmado(idReal); }} disabled={aprovarProposta.isPending} className="inline-flex items-center gap-0.5 rounded-[6px] border border-current px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-700" data-testid="faixa-pilula-aprovar" title={armada ? "Clique de novo para aprovar" : "Aprovar esta proposta"}>
                             {armada ? "Confirmar" : "Aprovar"}
                           </button>
                         )}
                         {modo === "EDICAO" && !proposta && (
-                          <button type="button" onClick={() => cliqueExcluir(idReal)} className="inline-flex items-center gap-0.5 rounded-full border border-current px-1.5 py-0.5 text-[9px] font-bold uppercase text-red-700" data-testid="faixa-pilula-desvincular" title={armada ? "Clique de novo para confirmar" : "Desvincular (desativa, não apaga)"}>
+                          <button type="button" onClick={() => cliqueExcluir(idReal)} className="inline-flex items-center gap-0.5 rounded-[6px] border border-current px-1.5 py-0.5 text-[10px] font-bold uppercase text-red-700" data-testid="faixa-pilula-desvincular" title={armada ? "Clique de novo para confirmar" : "Desvincular (desativa, não apaga)"}>
                             {armada ? <><Unlock className="h-3 w-3" />Confirmar</> : <><Lock className="h-3 w-3" />Desvincular</>}
                           </button>
                         )}
@@ -1037,8 +1039,8 @@ export default function SinapsesFaixa() {
                           <Corpo {...(podeLigar ? { type: "button" as const, onClick: () => ligarRapido(d), "data-testid": `faixa-ligar-${d.k}` } : {})} aria-pressed={aceso} className={`tecla-3d flex h-full min-w-0 flex-1 items-center gap-1.5 px-1.5 text-left ${podeLigar ? "cursor-pointer" : ""}`}>
                             <span className="concave-3d sinapse-janela-codigo font-mono text-[10px] font-bold" style={{ color: COR[d.cat] }}>{codigoDestino(d.cat, d.tipo, d.id)}</span>
                             <span className="min-w-0 flex-1 truncate text-[10px] opacity-90">{d.nome}</span>
-                            {d.incompleto && <span className="shrink-0 text-[8px] font-bold text-red-700">SEM EXAMES</span>}
-                            <span className="ml-auto text-[9px] tabular-nums opacity-60">{totalConexoes || ""}</span>
+                            {d.incompleto && <span className="shrink-0 text-[10px] font-bold text-red-700">SEM EXAMES</span>}
+                            <span className="ml-auto min-w-[2.25rem] rounded-[6px] bg-black/5 px-2 py-0.5 text-center text-[10px] font-bold tabular-nums">{totalConexoes || ""}</span>
                           </Corpo>
                         </div>
                       );
@@ -1050,7 +1052,7 @@ export default function SinapsesFaixa() {
             )}
           </Faixa>
 
-          <Faixa testid="faixa-sanfona" titulo={`Sanfona das correspondências · ${esquerda.length} perguntas · ${totalPropostasPendentes} propostas pendentes`} aberta={sanfonaAberta} onToggle={() => setSanfonaAberta((v) => !v)}
+          <Faixa testid="faixa-sanfona" titulo="Sanfona das correspondências" fichas={[{ rotulo: "Perguntas", valor: esquerda.length }, { rotulo: "Propostas pendentes", valor: totalPropostasPendentes, cor: "#9b6b11" }]} aberta={sanfonaAberta} onToggle={() => setSanfonaAberta((v) => !v)}
             direita={sanfonaAberta ? (
               <div className="flex gap-1">
                 <button type="button" className="tecla-3d px-2 py-1 text-[10px] font-bold" onClick={() => setAbertos(new Set(esquerda.map((p) => p.perguntaId)))}>Abrir todas</button>
@@ -1074,8 +1076,8 @@ export default function SinapsesFaixa() {
                       <span className="w-24 shrink-0 font-mono text-[11px] font-bold text-[#5b6578]">{p.perguntaId}</span>
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#1b2433]">{p.pergunta}</span>
                       {p.bloco && <span className="hidden shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground md:inline">{p.bloco}</span>}
-                      <span className="concave-3d flex h-6 min-w-8 shrink-0 items-center justify-center gap-1 px-1 text-[10px] font-bold tabular-nums" title={`${lig.length} ativas; ${pendentes.length} propostas`}>
-                        <span>{lig.length}</span><span className="text-[#9b6b11]">/{pendentes.length}</span>
+                      <span className="concave-3d flex h-7 min-w-[4.5rem] shrink-0 items-center justify-center gap-1 px-3 text-[11px] font-bold tabular-nums" title={`${lig.length} ativas; ${pendentes.length} propostas`}>
+                        <span className="text-[#166534]">{lig.length}</span><span className="text-[#9b6b11]">/{pendentes.length}</span>
                       </span>
                     </button>
                     {aberto && (
@@ -1099,17 +1101,17 @@ export default function SinapsesFaixa() {
                                 const semSaida = !d || d.incompleto;
                                 const armada = armadas.has(s.id);
                                 return (
-                                    <span key={s.id} title={`${codigoDestino(s.categoria, s.destinoTipo, s.destinoId)} · ${d?.nome ?? `#${s.destinoId}`}${d?.detalhe ? ` · ${d.detalhe}` : ""}${semSaida ? " · sem saída real: destino ausente, inativo ou bloco vazio" : ""}`} className="inline-flex max-w-full items-center gap-1 rounded-[4px] border px-1.5 py-0.5 text-[11px] font-semibold"
+                                    <span key={s.id} title={`${codigoDestino(s.categoria, s.destinoTipo, s.destinoId)} · ${d?.nome ?? `#${s.destinoId}`}${d?.detalhe ? ` · ${d.detalhe}` : ""}${semSaida ? " · sem saída real: destino ausente, inativo ou bloco vazio" : ""}`} className="inline-flex max-w-full items-center gap-1 rounded-[6px] border px-1.5 py-0.5 text-[11px] font-semibold"
                                     style={semSaida
                                       ? { color: "#b91c1c", borderColor: "#fecaca", background: "#fef2f2" }
                                       : { color: c.cor, borderColor: `color-mix(in srgb, ${c.cor} 45%, transparent)`, background: `color-mix(in srgb, ${c.cor} 10%, white)` }}>
-                                    <span className="font-mono text-[9px] opacity-70">{codigoDestino(s.categoria, s.destinoTipo, s.destinoId)}</span>
+                                    <span className="font-mono text-[10px] opacity-70">{codigoDestino(s.categoria, s.destinoTipo, s.destinoId)}</span>
                                     <span className="truncate">{d?.nome ?? `#${s.destinoId}`}</span>
-                                    {semSaida && <span className="shrink-0 text-[8px] font-bold text-red-700">SEM SAÍDA</span>}
-                                    {s.cloneDe && <span className="text-[9px] opacity-60">cópia</span>}
+                                    {semSaida && <span className="shrink-0 text-[10px] font-bold text-red-700">SEM SAÍDA</span>}
+                                    {s.cloneDe && <span className="text-[10px] opacity-60">cópia</span>}
                                     {modo === "EDICAO" && (
                                       <button type="button" onClick={() => cliqueExcluir(s.id)} data-testid={`faixa-excluir-${s.id}`}
-                                        className="inline-flex shrink-0 items-center gap-0.5 rounded-[3px] border border-current px-1 text-[9px] uppercase"
+                                        className="inline-flex shrink-0 items-center gap-0.5 rounded-[6px] border border-current px-1 text-[10px] uppercase"
                                         title={armada ? "Clique de novo para confirmar" : "Excluir esta ligação (desativa, não apaga)"}>
                                         {armada ? <><Unlock className="h-3 w-3" />Confirmar</> : <><Lock className="h-3 w-3" />Excluir</>}
                                       </button>
@@ -1126,27 +1128,27 @@ export default function SinapsesFaixa() {
                                 const editando = propostaEditando === proposta.id;
                                 const armada = aprovarArmado === proposta.id;
                                 return (
-                                  <div key={proposta.id} className="rounded-[4px] border border-dashed border-[#b8892b]/60 bg-[#fff9e9]/80 p-2" data-testid={`proposta-pendente-${proposta.id}`}>
+                                  <div key={proposta.id} className="rounded-[6px] concave-3d p-2" data-testid={`proposta-pendente-${proposta.id}`}>
                                     <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
                                       <span className="w-24 shrink-0 text-[10px] font-bold uppercase tracking-wider text-[#8b681f]">Proposta</span>
                                       <span className="font-mono text-[10px] font-bold text-[#8b681f]" title={`${proposta.eixo} · ${d?.detalhe ?? ""}`}>{codigoDestino(proposta.categoria, proposta.destinoTipo, proposta.destinoId)}</span>
                                       <span className="min-w-0 flex-1 truncate text-[#30384a]" title={`${d?.nome ?? `#${proposta.destinoId}`} · ${proposta.eixo} · ${proposta.justificativa}`}>
                                         {d?.nome ?? `#${proposta.destinoId}`} · {proposta.eixo}
                                       </span>
-                                      <button type="button" className="bevel-3d min-h-9 px-2 text-[9px] font-bold uppercase" onClick={() => { setPropostaEditando(editando ? null : proposta.id); setCategoriaEdicao(proposta.categoria); setBuscaDestinoEdicao(""); }} data-testid={`button-editar-proposta-${proposta.id}`}>Editar</button>
-                                      <button type="button" className="bevel-3d min-h-9 px-2 text-[9px] font-bold uppercase" onClick={() => { if (armada) aprovarProposta.mutate({ id: proposta.id }); else setAprovarArmado(proposta.id); }} disabled={aprovarProposta.isPending} data-testid={`button-aprovar-proposta-${proposta.id}`}>
+                                      <button type="button" className="tecla-3d h-9 min-w-[5.5rem] px-3 text-[10px] font-bold uppercase" onClick={() => { setPropostaEditando(editando ? null : proposta.id); setCategoriaEdicao(proposta.categoria); setBuscaDestinoEdicao(""); }} data-testid={`button-editar-proposta-${proposta.id}`}>Editar</button>
+                                      <button type="button" className="tecla-3d h-9 min-w-[5.5rem] px-3 text-[10px] font-bold uppercase" onClick={() => { if (armada) aprovarProposta.mutate({ id: proposta.id }); else setAprovarArmado(proposta.id); }} disabled={aprovarProposta.isPending} data-testid={`button-aprovar-proposta-${proposta.id}`}>
                                         {armada ? "Confirmar aprovação" : "Aprovar"}
                                       </button>
-                                      <button type="button" className="bevel-3d min-h-9 px-2 text-[9px] font-bold uppercase text-red-700" onClick={() => recusarProposta.mutate({ id: proposta.id })} disabled={recusarProposta.isPending} data-testid={`button-recusar-proposta-${proposta.id}`}>Recusar</button>
+                                      <button type="button" className="tecla-3d h-9 min-w-[5.5rem] px-3 text-[10px] font-bold uppercase text-red-700" onClick={() => recusarProposta.mutate({ id: proposta.id })} disabled={recusarProposta.isPending} data-testid={`button-recusar-proposta-${proposta.id}`}>Recusar</button>
                                     </div>
-                                    <p className="mt-1 pl-24 text-[10px] text-[#6b5b38]">{proposta.justificativa}</p>
-                                    {armada && <p className="mt-1 pl-24 text-[10px] font-semibold text-[#6b5b38]">Confirme para mover esta linha para as ligações ativas desta tela. Isso não conecta o motor clínico.</p>}
+                                    <p className="mt-1 pl-28 text-[10px] text-[#6b5b38]">{proposta.justificativa}</p>
+                                    {armada && <p className="mt-1 pl-28 text-[10px] font-semibold text-[#6b5b38]">Confirme para mover esta linha para as ligações ativas desta tela. Isso não conecta o motor clínico.</p>}
                                     {editando && (
-                                      <div className="mt-2 space-y-2 pl-24" data-testid={`editor-proposta-${proposta.id}`}>
+                                      <div className="mt-2 space-y-2 pl-28" data-testid={`editor-proposta-${proposta.id}`}>
                                         <div className="flex flex-wrap gap-1">
                                           {CATEGORIAS.map((categoria) => (
                                             <button key={categoria.chave} type="button" aria-pressed={categoriaEdicao === categoria.chave}
-                                              className={`bevel-3d min-h-9 px-2 text-[9px] font-bold ${categoriaEdicao === categoria.chave ? "evo-bevel-ativo" : ""}`}
+                                              className={`bevel-3d min-h-9 px-2 text-[10px] font-bold ${categoriaEdicao === categoria.chave ? "evo-bevel-ativo" : ""}`}
                                               onClick={() => setCategoriaEdicao(categoria.chave)} data-testid={`button-categoria-edicao-${proposta.id}-${categoria.chave}`}>
                                               {categoria.sigla}
                                             </button>

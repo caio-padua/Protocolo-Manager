@@ -99,7 +99,7 @@ for (const viewport of [
     const dInicial = await fioTemporario.getAttribute("d");
     const caixaOrigem = await origem.boundingBox();
     if (!caixaOrigem) throw new Error("O ponto de origem sintético não foi renderizado.");
-    await page.mouse.move(caixaOrigem.x + caixaOrigem.width + 120, caixaOrigem.y + 50);
+    await page.mouse.move(caixaOrigem.x + caixaOrigem.width + 120, caixaOrigem.y - 50);
     await expect.poll(() => fioTemporario.getAttribute("d")).not.toBe(dInicial);
 
     await destino.click();
@@ -312,7 +312,7 @@ test("sinapse: painel da pergunta atual espelha caixa sim/não e fio nos dois se
   await caixa.click(); // caixa -> fio
   await expect.poll(() => estado.pedidos.length).toBe(1);
   await expect(caixa).toBeChecked();
-  await expect(page.getByTestId("faixa-painel-pergunta-subtitulo")).toContainText("1 ligação");
+  await expect(page.getByTestId("faixa-painel-pergunta-subtitulo")).toContainText("Ativas 1");
   await page.screenshot({ path: "/tmp/sinapse-painel.png" });
   await page.getByTestId("faixa-ver-sinapses").click();
   await expect(page.getByTestId("faixa-tela-sinapses-EXAME")).toContainText("Exame sintético");
