@@ -918,10 +918,10 @@ export default function SinapsesFaixa() {
             ) : (
               <div ref={graficoRef} className="concave-3d" style={{ height: ampliada ? "calc(100vh - 15rem)" : "max(20rem, calc(100vh - 25rem))" }} data-testid="faixa-grafo-rolagem">
                 <div className="relative grid h-full min-h-0 overflow-hidden" style={{ gridTemplateRows: "minmax(0,1fr)", gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }}>
-                  <div className="absolute bottom-0 left-[3px] top-0 z-20"><Termostato alvo={colEsqRef} rotulo="Rolar perguntas" testid="faixa-termostato-perguntas" /></div>
-                  <div className="absolute bottom-0 right-[3px] top-0 z-20"><Termostato alvo={colDirRef} rotulo="Rolar saídas" testid="faixa-termostato-saidas" /></div>
+                  <div className="absolute bottom-0 left-[3px] top-0 z-20 w-[15px]"><Termostato alvo={colEsqRef} rotulo="Rolar perguntas" testid="faixa-termostato-perguntas" /></div>
+                  <div className="absolute bottom-0 right-[3px] top-0 z-20 w-[15px]"><Termostato alvo={colDirRef} rotulo="Rolar saídas" testid="faixa-termostato-saidas" /></div>
                   {/* DENDRITOS ESQUERDA: rolagem propria */}
-                  <div ref={colEsqRef} onScroll={(e) => setRolE(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-r border-black/10 pl-[14px]" data-testid="faixa-coluna-perguntas">
+                  <div ref={colEsqRef} onScroll={(e) => setRolE(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-r border-black/10 pl-[21px]" data-testid="faixa-coluna-perguntas">
                   <div className="relative" style={{ height: altura }}>
                     {linhasE.map((linha, idx) => {
                       const topo = idx * alturaLinha + 1.5;
@@ -972,7 +972,7 @@ export default function SinapsesFaixa() {
                               const acima = r.bottom + 300 > window.innerHeight && r.top > 300;
                               setMenu({ perguntaId: p.perguntaId, x: Math.max(8, Math.min(r.right - 340, window.innerWidth - 348)), y: acima ? r.top - 4 : r.bottom + 4, acima });
                             }}>
-                            <ChevronDown className="h-3 w-3" />
+                            <ChevronDown className="h-4 w-4 text-[#16284a]" strokeWidth={3} />
                           </button>
                           {modo === "EDICAO" && (
                             <button type="button" onPointerDown={(e) => iniciar(e, p.perguntaId)} onClick={(e) => {
@@ -998,7 +998,7 @@ export default function SinapsesFaixa() {
                   </div>
                   </div>
                   {/* FIOS */}
-                  <div ref={centroRef} className="sinapse-escafandro h-full w-full"><div className="sinapse-vidro" onClick={() => setFioAberto(null)}>
+                  <div ref={centroRef} className="sinapse-escafandro h-full w-full"><div className="sinapse-vidro" onClick={() => setFioAberto(null)} onDoubleClick={() => { if (arrasteRef.current) cancelarArraste(); }} data-testid="faixa-vidro">
                   <svg className="block" width="100%" height={alturaVisivel} viewBox={`0 0 100 ${alturaVisivel}`} preserveAspectRatio="none" aria-hidden>
                     <defs>
                       <linearGradient id="sinapse-gradiente-fibra" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="100" y2="0">
@@ -1069,7 +1069,7 @@ export default function SinapsesFaixa() {
                     );
                   })()}
                   {/* DENDRITOS DIREITA: rolagem propria */}
-                  <div ref={colDirRef} onScroll={(e) => setRolD(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-l border-black/10 pr-[14px]" data-testid="faixa-coluna-saidas">
+                  <div ref={colDirRef} onScroll={(e) => setRolD(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-l border-black/10 pr-[21px]" data-testid="faixa-coluna-saidas">
                   <div className="relative" style={{ height: altura }}>
                     {linhasD.map((linha, idx) => {
                       const topo = idx * alturaLinha + 1.5;
@@ -1118,7 +1118,7 @@ export default function SinapsesFaixa() {
                               const acima = r.bottom + 320 > window.innerHeight && r.top > 320;
                               setMenuSaida({ k: d.k, cat: d.cat, tipo: d.tipo, id: d.id, nome: d.nome, x: Math.max(8, r.left - 436), y: acima ? r.top - 4 : r.bottom + 4, acima });
                             }}>
-                            <ChevronDown className="h-3 w-3" />
+                            <ChevronDown className="h-4 w-4 text-[#16284a]" strokeWidth={3} />
                           </button>
                         </div>
                       );
@@ -1391,8 +1391,8 @@ export default function SinapsesFaixa() {
 
       {arraste && (
         <svg className="pointer-events-none fixed inset-0 z-[80]" width="100%" height="100%" aria-hidden>
-          <path d={`M ${arraste.x0} ${arraste.y0} C ${arraste.x0 + 80} ${arraste.y0}, ${arraste.x - 80} ${arraste.y}, ${arraste.x} ${arraste.y}`} fill="none" stroke={arraste.clonar ? "#2563eb" : "#d97706"} strokeWidth={3} strokeDasharray={arraste.clonar ? "6 4" : undefined} style={{ filter: arraste.clonar ? undefined : "drop-shadow(0 0 4px #f3ce72)" }} />
-          <circle cx={arraste.x} cy={arraste.y} r={5} fill={arraste.clonar ? "#2563eb" : "#d97706"} />
+          <path d={`M ${arraste.x0} ${arraste.y0} C ${arraste.x0 + 80} ${arraste.y0}, ${arraste.x - 80} ${arraste.y}, ${arraste.x} ${arraste.y}`} fill="none" stroke={arraste.clonar ? "#2563eb" : (corDaPergunta.get(arraste.de) ?? "#d97706")} strokeWidth={3} strokeDasharray={arraste.clonar ? "6 4" : undefined} style={{ filter: arraste.clonar ? undefined : "drop-shadow(0 0 4px #f3ce72)" }} />
+          <circle cx={arraste.x} cy={arraste.y} r={5} fill={arraste.clonar ? "#2563eb" : (corDaPergunta.get(arraste.de) ?? "#d97706")} />
         </svg>
       )}
     </div>

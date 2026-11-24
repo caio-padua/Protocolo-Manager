@@ -368,3 +368,44 @@ test("sinapse: seta da saída abre o cadastro com substâncias alinhadas, tomada
   await expect(painel.getByTestId("resumo-observacao")).toContainText("AJUSTE PERMITIDO");
   await page.screenshot({ path: "/tmp/saida-painel.png" });
 });
+
+for (const tela of [{ nome: "minimizada", ampliar: false }, { nome: "maximizada", ampliar: true }]) {
+  test(`sinapse: fio na cor do bloco, duplo clique no meio desarma e termostatos dentro da moldura (${tela.nome})`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const estado = await prepararTela(page);
+    await page.getByTestId("faixa-modo-EDICAO").click();
+    if (tela.ampliar) await page.getByRole("button", { name: /ampliar/i }).click();
+    const pino = page.getByTestId(`faixa-porta-${perguntaId}`);
+    await pino.click();
+    const cores = await page.evaluate((pid) => {
+      const fio = document.querySelector("svg.fixed path") as SVGPathElement;
+      const q = document.querySelector(`[data-testid="faixa-porta-${pid}"] .sinapse-pino`) as HTMLElement;
+      return { fio: fio.getAttribute("stroke"), pino: getComputedStyle(q).getPropertyValue("--cor-pino").trim() };
+    }, perguntaId);
+    expect(cores.fio?.toLowerCase()).toBe(cores.pino.toLowerCase());
+    // 1 clique na saída liga e continua armado
+    await page.getByTestId(`faixa-porta-destino-EXAME|exame|${destinoId}`).click();
+    await expect.poll(() => estado.pedidos.length).toBe(1);
+    await expect(page.locator("svg.fixed path")).toHaveCount(1);
+    // dois cliques no meio da tela de vidro desarmam, mantendo o que foi ligado
+    const vidro = await page.getByTestId("faixa-vidro").boundingBox();
+    if (!vidro) throw new Error("vidro ausente");
+    await page.mouse.dblclick(vidro.x + vidro.width / 2, vidro.y + vidro.height / 2);
+    await expect(page.locator("svg.fixed path")).toHaveCount(0);
+    expect(estado.pedidos.length).toBe(1);
+    // termostatos dentro da moldura, sem cruzar o vidro nem um ao outro
+    const caixa = async (id: string) => page.getByTestId(id).boundingBox();
+    const moldura = await caixa("faixa-grafo-rolagem");
+    const e = await caixa("faixa-termostato-perguntas");
+    const d = await caixa("faixa-termostato-saidas");
+    if (!moldura || !e || !d) throw new Error("termostato ou moldura ausente");
+    expect(e.x).toBeGreaterThanOrEqual(moldura.x);
+    expect(d.x + d.width).toBeLessThanOrEqual(moldura.x + moldura.width);
+    expect(e.x + e.width).toBeLessThan(d.x);
+    expect(e.y).toBeGreaterThanOrEqual(moldura.y);
+    expect(d.y + d.height).toBeLessThanOrEqual(moldura.y + moldura.height);
+    expect(vidro.x).toBeGreaterThan(e.x + e.width);
+    expect(vidro.x + vidro.width).toBeLessThan(d.x);
+    expect(d.width).toBeGreaterThanOrEqual(14);
+  });
+}
