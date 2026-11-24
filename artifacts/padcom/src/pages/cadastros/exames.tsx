@@ -1,3 +1,4 @@
+import "../matriz-fornecedores/matriz.css";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -374,72 +375,50 @@ function ExamesTab({ slot }: { slot: HTMLElement | null }) {
 
   return (
     <div className="space-y-4">
-      {slot && createPortal(<div className="space-y-2" data-testid="filtros-exames">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar exame..."
-            className="pl-9 field-engraved"
-          />
-        </div>
-        <div className="flex items-center gap-3">
+      {slot && createPortal(<div className="mx-ev !mt-0 !p-0" data-testid="filtros-exames">
+        <div className="grid items-center gap-2 md:grid-cols-[minmax(0,1fr)_220px_96px_150px]">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar exame..." className="h-10 pl-9 field-engraved" />
+          </div>
           <Select value={categoria} onValueChange={setCategoria}>
-            <SelectTrigger className="w-[220px] field-engraved">
-              <SelectValue placeholder="Categoria" />
-            </SelectTrigger>
+            <SelectTrigger className="h-10 w-full field-engraved"><SelectValue placeholder="Categoria" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">Todas as categorias</SelectItem>
-              {categorias.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
+              {categorias.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
             </SelectContent>
           </Select>
-          <div className="screen-3d px-3 py-1.5 text-xs font-black whitespace-nowrap tracking-wide">
+          <div className="screen-3d flex h-10 items-center justify-center text-xs font-black whitespace-nowrap tracking-wide">
             {isLoading ? "..." : `${filtered.length} de ${exams?.length ?? 0}`}
           </div>
-          <Button onClick={openNew} className="btn-3d">
-            <Plus className="mr-1.5 h-4 w-4" /> Novo exame
-          </Button>
+          <Button onClick={openNew} className="btn-3d h-10 w-full"><Plus className="mr-1.5 h-4 w-4" /> Novo exame</Button>
         </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2" data-testid="pilulas-natureza">
-        {[{ chave: "__all__", rotulo: "Todos" }, ...["LABORATORIAL", "IMAGEM", "COMPOSICAO CORPORAL", "METODOS GRAFICOS", "ENDOSCOPICOS"].map((n) => ({ chave: n, rotulo: NATUREZA_SIGLA[n] }))].map((p) => {
-          const sel = naturezaFiltro === p.chave;
-          const cor = p.chave === "__all__" ? null : coresNat.natureza(p.chave);
-          return (
-            <button
-              key={p.chave}
-              type="button"
-              aria-pressed={sel}
-              onClick={() => setNaturezaFiltro(p.chave)}
-              title={p.chave === "__all__" ? "Todas as naturezas" : p.chave}
-              data-testid={`pilula-${p.rotulo}`}
-              className={`h-8 w-20 rounded-[4px] text-[11px] font-black uppercase tracking-wider ${cor ? "text-white" : "paxter-seletor"}`}
-              style={cor ? {
-                background: `linear-gradient(180deg, color-mix(in srgb, ${cor} 82%, white) 0%, ${cor} 100%)`,
-                border: "1px solid rgba(255,255,255,0.35)",
-                boxShadow: sel
-                  ? "inset 0 4px 8px rgba(0,0,0,0.45), inset 0 -1px 0 rgba(255,255,255,0.25)"
-                  : "inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -3px 6px rgba(0,0,0,0.25), 0 5px 10px -4px rgba(7,22,43,0.45)",
-                opacity: sel || naturezaFiltro === "__all__" ? 1 : 0.7,
-              } : undefined}
-            >
-              {p.rotulo}
-            </button>
-          );
-        })}
-        <span className="mx-2 h-6 w-px bg-border" aria-hidden="true" />
-        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Agrupar por</span>
-        {([["eixo", "Eixo clínico"], ["categoria", "Categoria"]] as const).map(([k, rot]) => (
-          <button key={k} type="button" aria-pressed={agrupar === k} onClick={() => setAgrupar(k)} className="paxter-seletor h-8 w-32 text-[11px] font-black uppercase tracking-wide" data-testid={`agrupar-${k}`}>{rot}</button>
-        ))}
-      </div>
+        <div className="mx-ev-duo" style={{ gridTemplateColumns: "1.8fr 1fr" }}>
+          <div>
+            <div className="mx-ev-l">Natureza</div>
+            <div className="mx-ev-g mx-ev-g6" role="group" aria-label="Natureza do exame" data-testid="pilulas-natureza" style={{ gridTemplateColumns: "repeat(6, minmax(0, 1fr))" }}>
+              {[{ chave: "__all__", rotulo: "Todos" }, ...["LABORATORIAL", "IMAGEM", "COMPOSICAO CORPORAL", "METODOS GRAFICOS", "ENDOSCOPICOS"].map((n) => ({ chave: n, rotulo: NATUREZA_SIGLA[n] }))].map((pl) => {
+                const sel = naturezaFiltro === pl.chave;
+                const cor = pl.chave === "__all__" ? null : coresNat.natureza(pl.chave);
+                return (
+                  <button key={pl.chave} type="button" aria-pressed={sel} onClick={() => setNaturezaFiltro(pl.chave)} title={pl.chave === "__all__" ? "Todas as naturezas" : pl.chave} data-testid={`pilula-${pl.rotulo}`}
+                    className={`evo-bevel mx-ev-b mx-ev-lab h40 overflow-hidden ${sel ? "evo-bevel-ativo" : ""}`}>
+                    {pl.rotulo}
+                    {cor && <i style={{ background: cor }} />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <div className="mx-ev-l">Agrupar por</div>
+            <div className="mx-ev-g mx-ev-g2" role="group" aria-label="Agrupar a lista">
+              {([["eixo", "Eixo clínico"], ["categoria", "Categoria"]] as const).map(([k, rot]) => (
+                <button key={k} type="button" aria-pressed={agrupar === k} onClick={() => setAgrupar(k)} className={`evo-bevel mx-ev-b h40 ${agrupar === k ? "evo-bevel-ativo" : ""}`} data-testid={`agrupar-${k}`}>{rot}</button>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>, slot)}
       {isLoading ? (
         <div className="space-y-2">
@@ -448,7 +427,7 @@ function ExamesTab({ slot }: { slot: HTMLElement | null }) {
           ))}
         </div>
       ) : (
-        <div className="panel-3d" data-testid="lista-exames-faixas">
+        <div className="flex flex-col gap-2" data-testid="lista-exames-faixas">
           {gruposVisiveis.length === 0 ? (
             <div className="h-24 flex items-center justify-center text-sm text-muted-foreground">Nenhum exame encontrado.</div>
           ) : (
