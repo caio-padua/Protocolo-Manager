@@ -28,6 +28,7 @@ import {
   formatPhysicalRASFileName,
 } from "../lib/google-drive";
 import { sendProtocolEmail } from "../lib/email-service";
+import { postSlackAlert } from "../lib/slack-reporter";
 import { isGmailConnected } from "../lib/google-gmail";
 import { enviarMensagemPaxter, absoluteBaseUrl, type PaxterDoc } from "../lib/messaging/index.js";
 import { resolveClinicalMember } from "../lib/clinical-emitter";
@@ -764,6 +765,17 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
   const documentIdentity = await resolveProtocolDocumentIdentity(req, protocol, clinicalMember, res);
   if (!documentIdentity) return;
 
+  async function alertEmailFailure(errorMessage: string): Promise<void> {
+    const channel = process.env.PADAXOR_SLACK_CHANNEL_ID;
+    if (!channel) return;
+    await postSlackAlert(
+      channel,
+      `Falha no reenvio do RASP FAP para *${client.name}* ` +
+      `(Protocolo #${protocol.id} — ${protocol.title}).\n` +
+      `E-mail não confirmado. Erro: ${errorMessage}`,
+    ).catch(() => {});
+  }
+
   try {
     if (!(await isGmailConnected())) {
       res.status(503).json({ error: "Gmail não está conectado." });
@@ -884,6 +896,9 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
       pdfBuffer,
       pdfFileName: driveFileName,
       pdfIsRasFap: true,
+    }).catch(async (err: unknown) => {
+      await alertEmailFailure(err instanceof Error ? err.message : String(err));
+      throw err;
     });
 
     try {
@@ -903,6 +918,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
     }
 
     if (!emailResult.success) {
+      await alertEmailFailure(emailResult.error ?? "Motivo não informado pelo serviço de e-mail.");
       res.status(502).json({ error: `Envio do e-mail não confirmado: ${emailResult.error ?? "Verifique antes de reenviar."}` });
       return;
     }

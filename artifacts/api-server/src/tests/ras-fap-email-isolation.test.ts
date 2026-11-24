@@ -18,7 +18,12 @@
  * para download e POST para o reenvio — sem nenhum efeito colateral no GET.
  */
 
-import { vi, describe, it, expect, beforeEach } from "vitest";
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
+import { postSlackAlert } from "../lib/slack-reporter";
+
+vi.mock("../lib/slack-reporter", () => ({
+  postSlackAlert: vi.fn().mockResolvedValue(undefined),
+}));
 
 // ── Mocks ANTES de qualquer import de rota ───────────────────────────────────
 
@@ -575,6 +580,56 @@ describe("POST /api/ras/physical/:protocolId/reenviar-email — chama e-mail exa
   beforeEach(() => {
     vi.clearAllMocks();
     setupMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it.each([
+    ["recusa do serviço", false, 502],
+    ["exceção no envio", true, 500],
+  ] as const)("preserva PADAXOR_SLACK_CHANNEL_ID no alerta por %s", async (_label, throws, status) => {
+    const channel = "C_TEST_RAS_RESEND_CHANNEL";
+    const error = "SMTP connection refused";
+    vi.stubEnv("PADAXOR_SLACK_CHANNEL_ID", channel);
+    if (throws) {
+      vi.mocked(emailSvc.sendProtocolEmail).mockRejectedValueOnce(new Error(error));
+    } else {
+      vi.mocked(emailSvc.sendProtocolEmail).mockResolvedValueOnce({ success: false, error });
+    }
+
+    const response = await request(buildApp())
+      .post("/api/ras/physical/42/reenviar-email")
+      .send({});
+
+    expect(response.status).toBe(status);
+    expect(emailSvc.sendProtocolEmail).toHaveBeenCalledTimes(1);
+    expect(pdfSigner.generatePhysicalRASPdf).toHaveBeenCalledTimes(1);
+    expect(postSlackAlert).toHaveBeenCalledExactlyOnceWith(channel, expect.stringContaining(error));
+    const text = vi.mocked(postSlackAlert).mock.calls[0][1];
+    expect(text).toContain(FAKE_CLIENT.name);
+    expect(text).toContain(`Protocolo #${FAKE_PROTOCOL.id}`);
+    expect(text).toContain(FAKE_PROTOCOL.title);
+  });
+
+  it("não alerta no Slack quando o reenvio tem sucesso", async () => {
+    vi.stubEnv("PADAXOR_SLACK_CHANNEL_ID", "C_TEST_RAS_RESEND_CHANNEL");
+    const response = await request(buildApp())
+      .post("/api/ras/physical/42/reenviar-email").send({});
+
+    expect(response.status).toBe(200);
+    expect(postSlackAlert).not.toHaveBeenCalled();
+  });
+
+  it("mantém a falha de e-mail sem chamar Slack se o canal não está configurado", async () => {
+    vi.stubEnv("PADAXOR_SLACK_CHANNEL_ID", undefined);
+    vi.mocked(emailSvc.sendProtocolEmail).mockResolvedValueOnce({ success: false, error: "SMTP refused" });
+    const response = await request(buildApp())
+      .post("/api/ras/physical/42/reenviar-email").send({});
+
+    expect(response.status).toBe(502);
+    expect(postSlackAlert).not.toHaveBeenCalled();
   });
 
   it("chama sendProtocolEmail exatamente uma vez por acionamento", async () => {

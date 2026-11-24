@@ -110,6 +110,13 @@ vi.mock("../lib/slack-reporter", () => ({
   postSlackAlert: vi.fn().mockResolvedValue(undefined),
 }));
 
+// O arquivamento tem testes próprios; os PDFs sintéticos desta suíte servem
+// apenas para alcançar os caminhos de alerta, sem gravar banco ou storage.
+vi.mock("../lib/clinical-document-archive", () => ({
+  archiveClinicalDocument: vi.fn().mockResolvedValue(101),
+  finalizeArchivedClinicalDocument: vi.fn().mockResolvedValue(undefined),
+}));
+
 // notifySlackRasFapFailure é o spy principal deste teste
 vi.mock("../lib/ras-fap-alert", () => ({
   notifySlackRasFapFailure: vi.fn().mockResolvedValue(undefined),
