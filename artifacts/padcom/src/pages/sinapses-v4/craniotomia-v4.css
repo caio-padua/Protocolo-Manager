@@ -1,0 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=IBM+Plex+Serif:wght@400;500;600&display=swap');
+
+/* Paleta da Craniotomia V4 (copiada do pacote de referencia, _group.css).
+   Escopo restrito a .craniotomia-root para nao vazar para o resto do Manager. */
+.craniotomia-root {
+  --crn-bg: #0b1426;
+  --crn-bg-panel: #0f1b30;
+  --crn-bg-row: #131f36;
+  --crn-bg-row-alt: #0d1729;
+  --crn-bg-row-hover: #1a2742;
+  --crn-fg: #e6ecf5;
+  --crn-fg-muted: #8a98b3;
+  --crn-fg-dim: #5b6a87;
+  --crn-border: #1e2c47;
+  --crn-border-strong: #2a3d63;
+  --crn-accent: #93b8e8;
+  --crn-accent-strong: #5b8dd1;
+
+  --crn-tipo-form: #34d399;
+  --crn-tipo-inje: #fb923c;
+  --crn-tipo-impl: #67e8f9;
+  --crn-tipo-exam: #facc15;
+
+  --crn-estado-ativo: #22c55e;
+  --crn-estado-bloqueado: #7d1d2e;
+  --crn-estado-validacao: #eab308;
+
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  background: var(--crn-bg);
+  color: var(--crn-fg);
+}
+
+.craniotomia-root *,
+.craniotomia-root *::before,
+.craniotomia-root *::after {
+  border-radius: 0 !important;
+}
+
+.craniotomia-serif { font-family: 'IBM Plex Serif', Georgia, serif; }
