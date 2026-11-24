@@ -94,7 +94,7 @@ for (const mount of ["cockpit", "mesma-instancia"] as const) {
           if (/^\/api\/clinical-context\/(42|43)$/.test(path)) return reply(route, {
             professional: activeProfessional, client: patient,
             clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
-            canPrescribe: true, issue: null,
+            canPrescribe: true, canRequestExams: true, issue: null,
           });
           if (/^\/api\/exam-requests\/(42|43)\/history$/.test(path)) {
             if (switched) currentReads++;
@@ -294,7 +294,7 @@ for (const scenario of ["duas-janelas", "resposta-perdida", "resultado-desconhec
       if (path === "/api/clients/42") return json(client);
       if (path === "/api/clinical-context/42") return json({
         professional, client, clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
-        canPrescribe: true, issue: null,
+        canPrescribe: true, canRequestExams: true, issue: null,
       });
       if (path === "/api/exam-requests/42/history") return json({ documents: [document], dispatches: [], pendingOperations: [], nextOffset: null });
       if (path === "/api/exam-requests/send") {
@@ -359,7 +359,7 @@ test("Pedidos: pendências visíveis após recarga sem selecionar arquivos ou ca
     if (path === "/api/clients/42") return json(client);
     if (path === "/api/clinical-context/42") return json({
       professional, client, clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
-      canPrescribe: true, issue: null,
+      canPrescribe: true, canRequestExams: true, issue: null,
     });
     if (path === "/api/exam-requests/42/history") {
       const older = new URL(route.request().url()).searchParams.get("offset") === "20";
@@ -433,7 +433,7 @@ for (const transition of ["paciente", "medico"] as const) {
       if (/^\/api\/clinical-context\/(42|43)$/.test(path)) return json({
         professional: activeProfessional, client: patient,
         clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
-        canPrescribe: true, issue: null,
+        canPrescribe: true, canRequestExams: true, issue: null,
       });
       if (/^\/api\/exam-requests\/(42|43)\/history$/.test(path)) {
         expect(request.headers().authorization).toBe(
@@ -596,7 +596,7 @@ for (const transition of ["paciente", "medico"] as const) {
       if (/^\/api\/clinical-context\/(42|43)$/.test(path)) return json({
         professional: activeProfessional, client: patient,
         clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
-        canPrescribe: true, issue: null,
+        canPrescribe: true, canRequestExams: true, issue: null,
       });
       if (path === "/api/catalogos/exames") return json(["Alfa", "Beta"].map((name, index) => ({
         id: 701 + index, nomeExame: `Exame sintético ${name}`, codigoExame: `SYN-${index}`,
@@ -708,7 +708,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     });
     const replyIdentity = (route: Route) => route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ professional, client, clinic: activeClinic, canPrescribe: true, issue: null }),
+      body: JSON.stringify({ professional, client, clinic: activeClinic, canPrescribe: true, canRequestExams: true, issue: null }),
     });
     await context.addInitScript(() => {
       localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
@@ -813,7 +813,7 @@ test("Pedidos: clínica recusada com 403 bloqueia envio e nova clínica exige au
     status, contentType: "application/json", body: JSON.stringify(body),
   });
   const identityBody = (clinic: typeof originalClinic) => ({
-    professional, client, clinic, canPrescribe: true, issue: null,
+    professional, client, clinic, canPrescribe: true, canRequestExams: true, issue: null,
   });
   await context.addInitScript(() => {
     localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
@@ -969,7 +969,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       status, contentType: "application/json", body: JSON.stringify(body),
     });
     const identityBody = (clinic: typeof originalClinic) => ({
-      professional, client, clinic, canPrescribe: true, issue: null,
+      professional, client, clinic, canPrescribe: true, canRequestExams: true, issue: null,
     });
     const historyBody = (operationKey: string, id: number, nextOffset: number | null = null) => ({
       documents: [{ ...document, id, fileName: `${operationKey}.pdf` }],
@@ -1343,7 +1343,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         status, contentType: "application/json", body: JSON.stringify(body),
       });
       const identityBody = (index: number) => ({
-        professional, client, clinic: clinic(index), canPrescribe: true, issue: null,
+        professional, client, clinic: clinic(index), canPrescribe: true, canRequestExams: true, issue: null,
       });
       const historyBody = (key: string, id: number, nextOffset: number | null) => ({
         documents: [{ ...document, id, fileName: `${key}.pdf` }], dispatches: [], nextOffset,
@@ -1572,7 +1572,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         }],
       });
       const identityBody = (clinic: typeof clinicA) => ({
-        professional, client, clinic, canPrescribe: true, issue: null,
+        professional, client, clinic, canPrescribe: true, canRequestExams: true, issue: null,
       });
       page.on("request", request => {
         if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
@@ -1916,7 +1916,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         }],
       });
       const identityBody = (clinic: typeof clinicA) => ({
-        professional, client, clinic, canPrescribe: true, issue: null,
+        professional, client, clinic, canPrescribe: true, canRequestExams: true, issue: null,
       });
       page.on("request", request => {
         if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
@@ -2199,7 +2199,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
 for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
   for (const delivery of ["em-B", "apos-retorno-A"] as const) {
     for (const currentOutcome of [
-      "sucesso", "401-atual", "500-atual", "500-atual-recuperacao-automatica", "rede-atual",
+      "sucesso", "401-atual", "500-atual", "500-atual-recuperacao-automatica", "rede-atual", "rede-atual-troca-B",
       "500-atual-recuperacao-automatica-sem-pendencias",
       "500-recuperacao-troca-B-sucesso", "500-recuperacao-troca-B-401-atrasado",
       "500-recuperacao-troca-B-recusada",
@@ -2216,6 +2216,8 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       const offsets: Record<"initial" | "B" | "return", number[]> = { initial: [], B: [], return: [] };
       const methods: string[] = [];
       const posts: string[] = [];
+      const switchAfterTransportFailure = currentOutcome === "rede-atual-troca-B";
+      const transportFailure = currentOutcome === "rede-atual" || switchAfterTransportFailure;
       const switchDuringRecovery = currentOutcome.startsWith("500-recuperacao-troca-B");
       const resolvedPending = currentOutcome === "500-atual-recuperacao-automatica-sem-pendencias";
       const automaticRecovery = currentOutcome === "500-atual-recuperacao-automatica" || resolvedPending || switchDuringRecovery;
@@ -2233,7 +2235,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         }],
       });
       const identityBody = (clinic: typeof clinicA) => ({
-        professional, client, clinic, canPrescribe: true, issue: null,
+        professional, client, clinic, canPrescribe: true, canRequestExams: true, issue: null,
       });
       page.on("request", request => {
         if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
@@ -2289,7 +2291,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         }
         return reply(route, []);
       });
-      if (automaticRecovery) await page.clock.install();
+      if (automaticRecovery || switchAfterTransportFailure) await page.clock.install();
       await page.goto("/cockpit/42/exames");
       const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
       const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
@@ -2398,9 +2400,9 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       // Fail the NEW offset-zero request, not the old offset-40 response.
       const currentError = currentOutcome === "401-atual"
         ? "Sessão atual sem autorização para atualizar o histórico de A."
-        : currentOutcome === "rede-atual" ? "Failed to fetch"
+        : transportFailure ? "Failed to fetch"
         : "Servidor indisponível ao atualizar o histórico atual de A.";
-      if (currentOutcome === "rede-atual") {
+      if (transportFailure) {
         await held.returned!.abort("failed");
       } else {
         await reply(held.returned!, currentOutcome === "sucesso"
@@ -2409,7 +2411,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       }
       // A transport failure has no JSON body; the old page still parsed normally.
       await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed))
-        .toBe(currentOutcome === "rede-atual" ? 4 : 5);
+        .toBe(transportFailure ? 4 : 5);
       if (currentOutcome === "sucesso") {
         await expect(doc(95)).toBeVisible();
         await expect(panel.getByRole("alert")).toContainText(markers.fresh);
@@ -2433,6 +2435,43 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       }
       await cleared();
       expect(offsets).toEqual({ initial: [0, 20, 40], B: [0], return: [0] });
+      if (switchAfterTransportFailure) {
+        const currentAlert = panel.getByRole("alert").filter({ hasText: "Não foi possível atualizar o histórico:" });
+        const knownPending = panel.getByRole("alert").filter({ hasText: "Envios pendentes de conferência" });
+        const staleWarning = "Últimas pendências conhecidas; não foi possível reconfirmar a situação atual.";
+        held.historyB = undefined;
+        await revalidate("B", clinicB, [
+          markers.first, markers.page20, markers.page40, markers.fresh, currentError, staleWarning,
+        ]);
+        await expect.poll(() => !!held.historyB).toBe(true);
+        expect(offsets).toEqual({ initial: [0, 20, 40], B: [0, 0], return: [0] });
+        // Inspect cached B BEFORE releasing its own offset-zero GET. Neither
+        // A's transport error/pending operations nor B's old consent may flash.
+        await expect(doc(92)).toBeVisible();
+        await expect(knownPending).toContainText(markers.b);
+        await expect(currentAlert).toHaveCount(0);
+        await expect(knownPending).not.toContainText(staleWarning);
+        for (const id of [91, 93, 94, 95]) await expect(doc(id)).toHaveCount(0);
+        await cleared();
+        expect(await page.evaluate(() => (window as any).__roundtripLeaks)).toEqual([]);
+        expect(posts).toEqual([]);
+
+        await reply(held.historyB!, historyBody("B-atual-apos-falha-de-rede-A", 96));
+        // The aborted A GET has no JSON; only B's new response increments this.
+        await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(5);
+        await expect(doc(96)).toBeVisible();
+        await expect(knownPending).toContainText("B-atual-apos-falha-de-rede-A");
+        await expect(knownPending).not.toContainText(markers.b);
+        await expect(currentAlert).toHaveCount(0);
+        await expect(panel).not.toContainText(currentError);
+        await expect(panel).not.toContainText(staleWarning);
+        for (const marker of [markers.first, markers.page20, markers.page40, markers.fresh]) {
+          await expect(panel).not.toContainText(marker);
+        }
+        for (const id of [91, 92, 93, 94, 95]) await expect(doc(id)).toHaveCount(0);
+        await cleared();
+        expect(offsets).toEqual({ initial: [0, 20, 40], B: [0, 0], return: [0] });
+      }
       if (automaticRecovery) {
         // Only the panel's 10-second pending-operation interval may recover A.
         // No refresh/pagination click, focus event, or navigation triggers it.
@@ -2608,7 +2647,7 @@ for (const currentOutcome of ["sucesso", "401"] as const) {
       });
       const identityBody = () => ({
         professional: switched ? nextProfessional : professional, client, clinic,
-        canPrescribe: true, issue: null,
+        canPrescribe: true, canRequestExams: true, issue: null,
       });
       page.on("request", request => {
         if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
@@ -2833,7 +2872,7 @@ for (const outcome of ["sucesso-atrasado", "401-atrasado", "401-atual"] as const
       if (/^\/api\/clients\/(42|43)$/.test(url.pathname)) return reply(route, patient);
       if (/^\/api\/clinical-context\/(42|43)$/.test(url.pathname)) return reply(route, {
         professional, client: patient, clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
-        canPrescribe: true, issue: null,
+        canPrescribe: true, canRequestExams: true, issue: null,
       });
       const match = url.pathname.match(/^\/api\/exam-requests\/(42|43)\/history$/);
       if (match) {
@@ -3247,7 +3286,7 @@ for (const transition of ["paciente", "medico"] as const) {
         if (/^\/api\/clinical-context\/(42|43)$/.test(path)) return reply(route, {
           professional: activeProfessional, client: patient,
           clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
-          canPrescribe: true, issue: null,
+          canPrescribe: true, canRequestExams: true, issue: null,
         });
         if (/^\/api\/exam-requests\/(42|43)\/history$/.test(path)) {
           expect(request.headers().authorization).toBe(
