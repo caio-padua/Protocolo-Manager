@@ -50,6 +50,7 @@ import {
   Pencil,
   Trash2,
   FolderInput,
+  ChevronDown,
   ArrowLeft,
   ArrowRight,
   MinusCircle,
@@ -139,6 +140,7 @@ const CAMPOS_CLASS: Array<{ campo: CampoClass; rotulo: string; plural: string; a
   { campo: "material_setor", rotulo: "Setor / Especialidade", plural: "Setor / Especialidade", ajuda: "Setor executor ou especialidade. O material biológico (soro, plasma, urina...) fica em Opções > Materiais." },
 ];
 const SEM_VALOR = "__none__";
+const FAIXA_MATIZES = [215, 160, 28, 275, 345, 190, 95, 40];
 
 function useClassificacoes(campo: CampoClass) {
   return useQuery<Classificacao[]>({
@@ -233,6 +235,17 @@ function ExamesTab() {
         .some((v) => String(v).toLowerCase().includes(q));
     });
   }, [exams, search, categoria, naturezaFiltro, attrPorId]);
+
+  const [fechados, setFechados] = useState<Set<string>>(new Set());
+  const gruposVisiveis = useMemo(() => {
+    const m = new Map<string, Exam[]>();
+    for (const e of filtered) {
+      const k = e.grupoPrincipal?.trim() || "SEM CATEGORIA";
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(e);
+    }
+    return Array.from(m, ([nome, itens]) => ({ nome, itens })).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [filtered]);
 
   const saveMutation = useMutation<Exam, Error>({
     mutationFn: async () => {
@@ -403,58 +416,65 @@ function ExamesTab() {
           ))}
         </div>
       ) : (
-        <div className="panel-3d overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-primary/10">
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Código</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Exame</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Natureza</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Grupo</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Modalidade</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Preparo</TableHead>
-                <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-primary">Ativo</TableHead>
-                <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-primary">Ação</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center text-sm text-muted-foreground">
-                    Nenhum exame encontrado.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((e) => (
-                  <TableRow key={e.id} className={`neon-hover ${e.ativo === false ? "opacity-50" : ""}`}>
-                    <TableCell className="align-top text-xs font-mono text-muted-foreground">{txt(e.codigoExame)}</TableCell>
-                    <TableCell className="align-top text-sm font-bold">{txt(e.nomeExame)}</TableCell>
-                    <TableCell className="align-top">
-                      {attrPorId.get(e.id)?.natureza ? (
-                        <NaturezaChip curto natureza={attrPorId.get(e.id)!.natureza} />
-                      ) : (
-                        <NaturezaChip curto natureza={naturezaSugerida(e.modalidade)} sugerida />
-                      )}
-                    </TableCell>
-                    <TableCell className="align-top text-sm">{txt(e.grupoPrincipal)}</TableCell>
-                    <TableCell className="align-top text-sm">{txt(e.modalidade)}</TableCell>
-                    <TableCell className="align-top max-w-[280px] truncate text-sm text-muted-foreground">{txt(e.preparo)}</TableCell>
-                    <TableCell className="text-center align-top">
-                      <Switch
-                        checked={e.ativo !== false}
-                        onCheckedChange={(v) => toggleMutation.mutate({ id: e.id, ativo: v })}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right align-top">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(e)} aria-label="Editar" title="Editar ficha completa do exame" data-testid={`button-editar-${e.id}`}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+        <div className="panel-3d overflow-hidden" data-testid="lista-exames-faixas">
+          <div className="hidden md:grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_64px_48px] gap-3 bg-primary/10 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-primary">
+            <div>Exame</div>
+            <div>Natureza / Modalidade</div>
+            <div>Preparo</div>
+            <div className="text-center">Ativo</div>
+            <div className="text-right">Ação</div>
+          </div>
+          {gruposVisiveis.length === 0 ? (
+            <div className="h-24 flex items-center justify-center text-sm text-muted-foreground">Nenhum exame encontrado.</div>
+          ) : (
+            gruposVisiveis.map((g, gi) => {
+              const hue = FAIXA_MATIZES[gi % FAIXA_MATIZES.length];
+              const fechado = fechados.has(g.nome);
+              return (
+                <section key={g.nome} data-testid={`faixa-${g.nome}`}>
+                  <button
+                    type="button"
+                    onClick={() => setFechados((s) => { const n = new Set(s); if (n.has(g.nome)) n.delete(g.nome); else n.add(g.nome); return n; })}
+                    className="flex w-full items-center gap-3 px-4 py-2 text-left text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),inset_0_-2px_0_rgba(0,0,0,0.25)]"
+                    style={{ background: `linear-gradient(90deg, hsl(${hue} 55% 24%), hsl(${hue} 50% 38%) 70%, hsl(${hue} 55% 46%))`, borderLeft: `6px solid hsl(${hue} 80% 65%)` }}
+                    aria-expanded={!fechado}
+                  >
+                    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${fechado ? "-rotate-90" : ""}`} />
+                    <span className="min-w-0 flex-1 truncate text-xs font-black uppercase tracking-widest">{g.nome}</span>
+                    <span className="rounded-full bg-black/25 px-2.5 py-0.5 text-[11px] font-black">{g.itens.length}</span>
+                  </button>
+                  {!fechado && g.itens.map((e, i) => {
+                    const nat = attrPorId.get(e.id)?.natureza;
+                    return (
+                      <div
+                        key={e.id}
+                        className={`neon-hover grid grid-cols-[minmax(0,1fr)_64px_48px] md:grid-cols-[minmax(0,2.6fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_64px_48px] items-center gap-3 px-4 py-2.5 ${e.ativo === false ? "opacity-50" : ""}`}
+                        style={{ background: `hsl(${hue} 45% ${i % 2 === 0 ? "97%" : "93%"} / 0.9)`, borderLeft: `6px solid hsl(${hue} 55% 60% / 0.55)` }}
+                      >
+                        <div className="min-w-0">
+                          <div className="break-words text-sm font-bold leading-tight text-[#1b2433]">{txt(e.nomeExame)}</div>
+                          <div className="mt-0.5 truncate font-mono text-[10px] tracking-wide text-[#5b6578]" title={txt(e.codigoExame)}>{txt(e.codigoExame)}</div>
+                        </div>
+                        <div className="hidden md:flex min-w-0 flex-col items-start gap-1">
+                          {nat ? <NaturezaChip curto natureza={nat} /> : <NaturezaChip curto natureza={naturezaSugerida(e.modalidade)} sugerida />}
+                          <span className="truncate text-[11px] text-[#5b6578]">{txt(e.modalidade)}</span>
+                        </div>
+                        <div className="hidden md:block min-w-0 text-xs text-[#5b6578] line-clamp-2">{txt(e.preparo)}</div>
+                        <div className="flex justify-center">
+                          <Switch checked={e.ativo !== false} onCheckedChange={(v) => toggleMutation.mutate({ id: e.id, ativo: v })} />
+                        </div>
+                        <div className="flex justify-end">
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(e)} aria-label="Editar" title="Editar ficha completa do exame" data-testid={`button-editar-${e.id}`}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </section>
+              );
+            })
+          )}
         </div>
       )}
 
