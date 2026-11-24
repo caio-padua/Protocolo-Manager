@@ -2,6 +2,7 @@ import atendimentoControleRouter from "./atendimento-controle";
 import { Router, type IRouter } from "express";
 import clinicalDemonstrationsRouter from "./clinical-demonstrations";
 import healthRouter from "./health";
+import assinaturasFallbackRouter from "./assinaturas-fallback";
 import clientsRouter from "./clients";
 import avaliacoesCorporaisRouter from "./avaliacoes-corporais";
 import antropometriaFigurasRouter from "./antropometria-figuras";
@@ -235,6 +236,7 @@ router.use(pulsoTelegramPublicRouter);
 router.use(collaboratorGuard);
 
 router.use(healthRouter);
+router.use(assinaturasFallbackRouter);
 router.use(evolutionRouter);
 router.use(evolutionAccountsRouter);
 router.use(evolutionAccountsLegacyRouter);

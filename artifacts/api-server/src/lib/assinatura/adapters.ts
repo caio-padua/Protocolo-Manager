@@ -347,11 +347,14 @@ export class ZapsignAdapter extends BaseMockableAdapter {
       base64_pdf,
       brand_name: this.brandName,
       lang: "pt-br",
-      disable_signer_emails: false,
+      disable_signer_emails: payload.enviarEmailAutomatico === false,
       signed_file_only_finished: true,
       signature_order_active: !!payload.ordemAssinaturaAtiva,
       signers: this.montarSigners(payload.signatarios, payload.enviarWhatsappAutomatico),
     };
+    if (payload.enviarEmailAutomatico === false) {
+      for (const signer of body["signers"] as Array<Record<string, unknown>>) signer["send_automatic_email"] = false;
+    }
     if (payload.externalId)  body["external_id"] = payload.externalId;
 
     const r = await fetch(`${this.baseUrl}/api/v1/docs/`, {

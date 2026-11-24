@@ -41,7 +41,7 @@ import type {
 // Hidratação do token (cofre -> process.env), sem dependência de boot.
 // ---------------------------------------------------------------------------
 let _tokenCarregado = false;
-async function ensureZapsignTokenLoaded(): Promise<void> {
+export async function ensureZapsignTokenLoaded(): Promise<void> {
   if (_tokenCarregado) return;
   _tokenCarregado = true;
   if (process.env["ZAPSIGN_API_TOKEN"] || process.env["ZAPSIGN_TOKEN"]) return;
@@ -122,6 +122,9 @@ function hidratar(corpo: string, dados: Record<string, string>): string {
 export async function enviarAssinatura(
   input: EnviarAssinaturaInput,
 ): Promise<EnviarAssinaturaResultado> {
+  // Estado operacional nunca vem do chamador (inclusive recibos de recuperação).
+  const metadataExtra = { ...(input.metadataExtra || {}) };
+  for (const key of ["mock", "fallback", "originalPdfKey", "reenvioRecibo", "reenvioEstado"]) delete metadataExtra[key];
   await ensureZapsignTokenLoaded();
   const toggles = await ensureToggles();
 
@@ -242,7 +245,7 @@ export async function enviarAssinatura(
       hashOriginal,
       signatariosSnapshot: signatarios,
       canaisDistribuir: canais,
-      metadata: { ...(input.metadataExtra || {}) },
+      metadata: metadataExtra,
     })
     .onConflictDoNothing()
     .returning({ id: assinaturaSolicitacoesTable.id });
@@ -273,6 +276,8 @@ export async function enviarAssinatura(
   // can reclaim the slot and attempt the envelope creation again.
   // (Without this, a failed RASCUNHO would block all retries via ON CONFLICT.)
   let resultado: Awaited<ReturnType<typeof adapter.createDocumentEnvelope>>;
+  let fallback = false;
+  let originalPdfKey: string | undefined;
   try {
     resultado = await adapter.createDocumentEnvelope({
       templateCodigo: input.templateCodigo || tipoDoc,
@@ -284,16 +289,31 @@ export async function enviarAssinatura(
       // Paxter é dono da fila de notificação: ZapSign NÃO dispara WhatsApp sozinho.
       enviarWhatsappAutomatico: false,
       ordemAssinaturaAtiva: signatarios.length > 1,
-      metadata: { tipoDoc, pacienteId: input.pacienteId, ...(input.metadataExtra || {}) },
+      metadata: { tipoDoc, pacienteId: input.pacienteId, ...metadataExtra },
     });
   } catch (providerErr) {
-    // Release the RASCUNHO slot so the next retry can enter.
-    await db
-      .delete(assinaturaSolicitacoesTable)
-      .where(eq(assinaturaSolicitacoesTable.id, solicitacaoId));
-    throw providerErr;
+    if (provedor === "zapsign" && providerErr instanceof Error && /^ZapSign create failed 402:/.test(providerErr.message)) {
+      // O provedor recusou explicitamente. Preserva o PDF exato sem enviar link fictício.
+      try {
+        originalPdfKey = (await uploadPdfAssinado(`original-${solicitacaoId}`, Buffer.from(pdfBase64, "base64"))).storageKey;
+      } catch (storageErr) {
+        // O 402 é recusa comprovada: não existe envelope externo. É seguro
+        // liberar a reserva para repetir o envio após o storage se recuperar.
+        await db.delete(assinaturaSolicitacoesTable)
+          .where(and(eq(assinaturaSolicitacoesTable.id, solicitacaoId), eq(assinaturaSolicitacoesTable.status, "RASCUNHO")));
+        throw storageErr;
+      }
+      fallback = true;
+      resultado = { envelopeId: `MOCK-ZAPSIGN-${solicitacaoId}`, linksAssinatura: [], rawProvider: null };
+    } else {
+      // Release the RASCUNHO slot so the next retry can enter.
+      await db
+        .delete(assinaturaSolicitacoesTable)
+        .where(eq(assinaturaSolicitacoesTable.id, solicitacaoId));
+      throw providerErr;
+    }
   }
-  const mock = !adapter.isConfigured();
+  const mock = fallback || !adapter.isConfigured();
 
   // 8. Update the reservation row with the real envelope data + mark ENVIADO.
   await db
@@ -301,7 +321,7 @@ export async function enviarAssinatura(
     .set({
       provedorEnvelopeId: resultado.envelopeId,
       status: "ENVIADO",
-      metadata: { mock, ...(input.metadataExtra || {}) },
+      metadata: { ...metadataExtra, mock, fallback, ...(originalPdfKey ? { originalPdfKey } : {}) },
       enviadoEm: new Date(),
     })
     .where(eq(assinaturaSolicitacoesTable.id, solicitacaoId));
@@ -342,7 +362,7 @@ export async function enviarAssinatura(
       `Acesse com seguranca: ${linkPaciente}`
     : `Ola ${primeiroNome}, o Instituto Padua preparou um documento para sua assinatura digital.`;
 
-  const canaisMsg = canais.filter((c) => c !== "DRIVE");
+  const canaisMsg = mock ? [] : canais.filter((c) => c !== "DRIVE");
   for (const canal of canaisMsg) {
     const destinatario =
       canal === "WHATSAPP"
@@ -785,6 +805,10 @@ type ResultadoEntrega = "ENVIADA" | "PULADO" | "FALHA";
 
 /** Entrega UMA notificação pelo seu canal. */
 async function entregarNotificacao(n: NotificacaoPendente): Promise<ResultadoEntrega> {
+  const [claim] = await db.update(assinaturaNotificacoesTable).set({ status: "PROCESSANDO" })
+    .where(and(eq(assinaturaNotificacoesTable.id, n.id), eq(assinaturaNotificacoesTable.status, "PENDENTE")))
+    .returning({ id: assinaturaNotificacoesTable.id });
+  if (!claim) return "PULADO";
   try {
     if (!n.destinatario || !n.destinatario.trim()) {
       // Sem destinatário: registra PULADO (não é falha de entrega).
@@ -823,11 +847,13 @@ async function entregarNotificacao(n: NotificacaoPendente): Promise<ResultadoEnt
   }
 }
 
-export async function processarNotificacoes(limite = 50) {
+export async function processarNotificacoes(limite = 50, solicitacaoId?: number, momento?: string) {
   const pend = await db
     .select()
     .from(assinaturaNotificacoesTable)
-    .where(eq(assinaturaNotificacoesTable.status, "PENDENTE"))
+    .where(and(eq(assinaturaNotificacoesTable.status, "PENDENTE"),
+      solicitacaoId === undefined ? undefined : eq(assinaturaNotificacoesTable.solicitacaoId, solicitacaoId),
+      momento === undefined ? undefined : eq(assinaturaNotificacoesTable.momento, momento)))
     .orderBy(assinaturaNotificacoesTable.criadoEm)
     .limit(limite);
 

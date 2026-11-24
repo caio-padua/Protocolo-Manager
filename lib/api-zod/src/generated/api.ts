@@ -7,6 +7,49 @@
  */
 import * as zod from "zod";
 
+/**
+ * @summary Contagem de cadernos aguardando envio real, exclusiva do CEO
+ */
+export const getAssinaturasFallbackSaudeResponseAguardandoReenvioRealMin = 0;
+
+export const getAssinaturasFallbackSaudeResponseBloqueadosMin = 0;
+
+export const GetAssinaturasFallbackSaudeResponse = zod.object({
+  aguardandoReenvioReal: zod
+    .number()
+    .min(getAssinaturasFallbackSaudeResponseAguardandoReenvioRealMin),
+  bloqueados: zod
+    .number()
+    .min(getAssinaturasFallbackSaudeResponseBloqueadosMin),
+});
+
+/**
+ * @summary Reenvia até dez cadernos ao ZapSign real
+ */
+export const ReenviarAssinaturasFallbackBody = zod.object({
+  confirmar: zod.literal(true),
+});
+
+export const reenviarAssinaturasFallbackResponseOneAguardandoReenvioRealMin = 0;
+
+export const reenviarAssinaturasFallbackResponseOneBloqueadosMin = 0;
+
+export const ReenviarAssinaturasFallbackResponse = zod
+  .object({
+    aguardandoReenvioReal: zod
+      .number()
+      .min(reenviarAssinaturasFallbackResponseOneAguardandoReenvioRealMin),
+    bloqueados: zod
+      .number()
+      .min(reenviarAssinaturasFallbackResponseOneBloqueadosMin),
+  })
+  .and(
+    zod.object({
+      reenviados: zod.number(),
+      falhas: zod.number(),
+    }),
+  );
+
 export const GetClientTelegramInboxParams = zod.object({
   clientId: zod.coerce.number().min(1),
 });

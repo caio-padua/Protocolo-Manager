@@ -48,7 +48,7 @@ export type AuthMode = "simples" | "avancada" | "qualificada" | "qualificada_ecn
 
 export type CanalDistribuicao = "EMAIL" | "WHATSAPP" | "DRIVE" | "TELEGRAM";
 
-export type MomentoNotificacao = "ENVIO_INICIAL" | "POS_ASSINATURA" | "LEMBRETE";
+export type MomentoNotificacao = "ENVIO_INICIAL" | "POS_ASSINATURA" | "LEMBRETE" | "REENVIO_REAL";
 
 export interface Signatario {
   papel: PapelSignatario;
@@ -80,6 +80,7 @@ export interface PayloadEnvelope {
   externalId?: string;
   /** Acionar envio automático via WhatsApp (ZapSign cobra por disparo). */
   enviarWhatsappAutomatico?: boolean;
+  enviarEmailAutomatico?: boolean;
   /**
    * Sequenciamento de assinaturas. true = ordem ativa (signatário seguinte só
    * recebe link após o anterior assinar). false = paralelo. Default false.

@@ -54,6 +54,9 @@ import type {
   AnamneseSessionInput,
   AnamneseSessionState,
   AnamneseSintoma,
+  AssinaturasFallbackConfirmacao,
+  AssinaturasFallbackResultado,
+  AssinaturasFallbackSaude,
   BatchResult,
   BookAgendaSessionBody,
   BookAgendaSessionResponse,
@@ -268,6 +271,176 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * @summary Contagem de cadernos aguardando envio real, exclusiva do CEO
+ */
+export const getGetAssinaturasFallbackSaudeUrl = () => {
+  return `/api/assinaturas/fallback/saude`;
+};
+
+export const getAssinaturasFallbackSaude = async (
+  options?: RequestInit,
+): Promise<AssinaturasFallbackSaude> => {
+  return customFetch<AssinaturasFallbackSaude>(
+    getGetAssinaturasFallbackSaudeUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetAssinaturasFallbackSaudeQueryKey = () => {
+  return [`/api/assinaturas/fallback/saude`] as const;
+};
+
+export const getGetAssinaturasFallbackSaudeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAssinaturasFallbackSaude>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAssinaturasFallbackSaude>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAssinaturasFallbackSaudeQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAssinaturasFallbackSaude>>
+  > = ({ signal }) =>
+    getAssinaturasFallbackSaude({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAssinaturasFallbackSaude>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAssinaturasFallbackSaudeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAssinaturasFallbackSaude>>
+>;
+export type GetAssinaturasFallbackSaudeQueryError = ErrorType<void>;
+
+/**
+ * @summary Contagem de cadernos aguardando envio real, exclusiva do CEO
+ */
+
+export function useGetAssinaturasFallbackSaude<
+  TData = Awaited<ReturnType<typeof getAssinaturasFallbackSaude>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAssinaturasFallbackSaude>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAssinaturasFallbackSaudeQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Reenvia até dez cadernos ao ZapSign real
+ */
+export const getReenviarAssinaturasFallbackUrl = () => {
+  return `/api/assinaturas/fallback/reenviar`;
+};
+
+export const reenviarAssinaturasFallback = async (
+  assinaturasFallbackConfirmacao: AssinaturasFallbackConfirmacao,
+  options?: RequestInit,
+): Promise<AssinaturasFallbackResultado> => {
+  return customFetch<AssinaturasFallbackResultado>(
+    getReenviarAssinaturasFallbackUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(assinaturasFallbackConfirmacao),
+    },
+  );
+};
+
+export const getReenviarAssinaturasFallbackMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reenviarAssinaturasFallback>>,
+    TError,
+    { data: BodyType<AssinaturasFallbackConfirmacao> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reenviarAssinaturasFallback>>,
+  TError,
+  { data: BodyType<AssinaturasFallbackConfirmacao> },
+  TContext
+> => {
+  const mutationKey = ["reenviarAssinaturasFallback"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reenviarAssinaturasFallback>>,
+    { data: BodyType<AssinaturasFallbackConfirmacao> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return reenviarAssinaturasFallback(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReenviarAssinaturasFallbackMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reenviarAssinaturasFallback>>
+>;
+export type ReenviarAssinaturasFallbackMutationBody =
+  BodyType<AssinaturasFallbackConfirmacao>;
+export type ReenviarAssinaturasFallbackMutationError = ErrorType<void>;
+
+/**
+ * @summary Reenvia até dez cadernos ao ZapSign real
+ */
+export const useReenviarAssinaturasFallback = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reenviarAssinaturasFallback>>,
+    TError,
+    { data: BodyType<AssinaturasFallbackConfirmacao> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reenviarAssinaturasFallback>>,
+  TError,
+  { data: BodyType<AssinaturasFallbackConfirmacao> },
+  TContext
+> => {
+  return useMutation(getReenviarAssinaturasFallbackMutationOptions(options));
+};
 
 export const getGetClientTelegramInboxUrl = (
   clientId: number,

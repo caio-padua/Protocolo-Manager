@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { AssinaturasFallbackSaude } from "./AssinaturasFallbackSaude";
 import {
   Bot, Users, Brain, Zap, MessageSquare, BookOpen, AlignLeft,
   ChevronRight, Shield, Clock, RefreshCw, Edit2, Save, X,
@@ -2999,6 +3000,7 @@ function AbaIntegracoes() {
         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">
           Status das Integrações
         </p>
+        <AssinaturasFallbackSaude />
         <div className="grid grid-cols-2 gap-3">
           <div className="panel-3d-sub rounded-[6px] p-4 space-y-2">
             <div className="flex items-center gap-2">

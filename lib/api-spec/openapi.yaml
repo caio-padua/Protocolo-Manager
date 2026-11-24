@@ -47,6 +47,48 @@ tags:
     description: Ligações clínicas propostas e aprovadas entre perguntas e saídas do catálogo
 
 paths:
+  /assinaturas/fallback/saude:
+    get:
+      operationId: getAssinaturasFallbackSaude
+      tags: [health]
+      summary: Contagem de cadernos aguardando envio real, exclusiva do CEO
+      responses:
+        "200":
+          description: Pendências do ZapSign
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssinaturasFallbackSaude"
+        "401":
+          description: Sessão necessária
+        "403":
+          description: Exclusivo do administrador da plataforma
+  /assinaturas/fallback/reenviar:
+    post:
+      operationId: reenviarAssinaturasFallback
+      tags: [health]
+      summary: Reenvia até dez cadernos ao ZapSign real
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssinaturasFallbackConfirmacao"
+      responses:
+        "200":
+          description: Resultado do lote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssinaturasFallbackResultado"
+        "400":
+          description: Confirmação obrigatória
+        "401":
+          description: Sessão necessária
+        "403":
+          description: Exclusivo do administrador da plataforma
+        "503":
+          description: Serviço indisponível ou não configurado
   /cockpit/{clientId}/telegram-inbox:
     get:
       operationId: getClientTelegramInbox
@@ -4360,6 +4402,27 @@ components:
       scheme: bearer
       bearerFormat: HMAC
   schemas:
+    AssinaturasFallbackConfirmacao:
+      type: object
+      required: [confirmar]
+      properties:
+        confirmar:
+          type: boolean
+          enum: [true]
+    AssinaturasFallbackSaude:
+      type: object
+      required: [aguardandoReenvioReal, bloqueados]
+      properties:
+        aguardandoReenvioReal: { type: integer, minimum: 0 }
+        bloqueados: { type: integer, minimum: 0 }
+    AssinaturasFallbackResultado:
+      allOf:
+        - $ref: "#/components/schemas/AssinaturasFallbackSaude"
+        - type: object
+          required: [reenviados, falhas, bloqueados]
+          properties:
+            reenviados: { type: integer }
+            falhas: { type: integer }
     TelegramInboxResponse:
       type: object
       additionalProperties: false

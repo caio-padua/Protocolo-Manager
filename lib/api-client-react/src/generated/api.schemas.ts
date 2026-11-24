@@ -5,6 +5,22 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+export interface AssinaturasFallbackConfirmacao {
+  confirmar: boolean;
+}
+
+export interface AssinaturasFallbackSaude {
+  /** @minimum 0 */
+  aguardandoReenvioReal: number;
+  /** @minimum 0 */
+  bloqueados: number;
+}
+
+export type AssinaturasFallbackResultado = AssinaturasFallbackSaude & {
+  reenviados: number;
+  falhas: number;
+};
+
 export type TelegramInboxMessageDirecao =
   (typeof TelegramInboxMessageDirecao)[keyof typeof TelegramInboxMessageDirecao];
 
