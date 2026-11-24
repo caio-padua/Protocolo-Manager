@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({
   allowed: true, phone: "+5500000000000", email: "patient@example.invalid", presEmail: "patient@example.invalid",
   empresa: 21, locationEmpresa: 21, issuer: 41, status: "emitted", member: true,
   startFails: false, finishFails: false, badHash: false, missingHash: false, logs: [] as any[], providerLogs: [] as any[], recurring: [] as any[], conditions: [] as any[],
-  wa: vi.fn(), tg: vi.fn(), mail: vi.fn(), motor: vi.fn(),
+  wa: vi.fn(), tg: vi.fn(), mail: vi.fn(), motor: vi.fn(), reads: vi.fn(), sync: vi.fn(),
 }));
 vi.mock("@workspace/db", async () => {
   const schema = await import("../../../../lib/db/src/schema");
@@ -42,6 +42,7 @@ vi.mock("@workspace/db", async () => {
   };
   return { ...schema, db: {
     select: () => ({ from: (table: unknown) => {
+      state.reads(table);
       const chain: any = { then: (yes: any, no: any) => Promise.resolve(rows(table)).then(yes, no) };
       chain.where = (condition: any) => { state.conditions.push(condition); return chain; };
       chain.limit = chain.orderBy = chain.leftJoin = () => chain;
@@ -62,10 +63,12 @@ vi.mock("../lib/receituario-motor", () => ({ emitirReceituarioPdf: state.motor }
 vi.mock("../lib/whatsapp", () => ({ sendWhatsapp: state.wa }));
 vi.mock("../lib/telegram", () => ({ sendTelegram: state.tg }));
 vi.mock("../lib/google-gmail", () => ({ sendGmailMessage: state.mail }));
+vi.mock("../lib/lembrete-periodo", () => ({ sincronizarLembretePrescricao: state.sync }));
 vi.mock("../lib/prescription-reminder-message", () => ({
   prescriptionReminderMessage: vi.fn().mockResolvedValue("Orientações sintéticas"),
 }));
 import router from "../routes/prescription-delivery";
+import { prescriptionReminderMessage } from "../lib/prescription-reminder-message";
 import { ClinicalIdentityError } from "../lib/clinical-emitter";
 import { createCollaboratorToken } from "../lib/collaborator-auth";
 const app = express().use(express.json()).use(router);
@@ -91,6 +94,34 @@ beforeEach(() => {
 });
 
 describe("entregas clínicas confirmadas (somente simulações)", () => {
+  it.each(["sms", "", "ambos", null, 123, {}, ["whatsapp"], undefined])(
+    "lembrete rejeita canal inválido/omitido %j antes de qualquer operação", async channel => {
+      const result = await post({ confirmed: true, recipient: state.phone, channel }, "enviar-lembrete");
+      expect(result.status).toBe(400);
+      expect(result.body.error).toContain("Confirme um canal");
+      expect(state.reads).not.toHaveBeenCalled();
+      expect(state.sync).not.toHaveBeenCalled();
+      expect(prescriptionReminderMessage).not.toHaveBeenCalled();
+      expect(state.logs).toHaveLength(0);
+      for (const send of [state.wa, state.tg, state.mail, state.motor]) expect(send).not.toHaveBeenCalled();
+    },
+  );
+  it.each([
+    { ...body("email", "patient@example.invalid") },
+    { ...body("whatsapp", "pharmacy-phone"), pharmacyId: 8 },
+  ])("lembrete rejeita destino incompatível antes de consultar catálogo", async payload => {
+    expect((await post(payload, "enviar-lembrete")).status).toBe(400);
+    expect(state.reads).not.toHaveBeenCalled();
+    expect(prescriptionReminderMessage).not.toHaveBeenCalled();
+    expect(state.logs).toHaveLength(0);
+  });
+  it.each(["whatsapp", "telegram"])("lembrete confirmado envia somente por %s", async channel => {
+    const recipient = channel === "telegram" ? "patient-chat" : state.phone;
+    expect((await post(body(channel, recipient), "enviar-lembrete")).body.accepted).toBe(true);
+    expect(state.wa).toHaveBeenCalledTimes(channel === "whatsapp" ? 1 : 0);
+    expect(state.tg).toHaveBeenCalledTimes(channel === "telegram" ? 1 : 0);
+    expect(state.sync).not.toHaveBeenCalled();
+  });
   it.each(["delivery", "enviar-lembrete", "reenviar-email"])("%s bloqueia anônimo antes de qualquer efeito", async path => {
     expect((await request(app).post(`/prescriptions/101/${path}`).send(body())).status).toBe(401);
     expect(state.conditions).toHaveLength(0); expect(state.logs).toHaveLength(0);

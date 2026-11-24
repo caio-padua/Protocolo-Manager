@@ -10,7 +10,7 @@ import { sendWhatsapp } from "../lib/whatsapp";
 import { sendTelegram } from "../lib/telegram";
 import { sendGmailMessage } from "../lib/google-gmail";
 import { prescriptionReminderMessage } from "../lib/prescription-reminder-message";
-import { auditedDelivery, confirmedTarget, type DeliveryTarget } from "../lib/clinical-delivery";
+import { auditedDelivery, confirmedTarget, deliveryBody, type DeliveryTarget } from "../lib/clinical-delivery";
 
 // Explicit staff/location relation replaces the legacy single-tenant context.
 export function authorizedPrescriptionFilter(professionalId: number) {
@@ -114,6 +114,16 @@ router.get("/prescriptions/:id/delivery", requireCollaborator, async (req, res) 
 });
 
 async function deliver(req: Request, res: import("express").Response) {
+  // Reject malformed requests before loading contacts/catalogues or preparing delivery.
+  const parsed = deliveryBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Confirme um canal e o destinatário exibido antes de enviar." });
+    return;
+  }
+  if ((req.path.endsWith("/reenviar-email") && parsed.data.channel !== "email") ||
+      (req.path.endsWith("/enviar-lembrete") && (parsed.data.channel === "email" || parsed.data.pharmacyId))) {
+    res.status(400).json({ error: "Canal incompatível com esta ação." }); return;
+  }
   const ctx = await deliveryContext(req);
   let target: DeliveryTarget;
   try {
@@ -121,10 +131,6 @@ async function deliver(req: Request, res: import("express").Response) {
   } catch (error) {
     res.status(400).json({ error: (error as Error).message });
     return;
-  }
-  if ((req.path.endsWith("/reenviar-email") && target.channel !== "email") ||
-      (req.path.endsWith("/enviar-lembrete") && (target.channel === "email" || target.pharmacyId))) {
-    res.status(400).json({ error: "Canal incompatível com esta ação." }); return;
   }
   // Email regeneration must use the original authenticated prescriber and clinic, not the global default.
   if (target.channel === "email" && !target.pharmacyId &&
