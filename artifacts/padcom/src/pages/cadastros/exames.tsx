@@ -1,4 +1,5 @@
 import "../matriz-fornecedores/matriz.css";
+import "../agenda/agenda-barra.css";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -402,9 +403,9 @@ function ExamesTab({ slot }: { slot: HTMLElement | null }) {
                 const cor = pl.chave === "__all__" ? null : coresNat.natureza(pl.chave);
                 return (
                   <button key={pl.chave} type="button" aria-pressed={sel} onClick={() => setNaturezaFiltro(pl.chave)} title={pl.chave === "__all__" ? "Todas as naturezas" : pl.chave} data-testid={`pilula-${pl.rotulo}`}
-                    className={`evo-bevel mx-ev-b mx-ev-lab h40 overflow-hidden ${sel ? "evo-bevel-ativo" : ""}`}>
+                    className={`evo-bevel mx-ev-b mx-ev-lab h56 ${sel ? "evo-bevel-ativo" : ""}`} style={{ ["--ev" as string]: cor ?? "#c9bfa6" }}>
                     {pl.rotulo}
-                    {cor && <i style={{ background: cor }} />}
+                    <span className="ag-vidro w-full" aria-hidden />
                   </button>
                 );
               })}
@@ -435,8 +436,8 @@ function ExamesTab({ slot }: { slot: HTMLElement | null }) {
               const hue = FAIXA_MATIZES[gi % FAIXA_MATIZES.length];
               const fechado = fechados.has(g.nome);
               return (
-                <section key={g.nome} data-testid={`faixa-${g.nome}`}>
-                  <div className="sticky z-20" style={{ top: "var(--topo-off, 0px)" }}>
+                <section key={g.nome} className="panel-3d-sub p-2" data-testid={`faixa-${g.nome}`}>
+                  <div className="sticky z-20 -mx-2 -mt-2 rounded-t-[6px] bg-[#fbfaf4] px-2 pb-1 pt-2" style={{ top: "var(--topo-off, 0px)" }}>
                   <button
                     type="button"
                     onClick={() => setFechados((s) => { const n = new Set(s); if (n.has(g.nome)) n.delete(g.nome); else n.add(g.nome); return n; })}
@@ -458,7 +459,7 @@ function ExamesTab({ slot }: { slot: HTMLElement | null }) {
                     <ChevronDown className={`h-3.5 w-3.5 shrink-0 opacity-60 transition-transform ${fechado ? "-rotate-90" : ""}`} />
                   </button>
                   {!fechado && (
-                    <div className="hidden md:grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_112px_48px] gap-3 px-4 py-1 text-[9px] font-bold uppercase tracking-widest text-primary/70" style={{ background: `hsl(${hue} 40% 93%)`, borderBottom: `1px solid hsl(${hue} 35% 82%)` }}>
+                    <div className="hidden md:grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_112px_48px] gap-3 px-4 pb-0.5 pt-2 text-[9px] font-bold uppercase tracking-widest text-primary/70">
                       <div>Exame</div>
                       <div>Natureza / Modalidade</div>
                       <div>Preparo</div>
@@ -467,7 +468,7 @@ function ExamesTab({ slot }: { slot: HTMLElement | null }) {
                     </div>
                   )}
                   </div>
-                  {!fechado && (<div style={{ background: `linear-gradient(180deg, hsl(${hue} 45% 90%) 0%, hsl(${hue} 35% 94%) 35%, hsl(${hue} 25% 97%) 100%)` }}>
+                  {!fechado && (<div className="concave-3d overflow-hidden" style={{ background: `linear-gradient(180deg, hsl(${hue} 45% 90%) 0%, hsl(${hue} 35% 94%) 35%, hsl(${hue} 25% 97%) 100%)` }}>
                   {g.itens.map((e, i) => {
                     const nat = attrPorId.get(e.id)?.natureza;
                     return (
