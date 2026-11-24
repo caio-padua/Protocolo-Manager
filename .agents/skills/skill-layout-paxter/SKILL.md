@@ -1055,6 +1055,15 @@ ligados a saídas de catálogo, sem confundir desenho do vínculo com aprovaçã
 6. **Pele:** usar o padrão Paxter de painel Saliente/Concavo, tecido claro e navy/ouro.
    Não usar retângulos coloridos soltos; cor de categoria identifica o fio, enquanto
    o estado pendente é identificado por tracejado e texto.
+7. **Conexão por dois pontos no modo de edição:** clicar no ponto do polo de origem
+   ancora o fio; após soltar, ele continua seguindo o ponteiro. Clicar no ponto da
+   saída conclui a ligação. Escape cancela; começar por outro ponto de origem
+   reinicia o fio. Preservar o arraste para quem preferir esse gesto.
+8. **Confirmação da corrente:** somente após o servidor confirmar a gravação, o fio
+   acende com um brilho breve e a relação fica selecionada e visível. Erro, sessão
+   recusada, duplicidade ou destino inválido nunca recebem brilho de sucesso. A
+   animação respeita `prefers-reduced-motion`; no celular, cada ponto tem alvo de
+   toque mínimo de 40 px.
 
 **Why:** o responsável quer enxergar a relação pergunta→saída como um neurônio
 conduzindo corrente, com correspondências legíveis e editáveis, sem ligar propostas

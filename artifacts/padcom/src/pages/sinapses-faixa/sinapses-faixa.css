@@ -1,0 +1,33 @@
+@keyframes sinapse-ignicao {
+  0% {
+    stroke-width: 8px;
+    filter: drop-shadow(0 0 10px #f3ce72) drop-shadow(0 0 18px #f3ce72);
+    opacity: 1;
+  }
+  45% {
+    stroke-width: 5px;
+    filter: drop-shadow(0 0 7px #f3ce72) drop-shadow(0 0 12px #f3ce72);
+    opacity: 1;
+  }
+  100% {
+    stroke-width: 3.5px;
+    filter: drop-shadow(0 0 3px #f3ce72);
+    opacity: 1;
+  }
+}
+
+.sinapse-fio-ignicao {
+  animation: sinapse-ignicao 1.1s ease-out both;
+}
+
+.sinapse-porta-origem-ativa {
+  outline: 2px solid #b8892b;
+  outline-offset: 1px;
+  filter: drop-shadow(0 0 4px #f3ce72);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sinapse-fio-ignicao {
+    animation: none;
+  }
+}

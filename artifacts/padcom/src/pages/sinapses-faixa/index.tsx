@@ -1,4 +1,5 @@
 import "../matriz-fornecedores/matriz.css";
+import "./sinapses-faixa.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -35,7 +36,8 @@ const CATEGORIAS: Array<{ chave: Categoria; rotulo: string; sigla: string; cor: 
 const COR = Object.fromEntries(CATEGORIAS.map((c) => [c.chave, c.cor])) as Record<Categoria, string>;
 const ROTULO = Object.fromEntries(CATEGORIAS.map((c) => [c.chave, c.rotulo])) as Record<Categoria, string>;
 const SIGLA = Object.fromEntries(CATEGORIAS.map((c) => [c.chave, c.sigla])) as Record<Categoria, string>;
-const ROW_H = 24;
+const ROW_H_DESKTOP = 24;
+const ROW_H_TOUCH = 40;
 
 interface Pergunta { perguntaId: string; pergunta: string; bloco: string | null; eSinalAlarme: boolean }
 interface Destino { tipo: TipoDestino; id: number; nome: string; detalhe?: string | null; incompleto?: boolean }
@@ -89,9 +91,24 @@ export default function SinapsesFaixa() {
   const [buscaDestinoEdicao, setBuscaDestinoEdicao] = useState("");
   const [aprovarArmado, setAprovarArmado] = useState<number | null>(null);
   const [armadas, setArmadas] = useState<Set<number>>(new Set());
-  const [arraste, setArraste] = useState<{ de: string; x0: number; y0: number; x: number; y: number; clonar: boolean } | null>(null);
+  const [arraste, setArraste] = useState<{ de: string; origens: string[]; x0: number; y0: number; x: number; y: number; clonar: boolean } | null>(null);
   const arrasteRef = useRef(arraste);
   arrasteRef.current = arraste;
+  const [alturaLinha, setAlturaLinha] = useState(ROW_H_DESKTOP);
+  const [fioRecemSalvo, setFioRecemSalvo] = useState<string | null>(null);
+  const brilhoTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    const consulta = window.matchMedia("(max-width: 639px)");
+    const atualizar = () => setAlturaLinha(consulta.matches ? ROW_H_TOUCH : ROW_H_DESKTOP);
+    atualizar();
+    consulta.addEventListener("change", atualizar);
+    return () => consulta.removeEventListener("change", atualizar);
+  }, []);
+
+  useEffect(() => () => {
+    if (brilhoTimer.current !== null) window.clearTimeout(brilhoTimer.current);
+  }, []);
 
   const invalidar = () => qc.invalidateQueries({ queryKey: ["/api/cadastros/sinapses/painel"] });
   const enviar = async (url: string, method: string, body: unknown) => {
@@ -105,7 +122,18 @@ export default function SinapsesFaixa() {
   const onErro = (e: Error) => toast({ title: "Não foi salvo", description: e.message, variant: "destructive" });
   const criar = useMutation({
     mutationFn: (v: { perguntaId: string; categoria: Categoria; destinoTipo: string; destinoId: number }) => enviar("/api/cadastros/sinapses", "POST", v),
-    onSuccess: () => { invalidar(); toast({ title: "Ligação salva" }); },
+    onSuccess: (_resultado, variaveis) => {
+      invalidar();
+      setSel([variaveis.perguntaId]);
+      const chaveFio = `${variaveis.perguntaId}|${chave(variaveis.categoria, variaveis.destinoTipo, variaveis.destinoId)}`;
+      setFioRecemSalvo(chaveFio);
+      if (brilhoTimer.current !== null) window.clearTimeout(brilhoTimer.current);
+      brilhoTimer.current = window.setTimeout(() => {
+        setFioRecemSalvo(null);
+        brilhoTimer.current = null;
+      }, 1100);
+      toast({ title: "Ligação salva", description: "A sinapse acendeu e ficou selecionada." });
+    },
     onError: onErro,
   });
   const clonar = useMutation({
@@ -271,12 +299,12 @@ export default function SinapsesFaixa() {
     return Array.from(m.values()).sort((a, b) => Number((b.nAtivas + b.nPropostas + b.nSemSaida) > 0) - Number((a.nAtivas + a.nPropostas + a.nSemSaida) > 0) || a.cat.localeCompare(b.cat) || a.nome.localeCompare(b.nome));
   }, [data, modo, cats, q, esquerda, conexoesPorPergunta, nomeDe, todos]);
 
-  const yE = useMemo(() => new Map(esquerda.map((p, i) => [p.perguntaId, (i + 0.5) * ROW_H])), [esquerda]);
-  const yD = useMemo(() => new Map(direita.map((d, i) => [d.k, (i + 0.5) * ROW_H])), [direita]);
-  const altura = Math.max(esquerda.length, direita.length, 1) * ROW_H;
+  const yE = useMemo(() => new Map(esquerda.map((p, i) => [p.perguntaId, (i + 0.5) * alturaLinha])), [esquerda, alturaLinha]);
+  const yD = useMemo(() => new Map(direita.map((d, i) => [d.k, (i + 0.5) * alturaLinha])), [direita, alturaLinha]);
+  const altura = Math.max(esquerda.length, direita.length, 1) * alturaLinha;
   const fios = useMemo(() => esquerda.flatMap((p) => (conexoesPorPergunta.get(p.perguntaId) ?? []).map((s) => ({ s, y1: yE.get(p.perguntaId)!, y2: yD.get(chave(s.categoria, s.destinoTipo, s.destinoId)) }))).filter((f) => f.y2 !== undefined), [esquerda, conexoesPorPergunta, yE, yD]);
 
-  const foco = hover ?? (sel.length === 1 ? sel[0] : null);
+  const foco = arraste?.de ?? hover ?? (sel.length === 1 ? sel[0] : null);
   const simAcesos = useMemo(() => {
     const set = new Set<string>();
     if (modo === "SIMULACAO") {
@@ -325,10 +353,13 @@ export default function SinapsesFaixa() {
       if ((e.ctrlKey || e.metaKey) && t === "c" && modo === "EDICAO") { e.preventDefault(); copiar(); return; }
       if ((e.ctrlKey || e.metaKey) && t === "v" && modo === "EDICAO") { e.preventDefault(); colar(); return; }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (t === "v") setModo("VISUALIZACAO");
+      if (t === "v" || t === "s") {
+        arrasteRef.current = null;
+        setArraste(null);
+        setModo(t === "v" ? "VISUALIZACAO" : "SIMULACAO");
+      }
       if (t === "e") setModo("EDICAO");
-      if (t === "s") setModo("SIMULACAO");
-      if (t === "escape") { setSel([]); setArraste(null); }
+      if (t === "escape") { setSel([]); arrasteRef.current = null; setArraste(null); }
     };
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
@@ -337,33 +368,67 @@ export default function SinapsesFaixa() {
   // ---- puxar o fio ----
   useEffect(() => {
     if (!arraste) return;
-    const mover = (e: PointerEvent) => setArraste((a) => (a ? { ...a, x: e.clientX, y: e.clientY } : a));
+    const mover = (e: PointerEvent) => setArraste((a) => {
+      if (!a) return a;
+      const proximo = { ...a, x: e.clientX, y: e.clientY };
+      arrasteRef.current = proximo;
+      return proximo;
+    });
     const soltar = (e: PointerEvent) => {
       const a = arrasteRef.current;
-      setArraste(null);
       if (!a) return;
       const alvo = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
       if (a.clonar) {
         const destino = (alvo?.closest("[data-pergunta]") as HTMLElement | null)?.dataset.pergunta;
-        if (destino && destino !== a.de) clonar.mutate({ perguntaOrigemId: a.de, perguntaDestinoId: destino });
+        if (destino && destino !== a.de) {
+          arrasteRef.current = null;
+          setArraste(null);
+          clonar.mutate({ perguntaOrigemId: a.de, perguntaDestinoId: destino });
+        }
         return;
       }
       const d = (alvo?.closest("[data-dest]") as HTMLElement | null)?.dataset.dest;
       if (!d) return;
+      arrasteRef.current = null;
+      setArraste(null);
       const [categoria, destinoTipo, id] = d.split("|");
-      const origens = sel.includes(a.de) && sel.length > 1 ? sel : [a.de];
-      for (const perguntaId of origens) criar.mutate({ perguntaId, categoria: categoria as Categoria, destinoTipo, destinoId: Number(id) });
+      for (const perguntaId of a.origens) criar.mutate({ perguntaId, categoria: categoria as Categoria, destinoTipo, destinoId: Number(id) });
     };
     window.addEventListener("pointermove", mover);
-    window.addEventListener("pointerup", soltar, { once: true });
+    window.addEventListener("pointerup", soltar);
     return () => { window.removeEventListener("pointermove", mover); window.removeEventListener("pointerup", soltar); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!arraste]);
-  const iniciar = (e: React.PointerEvent, de: string) => {
+  const iniciarNoPonto = (de: string, x: number, y: number, clonarOrigem = false) => {
     if (modo !== "EDICAO") return;
-    e.preventDefault(); e.stopPropagation();
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setArraste({ de, x0: r.left + r.width / 2, y0: r.top + r.height / 2, x: e.clientX, y: e.clientY, clonar: e.altKey });
+    const proximo = {
+      de,
+      origens: sel.includes(de) && sel.length > 1 ? [...sel] : [de],
+      x0: x,
+      y0: y,
+      x,
+      y,
+      clonar: clonarOrigem,
+    };
+    arrasteRef.current = proximo;
+    setArraste(proximo);
+  };
+  const iniciar = (e: React.PointerEvent<HTMLButtonElement>, de: string) => {
+    if (modo !== "EDICAO") return;
+    e.preventDefault();
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    iniciarNoPonto(de, r.left + r.width / 2, r.top + r.height / 2, e.altKey);
+  };
+  const concluirNoDestino = (destino: string) => {
+    const a = arrasteRef.current;
+    if (!a || a.clonar) return;
+    arrasteRef.current = null;
+    setArraste(null);
+    const [categoria, destinoTipo, id] = destino.split("|");
+    for (const perguntaId of a.origens) {
+      criar.mutate({ perguntaId, categoria: categoria as Categoria, destinoTipo, destinoId: Number(id) });
+    }
   };
 
   const cliqueExcluir = (id: number) => {
@@ -386,8 +451,12 @@ export default function SinapsesFaixa() {
     return r;
   }, [data]);
   const ajuda =
-    modo === "EDICAO"
-      ? "Escolha uma saída (EXA, FOR, IM, SC, EV, IMP) para ver o catálogo e puxe o círculo da pergunta até o código da saída. Alt + soltar noutra pergunta copia as ligações. Ctrl+clique e Shift+clique selecionam várias; Ctrl+C e Ctrl+V copiam."
+    arraste
+      ? arraste.clonar
+        ? `Cópia iniciada em ${arraste.de}. Solte noutra pergunta para copiar; Escape cancela.`
+        : `Fio iniciado em ${arraste.de}. Mova o ponteiro e clique no ponto de uma saída; Escape cancela.`
+      : modo === "EDICAO"
+      ? "Clique no ponto de uma pergunta e depois no ponto de uma saída. O fio segue o ponteiro. Também é possível arrastar. Alt + arraste até outra pergunta copia; Ctrl+C e Ctrl+V copiam perguntas selecionadas."
       : modo === "SIMULACAO"
         ? "Simulação, nada é gravado: marque perguntas como respondidas “sim” e veja quais saídas acenderiam."
         : "Clique num código para destacar os fios e abrir as correspondências na sanfona.";
@@ -402,7 +471,7 @@ export default function SinapsesFaixa() {
           </div>
           <div className="mx-ev-g w-[26rem]" style={{ gridTemplateColumns: "repeat(3,1fr)" }} role="group" aria-label="Modo da tela">
             {([["VISUALIZACAO", "Visualização (V)", Eye], ["EDICAO", "Edição (E)", Pencil], ["SIMULACAO", "Simulação (S)", Play]] as const).map(([m, rot, Ic]) => (
-              <button key={m} type="button" aria-pressed={modo === m} onClick={() => setModo(m)} className={`evo-bevel mx-ev-b h40 ${modo === m ? "evo-bevel-ativo" : ""}`} data-testid={`faixa-modo-${m}`}>
+              <button key={m} type="button" aria-pressed={modo === m} onClick={() => { if (m !== "EDICAO") { arrasteRef.current = null; setArraste(null); } setModo(m); }} className={`evo-bevel mx-ev-b h40 ${modo === m ? "evo-bevel-ativo" : ""}`} data-testid={`faixa-modo-${m}`}>
                 <Ic className="mr-1 inline h-4 w-4" />{rot}
               </button>
             ))}
@@ -435,7 +504,7 @@ export default function SinapsesFaixa() {
             {gerarCarga.isPending ? "Gravando propostas…" : "Gerar propostas iniciais"}
           </button>
         </div>
-        <p className="mt-2 text-[11px] text-muted-foreground" data-testid="faixa-ajuda">{ajuda}</p>
+        <p className="mt-2 text-[11px] text-muted-foreground" aria-live="polite" data-testid="faixa-ajuda">{ajuda}</p>
         {modo === "SIMULACAO" && (
           <div className="mt-2 grid grid-cols-3 gap-1.5 md:grid-cols-6" data-testid="faixa-resumo-simulacao">
             {CATEGORIAS.map((c) => (
@@ -485,7 +554,7 @@ export default function SinapsesFaixa() {
                       const n = nAtivas + nPendentes;
                       const marcada = sel.includes(p.perguntaId);
                       return (
-                        <div key={p.perguntaId} data-pergunta={p.perguntaId} className="absolute flex w-full items-center gap-1 px-1" style={{ top: (yE.get(p.perguntaId) ?? 0) - (ROW_H - 3) / 2, height: ROW_H - 3 }}
+                        <div key={p.perguntaId} data-pergunta={p.perguntaId} className="absolute flex w-full items-center gap-1 px-1" style={{ top: (yE.get(p.perguntaId) ?? 0) - (alturaLinha - 3) / 2, height: alturaLinha - 3 }}
                           onMouseEnter={() => setHover(p.perguntaId)} onMouseLeave={() => setHover(null)} title={`${p.perguntaId} · ${p.pergunta}`} aria-label={`${p.perguntaId}: ${p.pergunta}. ${nAtivas} ligações registradas, ${nSemSaida} sem saída e ${nPendentes} propostas pendentes.`}>
                           <button type="button" onClick={(e) => clicar(e, p.perguntaId)} data-testid={`faixa-dendrito-${p.perguntaId}`}
                             className={`tecla-3d flex h-full min-w-0 flex-1 items-center gap-1 px-1.5 text-left select-none ${marcada ? "evo-bevel-ativo" : ""}`}>
@@ -497,9 +566,18 @@ export default function SinapsesFaixa() {
                             <span className="ml-auto text-[9px] tabular-nums opacity-60">{n || ""}</span>
                           </button>
                           {modo === "EDICAO" && (
-                            <button type="button" onPointerDown={(e) => iniciar(e, p.perguntaId)} onClick={(e) => e.stopPropagation()} data-testid={`faixa-porta-${p.perguntaId}`}
-                              className="bevel-3d h-3.5 w-3.5 shrink-0 cursor-crosshair touch-none" style={{ borderRadius: 999 }} aria-label={`Ligar a pergunta ${p.perguntaId}`}
-                              title="Puxe até uma saída. Alt: solte noutra pergunta para copiar." />
+                            <button type="button" onPointerDown={(e) => iniciar(e, p.perguntaId)} onClick={(e) => {
+                              e.stopPropagation();
+                              if (e.detail === 0 && !arrasteRef.current) {
+                                const r = e.currentTarget.getBoundingClientRect();
+                                iniciarNoPonto(p.perguntaId, r.left + r.width / 2, r.top + r.height / 2);
+                              }
+                            }} data-testid={`faixa-porta-${p.perguntaId}`}
+                              className={`bevel-3d flex h-10 w-10 shrink-0 cursor-crosshair touch-none items-center justify-center sm:h-6 sm:w-6 ${arraste?.de === p.perguntaId ? "sinapse-porta-origem-ativa" : ""}`} style={{ borderRadius: 999 }}
+                              aria-label={`Iniciar ligação a partir da pergunta ${p.perguntaId}`} aria-pressed={arraste?.de === p.perguntaId}
+                              title="Clique aqui e depois no ponto de uma saída. Escape cancela.">
+                              <span className={`block h-2 w-2 rounded-full ${arraste?.de === p.perguntaId ? "bg-amber-300" : "bg-current"}`} aria-hidden="true" />
+                            </button>
                           )}
                         </div>
                       );
@@ -508,12 +586,15 @@ export default function SinapsesFaixa() {
                   {/* FIOS */}
                   <svg className="h-full w-full" style={{ background: "#fff", backgroundImage: "linear-gradient(#f1f5f9 1px,transparent 1px),linear-gradient(90deg,#f1f5f9 1px,transparent 1px)", backgroundSize: "24px 24px" }} viewBox={`0 0 100 ${altura}`} preserveAspectRatio="none" aria-hidden>
                     {fios.map(({ s, y1, y2 }) => {
-                      const em = foco === s.perguntaId || (modo === "SIMULACAO" && sel.includes(s.perguntaId));
+                      const fioKey = `${s.perguntaId}|${chave(s.categoria, s.destinoTipo, s.destinoId)}`;
+                      const acendidoAgora = fioRecemSalvo === fioKey;
+                      const em = foco === s.perguntaId || (modo === "SIMULACAO" && sel.includes(s.perguntaId)) || acendidoAgora;
                       const apagado = (foco !== null || (modo === "SIMULACAO" && sel.length > 0)) && !em;
                       const semSaida = s.estado === "SEM_SAIDA";
                       const corFio = s.estado === "ATIVA" ? COR[s.categoria] : semSaida ? "#dc2626" : "#b8892b";
                       return (
                         <path key={s.id} d={`M 0 ${y1} C 50 ${y1}, 50 ${y2}, 100 ${y2}`} fill="none" stroke={corFio} strokeWidth={em ? 3.5 : 1.3} strokeDasharray={s.estado === "ATIVA" ? undefined : "5 3"} vectorEffect="non-scaling-stroke"
+                          className={acendidoAgora ? "sinapse-fio-ignicao" : undefined}
                           style={{ opacity: apagado ? 0.035 : em ? 0.98 : s.estado === "ATIVA" ? 0.9 : 0.72, filter: em ? `drop-shadow(0 0 3px ${corFio})` : undefined }} data-testid={`faixa-fio-${s.id}`} />
                       );
                     })}
@@ -525,10 +606,20 @@ export default function SinapsesFaixa() {
                       const apagado = modo === "SIMULACAO" && sel.length > 0 && !aceso;
                       const totalConexoes = d.nAtivas + d.nPropostas + d.nSemSaida;
                       return (
-                        <div key={d.k} data-dest={d.incompleto ? undefined : d.k} className={`absolute flex w-full items-center gap-1 px-1 ${apagado ? "opacity-35" : !totalConexoes && modo !== "EDICAO" ? "opacity-60" : ""}`} style={{ top: (yD.get(d.k) ?? 0) - (ROW_H - 3) / 2, height: ROW_H - 3 }}
+                        <div key={d.k} data-dest={d.incompleto ? undefined : d.k} className={`absolute flex w-full items-center gap-1 px-1 ${apagado ? "opacity-35" : !totalConexoes && modo !== "EDICAO" ? "opacity-60" : ""}`} style={{ top: (yD.get(d.k) ?? 0) - (alturaLinha - 3) / 2, height: alturaLinha - 3 }}
                           title={`${codigoDestino(d.cat, d.tipo, d.id)} · ${ROTULO[d.cat]} · ${d.nome}${nomeDe.get(d.k)?.detalhe ? ` · ${nomeDe.get(d.k)?.detalhe}` : ""}${d.incompleto ? " · SEM SAÍDA: bloco sem exames cadastrados" : ""}`} aria-label={`${codigoDestino(d.cat, d.tipo, d.id)}: ${d.nome}. ${d.nAtivas} saídas conectadas, ${d.nSemSaida} ligações sem saída e ${d.nPropostas} propostas pendentes.`} data-testid={`faixa-saida-${d.k}`}>
                           <div className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1.5 px-1.5" style={aceso ? { boxShadow: `inset 3px 0 0 ${COR[d.cat]}` } : undefined}>
-                            <span className="h-2 w-2 shrink-0 rounded-full" style={d.nAtivas ? { background: COR[d.cat] } : d.nPropostas ? { border: `1.5px dashed ${COR[d.cat]}`, background: "transparent" } : d.nSemSaida ? { border: "1.5px dashed #dc2626", background: "transparent" } : { border: `1.5px solid ${COR[d.cat]}`, background: "transparent" }} title={d.nAtivas ? "Tem saída ativa" : d.nPropostas ? "Tem proposta pendente" : d.nSemSaida ? "Ligação ativa sem saída real" : "Ainda sem ligação"} aria-hidden />
+                            {modo === "EDICAO" ? (
+                              <button type="button" disabled={!!d.incompleto} onClick={(e) => { e.stopPropagation(); concluirNoDestino(d.k); }}
+                                className="bevel-3d flex h-10 w-10 shrink-0 items-center justify-center disabled:cursor-not-allowed disabled:opacity-40 sm:h-6 sm:w-6"
+                                data-testid={`faixa-porta-destino-${d.k}`}
+                                aria-label={d.incompleto ? `Destino ${codigoDestino(d.cat, d.tipo, d.id)} sem conteúdo; indisponível` : `Concluir ligação na saída ${codigoDestino(d.cat, d.tipo, d.id)}`}
+                                title={d.incompleto ? "Bloco vazio: não pode receber ligação." : "Clique para concluir o fio iniciado numa pergunta."}>
+                                <span className="block h-2 w-2 rounded-full" style={d.nAtivas ? { background: COR[d.cat] } : d.nPropostas ? { border: `1.5px dashed ${COR[d.cat]}`, background: "transparent" } : d.nSemSaida ? { border: "1.5px dashed #dc2626", background: "transparent" } : { border: `1.5px solid ${COR[d.cat]}`, background: "transparent" }} aria-hidden="true" />
+                              </button>
+                            ) : (
+                              <span className="h-2 w-2 shrink-0 rounded-full" style={d.nAtivas ? { background: COR[d.cat] } : d.nPropostas ? { border: `1.5px dashed ${COR[d.cat]}`, background: "transparent" } : d.nSemSaida ? { border: "1.5px dashed #dc2626", background: "transparent" } : { border: `1.5px solid ${COR[d.cat]}`, background: "transparent" }} aria-hidden="true" />
+                            )}
                             <span className="shrink-0 font-mono text-[10px] font-bold" style={{ color: COR[d.cat] }}>{codigoDestino(d.cat, d.tipo, d.id)}</span>
                             <span className="truncate text-[10px] opacity-80">{d.nome}</span>
                             {d.incompleto && <span className="shrink-0 text-[8px] font-bold text-red-700">SEM EXAMES</span>}
@@ -674,7 +765,7 @@ export default function SinapsesFaixa() {
 
       {arraste && (
         <svg className="pointer-events-none fixed inset-0 z-50" width="100%" height="100%" aria-hidden>
-          <path d={`M ${arraste.x0} ${arraste.y0} C ${arraste.x0 + 80} ${arraste.y0}, ${arraste.x - 80} ${arraste.y}, ${arraste.x} ${arraste.y}`} fill="none" stroke={arraste.clonar ? "#2563eb" : "#d97706"} strokeWidth={2.5} strokeDasharray={arraste.clonar ? "6 4" : undefined} />
+          <path d={`M ${arraste.x0} ${arraste.y0} C ${arraste.x0 + 80} ${arraste.y0}, ${arraste.x - 80} ${arraste.y}, ${arraste.x} ${arraste.y}`} fill="none" stroke={arraste.clonar ? "#2563eb" : "#d97706"} strokeWidth={3} strokeDasharray={arraste.clonar ? "6 4" : undefined} style={{ filter: arraste.clonar ? undefined : "drop-shadow(0 0 4px #f3ce72)" }} />
           <circle cx={arraste.x} cy={arraste.y} r={5} fill={arraste.clonar ? "#2563eb" : "#d97706"} />
         </svg>
       )}
