@@ -91,7 +91,7 @@ export default function SinapsesFaixa() {
   const [buscaDestinoEdicao, setBuscaDestinoEdicao] = useState("");
   const [aprovarArmado, setAprovarArmado] = useState<number | null>(null);
   const [armadas, setArmadas] = useState<Set<number>>(new Set());
-  const [arraste, setArraste] = useState<{ de: string; origens: string[]; x0: number; y0: number; x: number; y: number; clonar: boolean } | null>(null);
+  const [arraste, setArraste] = useState<{ de: string; origens: string[]; x0: number; y0: number; x: number; y: number; clonar: boolean; fixo?: boolean } | null>(null);
   const arrasteRef = useRef(arraste);
   arrasteRef.current = arraste;
   const [alturaLinha, setAlturaLinha] = useState(ROW_H_DESKTOP);
@@ -489,6 +489,7 @@ export default function SinapsesFaixa() {
         }
         return;
       }
+      if (a.fixo) return; // fio armado por clique: quem liga e o clique na saida (onClick)
       const d = (alvo?.closest("[data-dest]") as HTMLElement | null)?.dataset.dest;
       if (!d) return;
       arrasteRef.current = null;
@@ -516,7 +517,7 @@ export default function SinapsesFaixa() {
   const iniciarNoPonto = (de: string, x: number, y: number, clonarOrigem = false) => {
     if (modo !== "EDICAO") return;
     // Clicar de novo no mesmo ponto desarma o fio.
-    if (arrasteRef.current?.de === de) { cancelarArraste(); return; }
+    if (arrasteRef.current?.de === de) return; // ja armado: dois cliques rapidos (onClick) desarmam
     const proximo = {
       de,
       origens: sel.includes(de) && sel.length > 1 ? [...sel] : [de],
@@ -535,6 +536,15 @@ export default function SinapsesFaixa() {
     e.stopPropagation();
     const r = e.currentTarget.getBoundingClientRect();
     iniciarNoPonto(de, r.left + r.width / 2, r.top + r.height / 2, e.altKey);
+  };
+  // Clique numa saida com o fio armado: 1 clique liga e continua; 2 cliques rapidos (ja ligou no 1o) fecham; teclado liga e fecha.
+  const cliqueNaSaida = (destino: string, detail: number) => {
+    const a = arrasteRef.current;
+    if (!a || a.clonar) return;
+    if (detail >= 2) { cancelarArraste(); return; }
+    const [categoria, destinoTipo, id] = destino.split("|");
+    for (const perguntaId of a.origens) criar.mutate({ perguntaId, categoria: categoria as Categoria, destinoTipo, destinoId: Number(id) });
+    if (detail === 0) cancelarArraste();
   };
   const concluirNoDestino = (destino: string) => {
     const a = arrasteRef.current;
@@ -579,7 +589,7 @@ export default function SinapsesFaixa() {
     arraste
       ? arraste.clonar
         ? `Cópia iniciada em ${arraste.de}. Solte noutra pergunta para copiar; Escape cancela.`
-        : `Fio iniciado em ${arraste.de}. Mova o ponteiro e clique no ponto de uma saída; Escape cancela.`
+        : `Fio iniciado em ${arraste.de}. Clique em uma ou mais saídas (1 clique liga e continua; 2 cliques rápidos ligam e fecham). 2 cliques rápidos na bolinha ou Escape desarmam.`
       : modo === "EDICAO"
       ? "Clique no ponto de uma pergunta e depois no ponto de uma saída. O fio segue o ponteiro. Também é possível arrastar. Alt + arraste até outra pergunta copia; Ctrl+C e Ctrl+V copiam perguntas selecionadas."
       : modo === "SIMULACAO"
@@ -788,6 +798,8 @@ export default function SinapsesFaixa() {
                           {modo === "EDICAO" && (
                             <button type="button" onPointerDown={(e) => iniciar(e, p.perguntaId)} onClick={(e) => {
                               e.stopPropagation();
+                              if (e.detail >= 2 && arrasteRef.current?.de === p.perguntaId) { cancelarArraste(); return; }
+                              if (e.detail === 1 && arrasteRef.current?.de === p.perguntaId && !arrasteRef.current.fixo) { const f = { ...arrasteRef.current, fixo: true }; arrasteRef.current = f; setArraste(f); return; }
                               if (e.detail === 0 && !arrasteRef.current) {
                                 const r = e.currentTarget.getBoundingClientRect();
                                 iniciarNoPonto(p.perguntaId, r.left + r.width / 2, r.top + r.height / 2);
@@ -882,7 +894,7 @@ export default function SinapsesFaixa() {
                         <div key={d.k} data-dest={d.incompleto ? undefined : d.k} className={`absolute flex w-full items-center gap-1 px-1 ${apagado ? "opacity-35" : !totalConexoes && modo !== "EDICAO" ? "opacity-60" : ""}`} style={{ top: topo, height: alturaLinha - 3 }}
                           title={`${codigoDestino(d.cat, d.tipo, d.id)} · ${ROTULO[d.cat]} · ${d.nome}${nomeDe.get(d.k)?.detalhe ? ` · ${nomeDe.get(d.k)?.detalhe}` : ""}${d.incompleto ? " · SEM SAÍDA: bloco sem exames cadastrados" : ""}`} aria-label={`${codigoDestino(d.cat, d.tipo, d.id)}: ${d.nome}. ${d.nAtivas} saídas conectadas, ${d.nSemSaida} ligações sem saída e ${d.nPropostas} propostas pendentes.`} data-testid={`faixa-saida-${d.k}`}>
                           {modo === "EDICAO" ? (
-                            <button type="button" disabled={!!d.incompleto} onClick={(e) => { e.stopPropagation(); concluirNoDestino(d.k); }}
+                            <button type="button" disabled={!!d.incompleto} onClick={(e) => { e.stopPropagation(); cliqueNaSaida(d.k, e.detail); }}
                               className="sinapse-pino-area disabled:cursor-not-allowed disabled:opacity-40"
                               data-pino-destino={d.incompleto ? undefined : d.k}
                               data-testid={`faixa-porta-destino-${d.k}`}
