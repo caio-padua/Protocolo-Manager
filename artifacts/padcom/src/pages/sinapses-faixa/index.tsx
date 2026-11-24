@@ -891,7 +891,7 @@ export default function SinapsesFaixa() {
               <div className="concave-3d flex items-stretch gap-1 p-1" role="group" aria-label="Quais sinapses mostrar" title="Ligue ou desligue cada tipo de fio" data-testid="faixa-mostrar-fios">
                 {([["ATIVA", "Ativas", "#1e3a8a"], ["PROPOSTA", "Propostas", "#b8892b"], ["SEM_SAIDA", "Sem saída", "#dc2626"]] as const).map(([k, r, cor]) => (
                   <button key={k} type="button" aria-pressed={mostrar[k]} onClick={() => setMostrar((m) => ({ ...m, [k]: !m[k] }))} title={`${mostrar[k] ? "Esconder" : "Mostrar"} sinapses: ${r}`} data-testid={`faixa-mostrar-${k}`}
-                    className={`${mostrar[k] ? "tecla-3d" : "concave-3d"} flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-1 text-[9px] font-black uppercase leading-none`} style={{ opacity: mostrar[k] ? 1 : 0.55 }}>
+                    className={`${mostrar[k] ? "tecla-3d" : "concave-3d"} flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-1 text-[9px] font-black uppercase leading-none`} style={{ opacity: 1 }}>
                     <svg width="100%" height="6" aria-hidden="true"><line x1="3" y1="3" x2="97%" y2="3" stroke={k === "SEM_SAIDA" ? cor : (foco !== null ? corDaPergunta.get(foco) : undefined) ?? cor} strokeWidth={k === "ATIVA" ? 2.5 : 1.8} strokeLinecap="round" strokeDasharray={k === "ATIVA" ? undefined : k === "PROPOSTA" ? "9 4" : "2 4"} /></svg>
                     <span className="truncate">{r}</span>
                   </button>
@@ -918,10 +918,10 @@ export default function SinapsesFaixa() {
             ) : (
               <div ref={graficoRef} className="concave-3d" style={{ height: ampliada ? "calc(100vh - 15rem)" : "max(20rem, calc(100vh - 25rem))" }} data-testid="faixa-grafo-rolagem">
                 <div className="relative grid h-full min-h-0 overflow-hidden" style={{ gridTemplateRows: "minmax(0,1fr)", gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }}>
-                  <div className="absolute bottom-0 left-1 top-0 z-20"><Termostato alvo={colEsqRef} rotulo="Rolar perguntas" testid="faixa-termostato-perguntas" /></div>
-                  <div className="absolute bottom-0 right-2 top-0 z-20"><Termostato alvo={colDirRef} rotulo="Rolar saídas" testid="faixa-termostato-saidas" /></div>
+                  <div className="absolute bottom-0 left-[3px] top-0 z-20"><Termostato alvo={colEsqRef} rotulo="Rolar perguntas" testid="faixa-termostato-perguntas" /></div>
+                  <div className="absolute bottom-0 right-[3px] top-0 z-20"><Termostato alvo={colDirRef} rotulo="Rolar saídas" testid="faixa-termostato-saidas" /></div>
                   {/* DENDRITOS ESQUERDA: rolagem propria */}
-                  <div ref={colEsqRef} onScroll={(e) => setRolE(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-r border-black/10 pl-4" data-testid="faixa-coluna-perguntas">
+                  <div ref={colEsqRef} onScroll={(e) => setRolE(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-r border-black/10 pl-[14px]" data-testid="faixa-coluna-perguntas">
                   <div className="relative" style={{ height: altura }}>
                     {linhasE.map((linha, idx) => {
                       const topo = idx * alturaLinha + 1.5;
@@ -1069,7 +1069,7 @@ export default function SinapsesFaixa() {
                     );
                   })()}
                   {/* DENDRITOS DIREITA: rolagem propria */}
-                  <div ref={colDirRef} onScroll={(e) => setRolD(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-l border-black/10 pr-4" data-testid="faixa-coluna-saidas">
+                  <div ref={colDirRef} onScroll={(e) => setRolD(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-l border-black/10 pr-[14px]" data-testid="faixa-coluna-saidas">
                   <div className="relative" style={{ height: altura }}>
                     {linhasD.map((linha, idx) => {
                       const topo = idx * alturaLinha + 1.5;

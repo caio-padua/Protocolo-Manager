@@ -144,15 +144,14 @@
 /* Termostato discreto: sulco fino + botão estreito, quase imperceptível até o mouse chegar perto */
 .sinapse-termostato {
   position: absolute; top: 14px; bottom: 14px; width: 8px; z-index: 5;
-  border-radius: 3px; overflow: hidden; opacity: 0.55; transition: opacity 0.2s ease;
-  background: #e9e2cf;
+  border-radius: 3px; overflow: hidden;
+  background: #e3dac2;
   box-shadow: inset 0 1px 2px rgba(7,22,43,0.22);
 }
-.sinapse-termostato:hover, .sinapse-termostato:focus-within { opacity: 1; }
 .sinapse-termostato-botao {
   position: absolute; left: 0; right: 0; border-radius: 3px; cursor: grab; touch-action: none;
   background: linear-gradient(90deg, #fff9e6, #d9bf86);
-  border: 1px solid rgba(120,92,36,0.45);
+  border: 1px solid rgba(120,92,36,0.75);
   box-shadow: 0 1px 2px rgba(7,22,43,0.3), inset 0 1px 0 #fff;
 }
 .sinapse-termostato-botao:active { cursor: grabbing; }
