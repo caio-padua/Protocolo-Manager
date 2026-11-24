@@ -257,9 +257,9 @@ test("sinapse: mini console central, colunas independentes e menu de ligações 
   await expect(console_.getByTestId("faixa-modo-EDICAO")).toBeVisible();
   const caixaConsole = await console_.boundingBox();
   const caixaFaixa = await page.getByTestId("faixa-grafo").boundingBox();
-  expect(caixaConsole && caixaFaixa && caixaConsole.y + caixaConsole.height <= caixaFaixa.y + 2).toBeTruthy();
-  const centroConsole = caixaConsole!.x + caixaConsole!.width / 2;
-  expect(Math.abs(centroConsole - 1280 / 2)).toBeLessThan(260);
+  expect(caixaConsole && caixaFaixa && caixaConsole.y >= caixaFaixa.y && caixaConsole.y < caixaFaixa.y + 80).toBeTruthy();
+  const painel = await page.getByTestId("faixa-painel-pergunta").boundingBox();
+  expect(painel && caixaFaixa && painel.y + painel.height <= caixaFaixa.y + 2).toBeTruthy();
   await expect(page.getByTestId("faixa-coluna-perguntas")).toBeVisible();
   await expect(page.getByTestId("faixa-coluna-saidas")).toBeVisible();
   const sobreposicao = await page.evaluate(() => {
@@ -279,4 +279,23 @@ test("sinapse: mini console central, colunas independentes e menu de ligações 
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
   await page.screenshot({ path: "/tmp/sinapse-console.png" });
+});
+
+test("sinapse: painel da pergunta atual espelha caixa sim/não e fio nos dois sentidos", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const estado = await prepararTela(page);
+  await page.getByTestId(`faixa-porta-${perguntaId}`).click(); // seleciona e arma
+  await page.keyboard.press("Escape");
+  await page.getByText("Fadiga sintética para teste").first().click();
+  await expect(page.getByTestId("faixa-painel-pergunta-titulo")).toContainText("Fadiga sintética");
+  await expect(page.getByTestId("faixa-painel-pergunta-subtitulo")).toContainText("SINTÉTICO");
+
+  await page.getByTestId("faixa-seletor-abrir").click();
+  const caixa = page.getByTestId("faixa-seletor-EXA-12");
+  await expect(caixa).not.toBeChecked();
+  await caixa.click(); // caixa -> fio
+  await expect.poll(() => estado.pedidos.length).toBe(1);
+  await expect(caixa).toBeChecked();
+  await expect(page.getByTestId("faixa-painel-pergunta-subtitulo")).toContainText("1 ligação");
+  await page.screenshot({ path: "/tmp/sinapse-painel.png" });
 });

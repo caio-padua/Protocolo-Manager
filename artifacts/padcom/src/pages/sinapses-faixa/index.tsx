@@ -57,8 +57,8 @@ const emCampo = (t: EventTarget | null) => {
 function Faixa({ titulo, aberta, onToggle, direita, children, testid }: { titulo: string; aberta: boolean; onToggle: () => void; direita?: React.ReactNode; children: React.ReactNode; testid: string }) {
   return (
     <section className="panel-3d-sub p-2" data-testid={testid}>
-      <div className="flex items-center gap-2">
-        <button type="button" onClick={onToggle} aria-expanded={aberta} className="tecla-3d flex flex-1 items-center gap-2 px-3 py-1 text-left" data-testid={`${testid}-toggle`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={onToggle} aria-expanded={aberta} className="tecla-3d flex min-w-[12rem] flex-1 items-center gap-2 px-3 py-1 text-left" data-testid={`${testid}-toggle`}>
           {aberta ? <ChevronDown className="h-4 w-4 opacity-70" /> : <ChevronRight className="h-4 w-4 opacity-70" />}
           <span className="text-[11px] font-semibold uppercase tracking-widest text-primary/80">{titulo}</span>
         </button>
@@ -113,6 +113,8 @@ export default function SinapsesFaixa() {
   const [alturaVisivel, setAlturaVisivel] = useState(480);
   // Menu de ligacoes de uma pergunta (dropdown fixo na tela, fora da area rolavel)
   const [menu, setMenu] = useState<{ perguntaId: string; x: number; y: number; acima: boolean } | null>(null);
+  const [seletorAberto, setSeletorAberto] = useState(false);
+  const [buscaSeletor, setBuscaSeletor] = useState("");
   const [desligadasMenu, setDesligadasMenu] = useState<Record<string, Array<{ categoria: Categoria; destinoTipo: string; destinoId: number }>>>({});
 
   useEffect(() => {
@@ -141,6 +143,15 @@ export default function SinapsesFaixa() {
     window.addEventListener("scroll", fechar, true);
     return () => { document.removeEventListener("pointerdown", fechar, true); document.removeEventListener("keydown", tecla); window.removeEventListener("scroll", fechar, true); };
   }, [menu]);
+
+  useEffect(() => {
+    if (!seletorAberto) return;
+    const fechar = (e: Event) => { if (!(e.target as HTMLElement | null)?.closest?.("[data-seletor-sinapse]")) setSeletorAberto(false); };
+    const tecla = (e: KeyboardEvent) => { if (e.key === "Escape") setSeletorAberto(false); };
+    document.addEventListener("pointerdown", fechar, true);
+    document.addEventListener("keydown", tecla);
+    return () => { document.removeEventListener("pointerdown", fechar, true); document.removeEventListener("keydown", tecla); };
+  }, [seletorAberto]);
 
   useEffect(() => () => {
     if (brilhoTimer.current !== null) window.clearTimeout(brilhoTimer.current);
@@ -629,6 +640,37 @@ export default function SinapsesFaixa() {
   const perguntaAtiva = ativa ? data?.perguntas.find((x) => x.perguntaId === ativa) : undefined;
   const ligacoesAtiva = ativa ? (data?.sinapses ?? []).filter((x) => x.perguntaId === ativa) : [];
   const propostasAtiva = ativa ? (data?.propostas ?? []).filter((x) => x.status === "PENDENTE" && x.perguntaId === ativa) : [];
+  const controlesFaixa = (
+    <div className="flex flex-wrap items-center justify-end gap-1.5" data-testid="faixa-mini-console">
+          <div className="flex gap-1" role="group" aria-label="Modo da tela">
+            {([["VISUALIZACAO", "Visualização", "V", Eye], ["EDICAO", "Edição", "E", Pencil], ["SIMULACAO", "Simulação", "S", Play]] as const).map(([m, rot, tecla, Ic]) => (
+              <button key={m} type="button" aria-pressed={modo === m} title={`${rot} (${tecla})`} onClick={() => { if (m !== "EDICAO") { arrasteRef.current = null; setArraste(null); setTravada(null); } setModo(m); }} className="tecla-3d flex h-8 items-center gap-1.5 px-2.5 text-[11px] font-bold uppercase tracking-wide" data-testid={`faixa-modo-${m}`}>
+                <Ic className="h-3.5 w-3.5" />{rot}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-1.5" data-testid="faixa-mini-console-acoes">
+            {modo === "EDICAO" && perguntaAtiva && (
+              <button type="button" aria-pressed={travada === perguntaAtiva.perguntaId} onClick={() => setTravada((v) => (v === perguntaAtiva.perguntaId ? null : perguntaAtiva.perguntaId))} className="tecla-3d flex h-8 shrink-0 items-center gap-1 px-2 text-[10px] font-bold uppercase" data-testid="faixa-travar" title="Com a pergunta travada, cada clique numa saída à direita liga essa saída a ela.">
+                {travada === perguntaAtiva.perguntaId ? <><Lock className="h-3 w-3" />Travada</> : <><Unlock className="h-3 w-3" />Travar pergunta</>}
+              </button>
+            )}
+            {modo === "EDICAO" && perguntaAtiva && propostasAtiva.length > 0 && (
+              <button type="button" disabled={loteEmCurso} onClick={() => aprovarLote(`q-${perguntaAtiva.perguntaId}`, perguntaAtiva.perguntaId)} className="tecla-3d h-8 shrink-0 px-2 text-[10px] font-bold uppercase" data-testid="faixa-aprovar-da-pergunta">
+                {loteEmCurso ? "Aprovando..." : loteArmado === `q-${perguntaAtiva.perguntaId}` ? `Confirmar ${propostasAtiva.length}` : `Aprovar ${propostasAtiva.length} proposta(s)`}
+              </button>
+            )}
+            {modo === "EDICAO" && propostasFiltradas().length > 0 && (
+              <button type="button" disabled={loteEmCurso} onClick={() => aprovarLote("todas")} className="tecla-3d h-8 px-2 text-[10px] font-bold uppercase" data-testid="button-aprovar-lote" title="Aprova todas as propostas pendentes das perguntas e filtros visíveis agora">
+                {loteEmCurso ? "Aprovando..." : loteArmado === "todas" ? `Confirmar ${propostasFiltradas().length}` : "Aprovar propostas filtradas"}
+              </button>
+            )}
+            <button type="button" className="tecla-3d h-8 px-2 text-[10px] font-bold uppercase" onClick={() => gerarCarga.mutate({ data: {} })} disabled={gerarCarga.isPending} data-testid="button-gerar-propostas">
+              {gerarCarga.isPending ? "Gravando propostas…" : "Gerar propostas iniciais"}
+            </button>
+          </div>
+    </div>
+  );
   const alternarGrupo = (conjunto: Set<string>, atualizar: (v: Set<string>) => void, k: string) => {
     const n = new Set(conjunto);
     if (n.has(k)) n.delete(k); else n.add(k);
@@ -722,34 +764,75 @@ export default function SinapsesFaixa() {
           </div>
         )}
 
-        {/* MINI CONSOLE CENTRAL: logo acima da faixa; andar 1 = modos; andar 2 = acoes */}
-        <div className="panel-3d-sub mx-auto mt-2 w-full max-w-3xl space-y-1.5 p-1.5" data-testid="faixa-mini-console">
-          <div className="flex justify-center gap-1" role="group" aria-label="Modo da tela">
-            {([["VISUALIZACAO", "Visualização", "V", Eye], ["EDICAO", "Edição", "E", Pencil], ["SIMULACAO", "Simulação", "S", Play]] as const).map(([m, rot, tecla, Ic]) => (
-              <button key={m} type="button" aria-pressed={modo === m} title={`${rot} (${tecla})`} onClick={() => { if (m !== "EDICAO") { arrasteRef.current = null; setArraste(null); setTravada(null); } setModo(m); }} className="tecla-3d flex h-9 items-center gap-1.5 px-3 text-[11px] font-bold uppercase tracking-wide" data-testid={`faixa-modo-${m}`}>
-                <Ic className="h-3.5 w-3.5" />{rot}
-              </button>
-            ))}
+        {/* PAINEL DA PERGUNTA ATUAL (up bevel): esquerda = pergunta; direita = seletor sim/não espelhado com o grafo */}
+        <div className="bevel-3d relative mx-auto mt-2 grid w-full max-w-5xl gap-2 p-2 sm:grid-cols-[minmax(0,1fr)_auto]" style={{ background: "#fbfcfe" }} data-testid="faixa-painel-pergunta">
+          <div className="min-w-0" data-testid="faixa-painel-pergunta-texto">
+            {perguntaAtiva ? (
+              <>
+                <div className="flex items-start gap-2">
+                  <span className="concave-3d sinapse-janela-codigo shrink-0 font-mono text-[11px] font-bold text-[#0f1e36]">{perguntaAtiva.perguntaId}</span>
+                  <p className="min-w-0 text-[14px] font-semibold leading-snug text-[#0f1e36]" data-testid="faixa-painel-pergunta-titulo">{perguntaAtiva.pergunta}</p>
+                </div>
+                <p className="mt-1 text-[11px] tracking-wide text-muted-foreground" data-testid="faixa-painel-pergunta-subtitulo">
+                  {perguntaAtiva.bloco ?? "Sem bloco"} · {ligacoesAtiva.length} ligação(ões) ativa(s) · {propostasAtiva.length} proposta(s){perguntaAtiva.eSinalAlarme ? " · sinal de alarme" : ""}
+                </p>
+              </>
+            ) : (
+              <p className="py-1 text-[13px] text-muted-foreground" data-testid="faixa-painel-pergunta-vazio">Selecione uma pergunta</p>
+            )}
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-1.5" data-testid="faixa-mini-console-acoes">
-            {modo === "EDICAO" && perguntaAtiva && (
-              <button type="button" aria-pressed={travada === perguntaAtiva.perguntaId} onClick={() => setTravada((v) => (v === perguntaAtiva.perguntaId ? null : perguntaAtiva.perguntaId))} className="tecla-3d flex h-8 shrink-0 items-center gap-1 px-2 text-[10px] font-bold uppercase" data-testid="faixa-travar" title="Com a pergunta travada, cada clique numa saída à direita liga essa saída a ela.">
-                {travada === perguntaAtiva.perguntaId ? <><Lock className="h-3 w-3" />Travada</> : <><Unlock className="h-3 w-3" />Travar pergunta</>}
-              </button>
-            )}
-            {modo === "EDICAO" && perguntaAtiva && propostasAtiva.length > 0 && (
-              <button type="button" disabled={loteEmCurso} onClick={() => aprovarLote(`q-${perguntaAtiva.perguntaId}`, perguntaAtiva.perguntaId)} className="tecla-3d h-8 shrink-0 px-2 text-[10px] font-bold uppercase" data-testid="faixa-aprovar-da-pergunta">
-                {loteEmCurso ? "Aprovando..." : loteArmado === `q-${perguntaAtiva.perguntaId}` ? `Confirmar ${propostasAtiva.length}` : `Aprovar ${propostasAtiva.length} proposta(s)`}
-              </button>
-            )}
-            {modo === "EDICAO" && propostasFiltradas().length > 0 && (
-              <button type="button" disabled={loteEmCurso} onClick={() => aprovarLote("todas")} className="tecla-3d h-8 px-2 text-[10px] font-bold uppercase" data-testid="button-aprovar-lote" title="Aprova todas as propostas pendentes das perguntas e filtros visíveis agora">
-                {loteEmCurso ? "Aprovando..." : loteArmado === "todas" ? `Confirmar ${propostasFiltradas().length}` : "Aprovar propostas filtradas"}
-              </button>
-            )}
-            <button type="button" className="tecla-3d h-8 px-2 text-[10px] font-bold uppercase" onClick={() => gerarCarga.mutate({ data: {} })} disabled={gerarCarga.isPending} data-testid="button-gerar-propostas">
-              {gerarCarga.isPending ? "Gravando propostas…" : "Gerar propostas iniciais"}
+          <div className="relative flex items-center justify-end" data-seletor-sinapse>
+            <button type="button" disabled={!perguntaAtiva} aria-expanded={seletorAberto} aria-haspopup="listbox" onClick={() => setSeletorAberto((v) => !v)} className="tecla-3d flex h-9 items-center gap-2 px-3 text-[11px] font-bold uppercase tracking-wide disabled:opacity-50" data-testid="faixa-seletor-abrir">
+              Saídas · sim ou não <ChevronDown className="h-4 w-4 opacity-70" />
             </button>
+            {seletorAberto && perguntaAtiva && data && (() => {
+              const editar = modo === "EDICAO";
+              const ocupado = criar.isPending || desativar.isPending || aprovarProposta.isPending;
+              const qs = semAcento(buscaSeletor.trim());
+              const ativasPorChave = new Map(ligacoesAtiva.map((x) => [chave(x.categoria, x.destinoTipo, x.destinoId), x]));
+              const propostasPorChave = new Map(propostasAtiva.map((x) => [chave(x.categoria, x.destinoTipo, x.destinoId), x]));
+              return (
+                <div className="panel-3d-sub absolute right-0 top-full z-40 mt-1 w-[min(30rem,92vw)] p-1.5 shadow-xl" style={{ background: "#fdfbf5" }} data-testid="faixa-seletor-lista" role="listbox" aria-label={`Saídas de ${perguntaAtiva.perguntaId}`}>
+                  <Input value={buscaSeletor} onChange={(e) => setBuscaSeletor(e.target.value)} placeholder="Pesquisar saída..." className="mb-1 h-8 field-engraved" data-testid="faixa-seletor-busca" />
+                  {!editar && <p className="px-1 pb-1 text-[10px] text-muted-foreground">Entre em Edição para marcar sim ou não.</p>}
+                  <div className="concave-3d max-h-80 overflow-y-auto p-1">
+                    {CATEGORIAS.map((c) => {
+                      const todosDest = data.destinos[c.chave] ?? [];
+                      const lista = todosDest.filter((d) => !qs || semAcento(`${d.nome} ${codigoDestino(c.chave, d.tipo, d.id)}`).includes(qs));
+                      const nSim = todosDest.filter((d) => ativasPorChave.has(chave(c.chave, d.tipo, d.id))).length;
+                      return (
+                        <div key={c.chave} className="mb-1" data-testid={`faixa-seletor-grupo-${c.chave}`}>
+                          <div className="sticky top-0 z-10 flex items-center gap-2 bg-[#fdfbf5] px-1 py-0.5 text-[10px] font-black uppercase tracking-wider" style={{ color: c.cor }}>
+                            <span>{c.sigla} · {c.rotulo}</span><span className="ml-auto text-muted-foreground">{nSim} sim</span>
+                          </div>
+                          {lista.slice(0, 120).map((d) => {
+                            const k = chave(c.chave, d.tipo, d.id);
+                            const ativaX = ativasPorChave.get(k);
+                            const propX = propostasPorChave.get(k);
+                            const cod = codigoDestino(c.chave, d.tipo, d.id);
+                            return (
+                              <label key={k} className="flex cursor-pointer items-center gap-2 px-1 py-0.5 text-[11px] hover:bg-black/5">
+                                <input type="checkbox" className="h-4 w-4 shrink-0 accent-[#1e3a8a]" checked={!!ativaX} disabled={!editar || ocupado} data-testid={`faixa-seletor-${cod}`} aria-label={`${cod} ${d.nome}`}
+                                  onChange={() => {
+                                    if (ativaX) { setDesligadasMenu((m) => ({ ...m, [perguntaAtiva.perguntaId]: [...(m[perguntaAtiva.perguntaId] ?? []), { categoria: c.chave, destinoTipo: d.tipo, destinoId: d.id }] })); desativar.mutate(ativaX.id); }
+                                    else if (propX) aprovarProposta.mutate({ id: propX.id });
+                                    else criar.mutate({ perguntaId: perguntaAtiva.perguntaId, categoria: c.chave, destinoTipo: d.tipo, destinoId: d.id });
+                                  }} />
+                                <b className="font-mono" style={{ color: c.cor }}>{cod}</b>
+                                <span className="min-w-0 flex-1 truncate" title={d.nome}>{d.nome}</span>
+                                <span className="shrink-0 text-[9px] font-bold uppercase" style={{ color: ativaX ? "#166534" : propX ? "#9b6b11" : "#6b7280" }}>{ativaX ? "sim" : propX ? "proposta" : "não"}</span>
+                              </label>
+                            );
+                          })}
+                          {lista.length > 120 && <p className="px-1 text-[10px] text-muted-foreground">Mostrando 120 de {lista.length}. Use a pesquisa para afinar.</p>}
+                          {lista.length === 0 && <p className="px-1 text-[10px] text-muted-foreground">Nenhuma saída encontrada.</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </section>
@@ -763,7 +846,7 @@ export default function SinapsesFaixa() {
         </div>
       ) : (
         <>
-          <Faixa testid="faixa-grafo" titulo={`Faixa da sinapse · ${esquerda.length} perguntas · ${direita.length} saídas`} aberta={faixaAberta} onToggle={() => setFaixaAberta((v) => !v)}>
+          <Faixa testid="faixa-grafo" titulo={`Faixa da sinapse · ${esquerda.length} perguntas · ${direita.length} saídas`} aberta={faixaAberta} onToggle={() => setFaixaAberta((v) => !v)} direita={controlesFaixa}>
             <div className="mb-1.5 grid items-center gap-x-1" style={{ gridTemplateColumns: "minmax(0,1.55fr) minmax(84px,0.9fr) minmax(0,1.55fr)" }} data-testid="faixa-cabecalho-colunas">
               <div className="flex flex-wrap items-center gap-1">
                 <span className="text-[9px] font-black uppercase tracking-wider text-primary/80">Perguntas</span>
