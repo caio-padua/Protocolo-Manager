@@ -143,12 +143,12 @@
 /* Termostato camuflado: sulco quase da cor do fundo e botão fosco, 9 px de largura. */
 .sinapse-termostato {
   position: absolute; top: 14px; bottom: 14px; width: 9px; z-index: 5;
-  border-radius: 2px; overflow: hidden;
-  background: rgba(120,100,60,0.08);
-  box-shadow: inset 0 0 0 1px rgba(120,100,60,0.12);
+  border-radius: 1px; overflow: hidden;
+  background: rgba(120,100,60,0.068);
+  box-shadow: inset 0 0 0 1px rgba(120,100,60,0.10);
 }
 .sinapse-termostato-botao {
-  position: absolute; left: 1px; right: 1px; border-radius: 2px; cursor: grab; touch-action: none;
+  position: absolute; left: 1px; right: 1px; border-radius: 0.5px; cursor: grab; touch-action: none;
   background: rgba(150,128,82,0.38);
   border: 0; box-shadow: inset 0 1px 0 rgba(255,255,255,0.35);
   transition: background 0.2s ease;
@@ -214,12 +214,12 @@
 
 /* Legenda: o próprio vidro é "picado" conforme o tipo da linha (tracejado ou pontilhado); a cor continua a do tipo. */
 .sinapse-vidro-cor[data-padrao="PROPOSTA"] {
-  -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 9px, transparent 9px 13px);
-  mask-image: repeating-linear-gradient(90deg, #000 0 9px, transparent 9px 13px);
+  -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 12px, transparent 12px 15px);
+  mask-image: repeating-linear-gradient(90deg, #000 0 12px, transparent 12px 15px);
 }
 .sinapse-vidro-cor[data-padrao="SEM_SAIDA"] {
-  -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 2px, transparent 2px 5px);
-  mask-image: repeating-linear-gradient(90deg, #000 0 2px, transparent 2px 5px);
+  -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 8px);
+  mask-image: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 8px);
 }
 
 /* Soquete do neurônio: moldura fina dourada, aberta só na face medial (a que olha para o centro) com a abertura centrada

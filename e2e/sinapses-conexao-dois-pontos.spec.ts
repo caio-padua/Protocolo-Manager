@@ -441,3 +441,25 @@ test("sinapse: aviso e balão do fio nascem perto do mouse e o botão de excluir
     await expect(page.getByTestId("faixa-pilula-desvincular")).toHaveText("Desvincular");
   }
 });
+
+test("sinapse: craniotomia alonga na vertical, alarga na tela inteira e o clique no fio solta o cometa", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const estado = await prepararTela(page);
+  await page.getByTestId(`faixa-porta-${perguntaId}`).click();
+  await page.getByTestId(`faixa-porta-destino-EXAME|exame|${destinoId}`).click();
+  await expect.poll(() => estado.pedidos.length).toBe(1);
+  await page.keyboard.press("Escape");
+  const grafo = page.getByTestId("faixa-grafo-rolagem");
+  const h0 = (await grafo.boundingBox())!.height;
+  await page.getByTestId("faixa-altura").click();
+  await expect.poll(async () => (await grafo.boundingBox())!.height).toBeGreaterThan(h0);
+  await expect(page.getByTestId("faixa-largura")).toBeDisabled();
+  await page.getByTestId("faixa-fio-clique-ativa-901").click({ force: true });
+  await expect(page.getByTestId("faixa-cometa")).toBeAttached();
+  await page.keyboard.press("Escape");
+  await page.getByTestId("faixa-ampliar").click();
+  const c0 = (await page.getByTestId("faixa-vidro").boundingBox())!.width;
+  await page.getByTestId("faixa-largura").click();
+  await expect.poll(async () => (await page.getByTestId("faixa-vidro").boundingBox())!.width).toBeGreaterThan(c0 + 100);
+  await page.screenshot({ path: "/tmp/sinapse-larga.png" });
+});

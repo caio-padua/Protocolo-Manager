@@ -16,7 +16,7 @@ import { Termostato } from "./Termostato";
 import { CabecalhoGradeSaidas, LinhaGradeSaidas, FichaContador, ResumoDestino } from "./GradeSaidas";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Maximize2, Minimize2, ChevronDown, ChevronLeft, ChevronRight, Lock, Unlock, Search, Pencil, Play, Eye, AlertTriangle } from "lucide-react";
+import { Maximize2, Minimize2, ChevronsUpDown, ChevronsLeftRight, ChevronDown, ChevronRight, Lock, Unlock, Search, Pencil, Play, Eye, AlertTriangle } from "lucide-react";
 
 // ============================================================================
 // SINAPSES CLINICAS - modelo "Faixa": blocos de dendritos (codigos) nas pontas,
@@ -61,8 +61,9 @@ const emCampo = (t: EventTarget | null) => {
 
 function Faixa({ titulo, fichas, aberta, onToggle, direita, children, testid, ampliada }: { ampliada?: boolean; titulo: string; fichas?: Array<{ rotulo: string; valor: number; cor?: string }>; aberta: boolean; onToggle: () => void; direita?: React.ReactNode; children: React.ReactNode; testid: string }) {
   return (
-    <section className={ampliada ? "panel-3d-sub fixed inset-0 z-[60] overflow-auto p-3" : "panel-3d-sub p-2"} style={ampliada ? { background: "#f7f2e6" } : undefined} data-testid={testid}>
-      <div className="flex flex-wrap items-center gap-2">
+    <section className={ampliada ? "panel-3d-sub fixed inset-0 z-[60] overflow-auto p-3" : "panel-3d-sub relative overflow-hidden p-2"} style={ampliada ? { background: "#f7f2e6" } : undefined} data-testid={testid}>
+      <div className="leva-fabric" aria-hidden="true" />
+      <div className="relative z-[1] flex flex-wrap items-center gap-2">
         <button type="button" onClick={onToggle} aria-expanded={aberta} className="tecla-3d flex min-w-[12rem] flex-1 items-center gap-2 px-3 py-1 text-left" data-testid={`${testid}-toggle`}>
           {aberta ? <ChevronDown className="h-4 w-4 opacity-70" /> : <ChevronRight className="h-4 w-4 opacity-70" />}
           <span className="text-[11px] font-semibold uppercase tracking-widest text-primary/80">{titulo}</span>
@@ -70,28 +71,45 @@ function Faixa({ titulo, fichas, aberta, onToggle, direita, children, testid, am
         </button>
         {direita}
       </div>
-      {aberta && <div className="mt-2">{children}</div>}
+      {aberta && <div className="relative z-[1] mt-2">{children}</div>}
     </section>
   );
 }
 
-// Fileira de botões que desliza na horizontal: fica centralizada com folga nas laterais e mostra setas (lugar fixo) quando há mais a rolar.
+// Fileira de botões que desliza na horizontal: sem setas. Mostra bordas esmaecidas onde há mais a rolar e um fio fino com cursor
+// (arrastável) embaixo; a roda do mouse e o arrastar do dedo também rolam. O fio ocupa um lugar fixo (invisível quando não há o que rolar).
 function FileiraRolavel({ testid, rotulo, children }: { testid: string; rotulo: string; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const [pode, setPode] = useState({ e: false, d: false });
+  const fio = useRef<HTMLDivElement | null>(null);
+  const [g, setG] = useState({ e: false, d: false, larg: 100, pos: 0 });
   const medir = useCallback(() => {
     const el = ref.current; if (!el) return;
-    const e = el.scrollLeft > 2, d = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
-    setPode((a) => (a.e === e && a.d === d ? a : { e, d }));
+    const livre = el.scrollWidth - el.clientWidth;
+    const e = el.scrollLeft > 2, d = el.scrollLeft < livre - 2;
+    const larg = Math.max(18, (el.clientWidth / Math.max(el.scrollWidth, 1)) * 100);
+    const pos = livre > 0 ? (el.scrollLeft / livre) * (100 - larg) : 0;
+    setG((a) => (a.e === e && a.d === d && Math.abs(a.larg - larg) < 0.5 && Math.abs(a.pos - pos) < 0.5 ? a : { e, d, larg, pos }));
   }, []);
   useEffect(() => { medir(); const el = ref.current; if (!el) return; const ro = new ResizeObserver(medir); ro.observe(el); return () => ro.disconnect(); });
-  const ir = (dir: number) => ref.current?.scrollBy({ left: dir * 180, behavior: "smooth" });
-  const seta = "tecla-3d flex h-8 w-5 shrink-0 items-center justify-center p-0";
+  const rolarPara = (clientX: number) => {
+    const el = ref.current, f = fio.current; if (!el || !f) return;
+    const r = f.getBoundingClientRect();
+    const fr = Math.max(0, Math.min(1, (clientX - r.left - (r.width * g.larg) / 200) / (r.width * (1 - g.larg / 100) || 1)));
+    el.scrollLeft = fr * (el.scrollWidth - el.clientWidth);
+  };
+  const temMais = g.e || g.d;
   return (
-    <div className="flex min-w-0 flex-1 items-center justify-center gap-0.5 px-0.5">
-      <button type="button" className={seta} disabled={!pode.e} onClick={() => ir(-1)} aria-label={`${rotulo}: rolar para a esquerda`} data-testid={`${testid}-esq`} style={{ color: pode.e ? undefined : "#9aa3b2" }}><ChevronLeft className="h-3.5 w-3.5" strokeWidth={3} /></button>
-      <div ref={ref} onScroll={medir} className="sinapse-sem-trilho flex min-w-0 items-center gap-1 overflow-x-auto py-1" data-testid={testid} onWheel={(e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) e.currentTarget.scrollLeft += e.deltaY; }}>{children}</div>
-      <button type="button" className={seta} disabled={!pode.d} onClick={() => ir(1)} aria-label={`${rotulo}: rolar para a direita`} data-testid={`${testid}-dir`} style={{ color: pode.d ? undefined : "#9aa3b2" }}><ChevronRight className="h-3.5 w-3.5" strokeWidth={3} /></button>
+    <div className="flex min-w-0 flex-1 flex-col justify-center gap-[3px]" role="group" aria-label={rotulo}>
+      <div className="relative min-w-0">
+        <div ref={ref} onScroll={medir} className="sinapse-sem-trilho flex min-w-0 items-center gap-1 overflow-x-auto" data-testid={testid} onWheel={(e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) e.currentTarget.scrollLeft += e.deltaY; }}>{children}</div>
+        <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-4 transition-opacity" style={{ opacity: g.e ? 1 : 0, background: "linear-gradient(90deg, #f3ecda, transparent)" }} />
+        <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-4 transition-opacity" style={{ opacity: g.d ? 1 : 0, background: "linear-gradient(270deg, #f3ecda, transparent)" }} />
+      </div>
+      <div ref={fio} className="relative h-[4px] w-full rounded-[2px]" style={{ visibility: temMais ? "visible" : "hidden", background: "rgba(120,100,60,0.14)", touchAction: "none" }}
+        onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); rolarPara(e.clientX); }}
+        onPointerMove={(e) => { if (e.buttons === 1) rolarPara(e.clientX); }} data-testid={`${testid}-fio`}>
+        <span className="absolute inset-y-0 rounded-[2px]" style={{ left: `${g.pos}%`, width: `${g.larg}%`, background: "rgba(150,128,82,0.7)" }} />
+      </div>
     </div>
   );
 }
@@ -144,11 +162,14 @@ export default function SinapsesFaixa() {
   const colDirRef = useRef<HTMLDivElement | null>(null);
   const centroRef = useRef<HTMLDivElement | null>(null);
   const [ampliada, setAmpliada] = useState(false);
+  const [alturaNivel, setAlturaNivel] = useState(0); // 0 normal, 1 alto, 2 máximo (só fora da tela inteira)
+  const [larguraAmpla, setLarguraAmpla] = useState(false); // só na tela inteira: alarga a craniotomia e corta as colunas
   useEffect(() => { if (!ampliada) return; const t = (e: KeyboardEvent) => { if (e.key === "Escape" && !arrasteRef.current) setAmpliada(false); }; document.addEventListener("keydown", t); return () => document.removeEventListener("keydown", t); }, [ampliada]);
   const [mostrar, setMostrar] = useState({ ATIVA: true, PROPOSTA: true, SEM_SAIDA: true });
   const [rolE, setRolE] = useState(0);
   const [rolD, setRolD] = useState(0);
   const [alturaVisivel, setAlturaVisivel] = useState(480);
+  const colunasGrade = `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,${ampliada && larguraAmpla ? "3.4fr" : "1.2fr"}) minmax(0,1.2fr)`;
   const [larguraVidro, setLarguraVidro] = useState(300);
   // O fio nasce 6 px dentro da caixa do pino (na face medial do quadradinho) e atravessa a abertura da moldura.
   const eu = (EXT_FIO / Math.max(larguraVidro, 1)) * 100;
@@ -938,22 +959,27 @@ export default function SinapsesFaixa() {
       ) : (
         <>
           <Faixa testid="faixa-grafo" titulo="Faixa da sinapse" fichas={[{ rotulo: "Perguntas", valor: esquerda.length }, { rotulo: "Saídas", valor: direita.length }]} aberta={faixaAberta} onToggle={() => setFaixaAberta((v) => !v)} ampliada={ampliada} direita={<>{controlesFaixa}</>}>
-            <div className="mb-1.5 grid h-8 items-stretch gap-x-1 text-[12px] font-black uppercase tracking-[0.25em] text-[#0f1e36]" style={{ gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }} data-testid="faixa-titulos">
+            <div className="mb-1.5 grid h-8 items-stretch gap-x-1 text-[12px] font-black uppercase tracking-[0.25em] text-[#0f1e36]" style={{ gridTemplateColumns: colunasGrade }} data-testid="faixa-titulos">
               <span className="bevel-3d relative flex items-center justify-center">Anamnese{(() => {
                     const grupos = linhasE.filter((l) => l.tipo === "grupo").map((l) => l.k);
                     const tudoFechado = grupos.length > 0 && grupos.every((k) => fechadosE.has(k));
                     return <button type="button" style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)" }} className="tecla-3d flex h-6 w-8 items-center justify-center text-[14px] font-bold leading-none tracking-normal" data-testid="faixa-blocos-alternar" onClick={() => setFechadosE(tudoFechado ? new Set() : new Set(grupos))} title={tudoFechado ? "Abrir todos os blocos de perguntas" : "Recolher todos os blocos de perguntas"} aria-label={tudoFechado ? "Abrir todos os blocos de perguntas" : "Recolher todos os blocos de perguntas"}>{tudoFechado ? "+" : "−"}</button>;
                   })()}</span>
-              <span className="bevel-3d relative flex items-center justify-center">Craniotomia<button type="button" onClick={() => setAmpliada((v) => !v)} aria-pressed={ampliada} style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)" }} className="tecla-3d flex h-6 w-8 items-center justify-center" data-testid="faixa-ampliar" title={ampliada ? "Voltar ao tamanho normal (Esc)" : "Ampliar a craniotomia para a tela inteira"} aria-label={ampliada ? "Reduzir a craniotomia" : "Ampliar a craniotomia"}>{ampliada ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button></span>
+              <span className="bevel-3d relative flex items-center justify-start pl-3">Craniotomia
+                <span style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)" }} className="flex items-center gap-0.5">
+                  <button type="button" disabled={ampliada} onClick={() => setAlturaNivel((n) => (n + 1) % 3)} aria-pressed={alturaNivel > 0} className="tecla-3d flex h-6 w-6 items-center justify-center" style={{ opacity: ampliada ? 0.35 : 1 }} data-testid="faixa-altura" title="Alongar a craniotomia na vertical (normal, alto, máximo)" aria-label="Alongar a craniotomia na vertical"><ChevronsUpDown className="h-3.5 w-3.5" /></button>
+                  <button type="button" disabled={!ampliada} onClick={() => setLarguraAmpla((v) => !v)} aria-pressed={larguraAmpla} className="tecla-3d flex h-6 w-6 items-center justify-center" style={{ opacity: ampliada ? 1 : 0.35 }} data-testid="faixa-largura" title="Na tela inteira: alargar a craniotomia (as perguntas e saídas são cortadas)" aria-label="Alargar a craniotomia na tela inteira"><ChevronsLeftRight className="h-3.5 w-3.5" /></button>
+                  <button type="button" onClick={() => setAmpliada((v) => !v)} aria-pressed={ampliada} className="tecla-3d flex h-6 w-6 items-center justify-center" data-testid="faixa-ampliar" title={ampliada ? "Voltar ao tamanho normal (Esc)" : "Ampliar a craniotomia para a tela inteira"} aria-label={ampliada ? "Reduzir a craniotomia" : "Ampliar a craniotomia"}>{ampliada ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button>
+                </span></span>
               <span className="bevel-3d relative flex items-center justify-center">Procedimentos{(() => {
                     const grupos = linhasD.filter((l) => l.tipo === "grupo").map((l) => l.k);
                     const tudoFechado = grupos.length > 0 && grupos.every((k) => fechadosD.has(k));
                     return <button type="button" style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)" }} className="tecla-3d flex h-6 w-8 items-center justify-center text-[14px] font-bold leading-none tracking-normal" data-testid="faixa-saidas-alternar" onClick={() => setFechadosD(tudoFechado ? new Set() : new Set(grupos))} title={tudoFechado ? "Abrir todos os blocos de saídas" : "Recolher todos os blocos de saídas"} aria-label={tudoFechado ? "Abrir todos os blocos de saídas" : "Recolher todos os blocos de saídas"}>{tudoFechado ? "+" : "−"}</button>;
                   })()}</span>
             </div>
-            <div className="mb-1.5 grid items-center gap-x-1" style={{ gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }} data-testid="faixa-cabecalho-colunas">
+            <div className="mb-1.5 grid items-center gap-x-1" style={{ gridTemplateColumns: colunasGrade }} data-testid="faixa-cabecalho-colunas">
               <div className="min-w-0" data-testid="faixa-cabecalho-anamnese">
-                <div className="mx-auto flex h-10 items-center gap-1" style={{ width: "min(100%, 17rem)" }}>
+                <div className="mx-auto flex h-10 items-center gap-1" style={{ width: "min(100%, 20.4rem)" }}>
                   {modo !== "EDICAO" && <button type="button" aria-pressed={todos} onClick={() => setTodos((v) => !v)} className="tecla-3d h-8 shrink-0 px-2 text-[10px] font-bold" data-testid="faixa-todos">{todos ? "Só os ligados" : "Mostrar todos"}</button>}
                   <FileiraRolavel testid="faixa-chips-blocos" rotulo="Grupos de perguntas">
                     {linhasE.filter((l): l is Extract<typeof l, { tipo: "grupo" }> => l.tipo === "grupo").map((g) => {
@@ -973,7 +999,7 @@ export default function SinapsesFaixa() {
                 </div>
               </div>
               <div className="min-w-0" role="group" aria-label="Quais sinapses mostrar" data-testid="faixa-mostrar-fios">
-                <div className="mx-auto flex h-10 items-center justify-center gap-1" style={{ width: "min(100%, 17rem)" }}>
+                <div className="mx-auto flex h-10 items-center justify-center gap-1" style={{ width: "min(100%, 20.4rem)" }}>
                 {([["ATIVA", "Ativas", "#1e3a8a"], ["PROPOSTA", "Propostas", "#b8892b"], ["SEM_SAIDA", "Sem saída", "#dc2626"]] as const).map(([k, r, cor]) => (
                   <button key={k} type="button" aria-pressed={mostrar[k]} onClick={() => setMostrar((m) => ({ ...m, [k]: !m[k] }))} title={`${mostrar[k] ? "Esconder" : "Mostrar"} sinapses: ${r}`} data-testid={`faixa-mostrar-${k}`}
                     className={`tecla-3d flex h-8 min-w-0 flex-1 flex-col items-stretch justify-between px-1.5 pb-1 pt-1.5 text-center text-[9px] font-black uppercase leading-none`} style={{ opacity: 1 }}>
@@ -984,7 +1010,7 @@ export default function SinapsesFaixa() {
                 </div>
               </div>
               <div className="min-w-0" data-testid="faixa-cabecalho-procedimentos">
-                <div className="mx-auto flex h-10 items-center justify-between gap-1" style={{ width: "min(100%, 17rem)" }}>
+                <div className="mx-auto flex h-10 items-center justify-between gap-1" style={{ width: "min(100%, 20.4rem)" }}>
                   <button type="button" aria-pressed={cats.length === 0} onClick={() => setCats([])} className="tecla-3d h-8 px-2 text-[10px] font-black" data-testid="faixa-cat-TODAS" title="Todas as saídas, em blocos separados por tipo">TODAS</button>
                   <FileiraRolavel testid="faixa-chips-procedimentos" rotulo="Tipos de procedimento">
                     {CATEGORIAS.map((c) => {
@@ -1004,8 +1030,8 @@ export default function SinapsesFaixa() {
                 {total === 0 ? "Ainda não há ligações ativas. Entre em Edição (E), escolha uma saída e puxe o fio da pergunta." : "Nada corresponde à busca ou aos filtros."}
               </div>
             ) : (
-              <div ref={graficoRef} className="concave-3d" style={{ height: ampliada ? "calc(100vh - 15rem)" : "max(20rem, calc(100vh - 25rem))" }} data-testid="faixa-grafo-rolagem">
-                <div className="relative grid h-full min-h-0 overflow-hidden" style={{ gridTemplateRows: "minmax(0,1fr)", gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }}>
+              <div ref={graficoRef} className="concave-3d" style={{ height: ampliada ? "calc(100vh - 15rem)" : alturaNivel === 2 ? "max(26rem, calc(100vh - 9rem))" : alturaNivel === 1 ? "max(22rem, calc(100vh - 17rem))" : "max(20rem, calc(100vh - 25rem))" }} data-testid="faixa-grafo-rolagem">
+                <div className="relative grid h-full min-h-0 overflow-hidden" style={{ gridTemplateRows: "minmax(0,1fr)", gridTemplateColumns: colunasGrade }}>
                   <div className="absolute bottom-0 left-[2px] top-0 z-20 w-[9px]"><Termostato alvo={colEsqRef} rotulo="Rolar perguntas" testid="faixa-termostato-perguntas" /></div>
                   <div className="absolute bottom-0 right-[2px] top-0 z-20 w-[9px]"><Termostato alvo={colDirRef} rotulo="Rolar saídas" testid="faixa-termostato-saidas" /></div>
                   {/* DENDRITOS ESQUERDA: rolagem propria */}
@@ -1110,10 +1136,16 @@ export default function SinapsesFaixa() {
                       if (!mostrar[semSaida ? "SEM_SAIDA" : s.estado === "ATIVA" ? "ATIVA" : "PROPOSTA"] && !em) return null;
                       return (
                         <g key={s.id}>
-                          <path d={d} fill="none" stroke={corFio} strokeWidth={em ? 2.1 : s.estado === "ATIVA" ? 1.1 : 1.3} strokeLinecap="butt" strokeDasharray={s.estado === "ATIVA" ? undefined : semSaida ? "2 4" : "9 4"} vectorEffect="non-scaling-stroke"
+                          <path id={`fio-trilha-${s.id}`} d={d} fill="none" stroke={corFio} strokeWidth={em ? 2.1 : s.estado === "ATIVA" ? 1.1 : 1.3} strokeLinecap="butt" strokeDasharray={s.estado === "ATIVA" ? undefined : semSaida ? "2 4" : "9 4"} vectorEffect="non-scaling-stroke"
                             style={{ opacity: apagado ? 0.06 : em ? 1 : s.estado === "ATIVA" ? 0.7 : 0.55, filter: em ? `drop-shadow(0 0 2px color-mix(in srgb, ${corFio} 45%, transparent))` : undefined }} data-testid={`faixa-fio-${s.id}`} />
                           {emPerg && s.estado === "ATIVA" && (
                             <path d={d} fill="none" stroke={`color-mix(in srgb, ${corFio} 35%, white)`} strokeWidth={3} strokeLinecap="butt" strokeDasharray="1 24" vectorEffect="non-scaling-stroke" className="sinapse-impulso" style={{ pointerEvents: "none", filter: `drop-shadow(0 0 2px color-mix(in srgb, ${corFio} 50%, transparent))` }} />
+                          )}
+                          {fioAberto === s.id && (
+                            <ellipse key={`cometa-${fioPonto.x}-${fioPonto.y}`} rx="1.1" ry="2.2" fill="#fffdf2" style={{ pointerEvents: "none", filter: `drop-shadow(0 0 2px ${corFio})` }} data-testid="faixa-cometa">
+                              <animateMotion dur="0.9s" repeatCount="1" fill="remove" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.4 0 0.2 1"><mpath href={`#fio-trilha-${s.id}`} /></animateMotion>
+                              <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.85;1" dur="0.9s" repeatCount="1" />
+                            </ellipse>
                           )}
                           <path d={d} fill="none" stroke="transparent" strokeWidth={14} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "stroke", cursor: "pointer" }}
                             onClick={(e) => { e.stopPropagation(); setFioPonto({ x: e.clientX, y: e.clientY }); setFioAberto((v) => (v === s.id ? null : s.id)); }} data-testid={`faixa-fio-clique-${s.id}`} />

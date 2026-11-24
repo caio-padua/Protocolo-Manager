@@ -1107,3 +1107,13 @@ aprovação explícita.
 
 ## Gráfico de linha com faixas
 Antes de criar ou mexer em qualquer gráfico de linha (Pulso, antropometria, exames), ler `references/grafico-linha-faixas.md`: espessura, faixas, quadradinho preto vazado e setas vêm de `graficoPadrao.ts`.
+
+## Regras da tela Sinapse (acrescentadas em 24/11/2026)
+1. Botão apertado mantém a aparência de apertado e o texto nunca muda; botão não muda de lugar (Lei Diamante do Lugar Fixo).
+2. Títulos de painel ficam na mesma linha, em faixas Salientes separadas; botões de minimizar, maximizar e demais ficam no extremo direito do painel de título.
+3. Cor de seleção aparece só em quadradinho de vidro (`.sinapse-vidro-cor`), nunca pintando linha ou painel. Quadradinhos ficam na face medial (virados para o centro), espelhados nos dois lados.
+4. Fileiras de chips deslizantes: centralizadas, sem setas; bordas esmaecidas e fio fino arrastável embaixo mostram que há mais a rolar.
+5. Brilho (neon) sempre discreto; pontas de fio quadradas; o fio nasce dentro do quadradinho do pino e atravessa a abertura da moldura (nunca rabicho pré-desenhado).
+6. Legenda em vidro "picado" conforme o tipo da linha, com picado leve; o picado do fio dentro da craniotomia não muda.
+7. Craniotomia: três controles fixos (alongar na vertical em 3 níveis, alargar na tela inteira, tela inteira); clique no fio solta um cometa de luz.
+8. Fundo da faixa: forro claro de risca de giz (`leva-fabric`), com o conteúdo em `relative z-[1]`.
