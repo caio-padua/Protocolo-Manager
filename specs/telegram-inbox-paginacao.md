@@ -38,3 +38,14 @@ Correções necessárias de integração devem preservar as funcionalidades exis
 | Quantidade ilimitada ou direção inválida | Quantidades permitidas e rejeição de parâmetros inválidos | Rota |
 | Filtro aplicado apenas ao lote visível | Aplicar direção antes de LIMIT/OFFSET no servidor | Rota com consulta real simulada |
 | Empresa forjada ou vínculo revogado | Resolver vínculo atual no servidor para cada chamada | Autorização |
+
+## Regressão: página atrasada de outro cliente
+Interromper deliberadamente a resposta da segunda página do cliente sintético A.
+Navegar sem recarregar para B, configurar cinquenta mensagens enviadas e só então liberar A.
+Executar as duas combinações de `temMais`: A verdadeiro/B falso e A falso/B verdadeiro.
+Conferir os identificadores e textos exatos de B, contagem, filtros, ausência de erro
+e disponibilidade do botão antes e depois da liberação; quando houver próximas
+páginas, confirmar que B continua pedindo a página dois com seus próprios filtros.
+Sincronizar pela requisição interceptada e pela liberação explícita, sem atraso arbitrário.
+Todas as chamadas da interface são interceptadas; não acessar banco nem enviar mensagens reais.
+O cancelamento da consulta anterior é um resultado legítimo, não deve ser desativado para o teste.
