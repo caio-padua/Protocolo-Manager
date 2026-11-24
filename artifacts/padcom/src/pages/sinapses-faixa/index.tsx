@@ -115,6 +115,7 @@ export default function SinapsesFaixa() {
   const [menu, setMenu] = useState<{ perguntaId: string; x: number; y: number; acima: boolean } | null>(null);
   const [seletorAberto, setSeletorAberto] = useState(false);
   const [buscaSeletor, setBuscaSeletor] = useState("");
+  const [seletorCats, setSeletorCats] = useState<Categoria[]>([]);
   const [desligadasMenu, setDesligadasMenu] = useState<Record<string, Array<{ categoria: Categoria; destinoTipo: string; destinoId: number }>>>({});
 
   useEffect(() => {
@@ -794,9 +795,17 @@ export default function SinapsesFaixa() {
               return (
                 <div className="panel-3d-sub absolute right-0 top-full z-40 mt-1 w-[min(30rem,92vw)] p-1.5 shadow-xl" style={{ background: "#fdfbf5" }} data-testid="faixa-seletor-lista" role="listbox" aria-label={`Saídas de ${perguntaAtiva.perguntaId}`}>
                   <Input value={buscaSeletor} onChange={(e) => setBuscaSeletor(e.target.value)} placeholder="Pesquisar saída..." className="mb-1 h-8 field-engraved" data-testid="faixa-seletor-busca" />
+                  <div className="mb-1 flex flex-wrap items-center gap-1" role="group" aria-label="Filtrar saídas por grupo" data-testid="faixa-seletor-grupos">
+                    <button type="button" aria-pressed={seletorCats.length === 0} onClick={() => setSeletorCats([])} className="tecla-3d h-7 px-2 text-[10px] font-black" data-testid="faixa-seletor-cat-TODAS">TODAS</button>
+                    {CATEGORIAS.map((c) => (
+                      <button key={c.chave} type="button" aria-pressed={seletorCats.includes(c.chave)} title={c.rotulo} data-testid={`faixa-seletor-cat-${c.chave}`}
+                        onClick={() => setSeletorCats((v) => (v.includes(c.chave) ? v.filter((x) => x !== c.chave) : [...v, c.chave]))}
+                        className="tecla-3d h-7 px-2 text-[10px] font-black" style={{ color: c.cor }}>{c.sigla}</button>
+                    ))}
+                  </div>
                   {!editar && <p className="px-1 pb-1 text-[10px] text-muted-foreground">Entre em Edição para marcar sim ou não.</p>}
                   <div className="concave-3d max-h-80 overflow-y-auto p-1">
-                    {CATEGORIAS.map((c) => {
+                    {CATEGORIAS.filter((c) => seletorCats.length === 0 || seletorCats.includes(c.chave)).map((c) => {
                       const todosDest = data.destinos[c.chave] ?? [];
                       const lista = todosDest.filter((d) => !qs || semAcento(`${d.nome} ${codigoDestino(c.chave, d.tipo, d.id)}`).includes(qs));
                       const nSim = todosDest.filter((d) => ativasPorChave.has(chave(c.chave, d.tipo, d.id))).length;
