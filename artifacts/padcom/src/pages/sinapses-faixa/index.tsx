@@ -491,9 +491,20 @@ export default function SinapsesFaixa() {
       const [categoria, destinoTipo, id] = d.split("|");
       for (const perguntaId of a.origens) criar.mutate({ perguntaId, categoria: categoria as Categoria, destinoTipo, destinoId: Number(id) });
     };
+    // Ao rolar a pagina ou o grafo, a ponta de origem acompanha o pino (senao o fio fica solto na tela).
+    const reancorar = () => setArraste((a) => {
+      if (!a) return a;
+      const pino = document.querySelector<HTMLElement>(`[data-testid="faixa-porta-${CSS.escape(a.de)}"]`);
+      if (!pino) return a;
+      const r = pino.getBoundingClientRect();
+      const proximo = { ...a, x0: r.left + r.width / 2, y0: r.top + r.height / 2 };
+      arrasteRef.current = proximo;
+      return proximo;
+    });
     window.addEventListener("pointermove", mover);
     window.addEventListener("pointerup", soltar);
-    return () => { window.removeEventListener("pointermove", mover); window.removeEventListener("pointerup", soltar); };
+    window.addEventListener("scroll", reancorar, true);
+    return () => { window.removeEventListener("pointermove", mover); window.removeEventListener("pointerup", soltar); window.removeEventListener("scroll", reancorar, true); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!arraste]);
   const iniciarNoPonto = (de: string, x: number, y: number, clonarOrigem = false) => {
@@ -804,7 +815,7 @@ export default function SinapsesFaixa() {
                       return (
                         <g key={s.id}>
                           <path d={d} fill="none" stroke={corFio} strokeWidth={em ? 2 : 1.25} strokeDasharray={s.estado === "ATIVA" ? undefined : "5 3"} vectorEffect="non-scaling-stroke"
-                            style={{ opacity: apagado ? 0.05 : em ? 1 : 0.85, filter: em ? "drop-shadow(0 0 2px rgba(217,119,6,0.55))" : undefined }} data-testid={`faixa-fio-${s.id}`} />
+                            style={{ opacity: apagado ? 0.05 : em ? 1 : s.estado === "ATIVA" ? 0.85 : 0.14, filter: em ? "drop-shadow(0 0 2px rgba(217,119,6,0.55))" : undefined }} data-testid={`faixa-fio-${s.id}`} />
                           {emPerg && s.estado === "ATIVA" && (
                             <path d={d} fill="none" stroke="#FDE68A" strokeWidth={3.5} strokeLinecap="round" strokeDasharray="1 24" vectorEffect="non-scaling-stroke" className="sinapse-impulso" style={{ pointerEvents: "none", filter: "drop-shadow(0 0 4px #F59E0B)" }} />
                           )}
