@@ -2200,6 +2200,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
   for (const delivery of ["em-B", "apos-retorno-A"] as const) {
     for (const currentOutcome of [
       "sucesso", "401-atual", "500-atual", "500-atual-recuperacao-automatica", "rede-atual",
+      "500-atual-recuperacao-automatica-sem-pendencias",
       "500-recuperacao-troca-B-sucesso", "500-recuperacao-troca-B-401-atrasado",
       "500-recuperacao-troca-B-recusada",
     ] as const) {
@@ -2216,7 +2217,8 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       const methods: string[] = [];
       const posts: string[] = [];
       const switchDuringRecovery = currentOutcome.startsWith("500-recuperacao-troca-B");
-      const automaticRecovery = currentOutcome === "500-atual-recuperacao-automatica" || switchDuringRecovery;
+      const resolvedPending = currentOutcome === "500-atual-recuperacao-automatica-sem-pendencias";
+      const automaticRecovery = currentOutcome === "500-atual-recuperacao-automatica" || resolvedPending || switchDuringRecovery;
       const held: { identity?: Route; oldPage?: Route; historyB?: Route; returned?: Route; recovery?: Route } = {};
       let navigations = 0;
       const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
@@ -2537,13 +2539,25 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           }
           expect(offsets).toEqual({ initial: [0, 20, 40], B: [0, 0], return: [0, 0] });
         } else {
-          await reply(held.recovery!, historyBody(markers.fresh, 95, 20));
+          const recoveredHistory = historyBody(markers.fresh, 95, 20);
+          // Documents still exist, but another actor has resolved all reservations.
+          // An explicit empty list must replace, not merge with, cached pendencies.
+          if (resolvedPending) recoveredHistory.pendingOperations = [];
+          await reply(held.recovery!, recoveredHistory);
           await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(8);
           await expect(doc(95)).toBeVisible();
           await expect(doc(95)).not.toBeChecked();
           await expect(currentAlert).toHaveCount(0);
-          await expect(knownPending).toContainText(markers.fresh);
-          await expect(knownPending).not.toContainText("Últimas pendências conhecidas");
+          if (resolvedPending) {
+            await expect(knownPending).toHaveCount(0);
+            await expect(panel.getByRole("alert")).toHaveCount(0);
+            await expect(panel).not.toContainText(staleWarning);
+            await expect(panel.getByRole("checkbox", { name: "E-mail", exact: true })).not.toBeChecked();
+            await expect(panel.getByRole("checkbox", { name: "Telegram", exact: true })).not.toBeChecked();
+          } else {
+            await expect(knownPending).toContainText(markers.fresh);
+            await expect(knownPending).not.toContainText("Últimas pendências conhecidas");
+          }
           for (const marker of [markers.first, markers.b, markers.page20, markers.page40]) {
             await expect(panel).not.toContainText(marker);
           }
@@ -2759,8 +2773,6 @@ for (const currentOutcome of ["sucesso", "401"] as const) {
     });
   }
 }
-
-||||||| base
 
 // Unlike manual refresh and clinic revalidation, this race holds the interval's
 // recovery GET after a 500 with cached pending operations, then changes patient.
