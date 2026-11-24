@@ -132,3 +132,52 @@
 }
 /* Teclas mais quadradas: Saliente solto, Côncavo (apertado) quando selecionado */
 .sinapse-tela .tecla-3d { border-radius: 3px; }
+
+/* Colunas sem a barra nativa: a rolagem é feita pelo Termostato */
+.sinapse-sem-trilho { scrollbar-width: none; -ms-overflow-style: none; }
+.sinapse-sem-trilho::-webkit-scrollbar { display: none; }
+
+/* Termostato: trilho Côncavo quadrado + botão retangular Saliente */
+.sinapse-termostato {
+  position: absolute; top: 8px; bottom: 8px; width: 14px; z-index: 5;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #e7dfca, #f6f1e4);
+  box-shadow: inset 0 2px 4px rgba(7,22,43,0.22), inset 0 -1px 0 rgba(255,255,255,0.9);
+}
+.sinapse-termostato-botao {
+  position: absolute; left: 1px; right: 1px; min-height: 26px; border-radius: 3px; cursor: grab; touch-action: none;
+  background: linear-gradient(180deg, #fff9e6, #d9bf86);
+  border: 1px solid rgba(120,92,36,0.6);
+  box-shadow: 0 2px 4px rgba(7,22,43,0.35), inset 0 1px 0 #fff;
+}
+.sinapse-termostato-botao::after { content: ""; position: absolute; left: 3px; right: 3px; top: 50%; height: 5px; margin-top: -2px;
+  border-top: 1px solid rgba(120,92,36,0.55); border-bottom: 1px solid rgba(120,92,36,0.55); }
+.sinapse-termostato-botao:active { cursor: grabbing; transform: translateY(1px); box-shadow: inset 0 2px 4px rgba(7,22,43,0.3); }
+
+/* Moldura retangular de vidro (escotilha de craniotomia): aço azul-marinho, filete dourado fino, cantos de 10 px */
+.sinapse-escafandro {
+  padding: 5px; border-radius: 10px;
+  background: linear-gradient(160deg, #3a4f73 0%, #162743 45%, #0d1b33 100%);
+  box-shadow: 0 5px 12px rgba(7,22,43,0.35), inset 0 1px 0 rgba(255,255,255,0.35), inset 0 0 0 1px rgba(201,162,74,0.55);
+}
+.sinapse-vidro {
+  position: relative; height: 100%; width: 100%; overflow: hidden; border-radius: 6px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfaf6 100%);
+  box-shadow: inset 0 0 0 1px rgba(15,30,54,0.5), inset 0 6px 12px -6px rgba(15,30,54,0.3), inset 0 -6px 12px -8px rgba(15,30,54,0.2);
+}
+.sinapse-vidro::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 6px;
+  background: linear-gradient(115deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 18%, rgba(255,255,255,0) 78%, rgba(255,255,255,0.25) 100%);
+}
+
+/* Balão (nuvem) do fio: painel Saliente com ponta apontando para a linha */
+.sinapse-balao {
+  position: absolute; z-index: 10; width: 15rem; border-radius: 12px; padding: 10px;
+  background: linear-gradient(180deg, #fffdf6, #f4ecd8);
+  border: 1px solid #d9b25f;
+  box-shadow: 0 10px 22px rgba(7,22,43,0.32), inset 0 1px 0 #fff;
+}
+.sinapse-balao::before {
+  content: ""; position: absolute; left: -7px; top: 50%; width: 12px; height: 12px; margin-top: -6px; transform: rotate(45deg);
+  background: #fbf5e4; border-left: 1px solid #d9b25f; border-bottom: 1px solid #d9b25f;
+}

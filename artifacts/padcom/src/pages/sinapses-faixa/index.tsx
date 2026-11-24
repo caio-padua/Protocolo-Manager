@@ -12,10 +12,11 @@ import {
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
+import { Termostato } from "./Termostato";
 import { CabecalhoGradeSaidas, LinhaGradeSaidas, FichaContador } from "./GradeSaidas";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronDown, ChevronRight, Lock, Unlock, Search, Pencil, Play, Eye, AlertTriangle } from "lucide-react";
+import { Maximize2, Minimize2, ChevronDown, ChevronRight, Lock, Unlock, Search, Pencil, Play, Eye, AlertTriangle } from "lucide-react";
 
 // ============================================================================
 // SINAPSES CLINICAS - modelo "Faixa": blocos de dendritos (codigos) nas pontas,
@@ -56,9 +57,9 @@ const emCampo = (t: EventTarget | null) => {
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
 };
 
-function Faixa({ titulo, fichas, aberta, onToggle, direita, children, testid }: { titulo: string; fichas?: Array<{ rotulo: string; valor: number; cor?: string }>; aberta: boolean; onToggle: () => void; direita?: React.ReactNode; children: React.ReactNode; testid: string }) {
+function Faixa({ titulo, fichas, aberta, onToggle, direita, children, testid, ampliada }: { ampliada?: boolean; titulo: string; fichas?: Array<{ rotulo: string; valor: number; cor?: string }>; aberta: boolean; onToggle: () => void; direita?: React.ReactNode; children: React.ReactNode; testid: string }) {
   return (
-    <section className="panel-3d-sub p-2" data-testid={testid}>
+    <section className={ampliada ? "panel-3d-sub fixed inset-0 z-[60] overflow-auto p-3" : "panel-3d-sub p-2"} style={ampliada ? { background: "#f7f2e6" } : undefined} data-testid={testid}>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={onToggle} aria-expanded={aberta} className="tecla-3d flex min-w-[12rem] flex-1 items-center gap-2 px-3 py-1 text-left" data-testid={`${testid}-toggle`}>
           {aberta ? <ChevronDown className="h-4 w-4 opacity-70" /> : <ChevronRight className="h-4 w-4 opacity-70" />}
@@ -111,6 +112,10 @@ export default function SinapsesFaixa() {
   // Rolagem independente: perguntas (esquerda) e saidas (direita) rolam separadas; os fios acompanham os dois deslocamentos.
   const colEsqRef = useRef<HTMLDivElement | null>(null);
   const colDirRef = useRef<HTMLDivElement | null>(null);
+  const centroRef = useRef<HTMLDivElement | null>(null);
+  const [ampliada, setAmpliada] = useState(false);
+  useEffect(() => { if (!ampliada) return; const t = (e: KeyboardEvent) => { if (e.key === "Escape" && !arrasteRef.current) setAmpliada(false); }; document.addEventListener("keydown", t); return () => document.removeEventListener("keydown", t); }, [ampliada]);
+  const [mostrar, setMostrar] = useState({ ATIVA: true, PROPOSTA: true, SEM_SAIDA: true });
   const [rolE, setRolE] = useState(0);
   const [rolD, setRolD] = useState(0);
   const [alturaVisivel, setAlturaVisivel] = useState(480);
@@ -187,6 +192,15 @@ export default function SinapsesFaixa() {
   const onErro = (e: Error) => toast({ title: "Não foi salvo", description: e.message, variant: "destructive" });
   const criar = useMutation({
     mutationFn: (v: { perguntaId: string; categoria: Categoria; destinoTipo: string; destinoId: number }) => enviar("/api/cadastros/sinapses", "POST", v),
+    // Otimista: o fio aparece no mesmo instante do clique; se o servidor recusar, volta ao estado anterior.
+    onMutate: async (v) => {
+      await qc.cancelQueries({ queryKey: ["/api/cadastros/sinapses/painel"] });
+      const anterior = qc.getQueryData<any>(["/api/cadastros/sinapses/painel"]);
+      if (anterior?.sinapses && !anterior.sinapses.some((x: any) => x.perguntaId === v.perguntaId && x.categoria === v.categoria && x.destinoTipo === v.destinoTipo && x.destinoId === v.destinoId)) {
+        qc.setQueryData(["/api/cadastros/sinapses/painel"], { ...anterior, sinapses: [...anterior.sinapses, { id: -Date.now(), perguntaId: v.perguntaId, categoria: v.categoria, destinoTipo: v.destinoTipo, destinoId: v.destinoId, cloneDe: null }] });
+      }
+      return { anterior };
+    },
     onSuccess: (_resultado, variaveis) => {
       invalidar();
       setSel([variaveis.perguntaId]);
@@ -199,7 +213,7 @@ export default function SinapsesFaixa() {
       }, 1100);
       toast({ title: "Ligação salva", description: "A sinapse acendeu e ficou selecionada." });
     },
-    onError: onErro,
+    onError: (e: Error, _v, contexto) => { if (contexto?.anterior) qc.setQueryData(["/api/cadastros/sinapses/painel"], contexto.anterior); onErro(e); },
   });
   const clonar = useMutation({
     mutationFn: (v: { perguntaOrigemId?: string; sinapseIds?: number[]; perguntaDestinoId: string }) => enviar("/api/cadastros/sinapses/clonar", "POST", v),
@@ -841,15 +855,23 @@ export default function SinapsesFaixa() {
         </div>
       ) : (
         <>
-          <Faixa testid="faixa-grafo" titulo="Faixa da sinapse" fichas={[{ rotulo: "Perguntas", valor: esquerda.length }, { rotulo: "Saídas", valor: direita.length }]} aberta={faixaAberta} onToggle={() => setFaixaAberta((v) => !v)} direita={controlesFaixa}>
-            <div className="mb-1.5 grid items-center gap-x-1" style={{ gridTemplateColumns: "minmax(0,1.55fr) minmax(84px,0.9fr) minmax(0,1.55fr)" }} data-testid="faixa-cabecalho-colunas">
+          <Faixa testid="faixa-grafo" titulo="Faixa da sinapse" fichas={[{ rotulo: "Perguntas", valor: esquerda.length }, { rotulo: "Saídas", valor: direita.length }]} aberta={faixaAberta} onToggle={() => setFaixaAberta((v) => !v)} ampliada={ampliada} direita={<>{controlesFaixa}<button type="button" onClick={() => setAmpliada((v) => !v)} aria-pressed={ampliada} className="tecla-3d flex h-8 items-center gap-2 px-3 text-[10px] font-black uppercase" data-testid="faixa-ampliar" title={ampliada ? "Voltar ao tamanho normal (Esc)" : "Ampliar a faixa para a tela inteira"}>{ampliada ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}{ampliada ? "Reduzir" : "Ampliar"}</button></>}>
+            <div className="mb-1.5 grid items-center gap-x-1" style={{ gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }} data-testid="faixa-cabecalho-colunas">
               <div className="flex flex-wrap items-center gap-1">
                 <span className="text-[10px] font-black uppercase tracking-wider text-primary/80">Perguntas</span>
                 <button type="button" className="tecla-3d h-7 px-2 text-[10px] font-bold" onClick={() => setFechadosE(new Set())} title="Abrir todos os blocos de perguntas">Abrir blocos +</button>
                 <button type="button" className="tecla-3d h-7 px-2 text-[10px] font-bold" onClick={() => setFechadosE(new Set(linhasE.filter((l) => l.tipo === "grupo").map((l) => l.k)))} title="Recolher todos os blocos de perguntas">Recolher −</button>
                 {modo !== "EDICAO" && <button type="button" aria-pressed={todos} onClick={() => setTodos((v) => !v)} className="tecla-3d h-7 px-2 text-[10px] font-bold" data-testid="faixa-todos">{todos ? "Só os ligados" : "Mostrar todos"}</button>}
               </div>
-              <div className="px-1 text-center text-[10px] leading-tight text-muted-foreground">contínuo = ativa<br />tracejado = proposta</div>
+              <div className="concave-3d flex items-stretch gap-1 p-1" role="group" aria-label="Quais sinapses mostrar" title="Ligue ou desligue cada tipo de fio" data-testid="faixa-mostrar-fios">
+                {([["ATIVA", "Ativas", "#1e3a8a"], ["PROPOSTA", "Propostas", "#b8892b"], ["SEM_SAIDA", "Sem saída", "#dc2626"]] as const).map(([k, r, cor]) => (
+                  <button key={k} type="button" aria-pressed={mostrar[k]} onClick={() => setMostrar((m) => ({ ...m, [k]: !m[k] }))} title={`${mostrar[k] ? "Esconder" : "Mostrar"} sinapses: ${r}`} data-testid={`faixa-mostrar-${k}`}
+                    className={`${mostrar[k] ? "tecla-3d" : "concave-3d"} flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-1 text-[9px] font-black uppercase leading-none`} style={{ opacity: mostrar[k] ? 1 : 0.55 }}>
+                    <svg width="100%" height="6" aria-hidden="true"><line x1="3" y1="3" x2="97%" y2="3" stroke={cor} strokeWidth="2.5" strokeLinecap="round" strokeDasharray={k === "ATIVA" ? undefined : k === "PROPOSTA" ? "0.1 5" : "5 4"} /></svg>
+                    <span className="truncate">{r}</span>
+                  </button>
+                ))}
+              </div>
               <div className="flex flex-wrap items-center justify-end gap-1" role="group" aria-label="Filtrar saídas por tipo">
                 <button type="button" aria-pressed={cats.length === 0} onClick={() => setCats([])} className="tecla-3d h-7 px-2 text-[10px] font-black" data-testid="faixa-cat-TODAS" title="Todas as saídas, em blocos separados por tipo">TODAS</button>
                 {CATEGORIAS.map((c) => {
@@ -869,10 +891,12 @@ export default function SinapsesFaixa() {
                 {total === 0 ? "Ainda não há ligações ativas. Entre em Edição (E), escolha uma saída e puxe o fio da pergunta." : "Nada corresponde à busca ou aos filtros."}
               </div>
             ) : (
-              <div ref={graficoRef} className="concave-3d" style={{ height: "max(20rem, calc(100vh - 25rem))" }} data-testid="faixa-grafo-rolagem">
-                <div className="grid h-full" style={{ gridTemplateColumns: "minmax(0,1.55fr) minmax(84px,0.9fr) minmax(0,1.55fr)" }}>
+              <div ref={graficoRef} className="concave-3d" style={{ height: ampliada ? "calc(100vh - 15rem)" : "max(20rem, calc(100vh - 25rem))" }} data-testid="faixa-grafo-rolagem">
+                <div className="relative grid h-full" style={{ gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }}>
+                  <div className="absolute bottom-0 left-1 top-0 z-20"><Termostato alvo={colEsqRef} rotulo="Rolar perguntas" testid="faixa-termostato-perguntas" /></div>
+                  <div className="absolute bottom-0 right-1 top-0 z-20"><Termostato alvo={colDirRef} rotulo="Rolar saídas" testid="faixa-termostato-saidas" /></div>
                   {/* DENDRITOS ESQUERDA: rolagem propria */}
-                  <div ref={colEsqRef} onScroll={(e) => setRolE(e.currentTarget.scrollTop)} className="h-full overflow-y-auto border-r border-black/10" data-testid="faixa-coluna-perguntas">
+                  <div ref={colEsqRef} onScroll={(e) => setRolE(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-r border-black/10 pl-5" data-testid="faixa-coluna-perguntas">
                   <div className="relative" style={{ height: altura }}>
                     {linhasE.map((linha, idx) => {
                       const topo = idx * alturaLinha + 1.5;
@@ -944,7 +968,7 @@ export default function SinapsesFaixa() {
                   </div>
                   </div>
                   {/* FIOS */}
-                  <div className="relative h-full w-full overflow-hidden" style={{ background: "#FFFFFF", boxShadow: "inset 12px 0 20px -15px rgba(15,30,54,0.12), inset -12px 0 20px -15px rgba(15,30,54,0.12)" }} onClick={() => setFioAberto(null)}>
+                  <div ref={centroRef} className="sinapse-escafandro h-full w-full"><div className="sinapse-vidro" onClick={() => setFioAberto(null)}>
                   <svg className="block" width="100%" height={alturaVisivel} viewBox={`0 0 100 ${alturaVisivel}`} preserveAspectRatio="none" aria-hidden>
                     <defs>
                       <linearGradient id="sinapse-gradiente-fibra" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="100" y2="0">
@@ -958,14 +982,15 @@ export default function SinapsesFaixa() {
                       if ((y1 < -20 && y2 < -20) || (y1 > alturaVisivel + 20 && y2 > alturaVisivel + 20)) return null;
                       const emPerg = foco === s.perguntaId || (modo === "SIMULACAO" && sel.includes(s.perguntaId));
                       const em = emPerg || fioAberto === s.id;
-                      const apagado = (foco !== null || (modo === "SIMULACAO" && sel.length > 0)) && !em;
+                      const apagado = modo === "SIMULACAO" && sel.length > 0 && !em;
                       const semSaida = s.estado === "SEM_SAIDA";
                       const d = `M 0 ${y1} C 50 ${y1}, 50 ${y2}, 100 ${y2}`;
-                      const corFio = s.estado === "ATIVA" ? "url(#sinapse-gradiente-fibra)" : semSaida ? "#dc2626" : "#b8892b";
+                      const corFio = s.estado === "ATIVA" ? "url(#sinapse-gradiente-fibra)" : semSaida ? "#dc2626" : "#d8bf84";
+                      if (!mostrar[semSaida ? "SEM_SAIDA" : s.estado === "ATIVA" ? "ATIVA" : "PROPOSTA"] && !em) return null;
                       return (
                         <g key={s.id}>
-                          <path d={d} fill="none" stroke={corFio} strokeWidth={em ? 2 : 1.25} strokeDasharray={s.estado === "ATIVA" ? undefined : "5 3"} vectorEffect="non-scaling-stroke"
-                            style={{ opacity: apagado ? 0.05 : em ? 1 : s.estado === "ATIVA" ? 0.85 : 0.14, filter: em ? "drop-shadow(0 0 2px rgba(217,119,6,0.55))" : undefined }} data-testid={`faixa-fio-${s.id}`} />
+                          <path d={d} fill="none" stroke={corFio} strokeWidth={em ? 2.4 : s.estado === "ATIVA" ? 1.1 : 2} strokeLinecap="round" strokeDasharray={s.estado === "ATIVA" ? undefined : semSaida ? "5 4" : "0.1 6"} vectorEffect="non-scaling-stroke"
+                            style={{ opacity: apagado ? 0.06 : em ? 1 : s.estado === "ATIVA" ? 0.5 : 0.65, filter: em ? "drop-shadow(0 0 2px rgba(217,119,6,0.55))" : undefined }} data-testid={`faixa-fio-${s.id}`} />
                           {emPerg && s.estado === "ATIVA" && (
                             <path d={d} fill="none" stroke="#FDE68A" strokeWidth={3.5} strokeLinecap="round" strokeDasharray="1 24" vectorEffect="non-scaling-stroke" className="sinapse-impulso" style={{ pointerEvents: "none", filter: "drop-shadow(0 0 4px #F59E0B)" }} />
                           )}
@@ -975,34 +1000,44 @@ export default function SinapsesFaixa() {
                       );
                     })}
                   </svg>
+                  </div></div>
                   {(() => {
                     const f = fios.find((x) => x.s.id === fioAberto);
-                    if (!f) return null;
+                    if (!f || !centroRef.current) return null;
                     const dst = nomeDe.get(chave(f.s.categoria, f.s.destinoTipo, f.s.destinoId));
                     const proposta = f.s.id.startsWith("proposta-");
                     const idReal = Number(f.s.id.split("-")[1]);
                     const armada = proposta ? aprovarArmado === idReal : armadas.has(idReal);
+                    const dadosProposta = proposta ? data?.propostas.find((x) => x.id === idReal) : undefined;
+                    const semSaida = f.s.estado === "SEM_SAIDA";
+                    const estadoTxt = proposta ? "Proposta a conferir" : semSaida ? "Ativa, sem saída real" : "Ligação ativa";
+                    const corEstado = proposta ? "#9b6b11" : semSaida ? "#b91c1c" : "#166534";
+                    const meio = (f.y1 - rolE + ((f.y2 as number) - rolD)) / 2;
                     return (
-                      <div className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-[6px] border border-[#d9b25f] bg-white px-2 py-1 text-[10px] shadow-md" style={{ left: "50%", top: Math.min(Math.max((f.y1 - rolE + ((f.y2 as number) - rolD)) / 2, 16), alturaVisivel - 16) }} onClick={(e) => e.stopPropagation()} data-testid="faixa-pilula-fio">
-                        <span className="font-mono font-bold">{f.s.perguntaId}</span>
-                        <span aria-hidden="true">→</span>
-                        <span className="max-w-[9rem] truncate font-semibold" style={{ color: COR[f.s.categoria] }}>{codigoDestino(f.s.categoria, f.s.destinoTipo, f.s.destinoId)} {dst?.nome ?? ""}</span>
-                        {modo === "EDICAO" && proposta && (
-                          <button type="button" onClick={() => { if (armada) aprovarProposta.mutate({ id: idReal }); else setAprovarArmado(idReal); }} disabled={aprovarProposta.isPending} className="inline-flex items-center gap-0.5 rounded-[6px] border border-current px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-700" data-testid="faixa-pilula-aprovar" title={armada ? "Clique de novo para aprovar" : "Aprovar esta proposta"}>
-                            {armada ? "Confirmar" : "Aprovar"}
-                          </button>
-                        )}
-                        {modo === "EDICAO" && !proposta && (
-                          <button type="button" onClick={() => cliqueExcluir(idReal)} className="inline-flex items-center gap-0.5 rounded-[6px] border border-current px-1.5 py-0.5 text-[10px] font-bold uppercase text-red-700" data-testid="faixa-pilula-desvincular" title={armada ? "Clique de novo para confirmar" : "Desvincular (desativa, não apaga)"}>
-                            {armada ? <><Unlock className="h-3 w-3" />Confirmar</> : <><Lock className="h-3 w-3" />Desvincular</>}
-                          </button>
-                        )}
+                      <div className="sinapse-balao" style={{ left: centroRef.current.offsetLeft + centroRef.current.offsetWidth + 10, top: Math.min(Math.max(meio, 80), alturaVisivel - 80), transform: "translateY(-50%)" }} onClick={(e) => e.stopPropagation()} data-testid="faixa-pilula-fio">
+                        <div className="mb-2 text-[10px] font-black uppercase tracking-wider" style={{ color: corEstado }}>{estadoTxt}</div>
+                        <div className="concave-3d mb-2 space-y-1 px-2 py-1.5 text-[11px]">
+                          <div className="flex items-center gap-2"><span className="bevel-3d px-1.5 py-0.5 font-mono text-[10px] font-bold">{f.s.perguntaId}</span><span className="text-muted-foreground">liga a</span></div>
+                          <div className="flex items-center gap-2"><span className="bevel-3d px-1.5 py-0.5 font-mono text-[10px] font-bold" style={{ color: COR[f.s.categoria] }}>{codigoDestino(f.s.categoria, f.s.destinoTipo, f.s.destinoId)}</span><span className="min-w-0 truncate font-semibold" title={dst?.nome}>{dst?.nome ?? ""}</span></div>
+                          {dadosProposta?.justificativa && <p className="pt-1 text-[10px] leading-snug text-muted-foreground">{dadosProposta.eixo} · {dadosProposta.justificativa}</p>}
+                        </div>
+                        <div className="flex items-center justify-end gap-3">
+                          <button type="button" onClick={() => setFioAberto(null)} className="tecla-3d h-8 px-3 text-[10px] font-bold uppercase" data-testid="faixa-pilula-fechar">Fechar</button>
+                          {modo === "EDICAO" && proposta && (
+                            <>
+                              <button type="button" onClick={() => recusarProposta.mutate({ id: idReal })} disabled={recusarProposta.isPending} className="tecla-3d h-8 px-3 text-[10px] font-bold uppercase text-red-700" data-testid="faixa-pilula-recusar">Recusar</button>
+                              <button type="button" onClick={() => { if (armada) aprovarProposta.mutate({ id: idReal }); else setAprovarArmado(idReal); }} disabled={aprovarProposta.isPending} className="tecla-3d h-8 px-3 text-[10px] font-bold uppercase text-emerald-700" data-testid="faixa-pilula-aprovar" title={armada ? "Clique de novo para aprovar" : "Aprovar esta proposta"}>{armada ? "Confirmar" : "Aprovar"}</button>
+                            </>
+                          )}
+                          {modo === "EDICAO" && !proposta && (
+                            <button type="button" onClick={() => cliqueExcluir(idReal)} className="tecla-3d h-8 px-3 text-[10px] font-bold uppercase text-red-700" data-testid="faixa-pilula-desvincular" title={armada ? "Clique de novo para confirmar" : "Desvincular (desativa, não apaga)"}>{armada ? "Confirmar" : "Desvincular"}</button>
+                          )}
+                        </div>
                       </div>
                     );
                   })()}
-                  </div>
                   {/* DENDRITOS DIREITA: rolagem propria */}
-                  <div ref={colDirRef} onScroll={(e) => setRolD(e.currentTarget.scrollTop)} className="h-full overflow-y-auto border-l border-black/10" data-testid="faixa-coluna-saidas">
+                  <div ref={colDirRef} onScroll={(e) => setRolD(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-l border-black/10 pr-5" data-testid="faixa-coluna-saidas">
                   <div className="relative" style={{ height: altura }}>
                     {linhasD.map((linha, idx) => {
                       const topo = idx * alturaLinha + 1.5;
