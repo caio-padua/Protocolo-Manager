@@ -13,7 +13,7 @@ import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Termostato } from "./Termostato";
-import { CabecalhoGradeSaidas, LinhaGradeSaidas, FichaContador } from "./GradeSaidas";
+import { CabecalhoGradeSaidas, LinhaGradeSaidas, FichaContador, ResumoDestino } from "./GradeSaidas";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Maximize2, Minimize2, ChevronDown, ChevronRight, Lock, Unlock, Search, Pencil, Play, Eye, AlertTriangle } from "lucide-react";
@@ -39,6 +39,7 @@ const CATEGORIAS: Array<{ chave: Categoria; rotulo: string; sigla: string; cor: 
 const COR = Object.fromEntries(CATEGORIAS.map((c) => [c.chave, c.cor])) as Record<Categoria, string>;
 const ROTULO = Object.fromEntries(CATEGORIAS.map((c) => [c.chave, c.rotulo])) as Record<Categoria, string>;
 const SIGLA = Object.fromEntries(CATEGORIAS.map((c) => [c.chave, c.sigla])) as Record<Categoria, string>;
+const PALETA_BLOCOS = ["#1d4ed8", "#0f766e", "#b45309", "#7c3aed", "#be123c", "#15803d", "#0369a1", "#a21caf", "#c2410c", "#4d7c0f", "#475569", "#9d174d"];
 const ROW_H_DESKTOP = 24;
 const ROW_H_TOUCH = 40;
 
@@ -46,7 +47,7 @@ interface Pergunta { perguntaId: string; pergunta: string; bloco: string | null;
 interface Destino { tipo: TipoDestino; id: number; nome: string; rotulo?: string; detalhe?: string | null; incompleto?: boolean }
 interface Sinapse { id: number; perguntaId: string; categoria: Categoria; destinoTipo: TipoDestino; destinoId: number; cloneDe: number | null }
 interface Proposta { id: number; perguntaId: string; categoria: Categoria; destinoTipo: TipoDestino; destinoId: number; eixo: string; justificativa: string; status: "PENDENTE" | "APROVADA" | "RECUSADA" }
-interface Painel { perguntas: Pergunta[]; destinos: Record<Categoria, Destino[]>; injetaveisSemVia: number; sinapses: Sinapse[]; propostas: Proposta[] }
+interface Painel { perguntas: Pergunta[]; destinos: Record<Categoria, Destino[]>; injetaveisSemVia: number; blocoCores?: Record<string, string>; sinapses: Sinapse[]; propostas: Proposta[] }
 interface ConexaoGrafico { id: string; perguntaId: string; categoria: Categoria; destinoTipo: TipoDestino; destinoId: number; estado: "ATIVA" | "PENDENTE" | "SEM_SAIDA" }
 
 const chave = (c: Categoria, tipo: string, id: number) => `${c}|${tipo}|${id}`;
@@ -79,6 +80,12 @@ export default function SinapsesFaixa() {
   const { data: painelGerado, isLoading, isError, refetch } = useGetSinapsesClinicasPainel();
   const data = painelGerado as Painel | undefined;
 
+  const corDoBloco = useMemo(() => {
+    const ordem: string[] = [];
+    for (const p of data?.perguntas ?? []) { const b = p.bloco ?? "SEM BLOCO"; if (!ordem.includes(b)) ordem.push(b); }
+    return (bloco: string | null) => { const b = bloco ?? "SEM BLOCO"; return data?.blocoCores?.[b] ?? PALETA_BLOCOS[Math.max(0, ordem.indexOf(b)) % PALETA_BLOCOS.length]; };
+  }, [data]);
+  const corDaPergunta = useMemo(() => { const m = new Map<string, string>(); for (const p of data?.perguntas ?? []) m.set(p.perguntaId, corDoBloco(p.bloco)); return m; }, [data, corDoBloco]);
   const [modo, setModo] = useState<Modo>("VISUALIZACAO");
   const [busca, setBusca] = useState("");
   const [cats, setCats] = useState<Categoria[]>([]);
@@ -214,6 +221,11 @@ export default function SinapsesFaixa() {
       toast({ title: "Ligação salva", description: "A sinapse acendeu e ficou selecionada." });
     },
     onError: (e: Error, _v, contexto) => { if (contexto?.anterior) qc.setQueryData(["/api/cadastros/sinapses/painel"], contexto.anterior); onErro(e); },
+  });
+  const salvarCorBloco = useMutation({
+    mutationFn: (v: { bloco: string; cor: string }) => enviar("/api/cadastros/sinapses/bloco-cor", "PUT", v),
+    onSuccess: () => { invalidar(); },
+    onError: onErro,
   });
   const clonar = useMutation({
     mutationFn: (v: { perguntaOrigemId?: string; sinapseIds?: number[]; perguntaDestinoId: string }) => enviar("/api/cadastros/sinapses/clonar", "POST", v),
@@ -903,6 +915,9 @@ export default function SinapsesFaixa() {
                       if (linha.tipo === "grupo") {
                         return (
                           <div key={`g-${linha.k}`} className="absolute flex w-full items-center gap-1 px-1" style={{ top: topo, height: alturaLinha - 3 }}>
+                            <label className="relative block h-full w-5 shrink-0 cursor-pointer rounded-[3px] border border-black/30" style={{ background: corDoBloco(linha.k) }} title="Cor desta categoria de perguntas (clique para trocar)" data-testid={`faixa-cor-${linha.k}`}>
+                              <input type="color" aria-label={`Cor da categoria ${linha.k}`} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" value={corDoBloco(linha.k)} onChange={(e) => salvarCorBloco.mutate({ bloco: linha.k, cor: e.target.value })} />
+                            </label>
                             {barraGrupo({ titulo: linha.k, n: linha.n, nLig: linha.nLig, fechado: fechadosE.has(linha.k), onClick: () => alternarGrupo(fechadosE, setFechadosE, linha.k), testid: `faixa-grupo-e-${linha.k}` })}
                             <span className="sinapse-pino-area" aria-hidden="true" />
                           </div>
@@ -922,7 +937,7 @@ export default function SinapsesFaixa() {
                         <div key={p.perguntaId} data-pergunta={p.perguntaId} className="absolute flex w-full items-center gap-1 px-1" style={{ top: topo, height: alturaLinha - 3 }}
                           onMouseEnter={() => setHover(p.perguntaId)} onMouseLeave={() => setHover(null)} title={`${p.perguntaId} · ${p.pergunta}`} aria-label={`${p.perguntaId}: ${p.pergunta}. ${nAtivas} ligações registradas, ${nSemSaida} sem saída e ${nPendentes} propostas pendentes.`}>
                           <button type="button" aria-pressed={marcada} onClick={(e) => clicar(e, p.perguntaId)} data-testid={`faixa-dendrito-${p.perguntaId}`}
-                            className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1 px-1.5 text-left select-none">
+                            className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1 px-1.5 text-left select-none" style={{ borderLeft: `4px solid ${corDaPergunta.get(p.perguntaId) ?? "transparent"}` }}>
                             <span className="flex w-4 shrink-0 items-center justify-center">
                               {travada === p.perguntaId
                                 ? <Lock className="h-3 w-3 text-[#9b6b11]" aria-label="Pergunta travada" role="img" />
@@ -985,12 +1000,13 @@ export default function SinapsesFaixa() {
                       const apagado = modo === "SIMULACAO" && sel.length > 0 && !em;
                       const semSaida = s.estado === "SEM_SAIDA";
                       const d = `M 0 ${y1} C 50 ${y1}, 50 ${y2}, 100 ${y2}`;
-                      const corFio = s.estado === "ATIVA" ? "url(#sinapse-gradiente-fibra)" : semSaida ? "#dc2626" : "#d8bf84";
+                      const corBloco = corDaPergunta.get(s.perguntaId) ?? "#1e3a8a";
+                      const corFio = semSaida ? "#dc2626" : corBloco;
                       if (!mostrar[semSaida ? "SEM_SAIDA" : s.estado === "ATIVA" ? "ATIVA" : "PROPOSTA"] && !em) return null;
                       return (
                         <g key={s.id}>
                           <path d={d} fill="none" stroke={corFio} strokeWidth={em ? 2.4 : s.estado === "ATIVA" ? 1.1 : 2} strokeLinecap="round" strokeDasharray={s.estado === "ATIVA" ? undefined : semSaida ? "5 4" : "0.1 6"} vectorEffect="non-scaling-stroke"
-                            style={{ opacity: apagado ? 0.06 : em ? 1 : s.estado === "ATIVA" ? 0.5 : 0.65, filter: em ? "drop-shadow(0 0 2px rgba(217,119,6,0.55))" : undefined }} data-testid={`faixa-fio-${s.id}`} />
+                            style={{ opacity: apagado ? 0.06 : em ? 1 : s.estado === "ATIVA" ? 0.7 : 0.7, filter: em ? "drop-shadow(0 0 2px rgba(217,119,6,0.55))" : undefined }} data-testid={`faixa-fio-${s.id}`} />
                           {emPerg && s.estado === "ATIVA" && (
                             <path d={d} fill="none" stroke="#FDE68A" strokeWidth={3.5} strokeLinecap="round" strokeDasharray="1 24" vectorEffect="non-scaling-stroke" className="sinapse-impulso" style={{ pointerEvents: "none", filter: "drop-shadow(0 0 4px #F59E0B)" }} />
                           )}
@@ -1014,13 +1030,14 @@ export default function SinapsesFaixa() {
                     const corEstado = proposta ? "#9b6b11" : semSaida ? "#b91c1c" : "#166534";
                     const meio = (f.y1 - rolE + ((f.y2 as number) - rolD)) / 2;
                     return (
-                      <div className="sinapse-balao" style={{ left: centroRef.current.offsetLeft + centroRef.current.offsetWidth + 10, top: Math.min(Math.max(meio, 80), alturaVisivel - 80), transform: "translateY(-50%)" }} onClick={(e) => e.stopPropagation()} data-testid="faixa-pilula-fio">
+                      <div className="sinapse-balao" style={{ left: centroRef.current.offsetLeft + centroRef.current.offsetWidth + 10, top: Math.min(Math.max(meio, 150), alturaVisivel - 150), transform: "translateY(-50%)" }} onClick={(e) => e.stopPropagation()} data-testid="faixa-pilula-fio">
                         <div className="mb-2 text-[10px] font-black uppercase tracking-wider" style={{ color: corEstado }}>{estadoTxt}</div>
-                        <div className="concave-3d mb-2 space-y-1 px-2 py-1.5 text-[11px]">
-                          <div className="flex items-center gap-2"><span className="bevel-3d px-1.5 py-0.5 font-mono text-[10px] font-bold">{f.s.perguntaId}</span><span className="text-muted-foreground">liga a</span></div>
-                          <div className="flex items-center gap-2"><span className="bevel-3d px-1.5 py-0.5 font-mono text-[10px] font-bold" style={{ color: COR[f.s.categoria] }}>{codigoDestino(f.s.categoria, f.s.destinoTipo, f.s.destinoId)}</span><span className="min-w-0 truncate font-semibold" title={dst?.nome}>{dst?.nome ?? ""}</span></div>
-                          {dadosProposta?.justificativa && <p className="pt-1 text-[10px] leading-snug text-muted-foreground">{dadosProposta.eixo} · {dadosProposta.justificativa}</p>}
+                        <div className="concave-3d mb-2 space-y-2 px-2 py-2 text-[11px]">
+                          <div className="flex items-start gap-2"><span className="bevel-3d shrink-0 px-1.5 py-0.5 font-mono text-[10px] font-bold" style={{ color: corDaPergunta.get(f.s.perguntaId) }}>{f.s.perguntaId}</span><span className="min-w-0 font-semibold leading-snug">{data?.perguntas.find((x) => x.perguntaId === f.s.perguntaId)?.pergunta}</span></div>
+                          <div className="flex items-start gap-2"><span className="bevel-3d shrink-0 px-1.5 py-0.5 font-mono text-[10px] font-bold" style={{ color: COR[f.s.categoria] }}>{codigoDestino(f.s.categoria, f.s.destinoTipo, f.s.destinoId)}</span><span className="min-w-0 font-semibold leading-snug">{dst?.nome ?? ""}</span></div>
+                          {dadosProposta?.justificativa && <p className="text-[10px] leading-snug text-muted-foreground">{dadosProposta.eixo} · {dadosProposta.justificativa}</p>}
                         </div>
+                        <div className="max-h-44 overflow-y-auto"><ResumoDestino tipo={f.s.destinoTipo} destinoId={f.s.destinoId} /></div>
                         <div className="flex items-center justify-end gap-3">
                           <button type="button" onClick={() => setFioAberto(null)} className="tecla-3d h-8 px-3 text-[10px] font-bold uppercase" data-testid="faixa-pilula-fechar">Fechar</button>
                           {modo === "EDICAO" && proposta && (

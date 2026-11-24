@@ -52,6 +52,7 @@ function garantir(): Promise<void> {
           CONSTRAINT sinapses_clinicas_uk UNIQUE (pergunta_id, categoria, destino_tipo, destino_id)
         )`);
       await db.execute(sql`CREATE INDEX IF NOT EXISTS sinapses_clinicas_pergunta_idx ON sinapses_clinicas (pergunta_id)`);
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS anamnese_blocos_cor (bloco TEXT PRIMARY KEY, cor TEXT NOT NULL, atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
     })().catch((e) => {
       pronta = null;
       throw e;
@@ -171,9 +172,20 @@ router.get("/cadastros/sinapses/resumo/:tipo/:id", async (req, res): Promise<voi
   res.status(400).json({ error: "tipo inválido" });
 });
 
+// Cor de cada categoria (bloco) de perguntas: cadastro persistente; a tela usa uma paleta padrao quando nao ha cor salva.
+router.put("/cadastros/sinapses/bloco-cor", async (req, res): Promise<void> => {
+  await garantir();
+  const p = z.object({ bloco: z.string().min(1).max(200), cor: z.string().regex(/^#[0-9a-fA-F]{6}$/) }).safeParse(req.body);
+  if (!p.success) { res.status(400).json({ error: "bloco e cor (#RRGGBB) são obrigatórios" }); return; }
+  const existe = await db.execute(sql`SELECT 1 FROM anamnese_questionario WHERE bloco = ${p.data.bloco} LIMIT 1`);
+  if (!existe.rows.length) { res.status(404).json({ error: "categoria de perguntas não encontrada" }); return; }
+  await db.execute(sql`INSERT INTO anamnese_blocos_cor (bloco, cor) VALUES (${p.data.bloco}, ${p.data.cor.toLowerCase()}) ON CONFLICT (bloco) DO UPDATE SET cor = EXCLUDED.cor, atualizado_em = NOW()`);
+  res.json({ ok: true });
+});
+
 router.get("/cadastros/sinapses/painel", async (_req, res): Promise<void> => {
   await garantir();
-  const [perguntas, exames, blocos, formulas, injetaveis, implantes, sinapses, propostas] = await Promise.all([
+  const [perguntas, exames, blocos, formulas, injetaveis, implantes, sinapses, propostas, coresBloco] = await Promise.all([
     db.execute(sql`SELECT pergunta_id, pergunta, bloco, e_sinal_alarme, ordem, opcoes FROM anamnese_questionario ORDER BY ordem NULLS LAST, id`),
     db.execute(sql`SELECT id, nome_exame, grupo_principal FROM catalogo_exames WHERE ativo IS NOT FALSE ORDER BY nome_exame`),
     db.execute(sql`
@@ -192,6 +204,7 @@ router.get("/cadastros/sinapses/painel", async (_req, res): Promise<void> => {
       sinapsesClinicasPropostasTable.perguntaId,
       sinapsesClinicasPropostasTable.id,
     ),
+    db.execute(sql`SELECT bloco, cor FROM anamnese_blocos_cor`),
   ]);
 
   const destinos: Record<Categoria, Array<{ tipo: string; id: number; nome: string; rotulo?: string; detalhe?: string | null; incompleto?: boolean }>> = {
@@ -234,6 +247,7 @@ router.get("/cadastros/sinapses/painel", async (_req, res): Promise<void> => {
     })),
     destinos,
     injetaveisSemVia,
+    blocoCores: Object.fromEntries((coresBloco.rows as any[]).map((c) => [c.bloco, c.cor])),
     sinapses: (sinapses.rows as any[]).map((s) => ({
       id: s.id,
       perguntaId: s.pergunta_id,

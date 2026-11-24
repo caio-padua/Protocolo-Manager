@@ -48,7 +48,7 @@ export interface LinhaSaidaProps {
 
 interface Resumo { titulo: string; itens: string[]; linhas: Array<{ rotulo: string; valor: string }> }
 
-function ResumoDestino({ tipo, destinoId }: { tipo: string; destinoId: number }) {
+export function ResumoDestino({ tipo, destinoId }: { tipo: string; destinoId: number }) {
   const q = useQuery<Resumo>({
     queryKey: ["/api/cadastros/sinapses/resumo", tipo, destinoId],
     queryFn: async () => {
@@ -70,7 +70,7 @@ function ResumoDestino({ tipo, destinoId }: { tipo: string; destinoId: number })
       )}
       {d.linhas.length > 0 && (
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-0.5">
-          {d.linhas.map((l) => (<div key={l.rotulo} className="contents"><dt className="text-[9px] font-black uppercase tracking-wider text-primary/80">{l.rotulo}</dt><dd className="min-w-0">{l.valor}</dd></div>))}
+          {d.linhas.map((l) => (<div key={l.rotulo} className="contents"><dt className="text-[9px] font-black uppercase tracking-wider text-primary/80">{l.rotulo}</dt><dd className="min-w-0">{l.rotulo === "Posologia" ? l.valor.split(" · ").map((t, i) => <div key={i}>{t}</div>) : l.valor}</dd></div>))}
         </dl>
       )}
       {d.itens.length === 0 && d.linhas.length === 0 && <p className="text-muted-foreground">Sem informações cadastradas.</p>}
