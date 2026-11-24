@@ -12,6 +12,7 @@ import {
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
+import { CabecalhoGradeSaidas, LinhaGradeSaidas } from "./GradeSaidas";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronDown, ChevronRight, Lock, Unlock, Search, Pencil, Play, Eye, AlertTriangle } from "lucide-react";
@@ -775,14 +776,14 @@ export default function SinapsesFaixa() {
                     ))}
                   </div>
                   {seletorAberto && !editar && <p className="px-1 pb-1 text-[10px] text-muted-foreground">Entre em Edição para marcar sim ou não.</p>}
-                  {seletorAberto && <div className="max-h-40 overflow-y-auto p-0.5">
+                  {seletorAberto && <div className="max-h-44 overflow-y-auto p-0.5"><CabecalhoGradeSaidas />
                     {CATEGORIAS.filter((c) => seletorCats.length === 0 || seletorCats.includes(c.chave)).map((c) => {
                       const todosDest = data.destinos[c.chave] ?? [];
                       const lista = todosDest.filter((d) => !qs || semAcento(`${d.nome} ${codigoDestino(c.chave, d.tipo, d.id)}`).includes(qs));
                       const nSim = todosDest.filter((d) => ativasPorChave.has(chave(c.chave, d.tipo, d.id))).length;
                       return (
                         <div key={c.chave} className="mb-1" data-testid={`faixa-seletor-grupo-${c.chave}`}>
-                          <div className="sticky top-0 z-10 flex items-center gap-2 bg-[#fdfbf5] px-1 py-0.5 text-[10px] font-black uppercase tracking-wider" style={{ color: c.cor }}>
+                          <div className="flex items-center gap-2 px-1 py-0.5 text-[10px] font-black uppercase tracking-wider" style={{ color: c.cor }}>
                             <span>{c.sigla} · {c.rotulo}</span><span className="ml-auto text-muted-foreground">{nSim} sim</span>
                           </div>
                           {lista.slice(0, 120).map((d) => {
@@ -791,17 +792,13 @@ export default function SinapsesFaixa() {
                             const propX = propostasPorChave.get(k);
                             const cod = codigoDestino(c.chave, d.tipo, d.id);
                             return (
-                              <label key={k} className="flex cursor-pointer items-center gap-2 px-1 py-0.5 text-[11px] hover:bg-black/5">
-                                <input type="checkbox" className="h-4 w-4 shrink-0 accent-[#1e3a8a]" checked={!!ativaX} disabled={!editar || ocupado} data-testid={`faixa-seletor-${cod}`} aria-label={`${cod} ${d.nome}`}
-                                  onChange={() => {
-                                    if (ativaX) { setDesligadasMenu((m) => ({ ...m, [perguntaAtiva.perguntaId]: [...(m[perguntaAtiva.perguntaId] ?? []), { categoria: c.chave, destinoTipo: d.tipo, destinoId: d.id }] })); desativar.mutate(ativaX.id); }
-                                    else if (propX) aprovarProposta.mutate({ id: propX.id });
-                                    else criar.mutate({ perguntaId: perguntaAtiva.perguntaId, categoria: c.chave, destinoTipo: d.tipo, destinoId: d.id });
-                                  }} />
-                                <b className="font-mono" style={{ color: c.cor }}>{cod}</b>
-                                <span className="min-w-0 flex-1 truncate" title={d.nome}>{d.nome}</span>
-                                <span className="shrink-0 text-[9px] font-bold uppercase" style={{ color: ativaX ? "#166534" : propX ? "#9b6b11" : "#6b7280" }}>{ativaX ? "sim" : propX ? "proposta" : "não"}</span>
-                              </label>
+                              <LinhaGradeSaidas key={k} codigo={cod} corCodigo={c.cor} nome={d.nome} estado={ativaX ? "ATIVA" : propX ? "PROPOSTA" : "NAO"} ligada={!!ativaX} desabilitada={!editar || ocupado}
+                                rotuloAcessivel={`${cod} ${d.nome}`} dica={editar ? "Ligar ou desligar (desativa, não apaga)" : "Entre em Edição para ligar ou desligar"} testid={`faixa-seletor-${cod}`}
+                                onAlternar={() => {
+                                  if (ativaX) { setDesligadasMenu((m) => ({ ...m, [perguntaAtiva.perguntaId]: [...(m[perguntaAtiva.perguntaId] ?? []), { categoria: c.chave, destinoTipo: d.tipo, destinoId: d.id }] })); desativar.mutate(ativaX.id); }
+                                  else if (propX) aprovarProposta.mutate({ id: propX.id });
+                                  else criar.mutate({ perguntaId: perguntaAtiva.perguntaId, categoria: c.chave, destinoTipo: d.tipo, destinoId: d.id });
+                                }} />
                             );
                           })}
                           {lista.length > 120 && <p className="px-1 text-[10px] text-muted-foreground">Mostrando 120 de {lista.length}. Use a pesquisa para afinar.</p>}
@@ -1179,59 +1176,45 @@ export default function SinapsesFaixa() {
         const desl = (desligadasMenu[pid] ?? []).filter((x) => !jaTem(x.categoria, x.destinoTipo, x.destinoId));
         const editar = modo === "EDICAO";
         const ocupado = criar.isPending || desativar.isPending || aprovarProposta.isPending;
-        const Tecla = ({ ligada, rotulo, onClick, id }: { ligada: boolean; rotulo: string; onClick: () => void; id: string }) => (
-          <button type="button" role="switch" aria-checked={ligada} aria-label={rotulo} title={editar ? (ligada ? "Desligar (desativa, não apaga)" : "Ligar") : "Entre em Edição para ligar ou desligar"}
-            disabled={!editar || ocupado} onClick={onClick} data-testid={id}
-            className={`flex h-6 w-11 shrink-0 items-center px-0.5 ${ligada ? "concave-3d justify-end" : "bevel-3d justify-start"} disabled:opacity-50`}>
-            <span className={`block h-4 w-4 rounded-full border ${ligada ? "border-[#1e3a8a] bg-[#3b6fd4]" : "border-slate-400 bg-white"}`} />
-          </button>
-        );
         return (
           <div data-menu-sinapse role="menu" aria-label={`Ligações de ${pid}`} data-testid="faixa-menu-ligacoes"
-            className="panel-3d-sub fixed z-[60] w-[340px] max-w-[calc(100vw-16px)] p-1.5 shadow-xl" style={{ left: menu.x, top: menu.y, transform: menu.acima ? "translateY(-100%)" : undefined, background: "#fdfbf5" }}>
+            className="panel-3d-sub fixed z-[60] w-[440px] max-w-[calc(100vw-16px)] p-1.5 shadow-xl" style={{ left: menu.x, top: menu.y, transform: menu.acima ? "translateY(-100%)" : undefined, background: "#fdfbf5" }}>
             <div className="mb-1 flex items-center gap-1.5 px-1">
               <span className="concave-3d sinapse-janela-codigo font-mono text-[10px] font-bold text-[#0f1e36]">{pid}</span>
               <span className="min-w-0 flex-1 truncate text-[11px] font-semibold" title={perg?.pergunta}>{perg?.pergunta}</span>
               <button type="button" className="tecla-3d h-6 w-6 text-[12px] font-bold" onClick={() => setMenu(null)} aria-label="Fechar menu">×</button>
             </div>
-            <div className="concave-3d max-h-72 space-y-1 overflow-y-auto p-1">
-              {ativas.length + pend.length + desl.length === 0 && <p className="p-2 text-[11px] text-muted-foreground">Nenhuma ligação ainda. Em Edição, trave a pergunta e clique nas saídas.</p>}
+            <div className="concave-3d max-h-72 overflow-y-auto p-1">
+              {ativas.length + pend.length + desl.length === 0 ? <p className="p-2 text-[11px] text-muted-foreground">Nenhuma ligação ainda. Em Edição, trave a pergunta e clique nas saídas.</p> : <CabecalhoGradeSaidas />}
               {ativas.map((x) => {
                 const d = nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId));
                 const cod = codigoDestino(x.categoria, x.destinoTipo, x.destinoId);
+                const semSaida = !d || d.incompleto;
                 return (
-                  <div key={`a${x.id}`} className="flex items-center gap-1.5 px-1 text-[10px]">
-                    <Tecla ligada rotulo={`Desligar ${cod}`} id={`faixa-menu-tecla-${x.id}`} onClick={() => {
+                  <LinhaGradeSaidas key={`a${x.id}`} codigo={cod} corCodigo={semSaida ? "#b91c1c" : COR[x.categoria]} nome={d?.nome ?? "sem saída"} estado={semSaida ? "SEM_SAIDA" : "ATIVA"} ligada desabilitada={!editar || ocupado}
+                    rotuloAcessivel={`Desligar ${cod}`} dica={editar ? "Desligar (desativa, não apaga)" : "Entre em Edição para ligar ou desligar"} testid={`faixa-menu-tecla-${x.id}`}
+                    onAlternar={() => {
                       setDesligadasMenu((m) => ({ ...m, [pid]: [...(m[pid] ?? []), { categoria: x.categoria, destinoTipo: x.destinoTipo, destinoId: x.destinoId }] }));
                       desativar.mutate(x.id);
                     }} />
-                    <b className="font-mono" style={{ color: !d || d.incompleto ? "#b91c1c" : COR[x.categoria] }}>{cod}</b>
-                    <span className="min-w-0 flex-1 truncate" title={d?.nome}>{d?.nome ?? "sem saída"}</span>
-                  </div>
                 );
               })}
               {pend.map((x) => {
                 const d = nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId));
                 const cod = codigoDestino(x.categoria, x.destinoTipo, x.destinoId);
                 return (
-                  <div key={`p${x.id}`} className="flex items-center gap-1.5 px-1 text-[10px]">
-                    <Tecla ligada={false} rotulo={`Aprovar proposta ${cod}`} id={`faixa-menu-tecla-proposta-${x.id}`} onClick={() => aprovarProposta.mutate({ id: x.id })} />
-                    <b className="font-mono text-[#9b6b11]">{cod}</b>
-                    <span className="min-w-0 flex-1 truncate" title={d?.nome}>{d?.nome ?? `#${x.destinoId}`}</span>
-                    <span className="shrink-0 text-[8px] font-bold uppercase text-[#9b6b11]">proposta</span>
-                  </div>
+                  <LinhaGradeSaidas key={`p${x.id}`} codigo={cod} corCodigo="#9b6b11" nome={d?.nome ?? `#${x.destinoId}`} estado="PROPOSTA" ligada={false} desabilitada={!editar || ocupado}
+                    rotuloAcessivel={`Aprovar proposta ${cod}`} dica={editar ? "Aprovar a proposta" : "Entre em Edição para ligar ou desligar"} testid={`faixa-menu-tecla-proposta-${x.id}`}
+                    onAlternar={() => aprovarProposta.mutate({ id: x.id })} />
                 );
               })}
               {desl.map((x, i) => {
                 const d = nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId));
                 const cod = codigoDestino(x.categoria, x.destinoTipo, x.destinoId);
                 return (
-                  <div key={`d${i}-${cod}`} className="flex items-center gap-1.5 px-1 text-[10px] opacity-80">
-                    <Tecla ligada={false} rotulo={`Ligar de novo ${cod}`} id={`faixa-menu-tecla-desligada-${cod}`} onClick={() => criar.mutate({ perguntaId: pid, categoria: x.categoria, destinoTipo: x.destinoTipo, destinoId: x.destinoId })} />
-                    <b className="font-mono">{cod}</b>
-                    <span className="min-w-0 flex-1 truncate" title={d?.nome}>{d?.nome ?? `#${x.destinoId}`}</span>
-                    <span className="shrink-0 text-[8px] font-bold uppercase text-muted-foreground">desligada</span>
-                  </div>
+                  <LinhaGradeSaidas key={`d${i}-${cod}`} codigo={cod} corCodigo={COR[x.categoria]} nome={d?.nome ?? `#${x.destinoId}`} estado="DESLIGADA" ligada={false} desabilitada={!editar || ocupado}
+                    rotuloAcessivel={`Ligar de novo ${cod}`} dica={editar ? "Ligar de novo" : "Entre em Edição para ligar ou desligar"} testid={`faixa-menu-tecla-desligada-${cod}`}
+                    onAlternar={() => criar.mutate({ perguntaId: pid, categoria: x.categoria, destinoTipo: x.destinoTipo, destinoId: x.destinoId })} />
                 );
               })}
             </div>
@@ -1255,34 +1238,30 @@ export default function SinapsesFaixa() {
                 const lig = ligacoesAtiva.filter((x) => x.categoria === c.chave);
                 const prop = propostasAtiva.filter((x) => x.categoria === c.chave);
                 if (!lig.length && !prop.length) return null;
+                const editar = modo === "EDICAO";
+                const ocupado = criar.isPending || desativar.isPending || aprovarProposta.isPending;
                 return (
                   <section key={c.chave} className="concave-3d p-2" data-testid={`faixa-tela-sinapses-${c.chave}`}>
-                    <h4 className="mb-1.5 text-[10px] font-black uppercase tracking-wider" style={{ color: c.cor }}>{c.sigla} · {c.rotulo} · {lig.length} ativa(s) · {prop.length} proposta(s)</h4>
-                    <div className="flex flex-wrap gap-1.5">
-                      {lig.map((x) => {
-                        const dst = nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId));
-                        const semSaida = !dst || dst.incompleto;
-                        const armada = armadas.has(x.id);
-                        return (
-                          <span key={x.id} className={`tecla-3d flex h-8 items-center gap-1.5 pl-2 pr-1 text-[11px] ${semSaida ? "border-red-400" : ""}`}>
-                            <b className="font-mono" style={{ color: semSaida ? "#b91c1c" : c.cor }}>{codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}</b>
-                            <span className="max-w-[16rem] truncate">{dst?.nome ?? "sem saída"}</span>
-                            {modo === "EDICAO" && (
-                              <button type="button" onClick={() => cliqueExcluir(x.id)} className="h-6 min-w-6 rounded px-1 text-[12px] font-bold text-red-700 hover:bg-red-50" aria-label={armada ? "Confirmar desvincular" : `Desvincular ${codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}`} title={armada ? "Clique de novo para confirmar" : "Desvincular (desativa, não apaga)"} data-testid={`faixa-chip-desvincular-${x.id}`}>
-                                {armada ? "Confirmar" : "×"}
-                              </button>
-                            )}
-                          </span>
-                        );
-                      })}
-                      {prop.map((x) => (
-                        <span key={`p${x.id}`} className="concave-3d flex h-8 items-center gap-1.5 border border-dashed border-[#b8892b] px-2 text-[11px]" title={`Proposta pendente: ${x.eixo}`}>
-                          <b className="font-mono text-[#9b6b11]">{codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}</b>
-                          <span className="max-w-[16rem] truncate">{nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId))?.nome ?? `#${x.destinoId}`}</span>
-                          <span className="text-[8px] font-bold uppercase text-[#9b6b11]">proposta</span>
-                        </span>
-                      ))}
-                    </div>
+                    <h4 className="mb-1 text-[10px] font-black uppercase tracking-wider" style={{ color: c.cor }}>{c.sigla} · {c.rotulo} · {lig.length} ativa(s) · {prop.length} proposta(s)</h4>
+                    <CabecalhoGradeSaidas />
+                    {lig.map((x) => {
+                      const dst = nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId));
+                      const semSaida = !dst || dst.incompleto;
+                      const cod = codigoDestino(x.categoria, x.destinoTipo, x.destinoId);
+                      return (
+                        <LinhaGradeSaidas key={x.id} codigo={cod} corCodigo={semSaida ? "#b91c1c" : c.cor} nome={dst?.nome ?? "sem saída"} estado={semSaida ? "SEM_SAIDA" : "ATIVA"} ligada desabilitada={!editar || ocupado}
+                          rotuloAcessivel={`Desvincular ${cod}`} dica={editar ? "Desligar (desativa, não apaga)" : "Entre em Edição para ligar ou desligar"} testid={`faixa-chip-desvincular-${x.id}`}
+                          onAlternar={() => desativar.mutate(x.id)} />
+                      );
+                    })}
+                    {prop.map((x) => {
+                      const cod = codigoDestino(x.categoria, x.destinoTipo, x.destinoId);
+                      return (
+                        <LinhaGradeSaidas key={`p${x.id}`} codigo={cod} corCodigo="#9b6b11" nome={nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId))?.nome ?? `#${x.destinoId}`} estado="PROPOSTA" ligada={false} desabilitada={!editar || ocupado}
+                          rotuloAcessivel={`Aprovar proposta ${cod}`} dica={editar ? "Aprovar a proposta" : "Entre em Edição para ligar ou desligar"} testid={`faixa-tela-proposta-${x.id}`}
+                          onAlternar={() => aprovarProposta.mutate({ id: x.id })} />
+                      );
+                    })}
                   </section>
                 );
               })}
