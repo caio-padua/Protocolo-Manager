@@ -16,7 +16,7 @@ import { Termostato } from "./Termostato";
 import { CabecalhoGradeSaidas, LinhaGradeSaidas, FichaContador, ResumoDestino } from "./GradeSaidas";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Maximize2, Minimize2, ChevronDown, ChevronRight, Lock, Unlock, Search, Pencil, Play, Eye, AlertTriangle } from "lucide-react";
+import { Maximize2, Minimize2, ChevronDown, ChevronLeft, ChevronRight, Lock, Unlock, Search, Pencil, Play, Eye, AlertTriangle } from "lucide-react";
 
 // ============================================================================
 // SINAPSES CLINICAS - modelo "Faixa": blocos de dendritos (codigos) nas pontas,
@@ -71,6 +71,27 @@ function Faixa({ titulo, fichas, aberta, onToggle, direita, children, testid, am
       </div>
       {aberta && <div className="mt-2">{children}</div>}
     </section>
+  );
+}
+
+// Fileira de botões que desliza na horizontal: fica centralizada com folga nas laterais e mostra setas (lugar fixo) quando há mais a rolar.
+function FileiraRolavel({ testid, rotulo, children }: { testid: string; rotulo: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [pode, setPode] = useState({ e: false, d: false });
+  const medir = useCallback(() => {
+    const el = ref.current; if (!el) return;
+    const e = el.scrollLeft > 2, d = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+    setPode((a) => (a.e === e && a.d === d ? a : { e, d }));
+  }, []);
+  useEffect(() => { medir(); const el = ref.current; if (!el) return; const ro = new ResizeObserver(medir); ro.observe(el); return () => ro.disconnect(); });
+  const ir = (dir: number) => ref.current?.scrollBy({ left: dir * 180, behavior: "smooth" });
+  const seta = "tecla-3d flex h-8 w-5 shrink-0 items-center justify-center p-0";
+  return (
+    <div className="flex min-w-0 flex-1 items-center justify-center gap-0.5 px-0.5">
+      <button type="button" className={seta} disabled={!pode.e} onClick={() => ir(-1)} aria-label={`${rotulo}: rolar para a esquerda`} data-testid={`${testid}-esq`} style={{ color: pode.e ? undefined : "#9aa3b2" }}><ChevronLeft className="h-3.5 w-3.5" strokeWidth={3} /></button>
+      <div ref={ref} onScroll={medir} className="sinapse-sem-trilho flex min-w-0 items-center gap-1 overflow-x-auto py-1" data-testid={testid} onWheel={(e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) e.currentTarget.scrollLeft += e.deltaY; }}>{children}</div>
+      <button type="button" className={seta} disabled={!pode.d} onClick={() => ir(1)} aria-label={`${rotulo}: rolar para a direita`} data-testid={`${testid}-dir`} style={{ color: pode.d ? undefined : "#9aa3b2" }}><ChevronRight className="h-3.5 w-3.5" strokeWidth={3} /></button>
+    </div>
   );
 }
 
@@ -633,6 +654,15 @@ export default function SinapsesFaixa() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!arraste]);
   const armadoEm = useRef(0);
+  // Ao armar o fio, o quadradinho da pergunta dá a mesma explosãozinha do quadradinho da saída.
+  const [explodeId, setExplodeId] = useState<string | null>(null);
+  const armadoDe = arraste?.de ?? null;
+  useEffect(() => {
+    if (!armadoDe) return;
+    setExplodeId(armadoDe);
+    const t = window.setTimeout(() => setExplodeId(null), 900);
+    return () => window.clearTimeout(t);
+  }, [armadoDe]);
   const cancelarArraste = () => { arrasteRef.current = null; setArraste(null); };
   const iniciarNoPonto = (de: string, x: number, y: number, clonarOrigem = false) => {
     if (modo !== "EDICAO") return;
@@ -919,9 +949,9 @@ export default function SinapsesFaixa() {
             </div>
             <div className="mb-1.5 grid items-center gap-x-1" style={{ gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }} data-testid="faixa-cabecalho-colunas">
               <div className="min-w-0" data-testid="faixa-cabecalho-anamnese">
-                <div className="flex h-10 items-center gap-1">
+                <div className="mx-auto flex h-10 items-center gap-1" style={{ width: "min(100%, 17rem)" }}>
                   {modo !== "EDICAO" && <button type="button" aria-pressed={todos} onClick={() => setTodos((v) => !v)} className="tecla-3d h-8 shrink-0 px-2 text-[10px] font-bold" data-testid="faixa-todos">{todos ? "Só os ligados" : "Mostrar todos"}</button>}
-                  <div className="sinapse-sem-trilho flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-1" data-testid="faixa-chips-blocos" onWheel={(e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) e.currentTarget.scrollLeft += e.deltaY; }}>
+                  <FileiraRolavel testid="faixa-chips-blocos" rotulo="Grupos de perguntas">
                     {linhasE.filter((l): l is Extract<typeof l, { tipo: "grupo" }> => l.tipo === "grupo").map((g) => {
                       const m = g.k.match(/^([A-Z0-9]+)\.\s*(.*)$/);
                       const curto = ((m ? m[2] : g.k).trim().split(/\s+/).find((w) => w.length > 2) ?? g.k).slice(0, 6);
@@ -930,29 +960,29 @@ export default function SinapsesFaixa() {
                         <button key={g.k} type="button" aria-pressed={atual} data-testid={`faixa-chip-bloco-${g.k}`} title={`${g.k}: ${g.nLig} com ligação de ${g.n}. Clique para ir até o grupo.`}
                           onClick={() => { const i = linhasE.findIndex((l) => l.tipo === "grupo" && l.k === g.k); if (fechadosE.has(g.k)) setFechadosE((f) => { const n = new Set(f); n.delete(g.k); return n; }); window.setTimeout(() => colEsqRef.current?.scrollTo({ top: i * alturaLinha, behavior: "smooth" }), fechadosE.has(g.k) ? 60 : 0); }}
                           className="tecla-3d relative flex h-8 w-[5.5rem] shrink-0 flex-col items-stretch justify-between overflow-hidden px-1.5 pb-1 pt-1 text-left">
-                          <span className="flex w-full items-baseline gap-1 leading-none"><b className="text-[11px] leading-none">{m ? m[1] : "·"}</b><span className="truncate text-[9px] font-black uppercase leading-none tracking-wide">{curto}</span></span>
+                          <span className="flex w-full items-baseline justify-between gap-1 leading-none"><b className="text-[11px] leading-none">{m ? m[1] : "·"}</b><span className="truncate text-[9px] font-black uppercase leading-none tracking-wide">{curto}</span></span>
                           <span className="sinapse-vidro-cor h-[5px] w-full shrink-0" style={{ "--ev": corDoBloco(g.k) } as React.CSSProperties} aria-hidden="true" />
                         </button>
                       );
                     })}
-                  </div>
+                  </FileiraRolavel>
                 </div>
               </div>
               <div className="min-w-0" role="group" aria-label="Quais sinapses mostrar" data-testid="faixa-mostrar-fios">
-                <div className="flex h-10 items-stretch justify-center gap-2">
+                <div className="mx-auto flex h-10 items-center justify-center gap-1" style={{ width: "min(100%, 17rem)" }}>
                 {([["ATIVA", "Ativas", "#1e3a8a"], ["PROPOSTA", "Propostas", "#b8892b"], ["SEM_SAIDA", "Sem saída", "#dc2626"]] as const).map(([k, r, cor]) => (
                   <button key={k} type="button" aria-pressed={mostrar[k]} onClick={() => setMostrar((m) => ({ ...m, [k]: !m[k] }))} title={`${mostrar[k] ? "Esconder" : "Mostrar"} sinapses: ${r}`} data-testid={`faixa-mostrar-${k}`}
-                    className={`tecla-3d flex h-10 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-2 text-[9px] font-black uppercase leading-none`} style={{ opacity: 1 }}>
-                    <svg width="100%" height="6" aria-hidden="true"><line x1="3" y1="3" x2="97%" y2="3" stroke={k === "SEM_SAIDA" ? cor : (foco !== null ? corDaPergunta.get(foco) : undefined) ?? cor} strokeWidth={k === "ATIVA" ? 2.5 : 1.8} strokeLinecap="round" strokeDasharray={k === "ATIVA" ? undefined : k === "PROPOSTA" ? "9 4" : "2 4"} /></svg>
+                    className={`tecla-3d flex h-8 min-w-0 flex-1 flex-col items-stretch justify-between px-1.5 pb-1 pt-1.5 text-center text-[9px] font-black uppercase leading-none`} style={{ opacity: 1 }}>
                     <span className="truncate">{r}</span>
+                    <span className="sinapse-vidro-cor h-[6px] w-full shrink-0" data-padrao={k} style={{ "--ev": k === "ATIVA" ? "#3b6fb6" : k === "PROPOSTA" ? "#c9a24a" : "#d9645f" } as React.CSSProperties} aria-hidden="true" />
                   </button>
                 ))}
                 </div>
               </div>
               <div className="min-w-0" data-testid="faixa-cabecalho-procedimentos">
-                <div className="flex h-10 items-center justify-between gap-2">
+                <div className="mx-auto flex h-10 items-center justify-between gap-1" style={{ width: "min(100%, 17rem)" }}>
                   <button type="button" aria-pressed={cats.length === 0} onClick={() => setCats([])} className="tecla-3d h-8 px-2 text-[10px] font-black" data-testid="faixa-cat-TODAS" title="Todas as saídas, em blocos separados por tipo">TODAS</button>
-                  <div className="sinapse-sem-trilho flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-1" role="group" aria-label="Filtrar saídas por tipo" data-testid="faixa-chips-procedimentos" onWheel={(e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) e.currentTarget.scrollLeft += e.deltaY; }}>
+                  <FileiraRolavel testid="faixa-chips-procedimentos" rotulo="Tipos de procedimento">
                     {CATEGORIAS.map((c) => {
                       const ativo = cats.includes(c.chave);
                       return (
@@ -961,7 +991,7 @@ export default function SinapsesFaixa() {
                           className="tecla-3d flex h-8 w-[3.75rem] shrink-0 flex-col items-stretch justify-between overflow-hidden px-1.5 pb-1 pt-1 text-center text-[10px] font-black leading-none" style={{ color: c.cor }}><span>{c.sigla}</span><span className="sinapse-vidro-cor h-[5px] w-full shrink-0" style={{ "--ev": c.cor } as React.CSSProperties} aria-hidden="true" /></button>
                       );
                     })}
-                  </div>
+                  </FileiraRolavel>
                 </div>
               </div>
             </div>
@@ -1042,7 +1072,7 @@ export default function SinapsesFaixa() {
                               className={`sinapse-pino-area cursor-crosshair touch-none ${arraste?.de === p.perguntaId ? "sinapse-porta-origem-ativa" : ""}`}
                               aria-label={`Iniciar ligação a partir da pergunta ${p.perguntaId}`} aria-pressed={arraste?.de === p.perguntaId}
                               title="Clique aqui e depois no ponto de uma saída. Escape cancela.">
-                              <span className="sinapse-pino" style={{ "--cor-pino": corDaPergunta.get(p.perguntaId) ?? "#64748b" } as React.CSSProperties} data-foco={marcada ? "1" : undefined} data-estado={arraste?.de === p.perguntaId ? "armado" : nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} aria-hidden="true" />
+                              <span className={`sinapse-pino ${explodeId === p.perguntaId ? "sinapse-pino-onda" : ""}`} style={{ "--cor-pino": corDaPergunta.get(p.perguntaId) ?? "#64748b" } as React.CSSProperties} data-foco={marcada ? "1" : undefined} data-estado={arraste?.de === p.perguntaId ? "armado" : nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} aria-hidden="true" />
                             </button>
                           )}
                           {modo !== "EDICAO" && <span className="sinapse-pino-area" aria-hidden="true"><span className="sinapse-pino" style={{ "--cor-pino": corDaPergunta.get(p.perguntaId) ?? "#64748b" } as React.CSSProperties} data-foco={marcada ? "1" : undefined} data-estado={nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} /></span>}
@@ -1074,10 +1104,10 @@ export default function SinapsesFaixa() {
                       if (!mostrar[semSaida ? "SEM_SAIDA" : s.estado === "ATIVA" ? "ATIVA" : "PROPOSTA"] && !em) return null;
                       return (
                         <g key={s.id}>
-                          <path d={d} fill="none" stroke={corFio} strokeWidth={em ? 2.4 : s.estado === "ATIVA" ? 1.1 : 1.3} strokeLinecap="round" strokeDasharray={s.estado === "ATIVA" ? undefined : semSaida ? "2 4" : "9 4"} vectorEffect="non-scaling-stroke"
-                            style={{ opacity: apagado ? 0.06 : em ? 1 : s.estado === "ATIVA" ? 0.7 : 0.55, filter: em ? `drop-shadow(0 0 3px ${corFio}) drop-shadow(0 0 8px ${corFio})` : undefined }} data-testid={`faixa-fio-${s.id}`} />
+                          <path d={d} fill="none" stroke={corFio} strokeWidth={em ? 2.1 : s.estado === "ATIVA" ? 1.1 : 1.3} strokeLinecap="butt" strokeDasharray={s.estado === "ATIVA" ? undefined : semSaida ? "2 4" : "9 4"} vectorEffect="non-scaling-stroke"
+                            style={{ opacity: apagado ? 0.06 : em ? 1 : s.estado === "ATIVA" ? 0.7 : 0.55, filter: em ? `drop-shadow(0 0 2px color-mix(in srgb, ${corFio} 45%, transparent))` : undefined }} data-testid={`faixa-fio-${s.id}`} />
                           {emPerg && s.estado === "ATIVA" && (
-                            <path d={d} fill="none" stroke={`color-mix(in srgb, ${corFio} 35%, white)`} strokeWidth={3.5} strokeLinecap="round" strokeDasharray="1 24" vectorEffect="non-scaling-stroke" className="sinapse-impulso" style={{ pointerEvents: "none", filter: `drop-shadow(0 0 4px ${corFio}) drop-shadow(0 0 8px ${corFio})` }} />
+                            <path d={d} fill="none" stroke={`color-mix(in srgb, ${corFio} 35%, white)`} strokeWidth={3} strokeLinecap="butt" strokeDasharray="1 24" vectorEffect="non-scaling-stroke" className="sinapse-impulso" style={{ pointerEvents: "none", filter: `drop-shadow(0 0 2px color-mix(in srgb, ${corFio} 50%, transparent))` }} />
                           )}
                           <path d={d} fill="none" stroke="transparent" strokeWidth={14} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "stroke", cursor: "pointer" }}
                             onClick={(e) => { e.stopPropagation(); setFioPonto({ x: e.clientX, y: e.clientY }); setFioAberto((v) => (v === s.id ? null : s.id)); }} data-testid={`faixa-fio-clique-${s.id}`} />
@@ -1205,7 +1235,7 @@ export default function SinapsesFaixa() {
                 return (
                   <div key={p.perguntaId} data-testid={`faixa-item-${p.perguntaId}`}
                     className={destaqueAprov === p.perguntaId ? "ring-2 ring-[#b8892b] ring-inset transition-shadow" : ""}
-                    style={{ background: marcada ? "rgba(15,30,54,0.07)" : i % 2 === 0 ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.18)" }}
+                    style={{ background: aberto || marcada ? "#ffffff" : i % 2 === 0 ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.18)", boxShadow: aberto ? "inset 0 1px 0 rgba(15,30,54,0.12), inset 0 -1px 0 rgba(15,30,54,0.12)" : undefined }}
                     onMouseEnter={() => setHover(p.perguntaId)} onMouseLeave={() => setHover(null)}>
                     <button type="button" aria-expanded={aberto} onClick={(e) => { clicar(e, p.perguntaId); alternarAberto(p.perguntaId); centralizar(p.perguntaId); }} className="grid w-full items-center gap-2 px-2 py-1.5 text-left" style={{ gridTemplateColumns: "0.875rem 1rem 4.75rem minmax(0,1fr) 12rem 4.5rem" }}>
                       <span className="sinapse-vidro-cor h-6 w-3.5 rounded-[3px]" style={{ "--ev": corDaPergunta.get(p.perguntaId) ?? "#64748b" } as React.CSSProperties} data-testid={`faixa-quadrado-${p.perguntaId}`} aria-hidden="true" />
@@ -1213,7 +1243,7 @@ export default function SinapsesFaixa() {
                       <span className="concave-3d flex h-7 items-center justify-center font-mono text-[10px] font-bold text-[#0f1e36]">{p.perguntaId}</span>
                       <span className="min-w-0 truncate text-[12px] font-semibold text-[#1b2433]" title={p.pergunta}>{p.pergunta}</span>
                       <span className="flex min-w-0 items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground" title={p.bloco ?? ""}>
-                        <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ background: corDaPergunta.get(p.perguntaId) ?? "#64748b" }} />
+                        <span className="sinapse-vidro-cor h-2.5 w-3.5 shrink-0 rounded-[2px]" style={{ "--ev": corDaPergunta.get(p.perguntaId) ?? "#64748b" } as React.CSSProperties} />
                         <span className="truncate">{p.bloco}</span>
                       </span>
                       <span className="concave-3d flex h-7 items-center justify-center gap-1 text-[11px] font-bold tabular-nums" title={`${lig.length} ativas; ${pendentes.length} propostas`}>
@@ -1460,12 +1490,20 @@ export default function SinapsesFaixa() {
         </div>
       )}
 
-      {arraste && (
-        <svg className="pointer-events-none fixed inset-0 z-[80]" width="100%" height="100%" aria-hidden>
-          <path d={`M ${arraste.x0} ${arraste.y0} C ${arraste.x0 + 80} ${arraste.y0}, ${arraste.x - 80} ${arraste.y}, ${arraste.x} ${arraste.y}`} fill="none" stroke={arraste.clonar ? "#2563eb" : (corDaPergunta.get(arraste.de) ?? "#d97706")} strokeWidth={3} strokeDasharray={arraste.clonar ? "6 4" : undefined} style={{ filter: arraste.clonar ? undefined : `drop-shadow(0 0 4px ${corDaPergunta.get(arraste.de) ?? "#d97706"}) drop-shadow(0 0 9px ${corDaPergunta.get(arraste.de) ?? "#d97706"})` }} />
-          <circle cx={arraste.x} cy={arraste.y} r={5} fill={arraste.clonar ? "#2563eb" : (corDaPergunta.get(arraste.de) ?? "#d97706")} />
-        </svg>
-      )}
+      {arraste && (() => {
+        // Ponta de repouso: enquanto o mouse está perto do pino o fio faz um "S" discreto para a direita (o cursor do sistema não pode ser movido pelo programa).
+        const dist = Math.hypot(arraste.x - arraste.x0, arraste.y - arraste.y0);
+        const t = Math.min(1, dist / 70);
+        const xf = (arraste.x0 + 46) * (1 - t) + arraste.x * t;
+        const yf = (arraste.y0 + 11) * (1 - t) + arraste.y * t;
+        const cor = arraste.clonar ? "#2563eb" : (corDaPergunta.get(arraste.de) ?? "#64748b");
+        return (
+          <svg className="pointer-events-none fixed inset-0 z-[80]" width="100%" height="100%" aria-hidden>
+            <path d={`M ${arraste.x0} ${arraste.y0} C ${arraste.x0 + 30} ${arraste.y0}, ${xf - 30} ${yf}, ${xf} ${yf}`} fill="none" stroke={cor} strokeWidth={2.2} strokeLinecap="butt" strokeDasharray={arraste.clonar ? "6 4" : undefined} style={{ filter: arraste.clonar ? undefined : `drop-shadow(0 0 2px color-mix(in srgb, ${cor} 55%, transparent))` }} />
+            <rect x={xf - 4.5} y={yf - 4.5} width={9} height={9} rx={1.5} fill={cor} stroke="#fff" strokeWidth={1} />
+          </svg>
+        );
+      })()}
     </div>
   );
 }

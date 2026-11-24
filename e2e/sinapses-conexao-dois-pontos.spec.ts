@@ -113,7 +113,7 @@ for (const viewport of [
     await expect(page.getByText("Ligação salva", { exact: true })).toBeVisible();
     const fioSalvo = page.getByTestId("faixa-fio-ativa-901");
     await expect(fioSalvo).not.toHaveClass(/sinapse-fio-ignicao/);
-    await expect(fioSalvo).toHaveAttribute("stroke-width", "2.4");
+    await expect(fioSalvo).toHaveAttribute("stroke-width", "2.1");
     await expect(fioSalvo).toHaveAttribute("style", /opacity: 1/);
     await expect(fioSalvo).toHaveAttribute("style", /opacity: 1/);
   });
