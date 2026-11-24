@@ -72,6 +72,7 @@ export default function SinapsesFaixa() {
   const [modo, setModo] = useState<Modo>("VISUALIZACAO");
   const [busca, setBusca] = useState("");
   const [cats, setCats] = useState<Categoria[]>([]);
+  const [todos, setTodos] = useState(true);
   const [faixaAberta, setFaixaAberta] = useState(true);
   const [sanfonaAberta, setSanfonaAberta] = useState(true);
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
@@ -129,17 +130,17 @@ export default function SinapsesFaixa() {
   const esquerda = useMemo(() => {
     return (data?.perguntas ?? []).filter((p) => {
       const lig = porPergunta.get(p.perguntaId) ?? [];
-      if (modo !== "EDICAO" && lig.length === 0) return false;
+      if (!todos && modo !== "EDICAO" && lig.length === 0) return false;
       if (!q) return true;
       return semAcento(`${p.perguntaId} ${p.pergunta} ${p.bloco ?? ""}`).includes(q) || lig.some((s) => semAcento(nomeDe.get(chave(s.categoria, s.destinoTipo, s.destinoId))?.nome ?? "").includes(q));
-    });
-  }, [data, porPergunta, modo, q, nomeDe]);
+    }).sort((a, b) => Number((porPergunta.get(b.perguntaId)?.length ?? 0) > 0) - Number((porPergunta.get(a.perguntaId)?.length ?? 0) > 0));
+  }, [data, porPergunta, modo, q, nomeDe, todos]);
 
   // Direita: destinos ligados; na EDICAO com saida escolhida, o catalogo inteiro dela.
   const direita = useMemo(() => {
     const m = new Map<string, { k: string; cat: Categoria; tipo: string; id: number; nome: string; n: number }>();
-    if (modo === "EDICAO") {
-      for (const c of cats) for (const d of data?.destinos[c] ?? []) {
+    if (todos || modo === "EDICAO") {
+      for (const c of (cats.length ? cats : CATEGORIAS.map((x) => x.chave))) for (const d of data?.destinos[c] ?? []) {
         if (q && !semAcento(d.nome).includes(q)) continue;
         m.set(chave(c, d.tipo, d.id), { k: chave(c, d.tipo, d.id), cat: c, tipo: d.tipo, id: d.id, nome: d.nome, n: 0 });
       }
@@ -153,8 +154,8 @@ export default function SinapsesFaixa() {
         if (e) e.n++; else m.set(k, { k, cat: s.categoria, tipo: s.destinoTipo, id: s.destinoId, nome: nomeDe.get(k)?.nome ?? `#${s.destinoId}`, n: 1 });
       }
     });
-    return Array.from(m.values()).sort((a, b) => a.cat.localeCompare(b.cat) || a.nome.localeCompare(b.nome));
-  }, [data, modo, cats, q, esquerda, porPergunta, nomeDe]);
+    return Array.from(m.values()).sort((a, b) => Number(b.n > 0) - Number(a.n > 0) || a.cat.localeCompare(b.cat) || a.nome.localeCompare(b.nome));
+  }, [data, modo, cats, q, esquerda, porPergunta, nomeDe, todos]);
 
   const yE = useMemo(() => new Map(esquerda.map((p, i) => [p.perguntaId, (i + 0.5) * ROW_H])), [esquerda]);
   const yD = useMemo(() => new Map(direita.map((d, i) => [d.k, (i + 0.5) * ROW_H])), [direita]);
@@ -309,13 +310,21 @@ export default function SinapsesFaixa() {
         </div>
       ) : (
         <>
+          <div className="panel-3d-sub flex flex-wrap items-center gap-3 px-3 py-2 text-[11px]" data-testid="faixa-conducao">
+            <span className="font-bold uppercase tracking-wider text-primary/80">Condução</span>
+            <span><b>{new Set(data.sinapses.map((x) => x.perguntaId)).size}</b> de <b>{data.perguntas.length}</b> perguntas têm saída ligada</span>
+            <span>·</span>
+            <span>Saídas ligadas: {CATEGORIAS.map((c) => `${c.sigla} ${new Set(data.sinapses.filter((x) => x.categoria === c.chave).map((x) => `${x.destinoTipo}${x.destinoId}`)).size}/${data.destinos[c.chave].length}`).join(" · ")}</span>
+            <span className="text-muted-foreground">Círculo cheio = com condução. Círculo vazio = fio sem corrente (ainda sem par).</span>
+            <button type="button" onClick={() => setTodos((v) => !v)} className="evo-bevel ml-auto px-2 py-1 text-[10px] font-bold" data-testid="faixa-todos">{todos ? "Mostrar só os ligados" : "Mostrar todos os terminais"}</button>
+          </div>
           <Faixa testid="faixa-grafo" titulo={`Faixa da sinapse · ${esquerda.length} perguntas · ${direita.length} saídas`} aberta={faixaAberta} onToggle={() => setFaixaAberta((v) => !v)}>
             {esquerda.length === 0 && direita.length === 0 ? (
               <div className="concave-3d p-6 text-center text-sm text-muted-foreground" data-testid="faixa-vazio">
                 {total === 0 ? "Ainda não há ligações ativas. Entre em Edição (E), escolha uma saída e puxe o fio da pergunta." : "Nada corresponde à busca ou aos filtros."}
               </div>
             ) : (
-              <div className="concave-3d max-h-[22rem] overflow-y-auto">
+              <div className="concave-3d max-h-[26rem] overflow-y-auto">
                 <div className="relative grid" style={{ gridTemplateColumns: "minmax(190px,30%) 1fr minmax(190px,30%)", height: altura }}>
                   {/* DENDRITOS ESQUERDA */}
                   <div className="relative border-r border-black/10">
@@ -328,7 +337,7 @@ export default function SinapsesFaixa() {
                           <button type="button" onClick={(e) => clicar(e, p.perguntaId)} data-testid={`faixa-dendrito-${p.perguntaId}`}
                             className={`tecla-3d flex h-full min-w-0 flex-1 items-center gap-1 px-1.5 text-left select-none ${marcada ? "evo-bevel-ativo" : ""}`}>
                             {p.eSinalAlarme && <AlertTriangle className="h-3 w-3 shrink-0 text-red-600" />}
-                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: marcada || foco === p.perguntaId ? "#f59e0b" : "#d97706", boxShadow: marcada || foco === p.perguntaId ? "0 0 6px 2px #fbbf24" : "0 0 2px #d9770688" }} aria-hidden />
+                            <span className="h-2 w-2 shrink-0 rounded-full" style={n ? { background: "#f59e0b", boxShadow: marcada || foco === p.perguntaId ? "0 0 6px 2px #fbbf24" : "0 0 2px #d9770688" } : { border: "1.5px solid #94a3b8", background: "transparent" }} title={n ? "Com condução" : "Sem condução: nenhuma saída ligada"} aria-hidden />
                             <span className="shrink-0 font-mono text-[10px] font-bold">{p.perguntaId}</span>
                             <span className="truncate text-[10px] opacity-80">{p.pergunta}</span>
                             <span className="ml-auto text-[9px] tabular-nums opacity-60">{n || ""}</span>
@@ -359,9 +368,10 @@ export default function SinapsesFaixa() {
                       const aceso = simAcesos.has(d.k) || (foco !== null && (porPergunta.get(foco) ?? []).some((s) => chave(s.categoria, s.destinoTipo, s.destinoId) === d.k));
                       const apagado = modo === "SIMULACAO" && sel.length > 0 && !aceso;
                       return (
-                        <div key={d.k} data-dest={d.k} className={`absolute flex w-full items-center gap-1 px-1 ${apagado ? "opacity-35" : ""}`} style={{ top: (yD.get(d.k) ?? 0) - (ROW_H - 3) / 2, height: ROW_H - 3 }}
+                        <div key={d.k} data-dest={d.k} className={`absolute flex w-full items-center gap-1 px-1 ${apagado ? "opacity-35" : !d.n && modo !== "EDICAO" ? "opacity-60" : ""}`} style={{ top: (yD.get(d.k) ?? 0) - (ROW_H - 3) / 2, height: ROW_H - 3 }}
                           title={`${ROTULO[d.cat]} · ${d.nome}`} data-testid={`faixa-saida-${d.k}`}>
                           <div className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1.5 px-1.5" style={aceso ? { boxShadow: `inset 3px 0 0 ${COR[d.cat]}` } : undefined}>
+                            <span className="h-2 w-2 shrink-0 rounded-full" style={d.n ? { background: COR[d.cat] } : { border: `1.5px solid ${COR[d.cat]}`, background: "transparent" }} title={d.n ? "Com condução" : "Sem condução: nenhuma pergunta ligada"} aria-hidden />
                             <span className="shrink-0 font-mono text-[10px] font-bold" style={{ color: COR[d.cat] }}>{codigoDestino(d.cat, d.tipo, d.id)}</span>
                             <span className="truncate text-[10px] opacity-80">{d.nome}</span>
                             <span className="ml-auto text-[9px] tabular-nums opacity-60">{d.n || ""}</span>
