@@ -113,7 +113,6 @@ export default function SinapsesFaixa() {
   const [alturaVisivel, setAlturaVisivel] = useState(480);
   // Menu de ligacoes de uma pergunta (dropdown fixo na tela, fora da area rolavel)
   const [menu, setMenu] = useState<{ perguntaId: string; x: number; y: number; acima: boolean } | null>(null);
-  const [seletorAberto, setSeletorAberto] = useState(false);
   const [buscaSeletor, setBuscaSeletor] = useState("");
   const [seletorCats, setSeletorCats] = useState<Categoria[]>([]);
   const [desligadasMenu, setDesligadasMenu] = useState<Record<string, Array<{ categoria: Categoria; destinoTipo: string; destinoId: number }>>>({});
@@ -144,15 +143,6 @@ export default function SinapsesFaixa() {
     window.addEventListener("scroll", fechar, true);
     return () => { document.removeEventListener("pointerdown", fechar, true); document.removeEventListener("keydown", tecla); window.removeEventListener("scroll", fechar, true); };
   }, [menu]);
-
-  useEffect(() => {
-    if (!seletorAberto) return;
-    const fechar = (e: Event) => { if (!(e.target as HTMLElement | null)?.closest?.("[data-seletor-sinapse]")) setSeletorAberto(false); };
-    const tecla = (e: KeyboardEvent) => { if (e.key === "Escape") setSeletorAberto(false); };
-    document.addEventListener("pointerdown", fechar, true);
-    document.addEventListener("keydown", tecla);
-    return () => { document.removeEventListener("pointerdown", fechar, true); document.removeEventListener("keydown", tecla); };
-  }, [seletorAberto]);
 
   useEffect(() => () => {
     if (brilhoTimer.current !== null) window.clearTimeout(brilhoTimer.current);
@@ -782,18 +772,15 @@ export default function SinapsesFaixa() {
               <p className="py-1 text-[13px] text-muted-foreground" data-testid="faixa-painel-pergunta-vazio">Selecione uma pergunta</p>
             )}
           </div>
-          <div className="relative flex items-center justify-end" data-seletor-sinapse>
-            <button type="button" disabled={!perguntaAtiva} aria-expanded={seletorAberto} aria-haspopup="listbox" onClick={() => setSeletorAberto((v) => !v)} className="tecla-3d flex h-9 items-center gap-2 px-3 text-[11px] font-bold uppercase tracking-wide disabled:opacity-50" data-testid="faixa-seletor-abrir">
-              Saídas · sim ou não <ChevronDown className="h-4 w-4 opacity-70" />
-            </button>
-            {seletorAberto && perguntaAtiva && data && (() => {
+          <div className="relative flex items-start justify-end" data-seletor-sinapse>
+            {perguntaAtiva && data && (() => {
               const editar = modo === "EDICAO";
               const ocupado = criar.isPending || desativar.isPending || aprovarProposta.isPending;
               const qs = semAcento(buscaSeletor.trim());
               const ativasPorChave = new Map(ligacoesAtiva.map((x) => [chave(x.categoria, x.destinoTipo, x.destinoId), x]));
               const propostasPorChave = new Map(propostasAtiva.map((x) => [chave(x.categoria, x.destinoTipo, x.destinoId), x]));
               return (
-                <div className="panel-3d-sub absolute right-0 top-full z-40 mt-1 w-[min(30rem,92vw)] p-1.5 shadow-xl" style={{ background: "#fdfbf5" }} data-testid="faixa-seletor-lista" role="listbox" aria-label={`Saídas de ${perguntaAtiva.perguntaId}`}>
+                <div className="concave-3d w-full p-1.5 sm:w-[min(28rem,45vw)]" data-testid="faixa-seletor-lista" role="listbox" aria-label={`Saídas de ${perguntaAtiva.perguntaId}`}>
                   <Input value={buscaSeletor} onChange={(e) => setBuscaSeletor(e.target.value)} placeholder="Pesquisar saída..." className="mb-1 h-8 field-engraved" data-testid="faixa-seletor-busca" />
                   <div className="mb-1 flex flex-wrap items-center gap-1" role="group" aria-label="Filtrar saídas por grupo" data-testid="faixa-seletor-grupos">
                     <button type="button" aria-pressed={seletorCats.length === 0} onClick={() => setSeletorCats([])} className="tecla-3d h-7 px-2 text-[10px] font-black" data-testid="faixa-seletor-cat-TODAS">TODAS</button>
@@ -804,7 +791,7 @@ export default function SinapsesFaixa() {
                     ))}
                   </div>
                   {!editar && <p className="px-1 pb-1 text-[10px] text-muted-foreground">Entre em Edição para marcar sim ou não.</p>}
-                  <div className="concave-3d max-h-80 overflow-y-auto p-1">
+                  <div className="max-h-40 overflow-y-auto p-0.5">
                     {CATEGORIAS.filter((c) => seletorCats.length === 0 || seletorCats.includes(c.chave)).map((c) => {
                       const todosDest = data.destinos[c.chave] ?? [];
                       const lista = todosDest.filter((d) => !qs || semAcento(`${d.nome} ${codigoDestino(c.chave, d.tipo, d.id)}`).includes(qs));

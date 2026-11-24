@@ -290,7 +290,7 @@ test("sinapse: painel da pergunta atual espelha caixa sim/não e fio nos dois se
   await expect(page.getByTestId("faixa-painel-pergunta-titulo")).toContainText("Fadiga sintética");
   await expect(page.getByTestId("faixa-painel-pergunta-subtitulo")).toContainText("SINTÉTICO");
 
-  await page.getByTestId("faixa-seletor-abrir").click();
+  await expect(page.getByTestId("faixa-seletor-abrir")).toHaveCount(0);
   await page.getByTestId("faixa-seletor-cat-IMPLANTE").click();
   await expect(page.getByTestId("faixa-seletor-grupo-EXAME")).toHaveCount(0);
   await expect(page.getByTestId("faixa-seletor-grupo-IMPLANTE")).toBeVisible();
