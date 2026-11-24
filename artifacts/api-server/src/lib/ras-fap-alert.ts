@@ -59,9 +59,29 @@ export async function notifySlackRasFapFailure(
 
   if (!slackChannel) return;
 
+  let protocolLink = "Link indisponível: configure PADCOM_BASE_URL.";
+  const baseUrl = process.env.PADCOM_BASE_URL?.trim();
+  if (baseUrl) {
+    try {
+      const url = new URL(baseUrl);
+      if (
+        !["https:", "http:"].includes(url.protocol) ||
+        url.username || url.password || url.search || url.hash ||
+        /[<>|]/.test(baseUrl)
+      ) {
+        throw new Error("Invalid PADCOM_BASE_URL");
+      }
+      url.pathname = `${url.pathname.replace(/\/+$/, "")}/protocols/${encodeURIComponent(String(protocolId))}`;
+      protocolLink = `<${url.href}|Abrir protocolo no PADCOM>`;
+    } catch {
+      protocolLink = "Link indisponível: PADCOM_BASE_URL inválida.";
+    }
+  }
+
   const text =
     `⚠️ *${label}* para *${clientName}* ` +
     `(Protocolo #${protocolId} — ${protocolTitle}).${detail}\n` +
+    `${protocolLink}\n` +
     `Erro: ${errorMessage}`;
 
   await alertFn(slackChannel, text).catch(() => {});
