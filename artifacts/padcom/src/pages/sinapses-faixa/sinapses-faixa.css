@@ -220,3 +220,37 @@
   -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 2px, transparent 2px 5px);
   mask-image: repeating-linear-gradient(90deg, #000 0 2px, transparent 2px 5px);
 }
+
+/* Soquete do neurônio: quadrado vazado só na face medial (a que olha para o centro), com abertura centrada na vertical.
+   Esquerda abre à direita; direita abre à esquerda (espelho). A moldura é dourada (mesmo tom das teclas), nunca preta.
+   Conectado (ou armado), uma haste curta sai da abertura até a borda da coluna e emenda com o fio: o fio nunca sai por trás. */
+.sinapse-pino-area[class*="sinapse-soquete"] { position: relative; --moldura: rgba(184,146,77,0.95); }
+.sinapse-soquete-d::after, .sinapse-soquete-e::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; border: 1px solid var(--moldura); border-radius: 2px;
+}
+.sinapse-soquete-d::after { border-right: 0; border-radius: 2px 0 0 2px; }
+.sinapse-soquete-e::after { border-left: 0; border-radius: 0 2px 2px 0; }
+.sinapse-soquete-d::before, .sinapse-soquete-e::before {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 6px; pointer-events: none; background-repeat: no-repeat;
+  background-image: linear-gradient(180deg, var(--moldura) 0 30%, transparent 30% 70%, var(--moldura) 70% 100%);
+  background-size: 1px 100%;
+}
+.sinapse-soquete-d::before { left: 100%; margin-left: -1px; background-position: left top; }
+.sinapse-soquete-e::before { right: 100%; margin-right: -1px; background-position: right top; }
+.sinapse-soquete-d:has(.sinapse-pino:is([data-estado="ativo"], [data-estado="proposta"], [data-estado="armado"]))::before {
+  background-image:
+    linear-gradient(180deg, var(--moldura) 0 30%, transparent 30% 70%, var(--moldura) 70% 100%),
+    linear-gradient(180deg, transparent calc(50% - 1px), var(--cor-haste, #64748b) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px));
+  background-size: 1px 100%, 5px 100%;
+  background-position: left top, right top;
+}
+.sinapse-soquete-e:has(.sinapse-pino:is([data-estado="ativo"], [data-estado="proposta"], [data-estado="armado"]))::before {
+  background-image:
+    linear-gradient(180deg, var(--moldura) 0 30%, transparent 30% 70%, var(--moldura) 70% 100%),
+    linear-gradient(180deg, transparent calc(50% - 1px), var(--cor-haste, #64748b) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px));
+  background-size: 1px 100%, 5px 100%;
+  background-position: right top, left top;
+}
+/* Caixa branca limitada à moldura; o quadradinho colorido volta a ter o tamanho original. */
+.sinapse-pino-area[class*="sinapse-soquete"] .sinapse-pino { width: calc(100% - 3px); height: calc(100% - 3px); border-color: transparent; background: #ffffff; }
+.sinapse-pino-area[class*="sinapse-soquete"] .sinapse-pino::before { inset: 2px; border-radius: 1px; }

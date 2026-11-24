@@ -1012,11 +1012,13 @@ export default function SinapsesFaixa() {
                       if (linha.tipo === "grupo") {
                         return (
                           <div key={`g-${linha.k}`} className="absolute flex w-full items-center gap-1 px-1" style={{ top: topo, height: alturaLinha - 3 }}>
-                            <label className="bevel-3d sinapse-vidro-cor relative block h-full w-5 shrink-0 cursor-pointer overflow-hidden !rounded-[3px] !p-0" style={{ "--ev": corDoBloco(linha.k) } as React.CSSProperties} title="Cor desta categoria de perguntas (clique para trocar)" data-testid={`faixa-cor-${linha.k}`}>
+                            <span className="block h-full w-5 shrink-0" aria-hidden="true" />
+                            {barraGrupo({ titulo: linha.k, n: linha.n, nLig: linha.nLig, fechado: fechadosE.has(linha.k), onClick: () => alternarGrupo(fechadosE, setFechadosE, linha.k), testid: `faixa-grupo-e-${linha.k}` })}
+                            <span className="sinapse-pino-area">
+                            <label className="bevel-3d sinapse-vidro-cor relative block h-full w-full cursor-pointer overflow-hidden !rounded-[3px] !p-0" style={{ "--ev": corDoBloco(linha.k) } as React.CSSProperties} title="Cor desta categoria de perguntas (clique para trocar)" data-testid={`faixa-cor-${linha.k}`}>
                               <input type="color" aria-label={`Cor da categoria ${linha.k}`} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" value={corDoBloco(linha.k)} onChange={(e) => salvarCorBloco.mutate({ bloco: linha.k, cor: e.target.value })} />
                             </label>
-                            {barraGrupo({ titulo: linha.k, n: linha.n, nLig: linha.nLig, fechado: fechadosE.has(linha.k), onClick: () => alternarGrupo(fechadosE, setFechadosE, linha.k), testid: `faixa-grupo-e-${linha.k}` })}
-                            <span className="sinapse-pino-area" aria-hidden="true" />
+                            </span>
                           </div>
                         );
                       }
@@ -1069,13 +1071,13 @@ export default function SinapsesFaixa() {
                                 iniciarNoPonto(p.perguntaId, r.left + r.width / 2, r.top + r.height / 2);
                               }
                             }} data-testid={`faixa-porta-${p.perguntaId}`}
-                              className={`sinapse-pino-area cursor-crosshair touch-none ${arraste?.de === p.perguntaId ? "sinapse-porta-origem-ativa" : ""}`}
+                              className={`sinapse-pino-area sinapse-soquete-d cursor-crosshair touch-none ${arraste?.de === p.perguntaId ? "sinapse-porta-origem-ativa" : ""}`}
                               aria-label={`Iniciar ligação a partir da pergunta ${p.perguntaId}`} aria-pressed={arraste?.de === p.perguntaId}
                               title="Clique aqui e depois no ponto de uma saída. Escape cancela.">
                               <span className={`sinapse-pino ${explodeId === p.perguntaId ? "sinapse-pino-onda" : ""}`} style={{ "--cor-pino": corDaPergunta.get(p.perguntaId) ?? "#64748b" } as React.CSSProperties} data-foco={marcada ? "1" : undefined} data-estado={arraste?.de === p.perguntaId ? "armado" : nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} aria-hidden="true" />
                             </button>
                           )}
-                          {modo !== "EDICAO" && <span className="sinapse-pino-area" aria-hidden="true"><span className="sinapse-pino" style={{ "--cor-pino": corDaPergunta.get(p.perguntaId) ?? "#64748b" } as React.CSSProperties} data-foco={marcada ? "1" : undefined} data-estado={nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} /></span>}
+                          {modo !== "EDICAO" && <span className="sinapse-pino-area sinapse-soquete-d" aria-hidden="true"><span className="sinapse-pino" style={{ "--cor-pino": corDaPergunta.get(p.perguntaId) ?? "#64748b" } as React.CSSProperties} data-foco={marcada ? "1" : undefined} data-estado={nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} /></span>}
                         </div>
                       );
                     })}
@@ -1181,7 +1183,7 @@ export default function SinapsesFaixa() {
                           title={`${codigoDestino(d.cat, d.tipo, d.id)} · ${ROTULO[d.cat]} · ${d.nome}${nomeDe.get(d.k)?.detalhe ? ` · ${nomeDe.get(d.k)?.detalhe}` : ""}${d.incompleto ? " · SEM SAÍDA: bloco sem exames cadastrados" : ""}`} aria-label={`${codigoDestino(d.cat, d.tipo, d.id)}: ${d.nome}. ${d.nAtivas} saídas conectadas, ${d.nSemSaida} ligações sem saída e ${d.nPropostas} propostas pendentes.`} data-testid={`faixa-saida-${d.k}`}>
                           {modo === "EDICAO" ? (
                             <button type="button" disabled={!!d.incompleto} onClick={(e) => { e.stopPropagation(); cliqueNaSaida(d.k, e.detail); }}
-                              className="sinapse-pino-area disabled:cursor-not-allowed disabled:opacity-40"
+                              className="sinapse-pino-area sinapse-soquete-e disabled:cursor-not-allowed disabled:opacity-40"
                               data-pino-destino={d.incompleto ? undefined : d.k}
                               data-testid={`faixa-porta-destino-${d.k}`}
                               aria-label={d.incompleto ? `Destino ${codigoDestino(d.cat, d.tipo, d.id)} sem conteúdo; indisponível` : `Concluir ligação na saída ${codigoDestino(d.cat, d.tipo, d.id)}`}
@@ -1189,7 +1191,7 @@ export default function SinapsesFaixa() {
                               <span style={{ "--cor-pino": COR[d.cat] } as React.CSSProperties} className={`sinapse-pino ${fioRecemSalvo?.endsWith(`|${d.k}`) ? "sinapse-pino-onda" : ""}`} data-estado={d.nAtivas ? "ativo" : d.nPropostas ? "proposta" : "livre"} aria-hidden="true" />
                             </button>
                           ) : (
-                            <span className="sinapse-pino-area" aria-hidden="true"><span className="sinapse-pino" style={{ "--cor-pino": COR[d.cat] } as React.CSSProperties} data-estado={d.nAtivas ? "ativo" : d.nPropostas ? "proposta" : "livre"} /></span>
+                            <span className="sinapse-pino-area sinapse-soquete-e" aria-hidden="true"><span className="sinapse-pino" style={{ "--cor-pino": COR[d.cat] } as React.CSSProperties} data-estado={d.nAtivas ? "ativo" : d.nPropostas ? "proposta" : "livre"} /></span>
                           )}
                           <Corpo {...(podeLigar ? { type: "button" as const, onClick: () => ligarRapido(d), "data-testid": `faixa-ligar-${d.k}` } : {})} aria-pressed={aceso} className={`tecla-3d flex h-full min-w-0 flex-1 items-center gap-1.5 px-1.5 text-left ${podeLigar ? "cursor-pointer" : ""}`}>
                             <span className="concave-3d sinapse-janela-codigo font-mono text-[10px] font-bold" style={{ color: COR[d.cat] }}>{codigoDestino(d.cat, d.tipo, d.id)}</span>
