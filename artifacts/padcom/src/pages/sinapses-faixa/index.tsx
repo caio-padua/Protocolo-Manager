@@ -915,7 +915,7 @@ export default function SinapsesFaixa() {
                       if (linha.tipo === "grupo") {
                         return (
                           <div key={`g-${linha.k}`} className="absolute flex w-full items-center gap-1 px-1" style={{ top: topo, height: alturaLinha - 3 }}>
-                            <label className="relative block h-full w-5 shrink-0 cursor-pointer rounded-[3px] border border-black/30" style={{ background: corDoBloco(linha.k) }} title="Cor desta categoria de perguntas (clique para trocar)" data-testid={`faixa-cor-${linha.k}`}>
+                            <label className="bevel-3d relative block h-full w-5 shrink-0 cursor-pointer overflow-hidden !rounded-[3px] !p-0" style={{ background: `linear-gradient(180deg, rgba(255,255,255,0.35), rgba(0,0,0,0.18)), ${corDoBloco(linha.k)}` }} title="Cor desta categoria de perguntas (clique para trocar)" data-testid={`faixa-cor-${linha.k}`}>
                               <input type="color" aria-label={`Cor da categoria ${linha.k}`} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" value={corDoBloco(linha.k)} onChange={(e) => salvarCorBloco.mutate({ bloco: linha.k, cor: e.target.value })} />
                             </label>
                             {barraGrupo({ titulo: linha.k, n: linha.n, nLig: linha.nLig, fechado: fechadosE.has(linha.k), onClick: () => alternarGrupo(fechadosE, setFechadosE, linha.k), testid: `faixa-grupo-e-${linha.k}` })}
@@ -936,8 +936,9 @@ export default function SinapsesFaixa() {
                       return (
                         <div key={p.perguntaId} data-pergunta={p.perguntaId} className="absolute flex w-full items-center gap-1 px-1" style={{ top: topo, height: alturaLinha - 3 }}
                           onMouseEnter={() => setHover(p.perguntaId)} onMouseLeave={() => setHover(null)} title={`${p.perguntaId} · ${p.pergunta}`} aria-label={`${p.perguntaId}: ${p.pergunta}. ${nAtivas} ligações registradas, ${nSemSaida} sem saída e ${nPendentes} propostas pendentes.`}>
+                          <span className="block h-full w-5 shrink-0 rounded-[3px]" style={marcada ? { background: `linear-gradient(180deg, rgba(255,255,255,0.35), rgba(0,0,0,0.18)), ${corDaPergunta.get(p.perguntaId) ?? "transparent"}` } : undefined} data-testid={`faixa-espinha-${p.perguntaId}`} aria-hidden="true" />
                           <button type="button" aria-pressed={marcada} onClick={(e) => clicar(e, p.perguntaId)} data-testid={`faixa-dendrito-${p.perguntaId}`}
-                            className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1 px-1.5 text-left select-none" style={{ borderLeft: `4px solid ${corDaPergunta.get(p.perguntaId) ?? "transparent"}` }}>
+                            className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1 px-1.5 text-left select-none" style={marcada ? { background: `linear-gradient(90deg, ${corDaPergunta.get(p.perguntaId) ?? "#999"}33, transparent 70%)` } : undefined}>
                             <span className="flex w-4 shrink-0 items-center justify-center">
                               {travada === p.perguntaId
                                 ? <Lock className="h-3 w-3 text-[#9b6b11]" aria-label="Pergunta travada" role="img" />
@@ -973,10 +974,10 @@ export default function SinapsesFaixa() {
                               className={`sinapse-pino-area cursor-crosshair touch-none ${arraste?.de === p.perguntaId ? "sinapse-porta-origem-ativa" : ""}`}
                               aria-label={`Iniciar ligação a partir da pergunta ${p.perguntaId}`} aria-pressed={arraste?.de === p.perguntaId}
                               title="Clique aqui e depois no ponto de uma saída. Escape cancela.">
-                              <span className="sinapse-pino" data-estado={arraste?.de === p.perguntaId ? "armado" : nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} aria-hidden="true" />
+                              <span className="sinapse-pino" data-foco={marcada ? "1" : undefined} data-estado={arraste?.de === p.perguntaId ? "armado" : nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} aria-hidden="true" />
                             </button>
                           )}
-                          {modo !== "EDICAO" && <span className="sinapse-pino-area" aria-hidden="true"><span className="sinapse-pino" data-estado={nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} /></span>}
+                          {modo !== "EDICAO" && <span className="sinapse-pino-area" aria-hidden="true"><span className="sinapse-pino" data-foco={marcada ? "1" : undefined} data-estado={nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} /></span>}
                         </div>
                       );
                     })}
