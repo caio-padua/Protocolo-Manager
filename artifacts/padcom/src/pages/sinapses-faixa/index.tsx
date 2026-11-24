@@ -650,10 +650,8 @@ export default function SinapsesFaixa() {
                       </linearGradient>
                     </defs>
                     {fios.map(({ s, y1, y2 }) => {
-                      const fioKey = `${s.perguntaId}|${chave(s.categoria, s.destinoTipo, s.destinoId)}`;
-                      const acendidoAgora = fioRecemSalvo === fioKey;
                       const emPerg = foco === s.perguntaId || (modo === "SIMULACAO" && sel.includes(s.perguntaId));
-                      const em = emPerg || acendidoAgora || fioAberto === s.id;
+                      const em = emPerg || fioAberto === s.id;
                       const apagado = (foco !== null || (modo === "SIMULACAO" && sel.length > 0)) && !em;
                       const semSaida = s.estado === "SEM_SAIDA";
                       const d = `M 0 ${y1} C 50 ${y1}, 50 ${y2}, 100 ${y2}`;
@@ -661,7 +659,6 @@ export default function SinapsesFaixa() {
                       return (
                         <g key={s.id}>
                           <path d={d} fill="none" stroke={corFio} strokeWidth={em ? 2 : 1.25} strokeDasharray={s.estado === "ATIVA" ? undefined : "5 3"} vectorEffect="non-scaling-stroke"
-                            className={acendidoAgora ? "sinapse-fio-ignicao" : undefined}
                             style={{ opacity: apagado ? 0.05 : em ? 1 : 0.85, filter: em ? "drop-shadow(0 0 2px rgba(217,119,6,0.55))" : undefined }} data-testid={`faixa-fio-${s.id}`} />
                           {emPerg && s.estado === "ATIVA" && (
                             <path d={d} fill="none" stroke="#FDE68A" strokeWidth={3.5} strokeLinecap="round" strokeDasharray="1 24" vectorEffect="non-scaling-stroke" className="sinapse-impulso" style={{ pointerEvents: "none", filter: "drop-shadow(0 0 4px #F59E0B)" }} />
