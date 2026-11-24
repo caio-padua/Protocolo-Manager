@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Input } from "@/components/ui/input";
-import { VidroCor } from "@/components/VidroCor";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -373,19 +372,6 @@ function ExamesTab({ slot }: { slot: HTMLElement | null }) {
     (form.id !== null || (form.areaCodigo.length === 4 && form.gradeCodigo.length === 4 && !!previa.data)) &&
     !saveMutation.isPending;
 
-  // Barra congelada: busca, filtros e títulos das colunas ficam sempre visíveis ao rolar.
-  const congeladaRef = useRef<HTMLDivElement>(null);
-  const [alturaCongelada, setAlturaCongelada] = useState(0);
-  useLayoutEffect(() => {
-    const el = congeladaRef.current;
-    if (!el) return;
-    const medir = () => setAlturaCongelada(el.offsetHeight);
-    medir();
-    const ro = new ResizeObserver(medir);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
   return (
     <div className="space-y-4">
       {slot && createPortal(<div className="space-y-2" data-testid="filtros-exames">
@@ -455,16 +441,6 @@ function ExamesTab({ slot }: { slot: HTMLElement | null }) {
         ))}
       </div>
       </div>, slot)}
-      <div ref={congeladaRef} className="sticky z-30 -mx-4 bg-background px-4 pb-2 md:-mx-8 md:px-8" style={{ top: "var(--topo-off, 0px)" }} data-testid="barra-congelada-exames">
-      <div className="panel-3d hidden md:grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_112px_48px] gap-3 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-primary">
-        <div>Exame</div>
-        <div>Natureza / Modalidade</div>
-        <div>Preparo</div>
-        <div className="text-center">Ativo</div>
-        <div className="text-right">Ação</div>
-      </div>
-      </div>
-
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -481,19 +457,39 @@ function ExamesTab({ slot }: { slot: HTMLElement | null }) {
               const fechado = fechados.has(g.nome);
               return (
                 <section key={g.nome} data-testid={`faixa-${g.nome}`}>
+                  <div className="sticky z-20" style={{ top: "var(--topo-off, 0px)" }}>
                   <button
                     type="button"
                     onClick={() => setFechados((s) => { const n = new Set(s); if (n.has(g.nome)) n.delete(g.nome); else n.add(g.nome); return n; })}
-                    className="paxter-seletor sticky z-20 flex w-full items-center gap-3 px-3 py-2 text-left"
-                    style={{ top: `calc(var(--topo-off, 0px) + ${alturaCongelada}px)` }}
+                    className="paxter-seletor flex w-full items-center gap-3 px-3 py-1 text-left"
                     aria-expanded={!fechado}
                   >
-                    <span className="concave-3d flex h-7 w-11 shrink-0 items-center justify-center text-[11px] font-black tabular-nums text-primary">{g.itens.length}</span>
-                    <VidroCor cor={`hsl(${hue} 65% 48%)`} tamanho={28} largura={40} />
-                    <span className="min-w-0 flex-1 truncate text-xs font-black uppercase tracking-widest">{g.nome}</span>
-                    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${fechado ? "-rotate-90" : ""}`} />
+                    <span
+                      aria-hidden="true"
+                      className="relative h-5 w-9 shrink-0 overflow-hidden rounded-[5px]"
+                      style={{
+                        background: `linear-gradient(180deg, hsl(${hue} 70% 88%) 0%, hsl(${hue} 60% 76%) 48%, hsl(${hue} 55% 68%) 52%, hsl(${hue} 60% 78%) 100%)`,
+                        border: `1px solid hsl(${hue} 45% 70% / 0.8)`,
+                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.85), inset 0 -2px 3px hsl(0 0% 0% / 0.12), 0 2px 4px -1px rgba(7,22,43,0.3)",
+                      }}
+                    >
+                      <span className="absolute inset-x-0.5 top-0.5 h-[40%] rounded-[3px]" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.75), rgba(255,255,255,0.1))" }} />
+                    </span>
+                    <span className="concave-3d flex h-5 w-9 shrink-0 items-center justify-center text-[10px] font-bold tabular-nums text-primary/80">{g.itens.length}</span>
+                    <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-widest text-primary/80">{g.nome}</span>
+                    <ChevronDown className={`h-3.5 w-3.5 shrink-0 opacity-60 transition-transform ${fechado ? "-rotate-90" : ""}`} />
                   </button>
-                  {!fechado && (<div style={{ background: `linear-gradient(180deg, hsl(${hue} 60% 80%) 0%, hsl(${hue} 45% 90%) 35%, hsl(${hue} 35% 96%) 100%)` }}>
+                  {!fechado && (
+                    <div className="hidden md:grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_112px_48px] gap-3 px-4 py-1 text-[9px] font-bold uppercase tracking-widest text-primary/70" style={{ background: `hsl(${hue} 40% 93%)`, borderBottom: `1px solid hsl(${hue} 35% 82%)` }}>
+                      <div>Exame</div>
+                      <div>Natureza / Modalidade</div>
+                      <div>Preparo</div>
+                      <div className="text-center">Ativo</div>
+                      <div className="text-right">Ação</div>
+                    </div>
+                  )}
+                  </div>
+                  {!fechado && (<div style={{ background: `linear-gradient(180deg, hsl(${hue} 45% 90%) 0%, hsl(${hue} 35% 94%) 35%, hsl(${hue} 25% 97%) 100%)` }}>
                   {g.itens.map((e, i) => {
                     const nat = attrPorId.get(e.id)?.natureza;
                     return (
