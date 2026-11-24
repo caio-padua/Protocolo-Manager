@@ -334,3 +334,20 @@ test("sinapse: 2 cliques rápidos na bolinha em repouso armam o fio e 2 cliques 
   await pino.dblclick();
   await expect(pino).toHaveAttribute("aria-pressed", "false");
 });
+
+test("sinapse: ampliada, o fio em andamento aparece por cima da tela e liga", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const estado = await prepararTela(page);
+  await page.getByTestId("faixa-modo-EDICAO").click();
+  await page.getByRole("button", { name: /ampliar/i }).click();
+  const pino = page.getByTestId(`faixa-porta-${perguntaId}`);
+  await pino.click();
+  const z = await page.evaluate(() => {
+    const fio = document.querySelector("svg.fixed") as HTMLElement | null;
+    const tela = document.querySelector('[data-testid="faixa-secao"], section.fixed') as HTMLElement | null;
+    return { fio: Number(getComputedStyle(fio!).zIndex), tela: Number(getComputedStyle(tela!).zIndex) };
+  });
+  expect(z.fio).toBeGreaterThan(z.tela);
+  await page.getByTestId(`faixa-porta-destino-EXAME|exame|${destinoId}`).click();
+  await expect.poll(() => estado.pedidos.length).toBe(1);
+});

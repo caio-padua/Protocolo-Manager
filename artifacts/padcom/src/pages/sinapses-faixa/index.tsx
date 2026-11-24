@@ -977,10 +977,10 @@ export default function SinapsesFaixa() {
                               className={`sinapse-pino-area cursor-crosshair touch-none ${arraste?.de === p.perguntaId ? "sinapse-porta-origem-ativa" : ""}`}
                               aria-label={`Iniciar ligação a partir da pergunta ${p.perguntaId}`} aria-pressed={arraste?.de === p.perguntaId}
                               title="Clique aqui e depois no ponto de uma saída. Escape cancela.">
-                              <span className="sinapse-pino" data-foco={marcada ? "1" : undefined} data-estado={arraste?.de === p.perguntaId ? "armado" : nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} aria-hidden="true" />
+                              <span className="sinapse-pino" style={{ "--cor-pino": corDaPergunta.get(p.perguntaId) ?? "#64748b" } as React.CSSProperties} data-foco={marcada ? "1" : undefined} data-estado={arraste?.de === p.perguntaId ? "armado" : nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} aria-hidden="true" />
                             </button>
                           )}
-                          {modo !== "EDICAO" && <span className="sinapse-pino-area" aria-hidden="true"><span className="sinapse-pino" data-foco={marcada ? "1" : undefined} data-estado={nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} /></span>}
+                          {modo !== "EDICAO" && <span className="sinapse-pino-area" aria-hidden="true"><span className="sinapse-pino" style={{ "--cor-pino": corDaPergunta.get(p.perguntaId) ?? "#64748b" } as React.CSSProperties} data-foco={marcada ? "1" : undefined} data-estado={nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} /></span>}
                         </div>
                       );
                     })}
@@ -1087,10 +1087,10 @@ export default function SinapsesFaixa() {
                               data-testid={`faixa-porta-destino-${d.k}`}
                               aria-label={d.incompleto ? `Destino ${codigoDestino(d.cat, d.tipo, d.id)} sem conteúdo; indisponível` : `Concluir ligação na saída ${codigoDestino(d.cat, d.tipo, d.id)}`}
                               title={d.incompleto ? "Bloco vazio: não pode receber ligação." : "Clique para concluir o fio iniciado numa pergunta."}>
-                              <span className={`sinapse-pino ${fioRecemSalvo?.endsWith(`|${d.k}`) ? "sinapse-pino-onda" : ""}`} data-estado={d.nAtivas ? "ativo" : d.nPropostas ? "proposta" : "livre"} aria-hidden="true" />
+                              <span style={{ "--cor-pino": COR[d.cat] } as React.CSSProperties} className={`sinapse-pino ${fioRecemSalvo?.endsWith(`|${d.k}`) ? "sinapse-pino-onda" : ""}`} data-estado={d.nAtivas ? "ativo" : d.nPropostas ? "proposta" : "livre"} aria-hidden="true" />
                             </button>
                           ) : (
-                            <span className="sinapse-pino-area" aria-hidden="true"><span className="sinapse-pino" data-estado={d.nAtivas ? "ativo" : d.nPropostas ? "proposta" : "livre"} /></span>
+                            <span className="sinapse-pino-area" aria-hidden="true"><span className="sinapse-pino" style={{ "--cor-pino": COR[d.cat] } as React.CSSProperties} data-estado={d.nAtivas ? "ativo" : d.nPropostas ? "proposta" : "livre"} /></span>
                           )}
                           <Corpo {...(podeLigar ? { type: "button" as const, onClick: () => ligarRapido(d), "data-testid": `faixa-ligar-${d.k}` } : {})} aria-pressed={aceso} className={`tecla-3d flex h-full min-w-0 flex-1 items-center gap-1.5 px-1.5 text-left ${podeLigar ? "cursor-pointer" : ""}`}>
                             <span className="concave-3d sinapse-janela-codigo font-mono text-[10px] font-bold" style={{ color: COR[d.cat] }}>{codigoDestino(d.cat, d.tipo, d.id)}</span>
@@ -1254,7 +1254,7 @@ export default function SinapsesFaixa() {
         const ocupado = criar.isPending || desativar.isPending || aprovarProposta.isPending;
         return (
           <div data-menu-sinapse role="menu" aria-label={`Ligações de ${pid}`} data-testid="faixa-menu-ligacoes"
-            className="panel-3d-sub fixed z-[60] w-[440px] max-w-[calc(100vw-16px)] p-1.5 shadow-xl" style={{ left: menu.x, top: menu.y, transform: menu.acima ? "translateY(-100%)" : undefined, background: "#fdfbf5" }}>
+            className="panel-3d-sub fixed z-[80] w-[440px] max-w-[calc(100vw-16px)] p-1.5 shadow-xl" style={{ left: menu.x, top: menu.y, transform: menu.acima ? "translateY(-100%)" : undefined, background: "#fdfbf5" }}>
             <div className="mb-1 flex items-center gap-1.5 px-1">
               <span className="concave-3d sinapse-janela-codigo font-mono text-[10px] font-bold text-[#0f1e36]">{pid}</span>
               <span className="min-w-0 flex-1 truncate text-[11px] font-semibold" title={perg?.pergunta}>{perg?.pergunta}</span>
@@ -1353,7 +1353,7 @@ export default function SinapsesFaixa() {
       )}
 
       {arraste && (
-        <svg className="pointer-events-none fixed inset-0 z-50" width="100%" height="100%" aria-hidden>
+        <svg className="pointer-events-none fixed inset-0 z-[80]" width="100%" height="100%" aria-hidden>
           <path d={`M ${arraste.x0} ${arraste.y0} C ${arraste.x0 + 80} ${arraste.y0}, ${arraste.x - 80} ${arraste.y}, ${arraste.x} ${arraste.y}`} fill="none" stroke={arraste.clonar ? "#2563eb" : "#d97706"} strokeWidth={3} strokeDasharray={arraste.clonar ? "6 4" : undefined} style={{ filter: arraste.clonar ? undefined : "drop-shadow(0 0 4px #f3ce72)" }} />
           <circle cx={arraste.x} cy={arraste.y} r={5} fill={arraste.clonar ? "#2563eb" : "#d97706"} />
         </svg>
