@@ -1,8 +1,12 @@
-import { Switch } from "@/components/ui/switch";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { TogglePaxter } from "@/components/ui/toggle-paxter";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 
 // Grade de saidas da pergunta (Padroes 5, 10 e 13 da skill-layout-paxter):
 // UM template de colunas fixas no cabecalho E nas linhas, codigo em insert Bevel de largura unica,
-// status em texto curto centralizado e o seletor (Switch quadrado) em sulco Concavo.
+// status em texto curto centralizado e o seletor (TogglePaxter dourado) em sulco Concavo.
 export const GRADE_SAIDAS = "grid grid-cols-[4.75rem_minmax(0,1fr)_5.25rem_3.25rem] items-center gap-x-2";
 
 export type EstadoSaida = "ATIVA" | "PROPOSTA" | "DESLIGADA" | "NAO" | "SEM_SAIDA";
@@ -37,18 +41,63 @@ export interface LinhaSaidaProps {
   dica: string;
   testid: string;
   onAlternar: () => void;
+  /** Quando informados, clicar no nome expande o resumo do cadastro (fórmula, injetável, implante, exame). */
+  tipo?: string;
+  destinoId?: number;
 }
 
-export function LinhaGradeSaidas({ codigo, corCodigo, nome, estado, ligada, desabilitada, rotuloAcessivel, dica, testid, onAlternar }: LinhaSaidaProps) {
-  const e = ROTULO_ESTADO[estado];
+interface Resumo { titulo: string; itens: string[]; linhas: Array<{ rotulo: string; valor: string }> }
+
+function ResumoDestino({ tipo, destinoId }: { tipo: string; destinoId: number }) {
+  const q = useQuery<Resumo>({
+    queryKey: ["/api/cadastros/sinapses/resumo", tipo, destinoId],
+    queryFn: async () => {
+      const r = await fetch(`/api/cadastros/sinapses/resumo/${tipo}/${destinoId}`, { headers: collabAuthHeaders() });
+      if (!r.ok) throw new Error("Não foi possível carregar o resumo");
+      return r.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  if (q.isLoading) return <p className="px-2 py-1 text-[10px] text-muted-foreground">Carregando resumo...</p>;
+  if (q.isError || !q.data) return <p className="px-2 py-1 text-[10px] text-red-600">Não foi possível carregar o resumo. <button type="button" className="underline" onClick={() => q.refetch()}>Tentar de novo</button></p>;
+  const d = q.data;
   return (
+    <div className="concave-3d mx-1 mb-1 grid gap-x-3 gap-y-1 px-2 py-1.5 text-[11px] sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]" data-testid="grade-saidas-resumo">
+      {d.itens.length > 0 && (
+        <ul className="space-y-0.5">
+          {d.itens.map((x, i) => <li key={i} className="truncate" title={x}>{x}</li>)}
+        </ul>
+      )}
+      {d.linhas.length > 0 && (
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-0.5">
+          {d.linhas.map((l) => (<div key={l.rotulo} className="contents"><dt className="text-[9px] font-black uppercase tracking-wider text-primary/80">{l.rotulo}</dt><dd className="min-w-0">{l.valor}</dd></div>))}
+        </dl>
+      )}
+      {d.itens.length === 0 && d.linhas.length === 0 && <p className="text-muted-foreground">Sem informações cadastradas.</p>}
+    </div>
+  );
+}
+
+export function LinhaGradeSaidas({ codigo, corCodigo, nome, estado, ligada, desabilitada, rotuloAcessivel, dica, testid, onAlternar, tipo, destinoId }: LinhaSaidaProps) {
+  const e = ROTULO_ESTADO[estado];
+  const [aberta, setAberta] = useState(false);
+  const expansivel = !!tipo && destinoId !== undefined;
+  return (
+    <div>
     <div className={`${GRADE_SAIDAS} border border-transparent px-1 py-0.5 hover:bg-black/5`}>
       <span className="bevel-3d truncate px-1 py-0.5 text-center font-mono text-[10px] font-bold" style={{ color: corCodigo }} title={codigo}>{codigo}</span>
-      <span className="min-w-0 truncate text-[11px]" title={nome}>{nome}</span>
+      {expansivel ? (
+        <button type="button" aria-expanded={aberta} onClick={() => setAberta((v) => !v)} className="flex min-w-0 items-center gap-1 text-left text-[11px]" title={`${nome} — clique para ver o resumo`} data-testid={`${testid}-expandir`}>
+          {aberta ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+          <span className="min-w-0 truncate">{nome}</span>
+        </button>
+      ) : <span className="min-w-0 truncate text-[11px]" title={nome}>{nome}</span>}
       <span className="text-center text-[9px] font-bold uppercase" style={{ color: e.cor }}>{e.texto}</span>
       <span className="concave-3d flex items-center justify-center px-1 py-0.5" title={dica}>
-        <Switch checked={ligada} disabled={desabilitada} onCheckedChange={onAlternar} aria-label={rotuloAcessivel} data-testid={testid} className="h-5 w-9" />
+        <TogglePaxter ligado={ligada} desabilitado={desabilitada} onClick={onAlternar} rotulo={rotuloAcessivel} testid={testid} tamanho="sm" />
       </span>
+    </div>
+    {expansivel && aberta && <ResumoDestino tipo={tipo!} destinoId={destinoId!} />}
     </div>
   );
 }

@@ -125,6 +125,52 @@ async function carregarBasePropostas(): Promise<{
 }
 
 // Tudo o que a tela precisa, numa leitura so.
+// Resumo de um destino (formula, injetavel, implante, exame) para a tela expandir a linha.
+router.get("/cadastros/sinapses/resumo/:tipo/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: "id inválido" }); return; }
+  const L = (rotulo: string, valor: unknown) => (valor === null || valor === undefined || String(valor).trim() === "" ? null : { rotulo, valor: String(valor) });
+  const limpo = (a: Array<{ rotulo: string; valor: string } | null>) => a.filter((x): x is { rotulo: string; valor: string } => x !== null);
+  const tipo = req.params.tipo;
+  if (tipo === "formula") {
+    const t = (await db.execute(sql`SELECT id, conteudo FROM catalogo_formulas WHERE id = ${id} AND identificador = 'TITL'`)).rows[0] as any;
+    if (!t) { res.status(404).json({ error: "fórmula não encontrada" }); return; }
+    const prox = (await db.execute(sql`SELECT MIN(id) AS id FROM catalogo_formulas WHERE identificador = 'TITL' AND id > ${id}`)).rows[0] as any;
+    const linhas = (await db.execute(sql`
+      SELECT identificador, conteudo FROM catalogo_formulas
+      WHERE id > ${id} AND id < ${prox?.id ?? 2147483647} AND status = 'ATIVO' ORDER BY id`)).rows as any[];
+    const por = (pref: string) => linhas.filter((l) => String(l.identificador).startsWith(pref)).map((l) => l.conteudo as string);
+    res.json({ titulo: t.conteudo, itens: por("SUBS"), linhas: limpo([L("Via", por("VIA").join(", ")), L("Apresentação", por("APRE").join(", ")), L("Posologia", por("POSO").join(" · ")), L("Observação", por("OBS").join(" · "))]) });
+    return;
+  }
+  if (tipo === "injetavel") {
+    const i = (await db.execute(sql`SELECT nome_ampola, dosagem, volume, via, substancia_base, classificacao, eixo_integrativo FROM catalogo_injetaveis WHERE id = ${id}`)).rows[0] as any;
+    if (!i) { res.status(404).json({ error: "injetável não encontrado" }); return; }
+    res.json({ titulo: i.nome_ampola, itens: [], linhas: limpo([L("Substância", i.substancia_base), L("Dosagem", i.dosagem), L("Volume", i.volume), L("Via", i.via), L("Classificação", i.classificacao), L("Eixo", i.eixo_integrativo)]) });
+    return;
+  }
+  if (tipo === "implante") {
+    const m = (await db.execute(sql`SELECT nome_implante, substancia_ativa, dosagem, unidade, liberacao_diaria, dose_recomendada, tempo_acao, indicacao, via, trocarte FROM catalogo_implantes WHERE id = ${id}`)).rows[0] as any;
+    if (!m) { res.status(404).json({ error: "implante não encontrado" }); return; }
+    res.json({ titulo: m.nome_implante, itens: [], linhas: limpo([L("Substância", m.substancia_ativa), L("Dosagem", [m.dosagem, m.unidade].filter(Boolean).join(" ")), L("Liberação diária", m.liberacao_diaria), L("Dose recomendada", m.dose_recomendada), L("Tempo de ação", m.tempo_acao), L("Indicação", m.indicacao), L("Via", m.via), L("Trocarte", m.trocarte)]) });
+    return;
+  }
+  if (tipo === "exame") {
+    const e = (await db.execute(sql`SELECT nome_exame, grupo_principal FROM catalogo_exames WHERE id = ${id}`)).rows[0] as any;
+    if (!e) { res.status(404).json({ error: "exame não encontrado" }); return; }
+    res.json({ titulo: e.nome_exame, itens: [], linhas: limpo([L("Grupo", e.grupo_principal)]) });
+    return;
+  }
+  if (tipo === "bloco_exames") {
+    const b = (await db.execute(sql`SELECT codigo_bloco, nome_bloco FROM catalogo_blocos WHERE id = ${id}`)).rows[0] as any;
+    if (!b) { res.status(404).json({ error: "bloco não encontrado" }); return; }
+    const ex = (await db.execute(sql`SELECT nome_exame FROM catalogo_bloco_exames WHERE bloco_id = ${b.codigo_bloco} AND ativo IS NOT FALSE ORDER BY ordem_no_bloco NULLS LAST, nome_exame LIMIT 60`)).rows as any[];
+    res.json({ titulo: b.nome_bloco, itens: ex.map((r) => r.nome_exame), linhas: [] });
+    return;
+  }
+  res.status(400).json({ error: "tipo inválido" });
+});
+
 router.get("/cadastros/sinapses/painel", async (_req, res): Promise<void> => {
   await garantir();
   const [perguntas, exames, blocos, formulas, injetaveis, implantes, sinapses, propostas] = await Promise.all([
@@ -137,7 +183,7 @@ router.get("/cadastros/sinapses/painel", async (_req, res): Promise<void> => {
     db.execute(sql`
       SELECT id, conteudo AS nome, area FROM catalogo_formulas
       WHERE tipo_linha IN ('FORMULA','MASTER') AND identificador = 'TITL' AND status = 'ATIVO' ORDER BY conteudo`),
-    db.execute(sql`SELECT id, nome_ampola, via FROM catalogo_injetaveis WHERE tipo_linha = 'AMPOLA' AND ativo IS NOT FALSE ORDER BY nome_ampola`),
+    db.execute(sql`SELECT id, nome_ampola, via, dosagem FROM catalogo_injetaveis WHERE tipo_linha = 'AMPOLA' AND ativo IS NOT FALSE ORDER BY nome_ampola`),
     db.execute(sql`SELECT id, nome_implante, substancia_ativa, dosagem, unidade, via FROM catalogo_implantes WHERE ativo IS NOT FALSE ORDER BY nome_implante`),
     db.execute(sql`SELECT id, pergunta_id, categoria, destino_tipo, destino_id, clone_de FROM sinapses_clinicas WHERE ativo ORDER BY id`),
     db.select().from(sinapsesClinicasPropostasTable).orderBy(
@@ -148,7 +194,7 @@ router.get("/cadastros/sinapses/painel", async (_req, res): Promise<void> => {
     ),
   ]);
 
-  const destinos: Record<Categoria, Array<{ tipo: string; id: number; nome: string; detalhe?: string | null; incompleto?: boolean }>> = {
+  const destinos: Record<Categoria, Array<{ tipo: string; id: number; nome: string; rotulo?: string; detalhe?: string | null; incompleto?: boolean }>> = {
     EXAME: [],
     PRESCRICAO: [],
     INJETAVEL_IM: [],
@@ -165,7 +211,7 @@ router.get("/cadastros/sinapses/painel", async (_req, res): Promise<void> => {
   for (const i of injetaveis.rows as any[]) {
     const vias = viasDe(i.via);
     if (vias.size === 0) injetaveisSemVia++;
-    const item = { tipo: "injetavel", id: i.id, nome: i.nome_ampola as string, detalhe: i.via as string | null };
+    const item = { tipo: "injetavel", id: i.id, nome: i.nome_ampola as string, rotulo: [i.nome_ampola, i.dosagem].filter(Boolean).join(" · "), detalhe: i.via as string | null };
     if (vias.has("IM")) destinos.INJETAVEL_IM.push(item);
     if (vias.has("SC")) destinos.INJETAVEL_SC.push(item);
     if (vias.has("EV")) destinos.INJETAVEL_EV.push(item);
@@ -176,7 +222,7 @@ router.get("/cadastros/sinapses/painel", async (_req, res): Promise<void> => {
       m.dosagem ? `${m.dosagem} ${m.unidade ?? ""}`.trim() : null,
       m.via,
     ].filter(Boolean).join(" · ");
-    destinos.IMPLANTE.push({ tipo: "implante", id: m.id, nome: m.nome_implante, detalhe });
+    destinos.IMPLANTE.push({ tipo: "implante", id: m.id, nome: m.nome_implante, rotulo: [m.nome_implante, m.dosagem ? `${m.dosagem} ${m.unidade ?? ""}`.trim() : null].filter(Boolean).join(" · "), detalhe });
   }
 
   res.json({

@@ -44,6 +44,9 @@ async function prepararTela(page: Page, falharGravacao = false, propostasIniciai
         propostas: estado.propostas,
       });
     }
+    if (path.startsWith("/api/cadastros/sinapses/resumo/")) {
+      return json({ titulo: "Exame sintético", itens: [], linhas: [{ rotulo: "Grupo", valor: "Grupo sintético" }] });
+    }
     const aprovar = path.match(/^\/api\/cadastros\/sinapses\/propostas\/(\d+)\/aprovar$/);
     if (aprovar && request.method() === "POST") {
       const id = Number(aprovar[1]);
@@ -206,7 +209,11 @@ test("sinapse: travar a pergunta e clicar na saída liga sem arrastar", async ({
   await expect(page.getByTestId("faixa-travar")).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId(`faixa-ligar-EXAME|exame|${destinoId}`).click();
   await expect.poll(() => estado.pedidos.length).toBe(1);
-  await page.getByTestId("faixa-ver-sinapses").click();
+  await page.getByTestId("faixa-ver-ativas").click();
+  await expect(page.getByTestId("faixa-tela-visao")).toContainText("Ligações ativas");
+  await page.getByTestId("faixa-tela-visao-PROPOSTAS").click();
+  await expect(page.getByTestId("faixa-tela-sinapses-EXAME")).toHaveCount(0);
+  await page.getByTestId("faixa-tela-visao-ATIVAS").click();
   await expect(page.getByTestId("faixa-correspondencia-chips")).toContainText("Exame sintético");
   await page.keyboard.press("Escape");
   await page.screenshot({ path: "/tmp/sinapse-travada.png" });
@@ -309,6 +316,8 @@ test("sinapse: painel da pergunta atual espelha caixa sim/não e fio nos dois se
   await page.screenshot({ path: "/tmp/sinapse-painel.png" });
   await page.getByTestId("faixa-ver-sinapses").click();
   await expect(page.getByTestId("faixa-tela-sinapses-EXAME")).toContainText("Exame sintético");
+  await page.getByTestId("faixa-chip-desvincular-901-expandir").click();
+  await expect(page.getByTestId("grade-saidas-resumo")).toContainText("Grupo sintético");
   await page.waitForTimeout(600);
   await page.screenshot({ path: "/tmp/sinapse-tela.png" });
 });
