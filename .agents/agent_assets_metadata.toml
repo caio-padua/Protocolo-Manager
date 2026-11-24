@@ -1740,3 +1740,31 @@ mtime_ms = 1795475452223
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/3c88b60e-add4-43b4-8fdb-7a3581b3031b/5e65def0-afdc-448a-943c-dee73c605c65"
 storage_version_token = "1795475476838512"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Qyym8545VuXPLdd5Jia1R"
+uri = "file://generated-artifacts/subsidio-auditoria-exames/subsidio-auditoria-exames.zip"
+type = "unspecified"
+title = "Subsídios 1, 2 e 3 para auditoria (ZIP)"
+description = "Código da tela, gaveta, blocos, rotas e resultado do SQL"
+logical_id = "acb906c9-6694-4e4b-bffe-d7e89171aca8"
+content_hash = "sha256:f8b2619fe36dbd5e3608fe2723aeba5350b540afc32c88f5e0b1f10f11346e13"
+size = 36447
+mtime_ms = 1795478738293
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/acb906c9-6694-4e4b-bffe-d7e89171aca8/ea84ee89-eeb6-4ae7-a6e5-1ca7371e2708"
+storage_version_token = "1795478742727899"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "5l6RGW2ExZrraBOUgHnqO"
+uri = "file://generated-artifacts/subsidio-auditoria-exames/SQL-auditoria-resultado.md"
+type = "text"
+title = "Subsídio 2: resultado da auditoria SQL"
+description = "Completude, duplicados e opções"
+logical_id = "860af9d2-f348-48b9-94b6-b7898a87472f"
+content_hash = "sha256:ac27509f88a62af769eb0802fbbe1897940d354594cad10d1ade57705b3888d2"
+size = 1388
+mtime_ms = 1795478737809
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/860af9d2-f348-48b9-94b6-b7898a87472f/25a0a14f-4750-495a-80d0-03b63c9525fc"
+storage_version_token = "1795478743219230"
+content_type = "text/markdown"
