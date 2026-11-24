@@ -615,11 +615,13 @@ export default function SinapsesFaixa() {
                           onMouseEnter={() => setHover(p.perguntaId)} onMouseLeave={() => setHover(null)} title={`${p.perguntaId} · ${p.pergunta}`} aria-label={`${p.perguntaId}: ${p.pergunta}. ${nAtivas} ligações registradas, ${nSemSaida} sem saída e ${nPendentes} propostas pendentes.`}>
                           <button type="button" onClick={(e) => clicar(e, p.perguntaId)} data-testid={`faixa-dendrito-${p.perguntaId}`}
                             className={`tecla-3d flex h-full min-w-0 flex-1 items-center gap-1 px-1.5 text-left select-none ${marcada ? "evo-bevel-ativo" : ""}`}>
-                            {nSemSaida > 0 && <AlertTriangle className="h-3 w-3 shrink-0 text-red-600" aria-label={`${nSemSaida} ligação(ões) ativa(s) sem saída real`} role="img" />}
-                            {p.eSinalAlarme && <AlertTriangle className="h-3 w-3 shrink-0 text-red-600" />}
-                            <span className="h-2 w-2 shrink-0 rounded-full" style={n ? { background: "#f59e0b", boxShadow: marcada || foco === p.perguntaId ? "0 0 6px 2px #fbbf24" : "0 0 2px #d9770688" } : { border: "1.5px solid #94a3b8", background: "transparent" }} title={n ? "Com condução" : "Sem condução: nenhuma saída ligada"} aria-hidden />
-                            <span className="shrink-0 font-mono text-[10px] font-bold">{p.perguntaId}</span>
-                            <span className="truncate text-[10px] opacity-80">{p.pergunta}</span>
+<span className="flex w-4 shrink-0 items-center justify-center">
+                              {nSemSaida > 0
+                                ? <AlertTriangle className="h-3 w-3 text-red-600" aria-label={`${nSemSaida} ligação(ões) ativa(s) sem saída real`} role="img" />
+                                : p.eSinalAlarme ? <AlertTriangle className="h-3 w-3 text-red-600" aria-label="Sinal de alarme" role="img" /> : null}
+                            </span>
+                            <span className="concave-3d sinapse-janela-codigo font-mono text-[10px] font-bold text-[#0f1e36]">{p.perguntaId}</span>
+                            <span className="min-w-0 flex-1 truncate text-[10px] opacity-90">{p.pergunta}</span>
                             <span className="ml-auto text-[9px] tabular-nums opacity-60">{n || ""}</span>
                           </button>
                           {modo === "EDICAO" && (
@@ -636,6 +638,7 @@ export default function SinapsesFaixa() {
                               <span className="sinapse-pino" data-estado={arraste?.de === p.perguntaId ? "armado" : nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} aria-hidden="true" />
                             </button>
                           )}
+                          {modo !== "EDICAO" && <span className="sinapse-pino-area" aria-hidden="true"><span className="sinapse-pino" data-estado={nAtivas ? "ativo" : nPendentes ? "proposta" : "livre"} /></span>}
                         </div>
                       );
                     })}
@@ -704,8 +707,7 @@ export default function SinapsesFaixa() {
                       return (
                         <div key={d.k} data-dest={d.incompleto ? undefined : d.k} className={`absolute flex w-full items-center gap-1 px-1 ${apagado ? "opacity-35" : !totalConexoes && modo !== "EDICAO" ? "opacity-60" : ""}`} style={{ top: (yD.get(d.k) ?? 0) - (alturaLinha - 3) / 2, height: alturaLinha - 3 }}
                           title={`${codigoDestino(d.cat, d.tipo, d.id)} · ${ROTULO[d.cat]} · ${d.nome}${nomeDe.get(d.k)?.detalhe ? ` · ${nomeDe.get(d.k)?.detalhe}` : ""}${d.incompleto ? " · SEM SAÍDA: bloco sem exames cadastrados" : ""}`} aria-label={`${codigoDestino(d.cat, d.tipo, d.id)}: ${d.nome}. ${d.nAtivas} saídas conectadas, ${d.nSemSaida} ligações sem saída e ${d.nPropostas} propostas pendentes.`} data-testid={`faixa-saida-${d.k}`}>
-                          <div className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1.5 px-1.5" style={aceso ? { boxShadow: `inset 3px 0 0 ${COR[d.cat]}` } : undefined}>
-                            {modo === "EDICAO" ? (
+                          {modo === "EDICAO" ? (
                               <button type="button" disabled={!!d.incompleto} onClick={(e) => { e.stopPropagation(); concluirNoDestino(d.k); }}
                                 className="sinapse-pino-area disabled:cursor-not-allowed disabled:opacity-40"
                                 data-pino-destino={d.incompleto ? undefined : d.k}
@@ -715,10 +717,11 @@ export default function SinapsesFaixa() {
                                 <span className={`sinapse-pino ${fioRecemSalvo?.endsWith(`|${d.k}`) ? "sinapse-pino-onda" : ""}`} data-estado={d.nAtivas ? "ativo" : d.nPropostas ? "proposta" : "livre"} aria-hidden="true" />
                               </button>
                             ) : (
-                              <span className="h-2 w-2 shrink-0 rounded-full" style={d.nAtivas ? { background: COR[d.cat] } : d.nPropostas ? { border: `1.5px dashed ${COR[d.cat]}`, background: "transparent" } : d.nSemSaida ? { border: "1.5px dashed #dc2626", background: "transparent" } : { border: `1.5px solid ${COR[d.cat]}`, background: "transparent" }} aria-hidden="true" />
+                              <span className="sinapse-pino-area" aria-hidden="true"><span className="sinapse-pino" data-estado={d.nAtivas ? "ativo" : d.nPropostas ? "proposta" : "livre"} /></span>
                             )}
-                            <span className="shrink-0 font-mono text-[10px] font-bold" style={{ color: COR[d.cat] }}>{codigoDestino(d.cat, d.tipo, d.id)}</span>
-                            <span className="truncate text-[10px] opacity-80">{d.nome}</span>
+                          <div className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1.5 px-1.5" style={aceso ? { boxShadow: `inset 3px 0 0 ${COR[d.cat]}` } : undefined}>
+                            <span className="concave-3d sinapse-janela-codigo font-mono text-[10px] font-bold" style={{ color: COR[d.cat] }}>{codigoDestino(d.cat, d.tipo, d.id)}</span>
+                            <span className="min-w-0 flex-1 truncate text-[10px] opacity-90">{d.nome}</span>
                             {d.incompleto && <span className="shrink-0 text-[8px] font-bold text-red-700">SEM EXAMES</span>}
                             <span className="ml-auto text-[9px] tabular-nums opacity-60">{totalConexoes || ""}</span>
                           </div>

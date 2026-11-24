@@ -102,3 +102,20 @@
 @media (prefers-reduced-motion: reduce) {
   .sinapse-impulso, .sinapse-pino-onda::after { animation: none; }
 }
+
+/* Janela do código: largura fixa, igual nas perguntas e nas saídas */
+.sinapse-janela-codigo {
+  display: flex;
+  width: 4.75rem;
+  min-width: 4.75rem;
+  max-width: 4.75rem;
+  height: calc(100% - 6px);
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0 4px;
+}
+.evo-bevel-ativo .sinapse-janela-codigo:not([style*="color"]) { color: #0f1e36; }
