@@ -204,13 +204,17 @@ function OpcaoMulti({ tipo, valores, onChange, rotulo }: { tipo: Tipo; valores: 
   const alterna = (n: string) => onChange(valores.includes(n) ? valores.filter((x) => x !== n) : [...valores, n]);
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{rotulo}</label>
-      <div className="flex flex-wrap gap-1.5">
-        {todos.length === 0 && <span className="text-xs text-muted-foreground">Nenhuma opção cadastrada. Crie abaixo.</span>}
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{rotulo}</label>
+        <span className="concave-3d px-2 py-0.5 text-[10px] font-black tabular-nums">{valores.length} de {todos.length} marcado(s)</span>
+      </div>
+      {/* Grade fixa: todas as opções com o mesmo tamanho, alinhadas em colunas e linhas. */}
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4" data-testid={`grade-${tipo}`}>
+        {todos.length === 0 && <span className="col-span-full text-xs text-muted-foreground">Nenhuma opção cadastrada. Crie abaixo.</span>}
         {todos.map((n) => (
-          <button key={n} type="button" onClick={() => alterna(n)} aria-pressed={valores.includes(n)}
-            className={`rounded-[4px] border px-2 py-0.5 text-[10px] font-bold uppercase ${valores.includes(n) ? "bg-primary text-primary-foreground" : "bg-background"}`}>
-            {n}
+          <button key={n} type="button" onClick={() => alterna(n)} aria-pressed={valores.includes(n)} title={n}
+            className="paxter-seletor flex h-9 items-center justify-center px-2 text-center text-[10px] font-black uppercase leading-tight tracking-wide">
+            <span className="line-clamp-2 break-words">{n.replace(/_/g, " ")}</span>
           </button>
         ))}
       </div>
