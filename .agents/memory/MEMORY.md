@@ -167,8 +167,7 @@
 - [Testes de auth x tenantContext](telegram-testes-mocks-tenantcontext.md) — falhas vieram de mocks defasados; nunca afrouxar a auth para passar teste.
 - [Avaliações corporais do Cockpit](avaliacoes-corporais-cockpit.md) — catálogo único; campos vazios; limites e cautelas da referência de índice de massa corporal.
 - [Avatar corporal híbrido](avatar-corporal-hibrido.md) — modelo único, quatro vistas, representação aproximada; licença e viabilidade primeiro.
-- [Biblioteca de orientações](orientacoes-biblioteca-categorias-tom.md) — categorias aditivas, tom por clínica, marcadores bloqueiam aprovação; "categoria do ensaio" pendente de esclarecimento.
-- [Modelos de orientação como dado](orientacoes-modelos-semente.md) — 28 rascunhos por clínica via API; variáveis ainda não ligadas ao envio; envio pelo cockpit pausa a IA.
+- [Orientações](orientacoes-biblioteca-categorias-tom.md) · [modelos](orientacoes-modelos-semente.md) — categorias e tom por clínica; rascunhos; variáveis e envio pendentes.
 - [Crédito pré-pago da mensageria](mensageria-credito-pay-per-use.md) — pay per use por clínica, isenção do Instituto, custo de IA à parte; falta tela, pagamento real e tarifas.
 - [Cobrança de teste Asaas — guard de identidade](asaas-guard-identidade-teste.md) — teto R$5/10/R$50; divergência local×Asaas bloqueia; webhook de produção só por diagnóstico de leitura.
 - [Exames avulsos — entrada separada](exames-avulsos-entrada.md) — escolha não é prescrição; preço só do titular, editável até o aceite; cobrança/emissão pendentes.
@@ -190,7 +189,7 @@
 - [Anamnese — seletor sem opções vira texto](anamnese-seletor-sem-opcoes.md) — LISTA sem `opcoes` degrada para texto; sexo do cadastro não editável; gênero separado.
 - [Anamnese — seletor pesquisável e tema](anamnese-combobox-tema-portal.md) — portal na raiz tematica; filtro sem acento; correcao de sexo com historico.
 - [PAX FINANCE documentos oficiais](pax-finance-documentos-oficiais.md) — slots CNPJ/JUCESP/contrato; sensíveis cifrados; aplicar com confirmação; visão de IA p/ digitalizado.
-- **Pulso Diário** — [níveis/Área do Cliente](pulso-diario-niveis-area-cliente.md) · [frequência cardíaca](pulso-frequencia-cardiaca-niveis.md) — limites centralizados; exceção de dados demo documentada.
+- **Pulso Diário** — [níveis](pulso-diario-niveis-area-cliente.md) · [frequência](pulso-frequencia-cardiaca-niveis.md) — limites centrais; dados de demonstração excepcionados.
 - [Ajuda "?" da antropometria exige referências](antropometria-ajuda-referencias.md) — nacionais+internacionais, mais recente marcada; lista única em .ts; spec em specs/.
 - [Molde do "?" de ajuda](molde-botao-ajuda-pulso.md) — copiar DiretrizesDialog do Pulso; molde escrito na skill-layout-paxter/references/botao-ajuda-interrogacao.md.
 - [Painel Emissão de receitas](painel-emissao-receitas.md) — destinos retangulares, sem caixa de confirmação, prévia PDF, histórico comparável, nome Drive AA.MM.DD.

@@ -119,11 +119,11 @@ describe("propostas iniciais de sinapses clínicas", () => {
       destinos,
     );
 
-    expect(resultado.propostas).toHaveLength(4);
+    expect(resultado.propostas).toHaveLength(5);
     expect(
-      resultado.propostas
-        .filter((proposta) => proposta.perguntaId === "Q013")
-        .every((proposta) => proposta.justificativa.includes("pergunta ampla")),
+      resultado.propostas.some(
+        (proposta) => proposta.perguntaId === "Q013" && proposta.justificativa.includes("pergunta ampla"),
+      ),
     ).toBe(true);
     expect(resultado.propostas).not.toEqual(
       expect.arrayContaining([
@@ -131,5 +131,71 @@ describe("propostas iniciais de sinapses clínicas", () => {
         expect.objectContaining({ perguntaId: "C-URO02", destinoId: 2 }),
       ]),
     );
+  });
+
+  it("propõe ligação para todo destino completo, respeita a categoria e não reabre destino já proposto", () => {
+    const destinos = vazio();
+    destinos.EXAME = [
+      { tipo: "bloco_exames", id: 11, nome: "BLOCO SEM CONTEÚDO", incompleto: true },
+      { tipo: "exame", id: 12, nome: "EXAME CARDIOLÓGICO", detalhe: "CARDIOLÓGICO" },
+      { tipo: "exame", id: 13, nome: "EXAME SEM TEMA" },
+    ];
+    destinos.PRESCRICAO = [{ tipo: "formula", id: 21, nome: "FÓRMULA PARA SONO" }];
+    destinos.INJETAVEL_IM = [{ tipo: "injetavel", id: 31, nome: "COMPLEXO VITAMÍNICO" }];
+    destinos.INJETAVEL_SC = [{ tipo: "injetavel", id: 32, nome: "INJETÁVEL SEM TEMA" }];
+    destinos.INJETAVEL_EV = [{ tipo: "injetavel", id: 33, nome: "POOL CARDIOLÓGICO" }];
+    destinos.IMPLANTE = [{ tipo: "implante", id: 41, nome: "TESTOSTERONA PELLET" }];
+
+    const perguntas = [
+      { perguntaId: "Q013", pergunta: "Doenças já diagnosticadas" },
+      { perguntaId: "C-CAR01", pergunta: "Dor no peito?" },
+      { perguntaId: "F58", pergunta: "Como avalia seu sono?" },
+      { perguntaId: "C-GER03", pergunta: "Cansaço persistente?" },
+      { perguntaId: "Q032", pergunta: "Aceita protocolo injetável?" },
+      { perguntaId: "F20", pergunta: "Interesse sexual?" },
+      { perguntaId: "Q001", pergunta: "Nome completo" },
+      { perguntaId: "Q002", pergunta: "CPF" },
+      { perguntaId: "F02", pergunta: "Reação grave (anafilaxia)?" },
+    ];
+    const resultado = gerarPropostasSinapsesIniciais(
+      perguntas,
+      destinos,
+      [],
+      [
+        { perguntaId: "C-GER03", categoria: "INJETAVEL_SC", destinoTipo: "injetavel", destinoId: 32 },
+      ],
+    );
+
+    const cobertura = new Set(
+      [
+        ...resultado.propostas.map((p) => `${p.categoria}|${p.destinoTipo}|${p.destinoId}`),
+        "INJETAVEL_SC|injetavel|32",
+      ],
+    );
+    for (const [categoria, itens] of Object.entries(destinos) as Array<
+      [CategoriaSinapse, DestinoSinapse[]]
+    >) {
+      for (const item of itens.filter((d) => !d.incompleto)) {
+        expect(cobertura.has(`${categoria}|${item.tipo}|${item.id}`)).toBe(true);
+      }
+    }
+    expect(resultado.propostas).toHaveLength(6);
+    expect(resultado.propostas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ perguntaId: "C-CAR01", categoria: "EXAME", destinoId: 12 }),
+        expect.objectContaining({ perguntaId: "F58", categoria: "PRESCRICAO", destinoId: 21 }),
+        expect.objectContaining({ perguntaId: "F20", categoria: "IMPLANTE", destinoId: 41 }),
+        expect.objectContaining({
+          perguntaId: "Q013",
+          destinoId: 13,
+          eixo: "Aproximação clínica ampla — baixa confiança",
+        }),
+      ]),
+    );
+    expect(resultado.propostas.some((p) => ["Q001", "Q002", "F02"].includes(p.perguntaId))).toBe(false);
+    expect(resultado.propostas.some((p) => p.destinoId === 11)).toBe(false);
+    expect(
+      resultado.propostas.find((p) => p.categoria === "EXAME" && p.destinoId === 13)?.justificativa,
+    ).toContain("BAIXA CONFIANÇA");
   });
 });

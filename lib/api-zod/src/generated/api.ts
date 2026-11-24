@@ -8466,3 +8466,240 @@ export const SendEvolutionHomologacaoResponseResponse = zod.object({
   caminhoResolucao: zod.string(),
   inferenciaIA: zod.boolean(),
 });
+
+/**
+ * @summary Lista perguntas, destinos, ligações ativas e propostas
+ */
+export const GetSinapsesClinicasPainelResponse = zod.object({
+  perguntas: zod.array(
+    zod.object({
+      perguntaId: zod.string(),
+      pergunta: zod.string(),
+      bloco: zod.string().nullable(),
+      eSinalAlarme: zod.boolean(),
+    }),
+  ),
+  destinos: zod.object({
+    EXAME: zod.array(
+      zod.object({
+        tipo: zod.enum([
+          "exame",
+          "bloco_exames",
+          "formula",
+          "injetavel",
+          "implante",
+        ]),
+        id: zod.number(),
+        nome: zod.string(),
+        detalhe: zod.string().nullish(),
+        incompleto: zod.boolean().optional(),
+      }),
+    ),
+    PRESCRICAO: zod.array(
+      zod.object({
+        tipo: zod.enum([
+          "exame",
+          "bloco_exames",
+          "formula",
+          "injetavel",
+          "implante",
+        ]),
+        id: zod.number(),
+        nome: zod.string(),
+        detalhe: zod.string().nullish(),
+        incompleto: zod.boolean().optional(),
+      }),
+    ),
+    INJETAVEL_IM: zod.array(
+      zod.object({
+        tipo: zod.enum([
+          "exame",
+          "bloco_exames",
+          "formula",
+          "injetavel",
+          "implante",
+        ]),
+        id: zod.number(),
+        nome: zod.string(),
+        detalhe: zod.string().nullish(),
+        incompleto: zod.boolean().optional(),
+      }),
+    ),
+    INJETAVEL_SC: zod.array(
+      zod.object({
+        tipo: zod.enum([
+          "exame",
+          "bloco_exames",
+          "formula",
+          "injetavel",
+          "implante",
+        ]),
+        id: zod.number(),
+        nome: zod.string(),
+        detalhe: zod.string().nullish(),
+        incompleto: zod.boolean().optional(),
+      }),
+    ),
+    INJETAVEL_EV: zod.array(
+      zod.object({
+        tipo: zod.enum([
+          "exame",
+          "bloco_exames",
+          "formula",
+          "injetavel",
+          "implante",
+        ]),
+        id: zod.number(),
+        nome: zod.string(),
+        detalhe: zod.string().nullish(),
+        incompleto: zod.boolean().optional(),
+      }),
+    ),
+    IMPLANTE: zod.array(
+      zod.object({
+        tipo: zod.enum([
+          "exame",
+          "bloco_exames",
+          "formula",
+          "injetavel",
+          "implante",
+        ]),
+        id: zod.number(),
+        nome: zod.string(),
+        detalhe: zod.string().nullish(),
+        incompleto: zod.boolean().optional(),
+      }),
+    ),
+  }),
+  injetaveisSemVia: zod.number(),
+  sinapses: zod.array(
+    zod.object({
+      id: zod.number(),
+      perguntaId: zod.string(),
+      categoria: zod.enum([
+        "EXAME",
+        "PRESCRICAO",
+        "INJETAVEL_IM",
+        "INJETAVEL_SC",
+        "INJETAVEL_EV",
+        "IMPLANTE",
+      ]),
+      destinoTipo: zod.enum([
+        "exame",
+        "bloco_exames",
+        "formula",
+        "injetavel",
+        "implante",
+      ]),
+      destinoId: zod.number(),
+      cloneDe: zod.number().nullable(),
+    }),
+  ),
+  propostas: zod.array(
+    zod.object({
+      id: zod.number(),
+      perguntaId: zod.string(),
+      categoria: zod.enum([
+        "EXAME",
+        "PRESCRICAO",
+        "INJETAVEL_IM",
+        "INJETAVEL_SC",
+        "INJETAVEL_EV",
+        "IMPLANTE",
+      ]),
+      destinoTipo: zod.enum([
+        "exame",
+        "bloco_exames",
+        "formula",
+        "injetavel",
+        "implante",
+      ]),
+      destinoId: zod.number(),
+      eixo: zod.string(),
+      justificativa: zod.string(),
+      status: zod.enum(["PENDENTE", "APROVADA", "RECUSADA"]),
+    }),
+  ),
+});
+
+/**
+ * @summary Grava propostas idempotentes sem ativá-las
+ */
+export const GenerateInitialSinapseProposalsBody = zod.object({});
+
+/**
+ * @summary Altera o destino de uma proposta ainda pendente
+ */
+
+export const UpdateSinapseProposalParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const UpdateSinapseProposalBody = zod.object({
+  categoria: zod.enum([
+    "EXAME",
+    "PRESCRICAO",
+    "INJETAVEL_IM",
+    "INJETAVEL_SC",
+    "INJETAVEL_EV",
+    "IMPLANTE",
+  ]),
+  destinoTipo: zod.enum([
+    "exame",
+    "bloco_exames",
+    "formula",
+    "injetavel",
+    "implante",
+  ]),
+  destinoId: zod.number().min(1),
+});
+
+export const UpdateSinapseProposalResponse = zod.object({
+  id: zod.number(),
+  perguntaId: zod.string(),
+  categoria: zod.enum([
+    "EXAME",
+    "PRESCRICAO",
+    "INJETAVEL_IM",
+    "INJETAVEL_SC",
+    "INJETAVEL_EV",
+    "IMPLANTE",
+  ]),
+  destinoTipo: zod.enum([
+    "exame",
+    "bloco_exames",
+    "formula",
+    "injetavel",
+    "implante",
+  ]),
+  destinoId: zod.number(),
+  eixo: zod.string(),
+  justificativa: zod.string(),
+  status: zod.enum(["PENDENTE", "APROVADA", "RECUSADA"]),
+});
+
+/**
+ * @summary Move uma proposta pendente para as ligações ativas da tela
+ */
+
+export const ApproveSinapseProposalParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const ApproveSinapseProposalResponse = zod.object({
+  id: zod.number(),
+  status: zod.enum(["APROVADA", "RECUSADA"]),
+});
+
+/**
+ * @summary Recusa uma proposta sem apagar seu registro
+ */
+
+export const RejectSinapseProposalParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const RejectSinapseProposalResponse = zod.object({
+  id: zod.number(),
+  status: zod.enum(["APROVADA", "RECUSADA"]),
+});

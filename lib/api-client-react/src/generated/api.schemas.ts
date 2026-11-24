@@ -4394,6 +4394,38 @@ export type SinapseProposalGenerationResultPorCategoria = {
   IMPLANTE: number;
 };
 
+export type SinapseProposalGenerationResultDestinosElegiveisPorCategoria = {
+  EXAME: number;
+  PRESCRICAO: number;
+  INJETAVEL_IM: number;
+  INJETAVEL_SC: number;
+  INJETAVEL_EV: number;
+  IMPLANTE: number;
+};
+
+export type SinapseProposalGenerationResultDestinosCobertosPorCategoria = {
+  EXAME: number;
+  PRESCRICAO: number;
+  INJETAVEL_IM: number;
+  INJETAVEL_SC: number;
+  INJETAVEL_EV: number;
+  IMPLANTE: number;
+};
+
+export type SinapseProposalGenerationResultDestinosSemLigacaoPorCategoria = {
+  EXAME: number;
+  PRESCRICAO: number;
+  INJETAVEL_IM: number;
+  INJETAVEL_SC: number;
+  INJETAVEL_EV: number;
+  IMPLANTE: number;
+};
+
+export type SinapseProposalGenerationResultInelegiveis = {
+  blocosDeExamesVazios: number;
+  injetaveisSemVia: number;
+};
+
 export type SinapseProposalGenerationResultPerguntasIgnoradasItem = {
   perguntaId: string;
   motivo: string;
@@ -4403,6 +4435,10 @@ export interface SinapseProposalGenerationResult {
   inseridas: number;
   propostasEncontradas: number;
   porCategoria: SinapseProposalGenerationResultPorCategoria;
+  destinosElegiveisPorCategoria: SinapseProposalGenerationResultDestinosElegiveisPorCategoria;
+  destinosCobertosPorCategoria: SinapseProposalGenerationResultDestinosCobertosPorCategoria;
+  destinosSemLigacaoPorCategoria: SinapseProposalGenerationResultDestinosSemLigacaoPorCategoria;
+  inelegiveis: SinapseProposalGenerationResultInelegiveis;
   codigosAusentes: string[];
   perguntasIgnoradas: SinapseProposalGenerationResultPerguntasIgnoradasItem[];
 }

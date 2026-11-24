@@ -1,9 +1,10 @@
-# Proposta inicial de sinapses clínicas
+# Carga abrangente de propostas de sinapses clínicas
 
 ## Objetivo
 
-Persistir na tela de Sinapses Clínicas uma carga inicial de ligações sugeridas,
-visíveis para inspeção e edição, sem ativá-las como regras clínicas.
+Persistir propostas de ligação para todos os destinos clínicos ativos e completos,
+para que cada exame, fórmula, injetável com via definida e implante apareça ligado
+a uma pergunta na tela de Sinapses Clínicas, sem ativar regra clínica.
 
 ## Requisitos
 
@@ -17,15 +18,22 @@ visíveis para inspeção e edição, sem ativá-las como regras clínicas.
 8. Recusar uma proposta mantém o registro para auditoria, sem inseri-la na tabela operacional.
 9. A interface deve permitir gerar a carga e aprovar ou recusar cada proposta individualmente.
 10. Contagens devem separar ligações ativas de propostas pendentes por categoria.
-11. Não conectar perguntas de identificação pessoal, códigos ausentes ou perguntas que não correspondam ao eixo descrito.
+11. A carga ampla solicitada pelo Dr. Caio pode usar aproximação temática determinística; cada aproximação deve ser identificada e permanecer pendente para revisão humana.
 12. Não criar, aprovar, clonar ou reativar ligação para destino ausente, inativo ou sem conteúdo.
 13. Não alterar o motor, o Cockpit, prescrições, doses, vias ou cadastros de itens clínicos.
+14. Excluir perguntas de identificação pessoal e perguntas inexistentes; não usar pergunta de alarme clínico como destino genérico.
+15. Cada destino ativo e completo sem ligação ativa ou proposta existente deve receber ao menos uma proposta, escolhida por tema; quando não houver tema identificável, usar pergunta clínica ampla e marcar a aproximação como baixa confiança.
+16. Excluir blocos de exame vazios e injetáveis sem via definida; informar esses itens separadamente, sem inventar a via.
 
-## Escopo da proposta inicial
+## Escopo da carga abrangente
 
-Os eixos e códigos vêm do texto fornecido pelo Dr. Caio. A seleção dos destinos será
-uma proposta baseada nos nomes e classificações já presentes no catálogo. Ela não
-representa indicação clínica, não será ativada e deve ser apresentada como pendente.
+O Dr. Caio escolheu aproximar todos os destinos restantes para reduzir o trabalho manual.
+O gerador deve primeiro preservar as propostas existentes e os vínculos ativos; depois,
+para cada destino elegível ainda sem vínculo, escolhe uma pergunta pela correspondência
+temática determinística disponível. Sem correspondência temática identificável, usa a
+pergunta clínica ampla existente e marca a proposta como aproximação de baixa confiança.
+Nenhuma dessas sugestões representa indicação clínica, fica ativa ou pode ser consumida
+por um fluxo clínico antes de aprovação humana.
 
 `GAD1-7` é uma forma abreviada de mencionar as perguntas existentes `GAD1` a
 `GAD7`; cada uma será tratada pelo próprio código. `Q003` a `Q009` não existem
@@ -35,9 +43,9 @@ saídas clínicas. `Q010` é a queixa principal, ampla demais para receber uma s
 automática. `F02` é sobre reação alérgica grave e não será associada ao eixo
 digestivo. A pergunta de doenças já diagnosticadas (`Q013`) pode receber apenas
 propostas explicitamente identificadas como amplas e pendentes.
-Blocos vazios ou duplicados não serão escolhidos quando houver uma cópia preenchida.
-Perguntas cardíacas `C-CAR01` a `C-CAR03` e osteoarticulares `C-OSM01` e `C-OSM02`
-recebem propostas apenas do respectivo grupo de catálogo.
+Blocos vazios não são destinos elegíveis; quando houver blocos preenchidos repetidos,
+cada registro real elegível continua visível e recebe vínculo próprio. Perguntas de
+identificação, inexistentes e de alarme não são usadas como alternativas genéricas.
 
 ## Impacto
 
@@ -60,6 +68,8 @@ recebem propostas apenas do respectivo grupo de catálogo.
 | Falha no meio da aprovação | transação reverte ambas as alterações |
 | Ligação errada tratada como operacional | proposta permanece fora de `sinapses_clinicas` até aprovação |
 | Catálogo sem correspondência explícita | deixar sem proposta; não escolher item por aproximação ampla |
+| Destino sem correspondência temática | vincular à pergunta clínica ampla existente e identificá-lo como baixa confiança |
+| Item sem via ou bloco sem conteúdo | excluir da carga e contabilizar como inelegível |
 
 ## Definição de pronto
 
@@ -70,6 +80,7 @@ recebem propostas apenas do respectivo grupo de catálogo.
 5. Testes com PostgreSQL descartável validam idempotência, transação e isolamento dos dados operacionais.
 6. A contagem lida do banco confere com a resposta da carga.
 7. A interface visual é conferida em computador e celular; se o login impedir a captura, isso fica declarado.
+8. Todo destino ativo e completo do catálogo está coberto por pelo menos um vínculo ativo preexistente ou proposta pendente; os itens inelegíveis aparecem contabilizados.
 
 ## Limites de homologação
 

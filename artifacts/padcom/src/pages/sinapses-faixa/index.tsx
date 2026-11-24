@@ -122,9 +122,21 @@ export default function SinapsesFaixa() {
     mutation: {
       onSuccess: (r) => {
         invalidar();
+        const categorias = [
+          ["Exames", r.destinosCobertosPorCategoria.EXAME, r.destinosElegiveisPorCategoria.EXAME],
+          ["Fórmulas", r.destinosCobertosPorCategoria.PRESCRICAO, r.destinosElegiveisPorCategoria.PRESCRICAO],
+          ["Injetáveis intramusculares", r.destinosCobertosPorCategoria.INJETAVEL_IM, r.destinosElegiveisPorCategoria.INJETAVEL_IM],
+          ["Injetáveis subcutâneos", r.destinosCobertosPorCategoria.INJETAVEL_SC, r.destinosElegiveisPorCategoria.INJETAVEL_SC],
+          ["Injetáveis endovenosos", r.destinosCobertosPorCategoria.INJETAVEL_EV, r.destinosElegiveisPorCategoria.INJETAVEL_EV],
+          ["Implantes", r.destinosCobertosPorCategoria.IMPLANTE, r.destinosElegiveisPorCategoria.IMPLANTE],
+        ] as const;
+        const cobertos = categorias.reduce((soma, [, atual]) => soma + atual, 0);
+        const elegiveis = categorias.reduce((soma, [, , total]) => soma + total, 0);
+        const resumo = categorias.map(([nome, atual, total]) => `${nome} ${atual}/${total}`).join(" · ");
+        const semLigacao = Object.values(r.destinosSemLigacaoPorCategoria).reduce((soma, atual) => soma + atual, 0);
         toast({
           title: `${r.inseridas} proposta(s) nova(s) gravada(s)`,
-          description: r.codigosAusentes.length ? `Códigos ausentes: ${r.codigosAusentes.join(", ")}` : `${r.propostasEncontradas} correspondência(s) encontrada(s); a carga é idempotente.`,
+          description: `${cobertos}/${elegiveis} destinos com ligação; ${resumo}. ${semLigacao} sem ligação, ${r.inelegiveis.blocosDeExamesVazios} blocos vazios e ${r.inelegiveis.injetaveisSemVia} injetáveis sem via foram excluídos. As novas ligações continuam pendentes.`,
         });
       },
       onError: onErro,

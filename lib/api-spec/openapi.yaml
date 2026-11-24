@@ -10310,7 +10310,7 @@ components:
     SinapseProposalGenerationResult:
       type: object
       additionalProperties: false
-      required: [inseridas, propostasEncontradas, porCategoria, codigosAusentes, perguntasIgnoradas]
+      required: [inseridas, propostasEncontradas, porCategoria, destinosElegiveisPorCategoria, destinosCobertosPorCategoria, destinosSemLigacaoPorCategoria, inelegiveis, codigosAusentes, perguntasIgnoradas]
       properties:
         inseridas: { type: integer }
         propostasEncontradas: { type: integer }
@@ -10325,6 +10325,46 @@ components:
             INJETAVEL_SC: { type: integer }
             INJETAVEL_EV: { type: integer }
             IMPLANTE: { type: integer }
+        destinosElegiveisPorCategoria:
+          type: object
+          additionalProperties: false
+          required: [EXAME, PRESCRICAO, INJETAVEL_IM, INJETAVEL_SC, INJETAVEL_EV, IMPLANTE]
+          properties:
+            EXAME: { type: integer }
+            PRESCRICAO: { type: integer }
+            INJETAVEL_IM: { type: integer }
+            INJETAVEL_SC: { type: integer }
+            INJETAVEL_EV: { type: integer }
+            IMPLANTE: { type: integer }
+        destinosCobertosPorCategoria:
+          type: object
+          additionalProperties: false
+          required: [EXAME, PRESCRICAO, INJETAVEL_IM, INJETAVEL_SC, INJETAVEL_EV, IMPLANTE]
+          properties:
+            EXAME: { type: integer }
+            PRESCRICAO: { type: integer }
+            INJETAVEL_IM: { type: integer }
+            INJETAVEL_SC: { type: integer }
+            INJETAVEL_EV: { type: integer }
+            IMPLANTE: { type: integer }
+        destinosSemLigacaoPorCategoria:
+          type: object
+          additionalProperties: false
+          required: [EXAME, PRESCRICAO, INJETAVEL_IM, INJETAVEL_SC, INJETAVEL_EV, IMPLANTE]
+          properties:
+            EXAME: { type: integer }
+            PRESCRICAO: { type: integer }
+            INJETAVEL_IM: { type: integer }
+            INJETAVEL_SC: { type: integer }
+            INJETAVEL_EV: { type: integer }
+            IMPLANTE: { type: integer }
+        inelegiveis:
+          type: object
+          additionalProperties: false
+          required: [blocosDeExamesVazios, injetaveisSemVia]
+          properties:
+            blocosDeExamesVazios: { type: integer }
+            injetaveisSemVia: { type: integer }
         codigosAusentes:
           type: array
           items: { type: string }

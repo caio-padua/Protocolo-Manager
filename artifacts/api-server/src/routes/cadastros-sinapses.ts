@@ -73,7 +73,8 @@ function viasDe(via: string | null): Set<"IM" | "SC" | "EV"> {
 
 async function carregarBasePropostas(): Promise<{
   perguntas: Array<{ perguntaId: string; pergunta: string }>;
-  destinos: Record<CategoriaSinapse, Array<{ tipo: string; id: number; nome: string; incompleto?: boolean }>>;
+  destinos: Record<CategoriaSinapse, Array<{ tipo: string; id: number; nome: string; detalhe?: string | null; incompleto?: boolean }>>;
+  injetaveisSemVia: number;
 }> {
   const [perguntas, blocos, exames, formulas, injetaveis, implantes] = await Promise.all([
     db.execute(sql`SELECT pergunta_id, pergunta FROM anamnese_questionario ORDER BY ordem NULLS LAST, id`),
@@ -81,14 +82,14 @@ async function carregarBasePropostas(): Promise<{
       SELECT b.id, b.nome_bloco,
         (SELECT COUNT(*) FROM catalogo_bloco_exames x WHERE x.bloco_id = b.codigo_bloco AND x.ativo IS NOT FALSE)::int AS total_exames
       FROM catalogo_blocos b WHERE b.ativo IS NOT FALSE ORDER BY b.nome_bloco`),
-    db.execute(sql`SELECT id, nome_exame FROM catalogo_exames WHERE ativo IS NOT FALSE ORDER BY nome_exame`),
+    db.execute(sql`SELECT id, nome_exame, grupo_principal FROM catalogo_exames WHERE ativo IS NOT FALSE ORDER BY nome_exame`),
     db.execute(sql`
-      SELECT id, conteudo AS nome FROM catalogo_formulas
+      SELECT id, conteudo AS nome, area FROM catalogo_formulas
       WHERE tipo_linha IN ('FORMULA','MASTER') AND identificador = 'TITL' AND status = 'ATIVO' ORDER BY conteudo`),
     db.execute(sql`SELECT id, nome_ampola, via FROM catalogo_injetaveis WHERE tipo_linha = 'AMPOLA' AND ativo IS NOT FALSE ORDER BY nome_ampola`),
-    db.execute(sql`SELECT id, nome_implante FROM catalogo_implantes WHERE ativo IS NOT FALSE ORDER BY nome_implante`),
+    db.execute(sql`SELECT id, nome_implante, substancia_ativa FROM catalogo_implantes WHERE ativo IS NOT FALSE ORDER BY nome_implante`),
   ]);
-  const destinos: Record<CategoriaSinapse, Array<{ tipo: string; id: number; nome: string; incompleto?: boolean }>> = {
+  const destinos: Record<CategoriaSinapse, Array<{ tipo: string; id: number; nome: string; detalhe?: string | null; incompleto?: boolean }>> = {
     EXAME: [],
     PRESCRICAO: [],
     INJETAVEL_IM: [],
@@ -96,6 +97,7 @@ async function carregarBasePropostas(): Promise<{
     INJETAVEL_EV: [],
     IMPLANTE: [],
   };
+  let injetaveisSemVia = 0;
   for (const b of blocos.rows as any[]) {
     destinos.EXAME.push({
       tipo: "bloco_exames",
@@ -104,19 +106,21 @@ async function carregarBasePropostas(): Promise<{
       incompleto: Number(b.total_exames) === 0,
     });
   }
-  for (const e of exames.rows as any[]) destinos.EXAME.push({ tipo: "exame", id: Number(e.id), nome: e.nome_exame });
-  for (const f of formulas.rows as any[]) destinos.PRESCRICAO.push({ tipo: "formula", id: Number(f.id), nome: f.nome });
+  for (const e of exames.rows as any[]) destinos.EXAME.push({ tipo: "exame", id: Number(e.id), nome: e.nome_exame, detalhe: e.grupo_principal });
+  for (const f of formulas.rows as any[]) destinos.PRESCRICAO.push({ tipo: "formula", id: Number(f.id), nome: f.nome, detalhe: f.area });
   for (const i of injetaveis.rows as any[]) {
     const vias = viasDe(i.via);
-    const item = { tipo: "injetavel", id: Number(i.id), nome: i.nome_ampola as string };
+    if (vias.size === 0) injetaveisSemVia++;
+    const item = { tipo: "injetavel", id: Number(i.id), nome: i.nome_ampola as string, detalhe: i.via as string | null };
     if (vias.has("IM")) destinos.INJETAVEL_IM.push(item);
     if (vias.has("SC")) destinos.INJETAVEL_SC.push(item);
     if (vias.has("EV")) destinos.INJETAVEL_EV.push(item);
   }
-  for (const item of implantes.rows as any[]) destinos.IMPLANTE.push({ tipo: "implante", id: Number(item.id), nome: item.nome_implante });
+  for (const item of implantes.rows as any[]) destinos.IMPLANTE.push({ tipo: "implante", id: Number(item.id), nome: item.nome_implante, detalhe: item.substancia_ativa });
   return {
     perguntas: (perguntas.rows as any[]).map((p) => ({ perguntaId: p.pergunta_id, pergunta: p.pergunta })),
     destinos,
+    injetaveisSemVia,
   };
 }
 
@@ -246,10 +250,18 @@ async function destinoExiste(tipo: string, id: number): Promise<boolean> {
 router.post("/cadastros/sinapses/propostas/carga-inicial", async (req, res): Promise<void> => {
   await garantir();
   const base = await carregarBasePropostas();
-  const ativas = await db.execute(sql`
-    SELECT pergunta_id, categoria, destino_tipo, destino_id
-    FROM sinapses_clinicas
-    WHERE ativo`);
+  const [ativas, propostasExistentes] = await Promise.all([
+    db.execute(sql`
+      SELECT pergunta_id, categoria, destino_tipo, destino_id
+      FROM sinapses_clinicas
+      WHERE ativo`),
+    db.select({
+      perguntaId: sinapsesClinicasPropostasTable.perguntaId,
+      categoria: sinapsesClinicasPropostasTable.categoria,
+      destinoTipo: sinapsesClinicasPropostasTable.destinoTipo,
+      destinoId: sinapsesClinicasPropostasTable.destinoId,
+    }).from(sinapsesClinicasPropostasTable),
+  ]);
   const resultado = gerarPropostasSinapsesIniciais(
     base.perguntas,
     base.destinos,
@@ -258,6 +270,12 @@ router.post("/cadastros/sinapses/propostas/carga-inicial", async (req, res): Pro
       categoria: s.categoria as CategoriaSinapse,
       destinoTipo: s.destino_tipo,
       destinoId: Number(s.destino_id),
+    })),
+    propostasExistentes.map((p) => ({
+      perguntaId: p.perguntaId,
+      categoria: p.categoria as CategoriaSinapse,
+      destinoTipo: p.destinoTipo,
+      destinoId: p.destinoId,
     })),
   );
   const por = req.collaborator?.professionalId ?? null;
@@ -274,10 +292,56 @@ router.post("/cadastros/sinapses/propostas/carga-inicial", async (req, res): Pro
       inseridas.filter((p) => p.categoria === categoria).length,
     ]),
   );
+  const [ativasFinais, propostasFinais] = await Promise.all([
+    db.execute(sql`
+      SELECT categoria, destino_tipo, destino_id
+      FROM sinapses_clinicas
+      WHERE ativo`),
+    db.select({
+      categoria: sinapsesClinicasPropostasTable.categoria,
+      destinoTipo: sinapsesClinicasPropostasTable.destinoTipo,
+      destinoId: sinapsesClinicasPropostasTable.destinoId,
+      status: sinapsesClinicasPropostasTable.status,
+    }).from(sinapsesClinicasPropostasTable),
+  ]);
+  const destinosCobertos = new Set<string>();
+  for (const s of ativasFinais.rows as any[]) {
+    destinosCobertos.add(`${s.categoria}|${s.destino_tipo}|${s.destino_id}`);
+  }
+  for (const p of propostasFinais) {
+    if (p.status === "PENDENTE" || p.status === "APROVADA") {
+      destinosCobertos.add(`${p.categoria}|${p.destinoTipo}|${p.destinoId}`);
+    }
+  }
+  const destinosElegiveisPorCategoria = Object.fromEntries(
+    CATEGORIAS_SINAPSE.map((categoria) => [
+      categoria,
+      base.destinos[categoria].filter((destino) => !destino.incompleto).length,
+    ]),
+  );
+  const destinosCobertosPorCategoria = Object.fromEntries(
+    CATEGORIAS_SINAPSE.map((categoria) => [
+      categoria,
+      base.destinos[categoria].filter((destino) =>
+        !destino.incompleto && destinosCobertos.has(`${categoria}|${destino.tipo}|${destino.id}`),
+      ).length,
+    ]),
+  );
+  const destinosSemLigacaoPorCategoria = Object.fromEntries(
+    CATEGORIAS_SINAPSE.map((categoria) => [
+      categoria,
+      Number(destinosElegiveisPorCategoria[categoria]) - Number(destinosCobertosPorCategoria[categoria]),
+    ]),
+  );
+  const blocosVazios = base.destinos.EXAME.filter((destino) => destino.incompleto).length;
   res.status(201).json({
     inseridas: inseridas.length,
     propostasEncontradas: resultado.propostas.length,
     porCategoria,
+    destinosElegiveisPorCategoria,
+    destinosCobertosPorCategoria,
+    destinosSemLigacaoPorCategoria,
+    inelegiveis: { blocosDeExamesVazios: blocosVazios, injetaveisSemVia: base.injetaveisSemVia },
     codigosAusentes: resultado.codigosAusentes,
     perguntasIgnoradas: resultado.perguntasIgnoradas,
   });
