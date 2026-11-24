@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Input } from "@/components/ui/input";
+import { VidroCor } from "@/components/VidroCor";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,7 +44,7 @@ import {
 } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
-import { type Atributos, AtributosDialog, BotaoAtivo, GestaoOpcoes, UploadManualExames, NaturezaChip, naturezaSugerida, useAtributos, useCores } from "./ExamesAtributos";
+import { type Atributos, AtributosDialog, BotaoAtivo, GestaoOpcoes, UploadManualExames, NaturezaChip, naturezaSugerida, useAtributos, useCores, NATUREZA_SIGLA } from "./ExamesAtributos";
 import {
   Search,
   Plus,
@@ -237,15 +238,23 @@ function ExamesTab() {
   }, [exams, search, categoria, naturezaFiltro, attrPorId]);
 
   const [fechados, setFechados] = useState<Set<string>>(new Set());
+  const coresNat = useCores();
+  const [agrupar, setAgrupar] = useState<"eixo" | "categoria">("eixo");
   const gruposVisiveis = useMemo(() => {
+    const SEM = agrupar === "eixo" ? "SEM EIXO CLÍNICO DEFINIDO" : "SEM CATEGORIA";
     const m = new Map<string, Exam[]>();
     for (const e of filtered) {
-      const k = e.grupoPrincipal?.trim() || "SEM CATEGORIA";
+      // Eixo clínico: usa o primeiro eixo gravado (cada exame aparece uma só vez; a soma das faixas = total).
+      const k = (agrupar === "eixo" ? attrPorId.get(e.id)?.eixos?.[0]?.trim() : e.grupoPrincipal?.trim()) || SEM;
       if (!m.has(k)) m.set(k, []);
       m.get(k)!.push(e);
     }
-    return Array.from(m, ([nome, itens]) => ({ nome, itens })).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-  }, [filtered]);
+    return Array.from(m, ([nome, itens]) => ({ nome: agrupar === "eixo" && nome !== SEM ? nome.toUpperCase() : nome, itens })).sort((a, b) => {
+      const fa = a.nome.startsWith("SEM ") ? 1 : 0;
+      const fb = b.nome.startsWith("SEM ") ? 1 : 0;
+      return fa - fb || a.nome.localeCompare(b.nome, "pt-BR");
+    });
+  }, [filtered, agrupar, attrPorId]);
 
   const saveMutation = useMutation<Exam, Error>({
     mutationFn: async () => {
@@ -390,17 +399,6 @@ function ExamesTab() {
           />
         </div>
         <div className="flex items-center gap-3">
-          <Select value={naturezaFiltro} onValueChange={setNaturezaFiltro}>
-            <SelectTrigger className="w-[150px] field-engraved" data-testid="filtro-natureza">
-              <SelectValue placeholder="Natureza" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">Todas as naturezas</SelectItem>
-              {["LABORATORIAL", "IMAGEM", "COMPOSICAO CORPORAL", "METODOS GRAFICOS", "ENDOSCOPICOS"].map((n) => (
-                <SelectItem key={n} value={n}>{n}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Select value={categoria} onValueChange={setCategoria}>
             <SelectTrigger className="w-[220px] field-engraved">
               <SelectValue placeholder="Categoria" />
@@ -423,6 +421,38 @@ function ExamesTab() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2" data-testid="pilulas-natureza">
+        {[{ chave: "__all__", rotulo: "Todos" }, ...["LABORATORIAL", "IMAGEM", "COMPOSICAO CORPORAL", "METODOS GRAFICOS", "ENDOSCOPICOS"].map((n) => ({ chave: n, rotulo: NATUREZA_SIGLA[n] }))].map((p) => {
+          const sel = naturezaFiltro === p.chave;
+          const cor = p.chave === "__all__" ? null : coresNat.natureza(p.chave);
+          return (
+            <button
+              key={p.chave}
+              type="button"
+              aria-pressed={sel}
+              onClick={() => setNaturezaFiltro(p.chave)}
+              title={p.chave === "__all__" ? "Todas as naturezas" : p.chave}
+              data-testid={`pilula-${p.rotulo}`}
+              className={`h-8 w-20 rounded-[4px] text-[11px] font-black uppercase tracking-wider ${cor ? "text-white" : "paxter-seletor"}`}
+              style={cor ? {
+                background: `linear-gradient(180deg, color-mix(in srgb, ${cor} 82%, white) 0%, ${cor} 100%)`,
+                border: "1px solid rgba(255,255,255,0.35)",
+                boxShadow: sel
+                  ? "inset 0 4px 8px rgba(0,0,0,0.45), inset 0 -1px 0 rgba(255,255,255,0.25)"
+                  : "inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -3px 6px rgba(0,0,0,0.25), 0 5px 10px -4px rgba(7,22,43,0.45)",
+                opacity: sel || naturezaFiltro === "__all__" ? 1 : 0.7,
+              } : undefined}
+            >
+              {p.rotulo}
+            </button>
+          );
+        })}
+        <span className="mx-2 h-6 w-px bg-border" aria-hidden="true" />
+        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Agrupar por</span>
+        {([["eixo", "Eixo clínico"], ["categoria", "Categoria"]] as const).map(([k, rot]) => (
+          <button key={k} type="button" aria-pressed={agrupar === k} onClick={() => setAgrupar(k)} className="paxter-seletor h-8 w-32 text-[11px] font-black uppercase tracking-wide" data-testid={`agrupar-${k}`}>{rot}</button>
+        ))}
+      </div>
       <div className="panel-3d hidden md:grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_112px_48px] gap-3 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-primary">
         <div>Exame</div>
         <div>Natureza / Modalidade</div>
@@ -458,10 +488,10 @@ function ExamesTab() {
                     }}
                     aria-expanded={!fechado}
                   >
-                    <span aria-hidden="true" className="h-6 w-3 shrink-0 rounded-[3px]" style={{ background: `linear-gradient(180deg, hsl(${hue} 75% 66%), hsl(${hue} 60% 36%))`, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.4)" }} />
-                    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${fechado ? "-rotate-90" : ""}`} />
+                    <span className="concave-3d flex h-7 w-11 shrink-0 items-center justify-center text-[11px] font-black tabular-nums text-primary">{g.itens.length}</span>
+                    <VidroCor cor={`hsl(${hue} 65% 48%)`} tamanho={28} largura={40} />
                     <span className="min-w-0 flex-1 truncate text-xs font-black uppercase tracking-widest">{g.nome}</span>
-                    <span className={`min-w-[2.25rem] rounded-[4px] px-2 py-0.5 text-center text-[11px] font-black tabular-nums ${fechado ? "concave-3d" : "bg-black/25"}`}>{g.itens.length}</span>
+                    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${fechado ? "-rotate-90" : ""}`} />
                   </button>
                   {!fechado && g.itens.map((e, i) => {
                     const nat = attrPorId.get(e.id)?.natureza;
@@ -469,15 +499,15 @@ function ExamesTab() {
                       <div
                         key={e.id}
                         className={`neon-hover grid grid-cols-[minmax(0,1fr)_112px_48px] md:grid-cols-[minmax(0,2.6fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_112px_48px] items-center gap-3 px-4 py-2.5 ${e.ativo === false ? "opacity-50" : ""}`}
-                        style={{ background: `hsl(${hue} 45% ${i % 2 === 0 ? "97%" : "93%"} / 0.9)`, borderLeft: `6px solid hsl(${hue} 55% 60% / 0.55)` }}
+                        style={{ background: i % 2 === 0 ? "rgba(255,255,255,0.65)" : "rgba(236,228,210,0.55)" }}
                       >
                         <div className="min-w-0">
                           <div className="break-words text-sm font-bold leading-tight text-[#1b2433]">{txt(e.nomeExame)}</div>
                           <div className="mt-0.5 truncate font-mono text-[10px] tracking-wide text-[#5b6578]" title={txt(e.codigoExame)}>{txt(e.codigoExame)}</div>
                         </div>
                         <div className="hidden md:flex min-w-0 flex-col items-start gap-1">
-                          {nat ? <NaturezaChip curto natureza={nat} /> : <NaturezaChip curto natureza={naturezaSugerida(e.modalidade)} sugerida />}
-                          <span className="truncate text-[11px] text-[#5b6578]">{txt(e.modalidade)}</span>
+                          <div className="w-16 [&>span]:block [&>span]:text-center">{nat ? <NaturezaChip curto natureza={nat} /> : <NaturezaChip curto natureza={naturezaSugerida(e.modalidade)} sugerida />}</div>
+                          <span className="truncate text-[11px] text-[#5b6578]">{txt(attrPorId.get(e.id)?.metodo ?? e.modalidade)}</span>
                         </div>
                         <div className="hidden md:block min-w-0 text-xs text-[#5b6578] line-clamp-2">{txt(e.preparo)}</div>
                         <div className="flex justify-center">

@@ -59,7 +59,7 @@ export function naturezaSugerida(modalidade: string | null | undefined): string 
   return null;
 }
 
-const NATUREZA_SIGLA: Record<string, string> = { "LABORATORIAL": "LAB", "IMAGEM": "IMG", "COMPOSICAO CORPORAL": "COMP", "METODOS GRAFICOS": "GRAF", "ENDOSCOPICOS": "ENDO" };
+export const NATUREZA_SIGLA: Record<string, string> = { "LABORATORIAL": "LAB", "IMAGEM": "IMG", "COMPOSICAO CORPORAL": "COMP", "METODOS GRAFICOS": "GRAF", "ENDOSCOPICOS": "ENDO" };
 
 export function NaturezaChip({ natureza, sugerida, curto }: { natureza: string | null; sugerida?: boolean; curto?: boolean }) {
   const cores = useCores();
@@ -236,10 +236,9 @@ export function BotaoAtivo({ ativo, onChange, rotulo, disabled }: { ativo: boole
       title={ativo ? "Ativo. Clique para desativar." : "Inativo. Clique para ativar."}
       disabled={disabled}
       onClick={() => onChange(!ativo)}
-      className="paxter-seletor inline-flex h-8 w-[108px] shrink-0 items-center justify-center gap-2 text-[10px] font-black uppercase tracking-wider disabled:opacity-50"
+      className="paxter-seletor inline-flex h-8 w-[108px] shrink-0 items-center justify-center text-[10px] font-black uppercase tracking-wider disabled:opacity-50"
       data-testid="botao-ativo"
     >
-      <span className={`h-2 w-2 rounded-full ${ativo ? "bg-emerald-500 shadow-[0_0_6px_#10b981]" : "bg-slate-400"}`} aria-hidden="true" />
       {ativo ? "Ativo" : "Inativo"}
     </button>
   );
@@ -332,8 +331,15 @@ export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antes
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="fixed left-auto right-0 top-0 flex h-screen max-h-screen w-[96vw] max-w-[1180px] flex-col translate-x-0 translate-y-0 overflow-y-auto rounded-none sm:rounded-none" data-testid="gaveta-exame">
         <DialogHeader><DialogTitle>{titulo}</DialogTitle></DialogHeader>
-        <div className="screen-3d flex items-center gap-2 px-3 py-2 text-xs font-black">
-          <NaturezaChip natureza={f.natureza} /> <span className="min-w-0 flex-1 truncate">{exame.nome || "Novo exame"}</span>
+        <div className="flex items-stretch gap-2">
+          <div className="screen-3d flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-xs font-black">
+            <NaturezaChip natureza={f.natureza} /> <span className="min-w-0 flex-1 truncate">{exame.nome || "Novo exame"}</span>
+          </div>
+          {onClonar && (
+            <Button type="button" className="btn-3d h-auto shrink-0 px-4 text-[11px] font-black uppercase tracking-wide" onClick={onClonar} title="Cria um exame NOVO já preenchido com os dados deste. O original não muda." data-testid="button-clonar-exame">
+              Copiar para novo exame
+            </Button>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-5" role="tablist" aria-label="Seções da ficha" data-testid="secoes-ficha">
           {[
@@ -346,14 +352,8 @@ export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antes
             <button key={k} type="button" role="tab" aria-selected={!!abertas[k]} aria-pressed={!!abertas[k]} onClick={() => alterna(k)} className="paxter-seletor h-10 truncate px-2 text-[11px] font-black uppercase tracking-wide" data-testid={`aba-${k}`}>{rot}</button>
           ))}
         </div>
-        {onClonar && (
-          <button type="button" className="paxter-seletor h-9 px-3 text-[11px] font-black uppercase tracking-wide" onClick={onClonar} title="Cria um exame NOVO já preenchido com os dados deste. O original não muda." data-testid="button-clonar-exame">
-            Copiar ficha para novo exame
-          </button>
-        )}
         <p className="text-xs text-muted-foreground">
           O código, o bloco e a grade do exame não mudam por atributos. Um só botão salva a ficha inteira.
-          {onClonar ? " \"Copiar ficha\" abre um exame novo com os mesmos dados (você escolhe a área e a grade do código novo); o exame original fica intacto." : ""}
         </p>
 
         {topo && <Faixa id="cadastro" titulo="1. Cadastro do exame" resumo={exame.nome} aberta={!!abertas.cadastro} onToggle={() => alterna("cadastro")}>{topo}</Faixa>}

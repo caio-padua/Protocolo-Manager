@@ -7,13 +7,13 @@ import { useId } from "react";
  * (mistura "overlay", ou seja, pega a cor do vidro e não vira faixa branca) varre o quadradinho.
  * Em repouso não há nenhum brilho aplicado. Estilos em index.css (.vidro-cor).
  */
-export function VidroCor({ cor, tamanho = 32 }: { cor: string; tamanho?: number }) {
+export function VidroCor({ cor, tamanho = 32, largura }: { cor: string; tamanho?: number; largura?: number }) {
   return (
     <span
       className="vidro-cor"
       aria-hidden="true"
       style={{
-        width: tamanho,
+        width: largura ?? tamanho,
         height: tamanho,
         borderRadius: Math.max(5, Math.round(tamanho * 0.2)),
         background: [
