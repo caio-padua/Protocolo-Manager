@@ -15,10 +15,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
+import { readFileSync } from "node:fs";
+import { db } from "@workspace/db";
+import { sql } from "drizzle-orm";
+import { sendWhatsapp } from "../lib/whatsapp.js";
 
 // ── Mocks pesados do router ────────────────────────────────────────────────
 vi.mock("@workspace/db", () => ({
-  db: { execute: vi.fn().mockResolvedValue({ rows: [] }), transaction: vi.fn() },
+  db: { execute: vi.fn().mockResolvedValue({ rows: [] }), transaction: vi.fn(), select: vi.fn() },
   professionalsTable:          {},
   agendaResourcesTable:        {},
   schedulingRequestsTable:     {},
@@ -96,6 +100,76 @@ function buildApp() {
 
 const VALID_CPF  = "12345678901";
 const VALID_CODE = "654321";
+
+describe("Reenvio de OTP — persistência canônica", () => {
+  const execute = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    execute.mockReset();
+    const lookup = { from: () => ({ where: () => ({ limit: async () => [
+      { phone: "+5511999990000", telegramChatId: null },
+    ] }) }) };
+    vi.mocked(db.select).mockReturnValue(lookup as never);
+    vi.mocked(db.transaction).mockImplementation(async (callback) =>
+      callback({ execute } as never));
+    vi.mocked(sendWhatsapp).mockResolvedValue({ sent: true } as never);
+  });
+
+  it("não mantém bootstrap nem referência à tabela antiga no código operacional", () => {
+    for (const path of ["../routes/scheduling.ts", "../lib/device-throttle.ts"]) {
+      const source = readFileSync(new URL(path, import.meta.url), "utf8");
+      expect(source).not.toMatch(/device_verification_codes|ensureVerifyTables|_verifyTablesReady/);
+    }
+  });
+
+  it("reenvia pela tabela canônica e encaminha o mesmo desafio à verificação", async () => {
+    execute
+      .mockResolvedValueOnce({ rows: [] }) // advisory lock
+      .mockResolvedValueOnce({ rows: [] }) // cooldown
+      .mockResolvedValueOnce({ rows: [{ cnt: "0" }] })
+      .mockResolvedValueOnce({ rows: [{ id: 77 }] });
+    mockVerifyDeviceCode.mockResolvedValue({ ok: true });
+    const app = buildApp();
+    const sent = await request(app)
+      .post("/scheduling/send-verification-code")
+      .send({ cpf: VALID_CPF })
+      .expect(200);
+    expect(sent.body).toEqual({
+      sent: true, via: "whatsapp", maskedPhone: "(***) *****-0000", challengeId: 77,
+    });
+    const message = vi.mocked(sendWhatsapp).mock.calls[0][1];
+    const code = message.match(/\b\d{6}\b/)?.[0];
+    expect(code).toMatch(/^\d{6}$/);
+    expect(sent.body).not.toHaveProperty("code");
+    const queries = vi.mocked(sql).mock.calls.map(([parts]) =>
+      Array.from(parts as TemplateStringsArray).join("?"));
+    expect(queries.some((query) => /INSERT INTO device_contact_verifications/.test(query))).toBe(true);
+    expect(queries.join("\n")).not.toContain("device_verification_codes");
+    await request(app)
+      .post("/scheduling/verify-device")
+      .send({ cpf: VALID_CPF, code, challengeId: sent.body.challengeId })
+      .expect(200, { verified: true });
+    expect(mockVerifyDeviceCode).toHaveBeenCalledWith(VALID_CPF, code, 77);
+  });
+
+  it.each(["cooldown", "daily"])("preserva bloqueio de %s sem gerar nem enviar OTP", async (reason) => {
+    execute.mockResolvedValueOnce({ rows: [] });
+    if (reason === "cooldown") {
+      execute.mockResolvedValueOnce({ rows: [{ id: 76 }] });
+    } else {
+      execute.mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ cnt: "5" }] });
+    }
+    const result = await request(buildApp())
+      .post("/scheduling/send-verification-code")
+      .send({ cpf: VALID_CPF })
+      .expect(429);
+    expect(result.body.error).toMatch(reason === "cooldown" ? /60 segundos/ : /limite diário/i);
+    expect(execute).toHaveBeenCalledTimes(reason === "cooldown" ? 2 : 3);
+    expect(sendWhatsapp).not.toHaveBeenCalled();
+  });
+});
 
 describe("POST /scheduling/verify-device — rota", () => {
   beforeEach(() => { vi.clearAllMocks(); });

@@ -39,46 +39,6 @@ const router: IRouter = Router();
 // Valor padrao do sinal Concierge (R$). Configuravel por pay.conciergeValue.
 const CONCIERGE_AMOUNT_DEFAULT = 150;
 
-// ── Device OTP: criação lazy das tabelas ──────────────────────────────────────
-// device_verification_codes — armazena o código gerado (TTL 10 min)
-// device_verified_sessions — marca o dispositivo como verificado (TTL 30 dias)
-// Ambas criadas em raw SQL para não depender de Drizzle push em produção.
-let _verifyTablesReady: Promise<void> | null = null;
-
-async function ensureVerifyTables(): Promise<void> {
-  if (_verifyTablesReady) return _verifyTablesReady;
-  _verifyTablesReady = (async () => {
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS device_verification_codes (
-        id SERIAL PRIMARY KEY,
-        device_fingerprint TEXT NOT NULL,
-        cpf TEXT NOT NULL,
-        code TEXT NOT NULL,
-        expires_at TIMESTAMPTZ NOT NULL,
-        used_at TIMESTAMPTZ,
-        failed_attempts INTEGER NOT NULL DEFAULT 0
-      )
-    `);
-    // Retrocompatível: adiciona a coluna em tabelas criadas antes desta versão.
-    await db.execute(sql`
-      ALTER TABLE device_verification_codes
-        ADD COLUMN IF NOT EXISTS failed_attempts INTEGER NOT NULL DEFAULT 0
-    `);
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS device_verified_sessions (
-        id SERIAL PRIMARY KEY,
-        device_fingerprint TEXT NOT NULL,
-        cpf TEXT NOT NULL,
-        expires_at TIMESTAMPTZ NOT NULL
-      )
-    `);
-  })().catch((err: unknown) => {
-    _verifyTablesReady = null;
-    throw err;
-  });
-  return _verifyTablesReady;
-}
-
 // Mapeia o status cru da cobranca Asaas para o nosso vocabulario interno.
 function mapAsaasPaymentStatus(
   raw: string,
@@ -1162,6 +1122,8 @@ router.patch("/scheduling/requests/:id", async (req, res): Promise<void> => {
 // POST /scheduling/send-verification-code — gera um OTP de 6 dígitos e envia
 // via WhatsApp para o telefone do paciente identificado pelo CPF. Público (funil
 // /agendar).
+// Entrada de reenvio do fluxo canônico: persiste em device_contact_verifications,
+// como getOrCreateChallenge e verifyDeviceCode. Preservar o contrato de /agendar.
 //
 // SEGURANÇA: rate limit autoritativo totalmente dentro de uma única transação
 // com pg_advisory_xact_lock por (fingerprint, CPF). O lock serializa requisições
@@ -1171,7 +1133,6 @@ router.patch("/scheduling/requests/:id", async (req, res): Promise<void> => {
 router.post("/scheduling/send-verification-code", async (req, res): Promise<void> => {
   const rawCpf  = String(req.body?.cpf  ?? "").replace(/\D/g, "");
 
-  const rawChallengeId = req.body?.challengeId;
   if (rawCpf.length < 11) {
     res.status(400).json({ error: "CPF inválido." });
     return;
