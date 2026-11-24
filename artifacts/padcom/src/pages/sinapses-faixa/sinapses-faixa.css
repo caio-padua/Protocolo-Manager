@@ -1,17 +1,17 @@
 @keyframes sinapse-ignicao {
   0% {
     stroke-width: 8px;
-    filter: drop-shadow(0 0 10px #f3ce72) drop-shadow(0 0 18px #f3ce72);
+    filter: drop-shadow(0 0 10px var(--neon, #f3ce72)) drop-shadow(0 0 18px var(--neon, #f3ce72));
     opacity: 1;
   }
   45% {
     stroke-width: 5px;
-    filter: drop-shadow(0 0 7px #f3ce72) drop-shadow(0 0 12px #f3ce72);
+    filter: drop-shadow(0 0 7px var(--neon, #f3ce72)) drop-shadow(0 0 12px var(--neon, #f3ce72));
     opacity: 1;
   }
   100% {
     stroke-width: 3.5px;
-    filter: drop-shadow(0 0 3px #f3ce72);
+    filter: drop-shadow(0 0 3px var(--neon, #f3ce72));
     opacity: 1;
   }
 }
@@ -21,9 +21,9 @@
 }
 
 .sinapse-porta-origem-ativa {
-  outline: 2px solid #b8892b;
+  outline: 2px solid var(--cor-pino, #b8892b);
   outline-offset: 1px;
-  filter: drop-shadow(0 0 4px #f3ce72);
+  filter: drop-shadow(0 0 4px var(--cor-pino, #f3ce72));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -67,7 +67,7 @@
 .sinapse-pino[data-estado="ativo"]::before,
 .sinapse-pino[data-estado="proposta"]::before,
 .sinapse-pino[data-estado="armado"]::before { opacity: 1; }
-.sinapse-pino[data-estado="armado"] { box-shadow: 0 0 6px 1px #fbbf24; }
+.sinapse-pino[data-estado="armado"] { box-shadow: 0 0 5px 1px var(--cor-pino), 0 0 11px 2px color-mix(in srgb, var(--cor-pino) 60%, transparent); }
 /* Respira devagar só quando a linha está em foco (armado, pergunta selecionada ou mouse em cima); fora disso fica parado */
 @keyframes sinapse-respira { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.82); opacity: 0.6; } }
 .sinapse-pino[data-estado="armado"]::before,
@@ -75,7 +75,7 @@
 .sinapse-pino-area:hover .sinapse-pino::before { animation: sinapse-respira 4.5s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .sinapse-pino::before { animation: none !important; } }
 .sinapse-pino-area:hover .sinapse-pino:not(:disabled) {
-  box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.18);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cor-pino) 30%, transparent), 0 0 9px var(--cor-pino);
 }
 .sinapse-pino-area.sinapse-porta-origem-ativa {
   outline: none;
@@ -86,7 +86,7 @@
   position: absolute;
   inset: -2px;
   border-radius: 3px;
-  border: 2px solid #f59e0b;
+  border: 2px solid var(--cor-pino, #f59e0b);
   animation: sinapse-onda 0.9s ease-out both;
   pointer-events: none;
 }
@@ -200,3 +200,14 @@
 @media (min-width: 640px) {
   .sinapse-pino { width: 100%; height: 100%; }
 }
+
+/* Vidro acetinado na cor do grupo (mesma receita do .ag-vidro da agenda: cor atrás de superfície fosca,
+   fio de luz no topo e leve sombra por baixo; sem neon e sem sombra externa). */
+.sinapse-vidro-cor {
+  --ev: #64748b;
+  position: relative; display: block; overflow: hidden; border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--ev) 62%, #07162b) !important;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ev) 58%, #ffffff) 0%, color-mix(in srgb, var(--ev) 82%, #0b1d2c) 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), inset 0 -2px 3px color-mix(in srgb, var(--ev) 45%, rgba(0,20,25,0.4)) !important;
+}
+.sinapse-vidro-cor::before { content: ""; position: absolute; left: 2px; right: 2px; top: 1px; height: 1px; background: rgba(240,248,244,0.7); }

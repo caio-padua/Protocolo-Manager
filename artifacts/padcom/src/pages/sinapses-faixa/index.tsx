@@ -904,27 +904,45 @@ export default function SinapsesFaixa() {
       ) : (
         <>
           <Faixa testid="faixa-grafo" titulo="Faixa da sinapse" fichas={[{ rotulo: "Perguntas", valor: esquerda.length }, { rotulo: "Saídas", valor: direita.length }]} aberta={faixaAberta} onToggle={() => setFaixaAberta((v) => !v)} ampliada={ampliada} direita={<>{controlesFaixa}</>}>
-            <div className="bevel-3d mb-1.5 grid h-8 items-center gap-x-1 text-[12px] font-black uppercase tracking-[0.25em] text-[#0f1e36]" style={{ gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }} data-testid="faixa-titulos">
-              <span className="text-center">Anamnese</span>
-              <span className="relative flex h-full items-center justify-center">Craniotomia<button type="button" onClick={() => setAmpliada((v) => !v)} aria-pressed={ampliada} className="tecla-3d absolute right-1 top-1 flex h-6 w-6 items-center justify-center" data-testid="faixa-ampliar" title={ampliada ? "Voltar ao tamanho normal (Esc)" : "Ampliar a craniotomia para a tela inteira"} aria-label={ampliada ? "Reduzir a craniotomia" : "Ampliar a craniotomia"}>{ampliada ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button></span>
-              <span className="text-center">Procedimentos</span>
+            <div className="mb-1.5 grid h-8 items-stretch gap-x-1 text-[12px] font-black uppercase tracking-[0.25em] text-[#0f1e36]" style={{ gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }} data-testid="faixa-titulos">
+              <span className="bevel-3d relative flex items-center justify-center">Anamnese{(() => {
+                    const grupos = linhasE.filter((l) => l.tipo === "grupo").map((l) => l.k);
+                    const tudoFechado = grupos.length > 0 && grupos.every((k) => fechadosE.has(k));
+                    return <button type="button" style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)" }} className="tecla-3d flex h-6 w-8 items-center justify-center text-[14px] font-bold leading-none tracking-normal" data-testid="faixa-blocos-alternar" onClick={() => setFechadosE(tudoFechado ? new Set() : new Set(grupos))} title={tudoFechado ? "Abrir todos os blocos de perguntas" : "Recolher todos os blocos de perguntas"} aria-label={tudoFechado ? "Abrir todos os blocos de perguntas" : "Recolher todos os blocos de perguntas"}>{tudoFechado ? "+" : "−"}</button>;
+                  })()}</span>
+              <span className="bevel-3d relative flex items-center justify-center">Craniotomia<button type="button" onClick={() => setAmpliada((v) => !v)} aria-pressed={ampliada} style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)" }} className="tecla-3d flex h-6 w-8 items-center justify-center" data-testid="faixa-ampliar" title={ampliada ? "Voltar ao tamanho normal (Esc)" : "Ampliar a craniotomia para a tela inteira"} aria-label={ampliada ? "Reduzir a craniotomia" : "Ampliar a craniotomia"}>{ampliada ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button></span>
+              <span className="bevel-3d relative flex items-center justify-center">Procedimentos{(() => {
+                    const grupos = linhasD.filter((l) => l.tipo === "grupo").map((l) => l.k);
+                    const tudoFechado = grupos.length > 0 && grupos.every((k) => fechadosD.has(k));
+                    return <button type="button" style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)" }} className="tecla-3d flex h-6 w-8 items-center justify-center text-[14px] font-bold leading-none tracking-normal" data-testid="faixa-saidas-alternar" onClick={() => setFechadosD(tudoFechado ? new Set() : new Set(grupos))} title={tudoFechado ? "Abrir todos os blocos de saídas" : "Recolher todos os blocos de saídas"} aria-label={tudoFechado ? "Abrir todos os blocos de saídas" : "Recolher todos os blocos de saídas"}>{tudoFechado ? "+" : "−"}</button>;
+                  })()}</span>
             </div>
             <div className="mb-1.5 grid items-center gap-x-1" style={{ gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }} data-testid="faixa-cabecalho-colunas">
               <div className="min-w-0" data-testid="faixa-cabecalho-anamnese">
-                <div className="flex items-center justify-between gap-1">
-                  {modo !== "EDICAO" ? <button type="button" aria-pressed={todos} onClick={() => setTodos((v) => !v)} className="tecla-3d h-7 px-2 text-[10px] font-bold" data-testid="faixa-todos">{todos ? "Só os ligados" : "Mostrar todos"}</button> : <span />}
-                  {(() => {
-                    const grupos = linhasE.filter((l) => l.tipo === "grupo").map((l) => l.k);
-                    const tudoFechado = grupos.length > 0 && grupos.every((k) => fechadosE.has(k));
-                    return <button type="button" className="tecla-3d h-7 w-9 text-[14px] font-bold" data-testid="faixa-blocos-alternar" onClick={() => setFechadosE(tudoFechado ? new Set() : new Set(grupos))} title={tudoFechado ? "Abrir todos os blocos de perguntas" : "Recolher todos os blocos de perguntas"} aria-label={tudoFechado ? "Abrir todos os blocos de perguntas" : "Recolher todos os blocos de perguntas"}>{tudoFechado ? "+" : "−"}</button>;
-                  })()}
+                <div className="flex h-10 items-center gap-1">
+                  {modo !== "EDICAO" && <button type="button" aria-pressed={todos} onClick={() => setTodos((v) => !v)} className="tecla-3d h-8 shrink-0 px-2 text-[10px] font-bold" data-testid="faixa-todos">{todos ? "Só os ligados" : "Mostrar todos"}</button>}
+                  <div className="sinapse-sem-trilho flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-1" data-testid="faixa-chips-blocos" onWheel={(e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) e.currentTarget.scrollLeft += e.deltaY; }}>
+                    {linhasE.filter((l): l is Extract<typeof l, { tipo: "grupo" }> => l.tipo === "grupo").map((g) => {
+                      const m = g.k.match(/^([A-Z0-9]+)\.\s*(.*)$/);
+                      const curto = ((m ? m[2] : g.k).trim().split(/\s+/).find((w) => w.length > 2) ?? g.k).slice(0, 6);
+                      const atual = sel.some((id) => (data?.perguntas.find((x) => x.perguntaId === id)?.bloco ?? "SEM BLOCO") === g.k);
+                      return (
+                        <button key={g.k} type="button" aria-pressed={atual} data-testid={`faixa-chip-bloco-${g.k}`} title={`${g.k}: ${g.nLig} com ligação de ${g.n}. Clique para ir até o grupo.`}
+                          onClick={() => { const i = linhasE.findIndex((l) => l.tipo === "grupo" && l.k === g.k); if (fechadosE.has(g.k)) setFechadosE((f) => { const n = new Set(f); n.delete(g.k); return n; }); window.setTimeout(() => colEsqRef.current?.scrollTo({ top: i * alturaLinha, behavior: "smooth" }), fechadosE.has(g.k) ? 60 : 0); }}
+                          className="tecla-3d relative flex h-8 w-[5.5rem] shrink-0 flex-col items-stretch justify-between overflow-hidden px-1.5 pb-1 pt-1 text-left">
+                          <span className="flex w-full items-baseline gap-1 leading-none"><b className="text-[11px] leading-none">{m ? m[1] : "·"}</b><span className="truncate text-[9px] font-black uppercase leading-none tracking-wide">{curto}</span></span>
+                          <span className="sinapse-vidro-cor h-[5px] w-full shrink-0" style={{ "--ev": corDoBloco(g.k) } as React.CSSProperties} aria-hidden="true" />
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
               <div className="min-w-0" role="group" aria-label="Quais sinapses mostrar" data-testid="faixa-mostrar-fios">
-                <div className="flex items-stretch justify-center gap-2">
+                <div className="flex h-10 items-stretch justify-center gap-2">
                 {([["ATIVA", "Ativas", "#1e3a8a"], ["PROPOSTA", "Propostas", "#b8892b"], ["SEM_SAIDA", "Sem saída", "#dc2626"]] as const).map(([k, r, cor]) => (
                   <button key={k} type="button" aria-pressed={mostrar[k]} onClick={() => setMostrar((m) => ({ ...m, [k]: !m[k] }))} title={`${mostrar[k] ? "Esconder" : "Mostrar"} sinapses: ${r}`} data-testid={`faixa-mostrar-${k}`}
-                    className={`tecla-3d flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-2 py-1.5 text-[9px] font-black uppercase leading-none`} style={{ opacity: 1 }}>
+                    className={`tecla-3d flex h-10 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-2 text-[9px] font-black uppercase leading-none`} style={{ opacity: 1 }}>
                     <svg width="100%" height="6" aria-hidden="true"><line x1="3" y1="3" x2="97%" y2="3" stroke={k === "SEM_SAIDA" ? cor : (foco !== null ? corDaPergunta.get(foco) : undefined) ?? cor} strokeWidth={k === "ATIVA" ? 2.5 : 1.8} strokeLinecap="round" strokeDasharray={k === "ATIVA" ? undefined : k === "PROPOSTA" ? "9 4" : "2 4"} /></svg>
                     <span className="truncate">{r}</span>
                   </button>
@@ -932,23 +950,18 @@ export default function SinapsesFaixa() {
                 </div>
               </div>
               <div className="min-w-0" data-testid="faixa-cabecalho-procedimentos">
-                <div className="flex items-center justify-between gap-2">
-                  <button type="button" aria-pressed={cats.length === 0} onClick={() => setCats([])} className="tecla-3d h-7 px-2 text-[10px] font-black" data-testid="faixa-cat-TODAS" title="Todas as saídas, em blocos separados por tipo">TODAS</button>
-                  <div className="flex flex-wrap items-center justify-center gap-1" role="group" aria-label="Filtrar saídas por tipo">
+                <div className="flex h-10 items-center justify-between gap-2">
+                  <button type="button" aria-pressed={cats.length === 0} onClick={() => setCats([])} className="tecla-3d h-8 px-2 text-[10px] font-black" data-testid="faixa-cat-TODAS" title="Todas as saídas, em blocos separados por tipo">TODAS</button>
+                  <div className="sinapse-sem-trilho flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-1" role="group" aria-label="Filtrar saídas por tipo" data-testid="faixa-chips-procedimentos" onWheel={(e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) e.currentTarget.scrollLeft += e.deltaY; }}>
                     {CATEGORIAS.map((c) => {
                       const ativo = cats.includes(c.chave);
                       return (
                         <button key={c.chave} type="button" aria-pressed={ativo} title={c.rotulo} data-testid={`faixa-cat-${c.chave}`}
                           onClick={() => setCats((v) => (ativo ? v.filter((x) => x !== c.chave) : [...v, c.chave]))}
-                          className="tecla-3d h-7 px-2 text-[10px] font-black" style={{ color: c.cor }}>{c.sigla}</button>
+                          className="tecla-3d flex h-8 w-[3.75rem] shrink-0 flex-col items-stretch justify-between overflow-hidden px-1.5 pb-1 pt-1 text-center text-[10px] font-black leading-none" style={{ color: c.cor }}><span>{c.sigla}</span><span className="sinapse-vidro-cor h-[5px] w-full shrink-0" style={{ "--ev": c.cor } as React.CSSProperties} aria-hidden="true" /></button>
                       );
                     })}
                   </div>
-                  {(() => {
-                    const grupos = linhasD.filter((l) => l.tipo === "grupo").map((l) => l.k);
-                    const tudoFechado = grupos.length > 0 && grupos.every((k) => fechadosD.has(k));
-                    return <button type="button" className="tecla-3d h-7 w-9 text-[14px] font-bold" data-testid="faixa-saidas-alternar" onClick={() => setFechadosD(tudoFechado ? new Set() : new Set(grupos))} title={tudoFechado ? "Abrir todos os blocos de saídas" : "Recolher todos os blocos de saídas"} aria-label={tudoFechado ? "Abrir todos os blocos de saídas" : "Recolher todos os blocos de saídas"}>{tudoFechado ? "+" : "−"}</button>;
-                  })()}
                 </div>
               </div>
             </div>
@@ -969,7 +982,7 @@ export default function SinapsesFaixa() {
                       if (linha.tipo === "grupo") {
                         return (
                           <div key={`g-${linha.k}`} className="absolute flex w-full items-center gap-1 px-1" style={{ top: topo, height: alturaLinha - 3 }}>
-                            <label className="bevel-3d relative block h-full w-5 shrink-0 cursor-pointer overflow-hidden !rounded-[3px] !p-0" style={{ background: `linear-gradient(180deg, rgba(255,255,255,0.35), rgba(0,0,0,0.18)), ${corDoBloco(linha.k)}` }} title="Cor desta categoria de perguntas (clique para trocar)" data-testid={`faixa-cor-${linha.k}`}>
+                            <label className="bevel-3d sinapse-vidro-cor relative block h-full w-5 shrink-0 cursor-pointer overflow-hidden !rounded-[3px] !p-0" style={{ "--ev": corDoBloco(linha.k) } as React.CSSProperties} title="Cor desta categoria de perguntas (clique para trocar)" data-testid={`faixa-cor-${linha.k}`}>
                               <input type="color" aria-label={`Cor da categoria ${linha.k}`} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" value={corDoBloco(linha.k)} onChange={(e) => salvarCorBloco.mutate({ bloco: linha.k, cor: e.target.value })} />
                             </label>
                             {barraGrupo({ titulo: linha.k, n: linha.n, nLig: linha.nLig, fechado: fechadosE.has(linha.k), onClick: () => alternarGrupo(fechadosE, setFechadosE, linha.k), testid: `faixa-grupo-e-${linha.k}` })}
@@ -990,7 +1003,7 @@ export default function SinapsesFaixa() {
                       return (
                         <div key={p.perguntaId} data-pergunta={p.perguntaId} className="absolute flex w-full items-center gap-1 px-1" style={{ top: topo, height: alturaLinha - 3 }}
                           onMouseEnter={() => setHover(p.perguntaId)} onMouseLeave={() => setHover(null)} title={`${p.perguntaId} · ${p.pergunta}`} aria-label={`${p.perguntaId}: ${p.pergunta}. ${nAtivas} ligações registradas, ${nSemSaida} sem saída e ${nPendentes} propostas pendentes.`}>
-                          <span className="block h-full w-5 shrink-0 rounded-[3px]" style={marcada ? { background: `linear-gradient(180deg, rgba(255,255,255,0.35), rgba(0,0,0,0.18)), ${corDaPergunta.get(p.perguntaId) ?? "transparent"}` } : undefined} data-testid={`faixa-espinha-${p.perguntaId}`} aria-hidden="true" />
+                          <span className={`block h-full w-5 shrink-0 rounded-[3px] ${marcada ? "sinapse-vidro-cor" : ""}`} style={marcada ? ({ "--ev": corDaPergunta.get(p.perguntaId) ?? "#64748b" } as React.CSSProperties) : undefined} data-testid={`faixa-espinha-${p.perguntaId}`} aria-hidden="true" />
                           <button type="button" aria-pressed={marcada} onClick={(e) => clicar(e, p.perguntaId)} data-testid={`faixa-dendrito-${p.perguntaId}`}
                             className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1 px-1.5 text-left select-none" style={marcada ? { background: `linear-gradient(90deg, ${corDaPergunta.get(p.perguntaId) ?? "#999"}33, transparent 70%)` } : undefined}>
                             <span className="flex w-4 shrink-0 items-center justify-center">
@@ -1062,9 +1075,9 @@ export default function SinapsesFaixa() {
                       return (
                         <g key={s.id}>
                           <path d={d} fill="none" stroke={corFio} strokeWidth={em ? 2.4 : s.estado === "ATIVA" ? 1.1 : 1.3} strokeLinecap="round" strokeDasharray={s.estado === "ATIVA" ? undefined : semSaida ? "2 4" : "9 4"} vectorEffect="non-scaling-stroke"
-                            style={{ opacity: apagado ? 0.06 : em ? 1 : s.estado === "ATIVA" ? 0.7 : 0.55, filter: em ? "drop-shadow(0 0 2px rgba(217,119,6,0.55))" : undefined }} data-testid={`faixa-fio-${s.id}`} />
+                            style={{ opacity: apagado ? 0.06 : em ? 1 : s.estado === "ATIVA" ? 0.7 : 0.55, filter: em ? `drop-shadow(0 0 3px ${corFio}) drop-shadow(0 0 8px ${corFio})` : undefined }} data-testid={`faixa-fio-${s.id}`} />
                           {emPerg && s.estado === "ATIVA" && (
-                            <path d={d} fill="none" stroke="#FDE68A" strokeWidth={3.5} strokeLinecap="round" strokeDasharray="1 24" vectorEffect="non-scaling-stroke" className="sinapse-impulso" style={{ pointerEvents: "none", filter: "drop-shadow(0 0 4px #F59E0B)" }} />
+                            <path d={d} fill="none" stroke={`color-mix(in srgb, ${corFio} 35%, white)`} strokeWidth={3.5} strokeLinecap="round" strokeDasharray="1 24" vectorEffect="non-scaling-stroke" className="sinapse-impulso" style={{ pointerEvents: "none", filter: `drop-shadow(0 0 4px ${corFio}) drop-shadow(0 0 8px ${corFio})` }} />
                           )}
                           <path d={d} fill="none" stroke="transparent" strokeWidth={14} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "stroke", cursor: "pointer" }}
                             onClick={(e) => { e.stopPropagation(); setFioPonto({ x: e.clientX, y: e.clientY }); setFioAberto((v) => (v === s.id ? null : s.id)); }} data-testid={`faixa-fio-clique-${s.id}`} />
@@ -1122,7 +1135,7 @@ export default function SinapsesFaixa() {
                         const cor = COR[linha.k];
                         return (
                           <div key={`g-${linha.k}`} className="absolute flex w-full items-center gap-1 px-1" style={{ top: topo, height: alturaLinha - 3 }}>
-                            <span className="sinapse-pino-area" aria-hidden="true" />
+                            <span className="sinapse-vidro-cor block h-full w-6 shrink-0 rounded-[3px]" style={{ "--ev": cor } as React.CSSProperties} aria-hidden="true" />
                             {barraGrupo({ titulo: ROTULO[linha.k], cor, n: linha.n, nLig: linha.nLig, fechado: fechadosD.has(linha.k), onClick: () => alternarGrupo(fechadosD, setFechadosD, linha.k), testid: `faixa-grupo-d-${linha.k}` })}
                           </div>
                         );
@@ -1195,7 +1208,7 @@ export default function SinapsesFaixa() {
                     style={{ background: marcada ? "rgba(15,30,54,0.07)" : i % 2 === 0 ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.18)" }}
                     onMouseEnter={() => setHover(p.perguntaId)} onMouseLeave={() => setHover(null)}>
                     <button type="button" aria-expanded={aberto} onClick={(e) => { clicar(e, p.perguntaId); alternarAberto(p.perguntaId); centralizar(p.perguntaId); }} className="grid w-full items-center gap-2 px-2 py-1.5 text-left" style={{ gridTemplateColumns: "0.875rem 1rem 4.75rem minmax(0,1fr) 12rem 4.5rem" }}>
-                      <span className="h-6 w-3.5 rounded-[3px]" style={{ background: `linear-gradient(180deg, rgba(255,255,255,0.35), rgba(0,0,0,0.18)), ${corDaPergunta.get(p.perguntaId) ?? "#64748b"}` }} data-testid={`faixa-quadrado-${p.perguntaId}`} aria-hidden="true" />
+                      <span className="sinapse-vidro-cor h-6 w-3.5 rounded-[3px]" style={{ "--ev": corDaPergunta.get(p.perguntaId) ?? "#64748b" } as React.CSSProperties} data-testid={`faixa-quadrado-${p.perguntaId}`} aria-hidden="true" />
                       {aberto ? <ChevronDown className="h-4 w-4 opacity-60" /> : <ChevronRight className="h-4 w-4 opacity-60" />}
                       <span className="concave-3d flex h-7 items-center justify-center font-mono text-[10px] font-bold text-[#0f1e36]">{p.perguntaId}</span>
                       <span className="min-w-0 truncate text-[12px] font-semibold text-[#1b2433]" title={p.pergunta}>{p.pergunta}</span>
@@ -1449,7 +1462,7 @@ export default function SinapsesFaixa() {
 
       {arraste && (
         <svg className="pointer-events-none fixed inset-0 z-[80]" width="100%" height="100%" aria-hidden>
-          <path d={`M ${arraste.x0} ${arraste.y0} C ${arraste.x0 + 80} ${arraste.y0}, ${arraste.x - 80} ${arraste.y}, ${arraste.x} ${arraste.y}`} fill="none" stroke={arraste.clonar ? "#2563eb" : (corDaPergunta.get(arraste.de) ?? "#d97706")} strokeWidth={3} strokeDasharray={arraste.clonar ? "6 4" : undefined} style={{ filter: arraste.clonar ? undefined : "drop-shadow(0 0 4px #f3ce72)" }} />
+          <path d={`M ${arraste.x0} ${arraste.y0} C ${arraste.x0 + 80} ${arraste.y0}, ${arraste.x - 80} ${arraste.y}, ${arraste.x} ${arraste.y}`} fill="none" stroke={arraste.clonar ? "#2563eb" : (corDaPergunta.get(arraste.de) ?? "#d97706")} strokeWidth={3} strokeDasharray={arraste.clonar ? "6 4" : undefined} style={{ filter: arraste.clonar ? undefined : `drop-shadow(0 0 4px ${corDaPergunta.get(arraste.de) ?? "#d97706"}) drop-shadow(0 0 9px ${corDaPergunta.get(arraste.de) ?? "#d97706"})` }} />
           <circle cx={arraste.x} cy={arraste.y} r={5} fill={arraste.clonar ? "#2563eb" : (corDaPergunta.get(arraste.de) ?? "#d97706")} />
         </svg>
       )}
