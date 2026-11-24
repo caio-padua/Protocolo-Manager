@@ -44,6 +44,27 @@ que virar regra ESCRITA aqui, senao nao se propaga aos primos (IHE, futuros sist
 Regra-mae: a SKILL e a fonte-da-verdade do design; o codigo da tela e so a APLICACAO dela. Tela
 pronta sem o padrao novo registrado = trabalho incompleto.
 
+## 0.2 LEI DIAMANTE DO LUGAR FIXO (decisao do CEO, 24/11/2026) — vale acima de qualquer padrao
+
+Origem: uma tela inteira (Sinapse Clinica) foi refeita varias vezes porque botoes mudavam de
+lugar, de texto e de largura. O CEO tem TDAH: movimento inesperado na tela e custo, nao detalhe.
+
+| # | Regra | Como cumprir |
+|---|---|---|
+| 1 | **Todo campo ocupa o MESMO lugar no espaco**, esteja selecionado ou nao, tenha conteudo ou nao. | Grade de colunas fixas (largura em rem) no cabecalho e nas linhas; coluna vazia continua reservada. |
+| 2 | **Botao NAO se transmuta.** Excluir nunca vira Confirmar. | O botao original permanece com o mesmo texto e na mesma posicao; o botao de confirmacao tem SLOT RESERVADO ao lado (`invisible`, nao `hidden`) e so aparece ali. |
+| 3 | **Nada some e reaparece empurrando o vizinho.** | Slot reservado + `invisible`; nunca renderizacao condicional que desloca irmaos. |
+| 4 | **Aviso, balao e confirmacao nascem JUNTO DO MOUSE** (ate ~16 px do ponteiro), nunca no canto da tela. | Guardar a ultima posicao do ponteiro; aviso `fixed` perto dela; acao de desfazer (Recuperar) dentro do proprio aviso, 6 s. |
+| 5 | **Acao destrutiva = 2 passos rapidos, perto do dedo**, sem janela modal. | Excluir -> Confirmar no slot ao lado (4 s) -> aviso com Recuperar. Nunca apagar: desativar. |
+| 6 | **Botao de acao fica PERTO do dado que ele afeta.** | Colunas de acao logo apos a coluna do nome (nome com largura maxima), nao na extrema direita da tela. |
+| 7 | **Estado selecionado usa a cor do proprio grupo**, nunca uma cor generica (rosa/ambar). | `color-mix` da cor do bloco a 14% + filete de 4 px na esquerda. |
+| 8 | **Ligado/desligado = Saliente (up) ou Concavo (afundado), nunca apagado** (sem opacidade baixa). | `tecla-3d` x `concave-3d`, opacidade 1. |
+| 9 | **Vidro = o vidro do medalhao da marca** (`.pax-medallion::after`, em `components/layout/paxter-fx/PaxterSymbolGlass.css`): brilho no aro superior, filete claro, SEM borda de aco/ouro. | Reusar o gradiente da cupula; nao inventar moldura. |
+| 10 | **Antes de QUALQUER pedido de tela: ler esta skill.** | Passo 1 obrigatorio da Lei 0.1. |
+
+Teste obrigatorio quando houver botao de duas etapas: medir `boundingBox` do botao antes e depois do
+clique (x igual) e confirmar que o botao de confirmacao aparece em x maior.
+
 ## 1. Vocabulario oficial (fala -> codigo)
 
 Sempre falar com o CEO usando "Saliente" e "Concavo". No codigo usar as classes existentes.
@@ -1064,6 +1085,17 @@ ligados a saídas de catálogo, sem confundir desenho do vínculo com aprovaçã
    recusada, duplicidade ou destino inválido nunca recebem brilho de sucesso. A
    animação respeita `prefers-reduced-motion`; no celular, cada ponto tem alvo de
    toque mínimo de 40 px.
+
+9. **Aprovado pelo CEO em 24/11/2026 (Sinapse Clinica):** titulo da tela "Sinapse Clinica";
+   faixa inferior "Mapa das ligacoes" (antes "sanfona"), linha por correspondencia em grade fixa
+   (codigo em janela concava, nome, Excluir, slot de Confirmar); contadores como fichas;
+   termostato fino (15 px, trilho concavo e botao saliente, 3 px da borda, dentro da moldura,
+   sem passar por baixo do vidro); legenda de fios Ativas/Propostas/Sem saida em up/afundado;
+   fio e pino na cor do bloco da pergunta; pino quadrado vazado com respiracao suave (so em foco);
+   duas pancadas no pino de origem armam, uma na saida liga e continua armado, duas pancadas no
+   vidro ou Esc desarmam; balao do fio e aviso junto ao mouse; seta de menu em cada saida abre o
+   cadastro (substancias com dose alinhada, tomadas em andares, via/apresentacao lado a lado,
+   observacao embaixo); vidro puro sem moldura. Vale a Lei 0.2 em tudo isso.
 
 **Why:** o responsável quer enxergar a relação pergunta→saída como um neurônio
 conduzindo corrente, com correspondências legíveis e editáveis, sem ligar propostas

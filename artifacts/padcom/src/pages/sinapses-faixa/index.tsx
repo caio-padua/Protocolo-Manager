@@ -109,6 +109,7 @@ export default function SinapsesFaixa() {
   const [fioRecemSalvo, setFioRecemSalvo] = useState<string | null>(null);
   const brilhoTimer = useRef<number | null>(null);
   const [fioAberto, setFioAberto] = useState<string | null>(null);
+  const [fioPonto, setFioPonto] = useState({ x: 0, y: 0 });
   const graficoRef = useRef<HTMLDivElement | null>(null);
   const [loteArmado, setLoteArmado] = useState<string | null>(null);
   const [loteEmCurso, setLoteEmCurso] = useState(false);
@@ -208,6 +209,22 @@ export default function SinapsesFaixa() {
     return r.json();
   };
   const onErro = (e: Error) => toast({ title: "Não foi salvo", description: e.message, variant: "destructive" });
+  // Aviso junto ao mouse (regra do TDAH: o olho não viaja até o canto da tela).
+  const ponteiro = useRef({ x: 640, y: 360 });
+  const [aviso, setAviso] = useState<{ id: number; x: number; y: number; titulo: string; acao?: { rotulo: string; fn: () => void } } | null>(null);
+  const avisoTimer = useRef<number | null>(null);
+  useEffect(() => {
+    const m = (e: PointerEvent) => { ponteiro.current = { x: e.clientX, y: e.clientY }; };
+    window.addEventListener("pointermove", m, { passive: true });
+    window.addEventListener("pointerdown", m, { passive: true });
+    return () => { window.removeEventListener("pointermove", m); window.removeEventListener("pointerdown", m); };
+  }, []);
+  const avisar = (titulo: string, acao?: { rotulo: string; fn: () => void }) => {
+    if (avisoTimer.current !== null) window.clearTimeout(avisoTimer.current);
+    const { x, y } = ponteiro.current;
+    setAviso({ id: Date.now(), x: Math.min(x + 16, window.innerWidth - 260), y: Math.min(y + 16, window.innerHeight - 70), titulo, acao });
+    avisoTimer.current = window.setTimeout(() => setAviso(null), acao ? 6000 : 2200);
+  };
   const criar = useMutation({
     mutationFn: (v: { perguntaId: string; categoria: Categoria; destinoTipo: string; destinoId: number }) => enviar("/api/cadastros/sinapses", "POST", v),
     // Otimista: o fio aparece no mesmo instante do clique; se o servidor recusar, volta ao estado anterior.
@@ -229,7 +246,7 @@ export default function SinapsesFaixa() {
         setFioRecemSalvo(null);
         brilhoTimer.current = null;
       }, 1100);
-      toast({ title: "Ligação salva", description: "A sinapse acendeu e ficou selecionada." });
+      avisar("Ligação salva");
     },
     onError: (e: Error, _v, contexto) => { if (contexto?.anterior) qc.setQueryData(["/api/cadastros/sinapses/painel"], contexto.anterior); onErro(e); },
   });
@@ -245,7 +262,12 @@ export default function SinapsesFaixa() {
   });
   const desativar = useMutation({
     mutationFn: (id: number) => enviar(`/api/cadastros/sinapses/${id}/ativo`, "PATCH", { ativo: false }),
-    onSuccess: () => { invalidar(); toast({ title: "Ligação desativada", description: "Nada foi apagado: ela só deixou de valer." }); },
+    onSuccess: (_r, id) => { invalidar(); avisar("Ligação desativada", { rotulo: "Recuperar", fn: () => reativar.mutate(id) }); },
+    onError: onErro,
+  });
+  const reativar = useMutation({
+    mutationFn: (id: number) => enviar(`/api/cadastros/sinapses/${id}/ativo`, "PATCH", { ativo: true }),
+    onSuccess: () => { invalidar(); setAviso(null); avisar("Ligação recuperada"); },
     onError: onErro,
   });
   const gerarCarga = useGenerateInitialSinapseProposals({
@@ -1026,7 +1048,7 @@ export default function SinapsesFaixa() {
                             <path d={d} fill="none" stroke="#FDE68A" strokeWidth={3.5} strokeLinecap="round" strokeDasharray="1 24" vectorEffect="non-scaling-stroke" className="sinapse-impulso" style={{ pointerEvents: "none", filter: "drop-shadow(0 0 4px #F59E0B)" }} />
                           )}
                           <path d={d} fill="none" stroke="transparent" strokeWidth={14} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "stroke", cursor: "pointer" }}
-                            onClick={(e) => { e.stopPropagation(); setFioAberto((v) => (v === s.id ? null : s.id)); }} data-testid={`faixa-fio-clique-${s.id}`} />
+                            onClick={(e) => { e.stopPropagation(); setFioPonto({ x: e.clientX, y: e.clientY }); setFioAberto((v) => (v === s.id ? null : s.id)); }} data-testid={`faixa-fio-clique-${s.id}`} />
                         </g>
                       );
                     })}
@@ -1045,7 +1067,7 @@ export default function SinapsesFaixa() {
                     const corEstado = proposta ? "#9b6b11" : semSaida ? "#b91c1c" : "#166534";
                     const meio = (f.y1 - rolE + ((f.y2 as number) - rolD)) / 2;
                     return (
-                      <div className="sinapse-balao" style={{ left: centroRef.current.offsetLeft + centroRef.current.offsetWidth + 10, top: Math.min(Math.max(meio, 150), alturaVisivel - 150), transform: "translateY(-50%)" }} onClick={(e) => e.stopPropagation()} data-testid="faixa-pilula-fio">
+                      <div className="sinapse-balao" style={{ position: "fixed", zIndex: 80, left: Math.max(8, Math.min(fioPonto.x + 18, window.innerWidth - 348)), top: Math.max(8, Math.min(fioPonto.y - 40, window.innerHeight - 380)) }} onClick={(e) => e.stopPropagation()} data-testid="faixa-pilula-fio">
                         <div className="mb-2 text-[10px] font-black uppercase tracking-wider" style={{ color: corEstado }}>{estadoTxt}</div>
                         <div className="concave-3d mb-2 space-y-2 px-2 py-2 text-[11px]">
                           <div className="flex items-start gap-2"><span className="bevel-3d shrink-0 px-1.5 py-0.5 font-mono text-[10px] font-bold" style={{ color: corDaPergunta.get(f.s.perguntaId) }}>{f.s.perguntaId}</span><span className="min-w-0 font-semibold leading-snug">{data?.perguntas.find((x) => x.perguntaId === f.s.perguntaId)?.pergunta}</span></div>
@@ -1053,16 +1075,20 @@ export default function SinapsesFaixa() {
                           {dadosProposta?.justificativa && <p className="text-[10px] leading-snug text-muted-foreground">{dadosProposta.eixo} · {dadosProposta.justificativa}</p>}
                         </div>
                         <div className="max-h-44 overflow-y-auto"><ResumoDestino tipo={f.s.destinoTipo} destinoId={f.s.destinoId} /></div>
-                        <div className="flex items-center justify-end gap-3">
-                          <button type="button" onClick={() => setFioAberto(null)} className="tecla-3d h-8 px-3 text-[10px] font-bold uppercase" data-testid="faixa-pilula-fechar">Fechar</button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button type="button" onClick={() => setFioAberto(null)} className="tecla-3d h-8 w-[4.5rem] text-[10px] font-bold uppercase" data-testid="faixa-pilula-fechar">Fechar</button>
                           {modo === "EDICAO" && proposta && (
                             <>
-                              <button type="button" onClick={() => recusarProposta.mutate({ id: idReal })} disabled={recusarProposta.isPending} className="tecla-3d h-8 px-3 text-[10px] font-bold uppercase text-red-700" data-testid="faixa-pilula-recusar">Recusar</button>
-                              <button type="button" onClick={() => { if (armada) aprovarProposta.mutate({ id: idReal }); else setAprovarArmado(idReal); }} disabled={aprovarProposta.isPending} className="tecla-3d h-8 px-3 text-[10px] font-bold uppercase text-emerald-700" data-testid="faixa-pilula-aprovar" title={armada ? "Clique de novo para aprovar" : "Aprovar esta proposta"}>{armada ? "Confirmar" : "Aprovar"}</button>
+                              <button type="button" onClick={() => recusarProposta.mutate({ id: idReal })} disabled={recusarProposta.isPending} className="tecla-3d h-8 w-[5rem] text-[10px] font-bold uppercase text-red-700" data-testid="faixa-pilula-recusar">Recusar</button>
+                              <button type="button" onClick={() => setAprovarArmado(idReal)} className="tecla-3d h-8 w-[5rem] text-[10px] font-bold uppercase text-emerald-700" data-testid="faixa-pilula-aprovar" title="Aprovar esta proposta">Aprovar</button>
+                              <button type="button" onClick={() => aprovarProposta.mutate({ id: idReal })} disabled={!armada || aprovarProposta.isPending} tabIndex={armada ? 0 : -1} aria-hidden={!armada} className={`tecla-3d h-8 w-[5rem] text-[10px] font-bold uppercase text-emerald-700 ${armada ? "" : "invisible"}`} data-testid="faixa-pilula-aprovar-confirmar">Confirmar</button>
                             </>
                           )}
                           {modo === "EDICAO" && !proposta && (
-                            <button type="button" onClick={() => cliqueExcluir(idReal)} className="tecla-3d h-8 px-3 text-[10px] font-bold uppercase text-red-700" data-testid="faixa-pilula-desvincular" title={armada ? "Clique de novo para confirmar" : "Desvincular (desativa, não apaga)"}>{armada ? "Confirmar" : "Desvincular"}</button>
+                            <>
+                              <button type="button" onClick={() => { if (!armada) cliqueExcluir(idReal); }} className="tecla-3d h-8 w-[5rem] text-[10px] font-bold uppercase text-red-700" data-testid="faixa-pilula-desvincular" title="Desvincular (desativa, não apaga)">Desvincular</button>
+                              <button type="button" onClick={() => cliqueExcluir(idReal)} disabled={!armada} tabIndex={armada ? 0 : -1} aria-hidden={!armada} className={`tecla-3d h-8 w-[5rem] text-[10px] font-bold uppercase text-red-700 ${armada ? "" : "invisible"}`} data-testid="faixa-pilula-desvincular-confirmar">Confirmar</button>
+                            </>
                           )}
                         </div>
                       </div>
@@ -1147,7 +1173,7 @@ export default function SinapsesFaixa() {
                 return (
                   <div key={p.perguntaId} data-testid={`faixa-item-${p.perguntaId}`}
                     className={destaqueAprov === p.perguntaId ? "ring-2 ring-[#b8892b] ring-inset transition-shadow" : ""}
-                    style={{ background: marcada ? "rgba(217,119,6,0.16)" : i % 2 === 0 ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.18)" }}
+                    style={{ background: marcada ? `color-mix(in srgb, ${corDaPergunta.get(p.perguntaId) ?? "#64748b"} 14%, white)` : i % 2 === 0 ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.18)", boxShadow: marcada ? `inset 4px 0 0 ${corDaPergunta.get(p.perguntaId) ?? "#64748b"}` : undefined }}
                     onMouseEnter={() => setHover(p.perguntaId)} onMouseLeave={() => setHover(null)}>
                     <button type="button" aria-expanded={aberto} onClick={(e) => { clicar(e, p.perguntaId); alternarAberto(p.perguntaId); centralizar(p.perguntaId); }} className="grid w-full items-center gap-2 px-2 py-1.5 text-left" style={{ gridTemplateColumns: "1rem 4.75rem minmax(0,1fr) 12rem 4.5rem" }}>
                       {aberto ? <ChevronDown className="h-4 w-4 opacity-60" /> : <ChevronRight className="h-4 w-4 opacity-60" />}
@@ -1185,7 +1211,7 @@ export default function SinapsesFaixa() {
                                 const semSaida = !d || d.incompleto;
                                 const armada = armadas.has(s.id);
                                 return (
-                                  <div key={s.id} className="grid grid-cols-[4.75rem_minmax(0,1fr)_5.5rem_5.5rem_5.5rem] items-center gap-2" title={`${codigoDestino(s.categoria, s.destinoTipo, s.destinoId)} · ${d?.nome ?? `#${s.destinoId}`}${d?.detalhe ? ` · ${d.detalhe}` : ""}${semSaida ? " · sem saída real: destino ausente, inativo ou bloco vazio" : ""}`}>
+                                  <div key={s.id} className="grid grid-cols-[4.75rem_minmax(0,26rem)_5.5rem_5.5rem_5.5rem_5.5rem] justify-start items-center gap-2" title={`${codigoDestino(s.categoria, s.destinoTipo, s.destinoId)} · ${d?.nome ?? `#${s.destinoId}`}${d?.detalhe ? ` · ${d.detalhe}` : ""}${semSaida ? " · sem saída real: destino ausente, inativo ou bloco vazio" : ""}`}>
                                     <span className="concave-3d flex h-7 items-center justify-center font-mono text-[10px] font-bold" style={{ color: semSaida ? "#b91c1c" : c.cor }}>{codigoDestino(s.categoria, s.destinoTipo, s.destinoId)}</span>
                                     <span className="flex min-w-0 items-center gap-2 text-[11px] font-semibold" style={{ color: semSaida ? "#b91c1c" : "#1b2433" }}>
                                       <span className="truncate">{d?.nome ?? `#${s.destinoId}`}</span>
@@ -1193,11 +1219,17 @@ export default function SinapsesFaixa() {
                                       {s.cloneDe && <span className="shrink-0 text-[10px] opacity-60">cópia</span>}
                                     </span>
                                     {modo === "EDICAO" ? (
-                                      <button type="button" onClick={() => cliqueExcluir(s.id)} data-testid={`faixa-excluir-${s.id}`}
-                                        className="tecla-3d col-start-5 flex h-7 items-center justify-center gap-1 text-[10px] font-bold uppercase text-red-700"
-                                        title={armada ? "Clique de novo para confirmar" : "Excluir esta ligação (desativa, não apaga)"}>
-                                        {armada ? <><Unlock className="h-3 w-3" />Confirmar</> : <><Lock className="h-3 w-3" />Excluir</>}
-                                      </button>
+                                      <>
+                                        <button type="button" onClick={() => { if (!armada) cliqueExcluir(s.id); }} data-testid={`faixa-excluir-${s.id}`}
+                                          className="tecla-3d col-start-3 flex h-7 items-center justify-center gap-1 text-[10px] font-bold uppercase text-red-700"
+                                          title="Excluir esta ligação (desativa, não apaga)">
+                                          <Lock className="h-3 w-3" />Excluir
+                                        </button>
+                                        <button type="button" onClick={() => cliqueExcluir(s.id)} disabled={!armada} tabIndex={armada ? 0 : -1} aria-hidden={!armada} data-testid={`faixa-excluir-confirmar-${s.id}`}
+                                          className={`tecla-3d flex h-7 items-center justify-center gap-1 text-[10px] font-bold uppercase text-red-700 ${armada ? "" : "invisible"}`}>
+                                          <Unlock className="h-3 w-3" />Confirmar
+                                        </button>
+                                      </>
                                     ) : null}
                                   </div>
                                 );
@@ -1211,15 +1243,14 @@ export default function SinapsesFaixa() {
                                 const armada = aprovarArmado === proposta.id;
                                 return (
                                   <div key={proposta.id} className="space-y-1" data-testid={`proposta-pendente-${proposta.id}`}>
-                                    <div className="grid grid-cols-[4.75rem_minmax(0,1fr)_5.5rem_5.5rem_5.5rem] items-center gap-2 text-[11px]">
+                                    <div className="grid grid-cols-[4.75rem_minmax(0,26rem)_5.5rem_5.5rem_5.5rem_5.5rem] justify-start items-center gap-2 text-[11px]">
                                       <span className="concave-3d flex h-7 items-center justify-center font-mono text-[10px] font-bold text-[#8b681f]" title={`${proposta.eixo} · ${d?.detalhe ?? ""}`}>{codigoDestino(proposta.categoria, proposta.destinoTipo, proposta.destinoId)}</span>
                                       <span className="min-w-0 truncate text-[#30384a]" title={`${d?.nome ?? `#${proposta.destinoId}`} · ${proposta.eixo} · ${proposta.justificativa}`}>
                                         {d?.nome ?? `#${proposta.destinoId}`} · {proposta.eixo}
                                       </span>
                                       <button type="button" className="tecla-3d h-7 text-[10px] font-bold uppercase" onClick={() => { setPropostaEditando(editando ? null : proposta.id); setCategoriaEdicao(proposta.categoria); setBuscaDestinoEdicao(""); }} data-testid={`button-editar-proposta-${proposta.id}`}>Editar</button>
-                                      <button type="button" className="tecla-3d h-7 text-[10px] font-bold uppercase" onClick={() => { if (armada) aprovarProposta.mutate({ id: proposta.id }); else setAprovarArmado(proposta.id); }} disabled={aprovarProposta.isPending} data-testid={`button-aprovar-proposta-${proposta.id}`}>
-                                        {armada ? "Confirmar" : "Aprovar"}
-                                      </button>
+                                      <button type="button" className="tecla-3d h-7 text-[10px] font-bold uppercase" onClick={() => setAprovarArmado(proposta.id)} disabled={aprovarProposta.isPending} data-testid={`button-aprovar-proposta-${proposta.id}`}>Aprovar</button>
+                                      <button type="button" className={`tecla-3d h-7 text-[10px] font-bold uppercase ${armada ? "" : "invisible"}`} onClick={() => aprovarProposta.mutate({ id: proposta.id })} disabled={!armada || aprovarProposta.isPending} tabIndex={armada ? 0 : -1} aria-hidden={!armada} data-testid={`button-aprovar-proposta-confirmar-${proposta.id}`}>Confirmar</button>
                                       <button type="button" className="tecla-3d h-7 text-[10px] font-bold uppercase text-red-700" onClick={() => recusarProposta.mutate({ id: proposta.id })} disabled={recusarProposta.isPending} data-testid={`button-recusar-proposta-${proposta.id}`}>Recusar</button>
                                     </div>
                                     <p className="pl-[5.25rem] text-[10px] text-[#6b5b38]">{proposta.justificativa}</p>
@@ -1387,6 +1418,13 @@ export default function SinapsesFaixa() {
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {aviso && (
+        <div key={aviso.id} role="status" data-testid="faixa-aviso" className="bevel-3d fixed z-[90] flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold" style={{ left: aviso.x, top: aviso.y, background: "#fdfbf5" }}>
+          <span>{aviso.titulo}</span>
+          {aviso.acao && <button type="button" className="tecla-3d h-7 px-3 text-[10px] font-black uppercase" data-testid="faixa-aviso-acao" onClick={() => { aviso.acao!.fn(); }}>{aviso.acao.rotulo}</button>}
+        </div>
       )}
 
       {arraste && (

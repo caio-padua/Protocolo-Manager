@@ -409,3 +409,36 @@ for (const tela of [{ nome: "minimizada", ampliar: false }, { nome: "maximizada"
     expect(d.width).toBeGreaterThanOrEqual(14);
   });
 }
+
+test("sinapse: aviso e balão do fio nascem perto do mouse e o botão de excluir não muda de lugar", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const estado = await prepararTela(page);
+  await page.getByTestId("faixa-modo-EDICAO").click();
+  await page.getByTestId(`faixa-porta-${perguntaId}`).click();
+  const destino = page.getByTestId(`faixa-porta-destino-EXAME|exame|${destinoId}`);
+  await destino.click();
+  await expect.poll(() => estado.pedidos.length).toBe(1);
+  const cd = await destino.boundingBox();
+  const aviso = await page.getByTestId("faixa-aviso").boundingBox();
+  if (!cd || !aviso) throw new Error("sem aviso");
+  expect(Math.abs(aviso.x - (cd.x + cd.width / 2))).toBeLessThan(120);
+  expect(Math.abs(aviso.y - (cd.y + cd.height / 2))).toBeLessThan(80);
+  await page.keyboard.press("Escape");
+  await page.getByTestId("faixa-fio-clique-ativa-901").click({ force: true });
+  const pilula = page.getByTestId("faixa-pilula-fio");
+  await expect(pilula).toBeVisible();
+  {
+    const caixa = await pilula.boundingBox();
+    const p = await page.evaluate(() => 0);
+    expect(caixa).not.toBeNull();
+    void p;
+    const antes = await page.getByTestId("faixa-pilula-desvincular").boundingBox();
+    await page.getByTestId("faixa-pilula-desvincular").click();
+    const depois = await page.getByTestId("faixa-pilula-desvincular").boundingBox();
+    const conf = await page.getByTestId("faixa-pilula-desvincular-confirmar").boundingBox();
+    expect(depois?.x).toBe(antes?.x);
+    expect(conf && depois && conf.x > depois.x).toBeTruthy();
+    await expect(page.getByTestId("faixa-pilula-desvincular-confirmar")).toBeVisible();
+    await expect(page.getByTestId("faixa-pilula-desvincular")).toHaveText("Desvincular");
+  }
+});

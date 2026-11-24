@@ -197,3 +197,4 @@
 - [Negociação extraordinária + cadência 30 min](negociacao-extraordinaria-orcamento.md) — centavos inteiros, trava de margem, cadência desligada por padrão, trilha em budget_eventos/cascata_eventos.
 - [Exames: classificações e código semântico](exames-classificacoes-codigo-semantico.md) — tabela de classificações dos dropdowns; código de 5 blocos existe nos dados, sem spec escrita.
 - [Sinapses clínicas pendentes](sinapses-propostas-pendentes.md) — propostas não conduzem até aprovação; destino vazio ou inativo nunca é saída real nem entra na simulação.
+- [Lei do lugar fixo (TDAH)](lei-lugar-fixo-tdah.md) — botão não muda de lugar/texto; confirmar em slot reservado; aviso junto do mouse; ler a skill antes de toda tela.
