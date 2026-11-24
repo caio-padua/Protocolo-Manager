@@ -760,9 +760,9 @@ function BlocosTab({ slot }: { slot: HTMLElement | null }) {
                 className="bevel-3d inline-flex h-6 w-10 shrink-0"
                 style={{ borderRadius: 5, border: "1px solid", background: `linear-gradient(180deg, rgba(255,255,255,.30) 0%, rgba(255,255,255,0) 48%, rgba(0,0,0,.16) 100%), ${cor}`, borderColor: `color-mix(in srgb, ${cor} 55%, #b8924d)` }}
               />
-              <span className="concave-3d flex h-5 w-9 shrink-0 items-center justify-center text-[10px] font-bold tabular-nums text-primary/80">{b.graus.length}</span>
-              <span className="min-w-0 flex-1 truncate text-left text-[11px] font-semibold uppercase tracking-widest text-primary/80">{b.nomeBloco}</span>
-              {b.tipoMacro && <span className="concave-3d shrink-0 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary/70">{b.tipoMacro}</span>}
+              <span className="concave-3d flex h-6 w-9 shrink-0 items-center justify-center text-[11px] font-black tabular-nums text-[#1b2433]">{b.graus.length}</span>
+              <span className="min-w-0 flex-1 truncate text-left text-xs font-black uppercase tracking-widest text-[#1b2433]">{b.nomeBloco}</span>
+              <span className="concave-3d flex h-6 w-44 shrink-0 items-center justify-center truncate px-2 text-[10px] font-black uppercase tracking-wider text-[#1b2433]">{b.tipoMacro ?? "—"}</span>
             </AccordionTrigger>
             <AccordionContent className="pb-0">
               <div className="concave-3d mt-2 p-3">
