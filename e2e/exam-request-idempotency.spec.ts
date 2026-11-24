@@ -2243,6 +2243,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       const invalidJson = currentOutcome === "json-invalido-recuperacao-automatica";
       const resolvedPending = currentOutcome === "500-atual-recuperacao-automatica-sem-pendencias";
       const automaticRecovery = currentOutcome === "500-atual-recuperacao-automatica" || resolvedPending || invalidJson || switchDuringRecovery;
+      const manualRecovery = currentOutcome === "rede-atual";
       const held: { identity?: Route; oldPage?: Route; historyB?: Route; returned?: Route; recovery?: Route } = {};
       let navigations = 0;
       const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
@@ -2310,7 +2311,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           offsets[stage].push(offset);
           if (stage === "B") { held.historyB = route; return; }
           if (stage === "return") {
-            if (automaticRecovery && offsets.return.length > 1) held.recovery = route;
+            if ((automaticRecovery || manualRecovery) && offsets.return.length > 1) held.recovery = route;
             else held.returned = route;
             return;
           }
@@ -3399,7 +3400,6 @@ for (const transition of ["paciente", "medico"] as const) {
     });
   }
 }
-
 // Histórico incompleto (HTTP 200 sem documents/pendingOperations) no segundo B de
 // A → B → A → B: erro explícito, últimas pendências conhecidas, sem POST.
 for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
@@ -3552,4 +3552,187 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       await panel.screenshot({ path: testInfo.outputPath(`historico-incompleto-${invalid}.png`) });
     });
   }
+}
+// Task 649: after a network failure while returning to clinic A, a manual
+// refresh recovers A's own history and never restores a previous send choice.
+for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
+  test(`Pedidos: atualizar histórico após queda de conexão ao voltar à clínica — ${transition}`, async ({ context, page }, testInfo) => {
+    const clinicA = { id: 303, empresaId: 404, name: "Clínica A sintética" };
+    const clinicB = {
+      id: transition === "empresa" ? 303 : 304,
+      empresaId: transition === "clinica" ? 404 : 405,
+      name: "Clínica B sintética",
+    };
+    const markers = { first: "A-inicial", b: "B-exclusiva", fresh: "A-revalidada" };
+    let stage: "initial" | "B" | "return" = "initial";
+    const offsets: Record<"initial" | "B" | "return", number[]> = { initial: [], B: [], return: [] };
+    const methods: string[] = [];
+    const posts: string[] = [];
+    const held: { identity?: Route; historyB?: Route; returned?: Route; recovery?: Route } = {};
+    let navigations = 0;
+    const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
+      status, contentType: "application/json", body: JSON.stringify(body),
+    });
+    const historyBody = (key: string, id: number) => ({
+      documents: [{ ...document, id, fileName: `${key}.pdf` }],
+      dispatches: [], followups: [], nextOffset: null,
+      pendingOperations: [{
+        operationKey: key, state: "needs_review", createdAt: document.createdAt,
+        documentIds: [id], channels: ["EMAIL"], results: [],
+      }],
+    });
+    const identityBody = (clinic: typeof clinicA) => ({
+      professional, client, clinic, canPrescribe: true, canRequestExams: true, issue: null,
+    });
+    page.on("request", request => {
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
+    });
+    await context.addInitScript(() => {
+      localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
+      localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
+      // The history starts closed and closes again whenever the clinic scope remounts it.
+      new MutationObserver(() => {
+        const toggle = document.querySelector<HTMLElement>('[role="switch"][aria-label="Histórico de pedidos de exames"]');
+        if (toggle && toggle.getAttribute("aria-checked") === "false") toggle.click();
+      }).observe(document, { subtree: true, childList: true, attributes: true });
+    });
+    await context.route("**/api/**", async route => {
+      const request = route.request();
+      const url = new URL(request.url());
+      methods.push(request.method());
+      if (request.method() !== "GET") {
+        if (request.method() === "POST") posts.push(url.pathname);
+        return reply(route, { error: "Somente GET autorizado neste cenário." }, 405);
+      }
+      if (url.pathname === "/api/collaborator/me") return reply(route, { professional });
+      if (url.pathname === "/api/clients") return reply(route, [client]);
+      if (url.pathname === "/api/clients/42") return reply(route, client);
+      if (url.pathname === "/api/clients/42/fotos-corpo") return reply(route, { angulos: [], series: [] });
+      if (url.pathname === "/api/clinical-context/42") {
+        expect(request.headers().authorization).toBe("Bearer synthetic-ui-token");
+        if (stage !== "initial") { held.identity = route; return; }
+        return reply(route, identityBody(clinicA));
+      }
+      if (url.pathname === "/api/clinical-documents/delivery-targets/42") return reply(route, {
+        targets: [
+          { channel: "EMAIL", recipient: "synthetic@example.invalid" },
+          { channel: "TELEGRAM", recipient: "synthetic-telegram" },
+        ],
+        manual: {},
+      });
+      if (url.pathname.startsWith("/api/clinical-documents/delivery-history/")) return reply(route, { deliveries: [] });
+      if (url.pathname === "/api/exam-requests/42/history") {
+        expect(request.headers().authorization).toBe("Bearer synthetic-ui-token");
+        offsets[stage].push(Number(url.searchParams.get("offset")));
+        if (stage === "B") { held.historyB = route; return; }
+        if (stage === "return") {
+          if (offsets.return.length > 1) held.recovery = route; else held.returned = route;
+          return;
+        }
+        return reply(route, historyBody(markers.first, 91));
+      }
+      return reply(route, []);
+    });
+    await page.clock.install();
+    await page.goto("/cockpit/42/exames");
+    const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
+    const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
+    const row = (id: number) => panel.getByRole("row").filter({ hasText: `${id === 91 ? markers.first : id === 92 ? markers.b : markers.fresh}.pdf` });
+    const channel = (name: "E-mail" | "Telegram") => panel.getByRole("checkbox", { name: new RegExp(`^${name}:`) });
+    const consent = panel.getByRole("checkbox", { name: /Conferi o documento e o destinatário|Marque ao menos um canal/ });
+    const send = panel.getByRole("button", { name: /^Enviar por/ });
+    const pending = panel.getByRole("alert").filter({ hasText: "Envios anteriores pendentes de conferência" });
+    const refreshError = panel.getByRole("alert").filter({ hasText: "Failed to fetch" });
+    const refresh = panel.getByRole("button", { name: "Atualizar histórico", exact: true });
+    const openSend = async (id: number) => {
+      await row(id).getByRole("button", { name: /Encaminhar/ }).click();
+      await expect(channel("E-mail")).toBeEnabled();
+    };
+    const revalidate = async (nextStage: "B" | "return", clinic: typeof clinicA) => {
+      stage = nextStage;
+      held.identity = undefined;
+      await page.evaluate(() => window.dispatchEvent(new Event("collab-auth-changed")));
+      await expect.poll(() => !!held.identity).toBe(true);
+      await expect(panel).toBeHidden();
+      await reply(held.identity!, identityBody(clinic));
+      await expect(draft).toContainText(clinic.name);
+    };
+    const expectNoSendChoice = async () => {
+      await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
+      await expect(consent).toHaveCount(0);
+      await expect(send).toHaveCount(0);
+    };
+
+    // A: the doctor starts a send choice that must never survive the round trip.
+    await expect(row(91)).toBeVisible();
+    await openSend(91);
+    await channel("E-mail").check();
+    await consent.check();
+    await expect(send).toBeEnabled();
+
+    await revalidate("B", clinicB);
+    await expect.poll(() => !!held.historyB).toBe(true);
+    await reply(held.historyB!, historyBody(markers.b, 92));
+    await expect(row(92)).toBeVisible();
+    await expectNoSendChoice();
+    await openSend(92);
+    await channel("Telegram").check();
+    await consent.check();
+
+    await revalidate("return", clinicA);
+    await expect.poll(() => !!held.returned).toBe(true);
+    await expect(panel.getByRole("status")).toHaveText("Carregando histórico…");
+    await expect(panel).not.toContainText(markers.b);
+    await expect(panel).not.toContainText(markers.first);
+    await expectNoSendChoice();
+    // The new offset-zero read fails at the network layer: no JSON, no HTTP status.
+    await held.returned!.abort("failed");
+    await expect(refreshError).toBeVisible();
+    await expect(panel.getByRole("status")).toHaveCount(0);
+    await expect(pending).toHaveCount(0);
+    await expect(panel.getByRole("row").filter({ hasText: ".pdf" })).toHaveCount(0);
+    await expect(refresh).toBeEnabled();
+    await expectNoSendChoice();
+    expect(offsets).toEqual({ initial: [0], B: [0], return: [0] });
+
+    // Manual refresh: the clock stays frozen, so the interval cannot be the trigger.
+    await refresh.click();
+    await expect.poll(() => !!held.recovery).toBe(true);
+    expect(offsets).toEqual({ initial: [0], B: [0], return: [0, 0] });
+    await expect(refresh).toBeDisabled();
+    await expect(panel).not.toContainText(markers.first);
+    await expectNoSendChoice();
+    expect(posts).toEqual([]);
+    await reply(held.recovery!, historyBody(markers.fresh, 95));
+
+    await expect(refreshError).toHaveCount(0);
+    await expect(panel).not.toContainText("Failed to fetch");
+    await expect(row(95)).toBeVisible();
+    await expect(panel.getByRole("row").filter({ hasText: ".pdf" })).toHaveCount(1);
+    await expect(pending).toContainText(markers.fresh);
+    for (const old of [markers.first, markers.b]) await expect(panel).not.toContainText(old);
+    await expect(draft).toContainText(clinicA.name);
+    await expect(draft).toContainText(client.name);
+    await expect(refresh).toBeEnabled();
+    // Consent and channels are empty; sending needs a new, explicit authorization.
+    await expectNoSendChoice();
+    await openSend(95);
+    await expect(channel("E-mail")).not.toBeChecked();
+    await expect(channel("Telegram")).not.toBeChecked();
+    await expect(consent).not.toBeChecked();
+    await expect(consent).toBeDisabled();
+    await expect(send).toBeDisabled();
+    await channel("E-mail").check();
+    await expect(consent).not.toBeChecked();
+    await expect(send).toBeDisabled();
+    await consent.check();
+    await expect(send).toBeEnabled();
+
+    expect(offsets).toEqual({ initial: [0], B: [0], return: [0, 0] });
+    expect([...new Set(methods)]).toEqual(["GET"]);
+    expect(posts).toEqual([]);
+    expect(navigations).toBe(1);
+    await expect(page).toHaveURL(/\/cockpit\/42\/exames$/);
+    await panel.screenshot({ path: testInfo.outputPath("recuperacao-apos-queda.png") });
+  });
 }
