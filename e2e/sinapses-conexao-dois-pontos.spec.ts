@@ -201,7 +201,7 @@ test("sinapse: travar a pergunta e clicar na saída liga sem arrastar", async ({
   await page.setViewportSize({ width: 1280, height: 800 });
   const estado = await prepararTela(page);
   await page.getByTestId(`faixa-dendrito-${perguntaId}`).click();
-  await expect(page.getByTestId("faixa-correspondencia-atual")).toContainText(perguntaId);
+  await expect(page.getByTestId("faixa-painel-pergunta")).toContainText(perguntaId);
   await page.getByTestId("faixa-travar").click();
   await expect(page.getByTestId("faixa-travar")).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId(`faixa-ligar-EXAME|exame|${destinoId}`).click();
@@ -215,10 +215,10 @@ test("sinapse: clicar de novo na pergunta apaga os fios dela", async ({ page }) 
   await prepararTela(page);
   const linha = page.getByTestId(`faixa-dendrito-${perguntaId}`);
   await linha.click();
-  await expect(page.getByTestId("faixa-correspondencia-atual")).toContainText(perguntaId);
+  await expect(page.getByTestId("faixa-painel-pergunta")).toContainText(perguntaId);
   await linha.click();
   await page.mouse.move(900, 700);
-  await expect(page.getByTestId("faixa-correspondencia-atual")).toContainText("Escolha uma pergunta");
+  await expect(page.getByTestId("faixa-painel-pergunta-vazio")).toContainText("Selecione uma pergunta");
 });
 
 test("sinapse: 1 clique arma, 2 cliques rápidos na bolinha desarmam e outra pergunta também", async ({ page }) => {

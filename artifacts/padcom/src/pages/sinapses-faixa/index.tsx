@@ -712,48 +712,6 @@ export default function SinapsesFaixa() {
         )}
 
         {/* BUSCA + CORRESPONDENCIA ATUAL */}
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <div className="concave-3d flex min-h-[2.75rem] min-w-0 flex-1 items-center gap-2 px-2 py-1.5" data-testid="faixa-correspondencia-atual">
-            <span className="hidden shrink-0 text-[9px] font-black uppercase leading-tight tracking-wider text-primary/80 sm:block">Correspondência<br />atual</span>
-            {perguntaAtiva ? (
-              <>
-                <div className="flex min-w-0 max-w-[40%] shrink-0 items-center gap-1.5">
-                  <span className="concave-3d sinapse-janela-codigo font-mono text-[10px] font-bold text-[#0f1e36]">{perguntaAtiva.perguntaId}</span>
-                  <span className="min-w-0 truncate text-[11px] font-semibold" title={perguntaAtiva.pergunta}>{perguntaAtiva.pergunta}</span>
-                </div>
-                <span className="shrink-0 text-muted-foreground" aria-hidden="true">→</span>
-                <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5" data-testid="faixa-correspondencia-chips">
-                  {ligacoesAtiva.length === 0 && propostasAtiva.length === 0 && <span className="text-[11px] text-muted-foreground">Nenhuma saída ligada ainda.{modo === "EDICAO" && travada ? " Clique nas saídas à direita." : ""}</span>}
-                  {ligacoesAtiva.map((x) => {
-                    const dst = nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId));
-                    const semSaida = !dst || dst.incompleto;
-                    const armada = armadas.has(x.id);
-                    return (
-                      <span key={x.id} className={`tecla-3d flex h-7 shrink-0 items-center gap-1 pl-1.5 pr-0.5 text-[10px] ${semSaida ? "border-red-400" : ""}`} title={`${codigoDestino(x.categoria, x.destinoTipo, x.destinoId)} · ${ROTULO[x.categoria]} · ${dst?.nome ?? "sem saída"}`}>
-                        <b className="font-mono" style={{ color: semSaida ? "#b91c1c" : COR[x.categoria] }}>{codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}</b>
-                        <span className="max-w-[9rem] truncate">{dst?.nome ?? "sem saída"}</span>
-                        {modo === "EDICAO" && (
-                          <button type="button" onClick={() => cliqueExcluir(x.id)} className="h-6 min-w-6 rounded px-1 text-[11px] font-bold text-red-700 hover:bg-red-50" aria-label={armada ? "Confirmar desvincular" : `Desvincular ${codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}`} title={armada ? "Clique de novo para confirmar" : "Desvincular (desativa, não apaga)"} data-testid={`faixa-chip-desvincular-${x.id}`}>
-                            {armada ? "Confirmar" : "×"}
-                          </button>
-                        )}
-                      </span>
-                    );
-                  })}
-                  {propostasAtiva.map((x) => (
-                    <span key={`p${x.id}`} className="concave-3d flex h-7 shrink-0 items-center gap-1 border border-dashed border-[#b8892b] px-1.5 text-[10px]" title={`Proposta pendente: ${x.eixo}`}>
-                      <b className="font-mono text-[#9b6b11]">{codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}</b>
-                      <span className="max-w-[8rem] truncate">{nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId))?.nome ?? `#${x.destinoId}`}</span>
-                      <span className="text-[8px] font-bold uppercase text-[#9b6b11]">proposta</span>
-                    </span>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <span className="text-[11px] text-muted-foreground">Escolha uma pergunta à esquerda. Aqui aparece, congelado, tudo o que está ligado a ela.</span>
-            )}
-          </div>
-        </div>
         {modo === "SIMULACAO" && (
           <div className="mt-2 grid grid-cols-3 gap-1.5 md:grid-cols-6" data-testid="faixa-resumo-simulacao">
             {CATEGORIAS.map((c) => (
@@ -781,6 +739,35 @@ export default function SinapsesFaixa() {
                 <p className="mt-1 text-[11px] tracking-wide text-muted-foreground" data-testid="faixa-painel-pergunta-subtitulo">
                   {perguntaAtiva.bloco ?? "Sem bloco"} · {ligacoesAtiva.length} ligação(ões) ativa(s) · {propostasAtiva.length} proposta(s){perguntaAtiva.eSinalAlarme ? " · sinal de alarme" : ""}
                 </p>
+                <div className="concave-3d mt-2 flex min-h-[2.5rem] items-center gap-2 px-2 py-1" data-testid="faixa-correspondencia-atual">
+                  <span className="hidden shrink-0 text-[9px] font-black uppercase leading-tight tracking-wider text-primary/80 sm:block">Saídas<br />ligadas</span>
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 py-0.5" data-testid="faixa-correspondencia-chips">
+                  {ligacoesAtiva.length === 0 && propostasAtiva.length === 0 && <span className="text-[11px] text-muted-foreground">Nenhuma saída ligada ainda.{modo === "EDICAO" && travada ? " Clique nas saídas à direita." : ""}</span>}
+                  {ligacoesAtiva.map((x) => {
+                    const dst = nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId));
+                    const semSaida = !dst || dst.incompleto;
+                    const armada = armadas.has(x.id);
+                    return (
+                      <span key={x.id} className={`tecla-3d flex h-7 shrink-0 items-center gap-1 pl-1.5 pr-0.5 text-[10px] ${semSaida ? "border-red-400" : ""}`} title={`${codigoDestino(x.categoria, x.destinoTipo, x.destinoId)} · ${ROTULO[x.categoria]} · ${dst?.nome ?? "sem saída"}`}>
+                        <b className="font-mono" style={{ color: semSaida ? "#b91c1c" : COR[x.categoria] }}>{codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}</b>
+                        <span className="max-w-[9rem] truncate">{dst?.nome ?? "sem saída"}</span>
+                        {modo === "EDICAO" && (
+                          <button type="button" onClick={() => cliqueExcluir(x.id)} className="h-6 min-w-6 rounded px-1 text-[11px] font-bold text-red-700 hover:bg-red-50" aria-label={armada ? "Confirmar desvincular" : `Desvincular ${codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}`} title={armada ? "Clique de novo para confirmar" : "Desvincular (desativa, não apaga)"} data-testid={`faixa-chip-desvincular-${x.id}`}>
+                            {armada ? "Confirmar" : "×"}
+                          </button>
+                        )}
+                      </span>
+                    );
+                  })}
+                  {propostasAtiva.map((x) => (
+                    <span key={`p${x.id}`} className="concave-3d flex h-7 shrink-0 items-center gap-1 border border-dashed border-[#b8892b] px-1.5 text-[10px]" title={`Proposta pendente: ${x.eixo}`}>
+                      <b className="font-mono text-[#9b6b11]">{codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}</b>
+                      <span className="max-w-[8rem] truncate">{nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId))?.nome ?? `#${x.destinoId}`}</span>
+                      <span className="text-[8px] font-bold uppercase text-[#9b6b11]">proposta</span>
+                    </span>
+                  ))}
+                </div>
+                </div>
               </>
             ) : (
               <p className="py-1 text-[13px] text-muted-foreground" data-testid="faixa-painel-pergunta-vazio">Selecione uma pergunta</p>
