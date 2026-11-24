@@ -43,6 +43,7 @@ import Treino from "@/pages/treino";
 import Craniotomia from "@/pages/craniotomia";
 import SinapsesClinicas from "@/pages/sinapses";
 import SinapsesV4 from "@/pages/sinapses-v4";
+import SinapsesFaixa from "@/pages/sinapses-faixa";
 import Cockpit from "@/pages/cockpit";
 import CentralTelegram from "@/pages/central-telegram";
 import RadarClinico from "@/pages/radar-clinico";
@@ -286,7 +287,7 @@ function Router() {
             <Route path="/craniotomia" component={Craniotomia} />
             <Route path="/sinapses-clinicas/v4" component={SinapsesV4} />
             <Route path="/sinapses-clinicas/classico" component={SinapsesClinicas} />
-            <Route path="/sinapses-clinicas" component={SinapsesV4} />
+            <Route path="/sinapses-clinicas" component={SinapsesFaixa} />
             <Route path="/cockpit-anamnese" component={CockpitAnamnese} />
             <Route path="/radar-clinico" component={RadarClinico} />
             <Route path="/paxcare-planos"><CollaboratorGate><PaxCarePlanosPage /></CollaboratorGate></Route>
