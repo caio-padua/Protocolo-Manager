@@ -613,6 +613,32 @@ describe("POST /api/ras/physical/:protocolId/reenviar-email — chama e-mail exa
     expect(text).toContain(FAKE_PROTOCOL.title);
   });
 
+  it("alerta uma vez e preserva o 502 mesmo quando a gravação do email_log falha", async () => {
+    const channel = "C_TEST_RAS_RESEND_CHANNEL";
+    const error = "SMTP connection refused";
+    vi.stubEnv("PADAXOR_SLACK_CHANNEL_ID", channel);
+    vi.mocked(emailSvc.sendProtocolEmail).mockResolvedValueOnce({ success: false, error });
+    const valuesDoLog = vi.fn().mockRejectedValue(new Error("falha sintética ao gravar email_log"));
+    vi.mocked(db.insert).mockImplementation(() => ({ values: valuesDoLog }) as any);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const response = await request(buildApp())
+        .post("/api/ras/physical/42/reenviar-email").send({});
+
+      expect(response.status).toBe(502);
+      expect(response.body.error).toContain(error);
+      expect(emailSvc.sendProtocolEmail).toHaveBeenCalledTimes(1);
+      expect(db.insert).toHaveBeenCalledWith(expect.objectContaining({ __mockName: "email_log" }));
+      expect(valuesDoLog).toHaveBeenCalledTimes(1);
+      expect(valuesDoLog.mock.calls[0][0]).toMatchObject({ tipo: "ras_fap_reenviado", status: "falhou", erro: error, protocolId: FAKE_PROTOCOL.id });
+      expect(postSlackAlert).toHaveBeenCalledExactlyOnceWith(channel, expect.stringContaining(error));
+      expect(consoleError).toHaveBeenCalledWith(expect.stringContaining("email_log do reenvio RAS FAP"), expect.any(Error));
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it("não alerta no Slack quando o reenvio tem sucesso", async () => {
     vi.stubEnv("PADAXOR_SLACK_CHANNEL_ID", "C_TEST_RAS_RESEND_CHANNEL");
     const response = await request(buildApp())

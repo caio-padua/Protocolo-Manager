@@ -105,6 +105,15 @@ export default function SinapsesFaixa() {
   const [fechadosE, setFechadosE] = useState<Set<string>>(new Set());
   const [fechadosD, setFechadosD] = useState<Set<string>>(new Set());
   const [ajudaAberta, setAjudaAberta] = useState(false);
+  // Rolagem independente: perguntas (esquerda) e saidas (direita) rolam separadas; os fios acompanham os dois deslocamentos.
+  const colEsqRef = useRef<HTMLDivElement | null>(null);
+  const colDirRef = useRef<HTMLDivElement | null>(null);
+  const [rolE, setRolE] = useState(0);
+  const [rolD, setRolD] = useState(0);
+  const [alturaVisivel, setAlturaVisivel] = useState(480);
+  // Menu de ligacoes de uma pergunta (dropdown fixo na tela, fora da area rolavel)
+  const [menu, setMenu] = useState<{ perguntaId: string; x: number; y: number; acima: boolean } | null>(null);
+  const [desligadasMenu, setDesligadasMenu] = useState<Record<string, Array<{ categoria: Categoria; destinoTipo: string; destinoId: number }>>>({});
 
   useEffect(() => {
     const consulta = window.matchMedia("(max-width: 639px)");
@@ -113,6 +122,25 @@ export default function SinapsesFaixa() {
     consulta.addEventListener("change", atualizar);
     return () => consulta.removeEventListener("change", atualizar);
   }, []);
+
+  useEffect(() => {
+    const medir = () => { const h = graficoRef.current?.clientHeight; if (h) setAlturaVisivel(h); };
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  });
+  useEffect(() => {
+    if (!menu) return;
+    const fechar = (e: Event) => {
+      if ((e.target as HTMLElement | null)?.closest?.("[data-menu-sinapse]")) return;
+      setMenu(null);
+    };
+    const tecla = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(null); };
+    document.addEventListener("pointerdown", fechar, true);
+    document.addEventListener("keydown", tecla);
+    window.addEventListener("scroll", fechar, true);
+    return () => { document.removeEventListener("pointerdown", fechar, true); document.removeEventListener("keydown", tecla); window.removeEventListener("scroll", fechar, true); };
+  }, [menu]);
 
   useEffect(() => () => {
     if (brilhoTimer.current !== null) window.clearTimeout(brilhoTimer.current);
@@ -388,13 +416,15 @@ export default function SinapsesFaixa() {
     setSel([id]);
   };
   const centralizar = (perguntaId: string) => {
-    const caixa = graficoRef.current;
+    const esq = colEsqRef.current;
+    const dir = colDirRef.current;
     const y = yE.get(perguntaId);
-    if (!caixa || y === undefined) return;
-    const ys = [y, ...(conexoesPorPergunta.get(perguntaId) ?? []).map((c) => yD.get(chave(c.categoria, c.destinoTipo, c.destinoId))).filter((v): v is number => v !== undefined)];
-    const centro = ys.reduce((a, b) => a + b, 0) / ys.length;
+    if (!esq || !dir || y === undefined) return;
+    const ysD = (conexoesPorPergunta.get(perguntaId) ?? []).map((c) => yD.get(chave(c.categoria, c.destinoTipo, c.destinoId))).filter((v): v is number => v !== undefined);
     const reduzir = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    caixa.scrollTo({ top: Math.max(0, centro - caixa.clientHeight / 2), behavior: reduzir ? "auto" : "smooth" });
+    const behavior = reduzir ? "auto" : "smooth";
+    esq.scrollTo({ top: Math.max(0, y - esq.clientHeight / 2), behavior });
+    if (ysD.length) dir.scrollTo({ top: Math.max(0, ysD.reduce((a, b) => a + b, 0) / ysD.length - dir.clientHeight / 2), behavior });
   };
   const propostasFiltradas = (perguntaId?: string) => {
     const visiveis = new Set(esquerda.map((p) => p.perguntaId));
@@ -761,10 +791,11 @@ export default function SinapsesFaixa() {
                 {total === 0 ? "Ainda não há ligações ativas. Entre em Edição (E), escolha uma saída e puxe o fio da pergunta." : "Nada corresponde à busca ou aos filtros."}
               </div>
             ) : (
-              <div ref={graficoRef} className="concave-3d max-h-[max(20rem,calc(100vh-19rem))] overflow-y-auto" data-testid="faixa-grafo-rolagem">
-                <div className="relative grid" style={{ gridTemplateColumns: "minmax(0,1.55fr) minmax(84px,0.9fr) minmax(0,1.55fr)", height: altura }}>
-                  {/* DENDRITOS ESQUERDA */}
-                  <div className="relative border-r border-black/10">
+              <div ref={graficoRef} className="concave-3d" style={{ height: "max(20rem, calc(100vh - 25rem))" }} data-testid="faixa-grafo-rolagem">
+                <div className="grid h-full" style={{ gridTemplateColumns: "minmax(0,1.55fr) minmax(84px,0.9fr) minmax(0,1.55fr)" }}>
+                  {/* DENDRITOS ESQUERDA: rolagem propria */}
+                  <div ref={colEsqRef} onScroll={(e) => setRolE(e.currentTarget.scrollTop)} className="h-full overflow-y-auto border-r border-black/10" data-testid="faixa-coluna-perguntas">
+                  <div className="relative" style={{ height: altura }}>
                     {linhasE.map((linha, idx) => {
                       const topo = idx * alturaLinha + 1.5;
                       if (linha.tipo === "grupo") {
@@ -801,6 +832,17 @@ export default function SinapsesFaixa() {
                             <span className="min-w-0 flex-1 truncate text-[10px] opacity-90">{p.pergunta}</span>
                             <span className="ml-auto text-[9px] tabular-nums opacity-60">{n || ""}</span>
                           </button>
+                          <button type="button" className="tecla-3d flex h-full w-6 shrink-0 items-center justify-center" data-menu-sinapse aria-haspopup="menu" aria-expanded={menu?.perguntaId === p.perguntaId}
+                            data-testid={`faixa-menu-${p.perguntaId}`} aria-label={`Ligações da pergunta ${p.perguntaId}`} title="Ver e ligar ou desligar as ligações desta pergunta"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (menu?.perguntaId === p.perguntaId) { setMenu(null); return; }
+                              const r = e.currentTarget.getBoundingClientRect();
+                              const acima = r.bottom + 300 > window.innerHeight && r.top > 300;
+                              setMenu({ perguntaId: p.perguntaId, x: Math.max(8, Math.min(r.right - 340, window.innerWidth - 348)), y: acima ? r.top - 4 : r.bottom + 4, acima });
+                            }}>
+                            <ChevronDown className="h-3 w-3" />
+                          </button>
                           {modo === "EDICAO" && (
                             <button type="button" onPointerDown={(e) => iniciar(e, p.perguntaId)} onClick={(e) => {
                               e.stopPropagation();
@@ -822,16 +864,20 @@ export default function SinapsesFaixa() {
                       );
                     })}
                   </div>
+                  </div>
                   {/* FIOS */}
-                  <div className="relative w-full" style={{ height: altura, background: "#FFFFFF", boxShadow: "inset 12px 0 20px -15px rgba(15,30,54,0.12), inset -12px 0 20px -15px rgba(15,30,54,0.12)" }} onClick={() => setFioAberto(null)}>
-                  <svg className="block" width="100%" height={altura} viewBox={`0 0 100 ${altura}`} preserveAspectRatio="none" aria-hidden>
+                  <div className="relative h-full w-full overflow-hidden" style={{ background: "#FFFFFF", boxShadow: "inset 12px 0 20px -15px rgba(15,30,54,0.12), inset -12px 0 20px -15px rgba(15,30,54,0.12)" }} onClick={() => setFioAberto(null)}>
+                  <svg className="block" width="100%" height={alturaVisivel} viewBox={`0 0 100 ${alturaVisivel}`} preserveAspectRatio="none" aria-hidden>
                     <defs>
                       <linearGradient id="sinapse-gradiente-fibra" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="100" y2="0">
                         <stop offset="0%" stopColor="#1D4ED8" />
                         <stop offset="100%" stopColor="#D97706" />
                       </linearGradient>
                     </defs>
-                    {fios.map(({ s, y1, y2 }) => {
+                    {fios.map(({ s, y1: y1Abs, y2: y2Abs }) => {
+                      const y1 = y1Abs - rolE;
+                      const y2 = (y2Abs as number) - rolD;
+                      if ((y1 < -20 && y2 < -20) || (y1 > alturaVisivel + 20 && y2 > alturaVisivel + 20)) return null;
                       const emPerg = foco === s.perguntaId || (modo === "SIMULACAO" && sel.includes(s.perguntaId));
                       const em = emPerg || fioAberto === s.id;
                       const apagado = (foco !== null || (modo === "SIMULACAO" && sel.length > 0)) && !em;
@@ -859,7 +905,7 @@ export default function SinapsesFaixa() {
                     const idReal = Number(f.s.id.split("-")[1]);
                     const armada = proposta ? aprovarArmado === idReal : armadas.has(idReal);
                     return (
-                      <div className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-[#d9b25f] bg-white px-2 py-1 text-[10px] shadow-md" style={{ left: "50%", top: (f.y1 + (f.y2 as number)) / 2 }} onClick={(e) => e.stopPropagation()} data-testid="faixa-pilula-fio">
+                      <div className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-[#d9b25f] bg-white px-2 py-1 text-[10px] shadow-md" style={{ left: "50%", top: Math.min(Math.max((f.y1 - rolE + ((f.y2 as number) - rolD)) / 2, 16), alturaVisivel - 16) }} onClick={(e) => e.stopPropagation()} data-testid="faixa-pilula-fio">
                         <span className="font-mono font-bold">{f.s.perguntaId}</span>
                         <span aria-hidden="true">→</span>
                         <span className="max-w-[9rem] truncate font-semibold" style={{ color: COR[f.s.categoria] }}>{codigoDestino(f.s.categoria, f.s.destinoTipo, f.s.destinoId)} {dst?.nome ?? ""}</span>
@@ -877,8 +923,9 @@ export default function SinapsesFaixa() {
                     );
                   })()}
                   </div>
-                  {/* DENDRITOS DIREITA */}
-                  <div className="relative border-l border-black/10">
+                  {/* DENDRITOS DIREITA: rolagem propria */}
+                  <div ref={colDirRef} onScroll={(e) => setRolD(e.currentTarget.scrollTop)} className="h-full overflow-y-auto border-l border-black/10" data-testid="faixa-coluna-saidas">
+                  <div className="relative" style={{ height: altura }}>
                     {linhasD.map((linha, idx) => {
                       const topo = idx * alturaLinha + 1.5;
                       if (linha.tipo === "grupo") {
@@ -920,6 +967,7 @@ export default function SinapsesFaixa() {
                         </div>
                       );
                     })}
+                  </div>
                   </div>
                 </div>
               </div>
@@ -1059,6 +1107,75 @@ export default function SinapsesFaixa() {
           {data.injetaveisSemVia > 0 && <p className="px-1 text-[11px] text-muted-foreground">{data.injetaveisSemVia} injetáveis sem via cadastrada não aparecem em IM, SC nem EV até a via ser preenchida no cadastro.</p>}
         </>
       )}
+
+      {menu && data && (() => {
+        const pid = menu.perguntaId;
+        const perg = data.perguntas.find((x) => x.perguntaId === pid);
+        const ativas = data.sinapses.filter((x) => x.perguntaId === pid);
+        const pend = data.propostas.filter((x) => x.status === "PENDENTE" && x.perguntaId === pid);
+        const jaTem = (c: Categoria, t: string, i: number) => ativas.some((x) => x.categoria === c && x.destinoTipo === t && x.destinoId === i) || pend.some((x) => x.categoria === c && x.destinoTipo === t && x.destinoId === i);
+        const desl = (desligadasMenu[pid] ?? []).filter((x) => !jaTem(x.categoria, x.destinoTipo, x.destinoId));
+        const editar = modo === "EDICAO";
+        const ocupado = criar.isPending || desativar.isPending || aprovarProposta.isPending;
+        const Tecla = ({ ligada, rotulo, onClick, id }: { ligada: boolean; rotulo: string; onClick: () => void; id: string }) => (
+          <button type="button" role="switch" aria-checked={ligada} aria-label={rotulo} title={editar ? (ligada ? "Desligar (desativa, não apaga)" : "Ligar") : "Entre em Edição para ligar ou desligar"}
+            disabled={!editar || ocupado} onClick={onClick} data-testid={id}
+            className={`flex h-6 w-11 shrink-0 items-center px-0.5 ${ligada ? "concave-3d justify-end" : "bevel-3d justify-start"} disabled:opacity-50`}>
+            <span className={`block h-4 w-4 rounded-full border ${ligada ? "border-[#1e3a8a] bg-[#3b6fd4]" : "border-slate-400 bg-white"}`} />
+          </button>
+        );
+        return (
+          <div data-menu-sinapse role="menu" aria-label={`Ligações de ${pid}`} data-testid="faixa-menu-ligacoes"
+            className="panel-3d-sub fixed z-[60] w-[340px] max-w-[calc(100vw-16px)] p-1.5 shadow-xl" style={{ left: menu.x, top: menu.y, transform: menu.acima ? "translateY(-100%)" : undefined, background: "#fdfbf5" }}>
+            <div className="mb-1 flex items-center gap-1.5 px-1">
+              <span className="concave-3d sinapse-janela-codigo font-mono text-[10px] font-bold text-[#0f1e36]">{pid}</span>
+              <span className="min-w-0 flex-1 truncate text-[11px] font-semibold" title={perg?.pergunta}>{perg?.pergunta}</span>
+              <button type="button" className="tecla-3d h-6 w-6 text-[12px] font-bold" onClick={() => setMenu(null)} aria-label="Fechar menu">×</button>
+            </div>
+            <div className="concave-3d max-h-72 space-y-1 overflow-y-auto p-1">
+              {ativas.length + pend.length + desl.length === 0 && <p className="p-2 text-[11px] text-muted-foreground">Nenhuma ligação ainda. Em Edição, trave a pergunta e clique nas saídas.</p>}
+              {ativas.map((x) => {
+                const d = nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId));
+                const cod = codigoDestino(x.categoria, x.destinoTipo, x.destinoId);
+                return (
+                  <div key={`a${x.id}`} className="flex items-center gap-1.5 px-1 text-[10px]">
+                    <Tecla ligada rotulo={`Desligar ${cod}`} id={`faixa-menu-tecla-${x.id}`} onClick={() => {
+                      setDesligadasMenu((m) => ({ ...m, [pid]: [...(m[pid] ?? []), { categoria: x.categoria, destinoTipo: x.destinoTipo, destinoId: x.destinoId }] }));
+                      desativar.mutate(x.id);
+                    }} />
+                    <b className="font-mono" style={{ color: !d || d.incompleto ? "#b91c1c" : COR[x.categoria] }}>{cod}</b>
+                    <span className="min-w-0 flex-1 truncate" title={d?.nome}>{d?.nome ?? "sem saída"}</span>
+                  </div>
+                );
+              })}
+              {pend.map((x) => {
+                const d = nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId));
+                const cod = codigoDestino(x.categoria, x.destinoTipo, x.destinoId);
+                return (
+                  <div key={`p${x.id}`} className="flex items-center gap-1.5 px-1 text-[10px]">
+                    <Tecla ligada={false} rotulo={`Aprovar proposta ${cod}`} id={`faixa-menu-tecla-proposta-${x.id}`} onClick={() => aprovarProposta.mutate({ id: x.id })} />
+                    <b className="font-mono text-[#9b6b11]">{cod}</b>
+                    <span className="min-w-0 flex-1 truncate" title={d?.nome}>{d?.nome ?? `#${x.destinoId}`}</span>
+                    <span className="shrink-0 text-[8px] font-bold uppercase text-[#9b6b11]">proposta</span>
+                  </div>
+                );
+              })}
+              {desl.map((x, i) => {
+                const d = nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId));
+                const cod = codigoDestino(x.categoria, x.destinoTipo, x.destinoId);
+                return (
+                  <div key={`d${i}-${cod}`} className="flex items-center gap-1.5 px-1 text-[10px] opacity-80">
+                    <Tecla ligada={false} rotulo={`Ligar de novo ${cod}`} id={`faixa-menu-tecla-desligada-${cod}`} onClick={() => criar.mutate({ perguntaId: pid, categoria: x.categoria, destinoTipo: x.destinoTipo, destinoId: x.destinoId })} />
+                    <b className="font-mono">{cod}</b>
+                    <span className="min-w-0 flex-1 truncate" title={d?.nome}>{d?.nome ?? `#${x.destinoId}`}</span>
+                    <span className="shrink-0 text-[8px] font-bold uppercase text-muted-foreground">desligada</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {arraste && (
         <svg className="pointer-events-none fixed inset-0 z-50" width="100%" height="100%" aria-hidden>

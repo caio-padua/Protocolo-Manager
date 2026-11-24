@@ -249,3 +249,34 @@ test("sinapse: 1 clique na saída liga e mantém armado; 2 cliques rápidos liga
   await destino.dblclick();
   await expect(pino).toHaveAttribute("aria-pressed", "false");
 });
+
+test("sinapse: mini console central, colunas independentes e menu de ligações da pergunta", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const estado = await prepararTela(page, false, 1);
+  const console_ = page.getByTestId("faixa-mini-console");
+  await expect(console_.getByTestId("faixa-modo-EDICAO")).toBeVisible();
+  const caixaConsole = await console_.boundingBox();
+  const caixaFaixa = await page.getByTestId("faixa-grafo").boundingBox();
+  expect(caixaConsole && caixaFaixa && caixaConsole.y + caixaConsole.height <= caixaFaixa.y + 2).toBeTruthy();
+  const centroConsole = caixaConsole!.x + caixaConsole!.width / 2;
+  expect(Math.abs(centroConsole - 1280 / 2)).toBeLessThan(260);
+  await expect(page.getByTestId("faixa-coluna-perguntas")).toBeVisible();
+  await expect(page.getByTestId("faixa-coluna-saidas")).toBeVisible();
+  const sobreposicao = await page.evaluate(() => {
+    const e = document.querySelector('[data-testid="faixa-coluna-perguntas"]') as HTMLElement;
+    const d = document.querySelector('[data-testid="faixa-coluna-saidas"]') as HTMLElement;
+    return getComputedStyle(e).overflowY === "auto" && getComputedStyle(d).overflowY === "auto";
+  });
+  expect(sobreposicao).toBe(true);
+
+  await page.getByTestId(`faixa-menu-${perguntaId}`).click();
+  const menu = page.getByTestId("faixa-menu-ligacoes");
+  await expect(menu).toBeVisible();
+  const tecla = menu.getByRole("switch", { name: /Aprovar proposta/ });
+  await expect(tecla).toHaveAttribute("aria-checked", "false");
+  await tecla.click();
+  await expect.poll(() => estado.aprovadas.length).toBe(1);
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await page.screenshot({ path: "/tmp/sinapse-console.png" });
+});
