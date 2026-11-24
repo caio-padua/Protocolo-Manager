@@ -237,6 +237,7 @@ test("sinapse: 1 clique arma, 2 cliques rápidos na bolinha desarmam e outra per
   const pino = page.getByTestId(`faixa-porta-${perguntaId}`);
   await pino.click();
   await expect(pino).toHaveAttribute("aria-pressed", "true");
+  await page.waitForTimeout(800);
   await pino.dblclick();
   await expect(pino).toHaveAttribute("aria-pressed", "false");
   await pino.click();
@@ -320,4 +321,16 @@ test("sinapse: painel da pergunta atual espelha caixa sim/não e fio nos dois se
   await expect(page.getByTestId("grade-saidas-resumo")).toContainText("Grupo sintético");
   await page.waitForTimeout(600);
   await page.screenshot({ path: "/tmp/sinapse-tela.png" });
+});
+
+test("sinapse: 2 cliques rápidos na bolinha em repouso armam o fio e 2 cliques depois desarmam", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await prepararTela(page);
+  await page.getByTestId("faixa-modo-EDICAO").click();
+  const pino = page.getByTestId(`faixa-porta-${perguntaId}`);
+  await pino.dblclick();
+  await expect(pino).toHaveAttribute("aria-pressed", "true");
+  await page.waitForTimeout(800);
+  await pino.dblclick();
+  await expect(pino).toHaveAttribute("aria-pressed", "false");
 });

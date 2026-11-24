@@ -598,6 +598,7 @@ export default function SinapsesFaixa() {
     return () => { window.removeEventListener("pointermove", mover); window.removeEventListener("pointerup", soltar); window.removeEventListener("scroll", reancorar, true); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!arraste]);
+  const armadoEm = useRef(0);
   const cancelarArraste = () => { arrasteRef.current = null; setArraste(null); };
   const iniciarNoPonto = (de: string, x: number, y: number, clonarOrigem = false) => {
     if (modo !== "EDICAO") return;
@@ -612,6 +613,7 @@ export default function SinapsesFaixa() {
       y,
       clonar: clonarOrigem,
     };
+    armadoEm.current = Date.now();
     arrasteRef.current = proximo;
     setArraste(proximo);
   };
@@ -964,7 +966,8 @@ export default function SinapsesFaixa() {
                           {modo === "EDICAO" && (
                             <button type="button" onPointerDown={(e) => iniciar(e, p.perguntaId)} onClick={(e) => {
                               e.stopPropagation();
-                              if (e.detail >= 2 && arrasteRef.current?.de === p.perguntaId) { cancelarArraste(); return; }
+                              // Dois cliques rápidos num pino em repouso ARMAM (o 2º clique do mesmo gesto é ignorado); dois cliques rápidos num pino já armado DESARMAM.
+                              if (e.detail >= 2 && arrasteRef.current?.de === p.perguntaId) { if (Date.now() - armadoEm.current > 700) cancelarArraste(); return; }
                               if (e.detail === 1 && arrasteRef.current?.de === p.perguntaId && !arrasteRef.current.fixo) { const f = { ...arrasteRef.current, fixo: true }; arrasteRef.current = f; setArraste(f); return; }
                               if (e.detail === 0 && !arrasteRef.current) {
                                 const r = e.currentTarget.getBoundingClientRect();
