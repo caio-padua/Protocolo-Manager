@@ -80,7 +80,13 @@ export default function ExamDocumentHistoryPanel({ clientId, enabled, historySco
        !!query.state.data?.followups.some((item) => ["receipt_pending", "receipt_sending", "booking_pending", "booking_sending"].includes(item.state)))
       ? 10_000 : false,
     refetchIntervalInBackground: false,
-    queryFn: ({ signal }) => api<ExamRequestHistory>(`/exam-requests/${clientId}/history?offset=${offset}`, signal),
+    queryFn: async ({ signal }) => {
+      const data = await api<ExamRequestHistory>(`/exam-requests/${clientId}/history?offset=${offset}`, signal);
+      // Resposta incompleta nunca vale como histórico vazio: falha explícita preserva as últimas pendências conhecidas.
+      if (!data || !Array.isArray(data.documents)) throw new Error("O histórico retornou um formato inesperado.");
+      if (!Array.isArray(data.pendingOperations)) throw new Error("Não foi possível conferir as operações pendentes. Atualize o histórico.");
+      return data;
+    },
   });
   useEffect(() => { setOffset(0); }, [clientId]);
   if (!enabled) return null;
@@ -122,6 +128,7 @@ export default function ExamDocumentHistoryPanel({ clientId, enabled, historySco
       {history.error && <p role="alert" className="text-sm text-destructive">{history.error.message}</p>}
       {!!history.data?.pendingOperations.length && <div className="bevel-3d paxter-alert-amber space-y-2 p-3 text-sm" role="alert">
         <h3 className="font-bold uppercase">Envios anteriores pendentes de conferência</h3>
+        {history.isError && <p>Últimas pendências conhecidas; não foi possível reconfirmar a situação atual.</p>}
         <p>Confira o provedor antes de repetir um envio antigo. A consulta do histórico não inicia novo envio.</p>
         {history.data.pendingOperations.map((operation) => <div key={operation.operationKey} className="concave-3d space-y-1 p-2">
           <p>Operação {operation.operationKey} · {operation.state === "needs_review" ? "requer conferência" : "sem conclusão registrada"}</p>
