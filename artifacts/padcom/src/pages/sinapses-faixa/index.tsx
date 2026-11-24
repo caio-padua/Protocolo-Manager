@@ -907,10 +907,10 @@ export default function SinapsesFaixa() {
             ) : (
               <div ref={graficoRef} className="concave-3d" style={{ height: ampliada ? "calc(100vh - 15rem)" : "max(20rem, calc(100vh - 25rem))" }} data-testid="faixa-grafo-rolagem">
                 <div className="relative grid h-full" style={{ gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }}>
-                  <div className="absolute bottom-0 left-1 top-0 z-20"><Termostato alvo={colEsqRef} rotulo="Rolar perguntas" testid="faixa-termostato-perguntas" /></div>
-                  <div className="absolute bottom-0 right-1 top-0 z-20"><Termostato alvo={colDirRef} rotulo="Rolar saídas" testid="faixa-termostato-saidas" /></div>
+                  <div className="absolute bottom-0 left-1.5 top-0 z-20"><Termostato alvo={colEsqRef} rotulo="Rolar perguntas" testid="faixa-termostato-perguntas" /></div>
+                  <div className="absolute bottom-0 right-1.5 top-0 z-20"><Termostato alvo={colDirRef} rotulo="Rolar saídas" testid="faixa-termostato-saidas" /></div>
                   {/* DENDRITOS ESQUERDA: rolagem propria */}
-                  <div ref={colEsqRef} onScroll={(e) => setRolE(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-r border-black/10 pl-5" data-testid="faixa-coluna-perguntas">
+                  <div ref={colEsqRef} onScroll={(e) => setRolE(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-r border-black/10 pl-7" data-testid="faixa-coluna-perguntas">
                   <div className="relative" style={{ height: altura }}>
                     {linhasE.map((linha, idx) => {
                       const topo = idx * alturaLinha + 1.5;
@@ -1058,7 +1058,7 @@ export default function SinapsesFaixa() {
                     );
                   })()}
                   {/* DENDRITOS DIREITA: rolagem propria */}
-                  <div ref={colDirRef} onScroll={(e) => setRolD(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-l border-black/10 pr-5" data-testid="faixa-coluna-saidas">
+                  <div ref={colDirRef} onScroll={(e) => setRolD(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-l border-black/10 pr-7" data-testid="faixa-coluna-saidas">
                   <div className="relative" style={{ height: altura }}>
                     {linhasD.map((linha, idx) => {
                       const topo = idx * alturaLinha + 1.5;

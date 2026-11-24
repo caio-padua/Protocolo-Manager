@@ -61,7 +61,7 @@
 }
 /* Quadradinho interno na cor da classificação (bloco da pergunta / categoria da saída); apagado quando não há ligação */
 .sinapse-pino::before {
-  content: ""; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 1.5px;
+  content: ""; position: absolute; inset: 3px 4px; border-radius: 2px;
   background: var(--cor-pino); opacity: 0.35; transition: opacity 0.2s ease;
 }
 .sinapse-pino[data-estado="ativo"]::before,
@@ -69,7 +69,7 @@
 .sinapse-pino[data-estado="armado"]::before { opacity: 1; }
 .sinapse-pino[data-estado="armado"] { box-shadow: 0 0 6px 1px #fbbf24; }
 /* Respira devagar só quando a linha está em foco (armado, pergunta selecionada ou mouse em cima); fora disso fica parado */
-@keyframes sinapse-respira { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.45); } }
+@keyframes sinapse-respira { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.82); opacity: 0.6; } }
 .sinapse-pino[data-estado="armado"]::before,
 .sinapse-pino[data-foco="1"]::before,
 .sinapse-pino-area:hover .sinapse-pino::before { animation: sinapse-respira 4.5s ease-in-out infinite; }
@@ -143,7 +143,7 @@
 
 /* Termostato: trilho Côncavo quadrado + botão retangular Saliente */
 .sinapse-termostato {
-  position: absolute; top: 20px; bottom: 20px; width: 14px; z-index: 5;
+  position: absolute; top: 12px; bottom: 12px; width: 18px; z-index: 5;
   border-radius: 3px; overflow: hidden;
   background: linear-gradient(90deg, #e7dfca, #f6f1e4);
   box-shadow: inset 0 2px 4px rgba(7,22,43,0.22), inset 0 -1px 0 rgba(255,255,255,0.9);
