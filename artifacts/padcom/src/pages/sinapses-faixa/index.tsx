@@ -101,6 +101,10 @@ export default function SinapsesFaixa() {
   const graficoRef = useRef<HTMLDivElement | null>(null);
   const [loteArmado, setLoteArmado] = useState<string | null>(null);
   const [loteEmCurso, setLoteEmCurso] = useState(false);
+  const [travada, setTravada] = useState<string | null>(null);
+  const [fechadosE, setFechadosE] = useState<Set<string>>(new Set());
+  const [fechadosD, setFechadosD] = useState<Set<string>>(new Set());
+  const [ajudaAberta, setAjudaAberta] = useState(false);
 
   useEffect(() => {
     const consulta = window.matchMedia("(max-width: 639px)");
@@ -300,15 +304,55 @@ export default function SinapsesFaixa() {
         }
       }
     });
-    return Array.from(m.values()).sort((a, b) => Number((b.nAtivas + b.nPropostas + b.nSemSaida) > 0) - Number((a.nAtivas + a.nPropostas + a.nSemSaida) > 0) || a.cat.localeCompare(b.cat) || a.nome.localeCompare(b.nome));
+    const ordemCat = (c: Categoria) => CATEGORIAS.findIndex((x) => x.chave === c);
+    return Array.from(m.values()).sort((a, b) => ordemCat(a.cat) - ordemCat(b.cat) || Number((b.nAtivas + b.nPropostas + b.nSemSaida) > 0) - Number((a.nAtivas + a.nPropostas + a.nSemSaida) > 0) || a.nome.localeCompare(b.nome));
   }, [data, modo, cats, q, esquerda, conexoesPorPergunta, nomeDe, todos]);
 
-  const yE = useMemo(() => new Map(esquerda.map((p, i) => [p.perguntaId, (i + 0.5) * alturaLinha])), [esquerda, alturaLinha]);
-  const yD = useMemo(() => new Map(direita.map((d, i) => [d.k, (i + 0.5) * alturaLinha])), [direita, alturaLinha]);
-  const altura = Math.max(esquerda.length, direita.length, 1) * alturaLinha;
+  // Linhas do grafo: cada lado e uma lista de grupos recolhiveis (blocos a esquerda, saidas por categoria a direita).
+  // Item dentro de grupo recolhido prende o fio na barra do grupo.
+  const { linhasE, yE } = useMemo(() => {
+    const ordem = new Map<string, number>();
+    (data?.perguntas ?? []).forEach((p, i) => { const b = p.bloco ?? "SEM BLOCO"; if (!ordem.has(b)) ordem.set(b, i); });
+    const grupos = new Map<string, Pergunta[]>();
+    for (const p of esquerda) { const b = p.bloco ?? "SEM BLOCO"; const a = grupos.get(b); if (a) a.push(p); else grupos.set(b, [p]); }
+    const linhas: Array<{ tipo: "grupo"; k: string; n: number; nLig: number } | { tipo: "item"; p: Pergunta }> = [];
+    const y = new Map<string, number>();
+    Array.from(grupos.keys()).sort((x, z) => (ordem.get(x) ?? 0) - (ordem.get(z) ?? 0)).forEach((b) => {
+      const itens = grupos.get(b)!;
+      const nLig = itens.filter((p) => (conexoesPorPergunta.get(p.perguntaId)?.length ?? 0) > 0).length;
+      const yGrupo = (linhas.length + 0.5) * alturaLinha;
+      linhas.push({ tipo: "grupo", k: b, n: itens.length, nLig });
+      const fechado = fechadosE.has(b);
+      itens.forEach((p) => {
+        if (fechado) { y.set(p.perguntaId, yGrupo); return; }
+        y.set(p.perguntaId, (linhas.length + 0.5) * alturaLinha);
+        linhas.push({ tipo: "item", p });
+      });
+    });
+    return { linhasE: linhas, yE: y };
+  }, [data, esquerda, conexoesPorPergunta, fechadosE, alturaLinha]);
+  const { linhasD, yD } = useMemo(() => {
+    const linhas: Array<{ tipo: "grupo"; k: Categoria; n: number; nLig: number } | { tipo: "item"; d: (typeof direita)[number] }> = [];
+    const y = new Map<string, number>();
+    for (const c of CATEGORIAS) {
+      const itens = direita.filter((d) => d.cat === c.chave);
+      if (!itens.length) continue;
+      const yGrupo = (linhas.length + 0.5) * alturaLinha;
+      linhas.push({ tipo: "grupo", k: c.chave, n: itens.length, nLig: itens.filter((d) => d.nAtivas + d.nPropostas + d.nSemSaida > 0).length });
+      const fechado = fechadosD.has(c.chave);
+      itens.forEach((d) => {
+        if (fechado) { y.set(d.k, yGrupo); return; }
+        y.set(d.k, (linhas.length + 0.5) * alturaLinha);
+        linhas.push({ tipo: "item", d });
+      });
+    }
+    return { linhasD: linhas, yD: y };
+  }, [direita, fechadosD, alturaLinha]);
+  const altura = Math.max(linhasE.length, linhasD.length, 1) * alturaLinha;
   const fios = useMemo(() => esquerda.flatMap((p) => (conexoesPorPergunta.get(p.perguntaId) ?? []).map((s) => ({ s, y1: yE.get(p.perguntaId)!, y2: yD.get(chave(s.categoria, s.destinoTipo, s.destinoId)) }))).filter((f) => f.y2 !== undefined), [esquerda, conexoesPorPergunta, yE, yD]);
 
-  const foco = arraste?.de ?? hover ?? (sel.length === 1 ? sel[0] : null);
+  const ativa = travada ?? (sel.length === 1 ? sel[0] : null);
+  const foco = arraste?.de ?? travada ?? hover ?? (sel.length === 1 ? sel[0] : null);
   const simAcesos = useMemo(() => {
     const set = new Set<string>();
     if (modo === "SIMULACAO") {
@@ -398,10 +442,11 @@ export default function SinapsesFaixa() {
       if (t === "v" || t === "s") {
         arrasteRef.current = null;
         setArraste(null);
+        setTravada(null);
         setModo(t === "v" ? "VISUALIZACAO" : "SIMULACAO");
       }
       if (t === "e") setModo("EDICAO");
-      if (t === "escape") { setSel([]); arrasteRef.current = null; setArraste(null); }
+      if (t === "escape") { setSel([]); setTravada(null); arrasteRef.current = null; setArraste(null); }
     };
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
@@ -483,6 +528,15 @@ export default function SinapsesFaixa() {
     }
   };
 
+  const ligarRapido = (d: { k: string; cat: Categoria; tipo: TipoDestino; id: number; incompleto?: boolean }) => {
+    if (!travada || modo !== "EDICAO") return;
+    if (d.incompleto) { toast({ title: "Saída sem conteúdo", description: "Este bloco está vazio e não pode receber ligação.", variant: "destructive" }); return; }
+    const jaLigada = (data?.sinapses ?? []).some((x) => x.perguntaId === travada && chave(x.categoria, x.destinoTipo, x.destinoId) === d.k);
+    if (jaLigada) { toast({ title: "Esta saída já está ligada", description: "Para desfazer, use o × na correspondência atual, no painel do topo." }); return; }
+    const proposta = (data?.propostas ?? []).find((x) => x.status === "PENDENTE" && x.perguntaId === travada && chave(x.categoria, x.destinoTipo, x.destinoId) === d.k);
+    if (proposta) { aprovarProposta.mutate({ id: proposta.id }); return; }
+    criar.mutate({ perguntaId: travada, categoria: d.cat, destinoTipo: d.tipo, destinoId: d.id });
+  };
   const cliqueExcluir = (id: number) => {
     if (armadas.has(id)) { setArmadas((s) => { const n = new Set(s); n.delete(id); return n; }); desativar.mutate(id); return; }
     setArmadas((s) => new Set(s).add(id));
@@ -513,50 +567,119 @@ export default function SinapsesFaixa() {
         ? "Simulação, nada é gravado: marque perguntas como respondidas “sim” e veja quais saídas acenderiam."
         : "Clique num código para destacar os fios e abrir as correspondências na sanfona.";
 
+  const perguntaAtiva = ativa ? data?.perguntas.find((x) => x.perguntaId === ativa) : undefined;
+  const ligacoesAtiva = ativa ? (data?.sinapses ?? []).filter((x) => x.perguntaId === ativa) : [];
+  const propostasAtiva = ativa ? (data?.propostas ?? []).filter((x) => x.status === "PENDENTE" && x.perguntaId === ativa) : [];
+  const alternarGrupo = (conjunto: Set<string>, atualizar: (v: Set<string>) => void, k: string) => {
+    const n = new Set(conjunto);
+    if (n.has(k)) n.delete(k); else n.add(k);
+    atualizar(n);
+  };
+  const barraGrupo = ({ titulo, cor, n, nLig, fechado, onClick, testid }: { titulo: string; cor?: string; n: number; nLig: number; fechado: boolean; onClick: () => void; testid: string }) => (
+    <button type="button" onClick={onClick} aria-expanded={!fechado} aria-pressed={fechado} data-testid={testid}
+      className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1.5 px-1.5 text-left" title={`${titulo}: ${nLig} com ligação, ${n} no total. ${fechado ? "Clique para abrir." : "Clique para recolher."}`}>
+      <span className="truncate text-[10px] font-black uppercase tracking-wider" style={{ color: cor }}>{titulo}</span>
+      <span className="ml-auto shrink-0 text-[9px] tabular-nums opacity-70">{nLig}/{n}</span>
+      <span className="w-3 shrink-0 text-center text-[12px] font-bold leading-none" aria-hidden="true">{fechado ? "+" : "−"}</span>
+    </button>
+  );
+
   return (
-    <div className="space-y-3" data-testid="pagina-sinapses-faixa">
-      <section className="panel-3d-sub p-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-bold uppercase tracking-widest text-primary">Sinapses Clínicas</h1>
-            <p className="text-xs text-muted-foreground">Esquerda: códigos das perguntas. Direita: códigos das saídas. Passe o mouse numa linha para ver o texto completo. A pergunta é a ignição: clique nela para acender os fios até as saídas. Esta tela só cadastra ligações; não emite nem envia nada.</p>
-          </div>
-          <div className="mx-ev-g w-[26rem]" style={{ gridTemplateColumns: "repeat(3,1fr)" }} role="group" aria-label="Modo da tela">
-            {([["VISUALIZACAO", "Visualização (V)", Eye], ["EDICAO", "Edição (E)", Pencil], ["SIMULACAO", "Simulação (S)", Play]] as const).map(([m, rot, Ic]) => (
-              <button key={m} type="button" aria-pressed={modo === m} onClick={() => { if (m !== "EDICAO") { arrasteRef.current = null; setArraste(null); } setModo(m); }} className={`evo-bevel mx-ev-b h40 ${modo === m ? "evo-bevel-ativo" : ""}`} data-testid={`faixa-modo-${m}`}>
-                <Ic className="mr-1 inline h-4 w-4" />{rot}
+    <div className="sinapse-tela space-y-3" data-testid="pagina-sinapses-faixa">
+      {/* PAINEL DE COMANDO UNICO E CONGELADO */}
+      <section className="sinapse-comando panel-3d-sub p-2" data-testid="faixa-comando">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="bevel-3d px-3 py-1.5 text-[13px] font-bold uppercase tracking-[0.18em] text-primary">Sinapses Clínicas</h1>
+          <div className="flex gap-1" role="group" aria-label="Modo da tela">
+            {([["VISUALIZACAO", "Visualização", "V", Eye], ["EDICAO", "Edição", "E", Pencil], ["SIMULACAO", "Simulação", "S", Play]] as const).map(([m, rot, tecla, Ic]) => (
+              <button key={m} type="button" aria-pressed={modo === m} title={`${rot} (${tecla})`} onClick={() => { if (m !== "EDICAO") { arrasteRef.current = null; setArraste(null); setTravada(null); } setModo(m); }} className="tecla-3d flex h-9 items-center gap-1.5 px-2.5 text-[11px] font-bold uppercase tracking-wide" data-testid={`faixa-modo-${m}`}>
+                <Ic className="h-3.5 w-3.5" />{rot}
               </button>
             ))}
           </div>
-          <div className="screen-3d px-3 py-2 text-xs font-black tracking-wide" data-testid="faixa-contagem">
-            {total} registros ativos · {totalPropostasPendentes} propostas
+          <div className="concave-3d flex h-9 flex-wrap items-center gap-x-3 px-3 text-[11px]" data-testid="faixa-contagem" title="Ligação ativa = saída real conectada à pergunta. Proposta = sugestão ainda não aprovada; não alimenta o motor clínico.">
+            <span><b>{total}</b> ativas</span>
+            <span><b>{totalPropostasPendentes}</b> propostas</span>
+            <span><b>{perguntasComSaidaReal}</b>/{data?.perguntas.length ?? 0} com saída</span>
+            {ligacoesSemSaida > 0 && <span className="font-semibold text-red-700">{ligacoesSemSaida} sem saída</span>}
           </div>
+          <button type="button" aria-pressed={ajudaAberta} onClick={() => setAjudaAberta((v) => !v)} className="tecla-3d ml-auto h-9 w-9 text-[13px] font-bold" aria-label="Como usar esta tela" title="Como usar esta tela">?</button>
         </div>
+
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <div className="relative w-72">
+          <div className="relative w-64">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar código, pergunta ou saída..." className="h-9 pl-9 field-engraved" data-testid="faixa-busca" />
           </div>
-          {CATEGORIAS.map((c) => {
-            const ativo = cats.includes(c.chave);
-            return (
-              <button key={c.chave} type="button" aria-pressed={ativo} title={c.rotulo} data-testid={`faixa-cat-${c.chave}`}
-                onClick={() => setCats((s) => (ativo ? s.filter((x) => x !== c.chave) : [...s, c.chave]))}
-                className={`evo-bevel px-3 py-1 text-[11px] font-black ${ativo ? "evo-bevel-ativo" : ""}`} style={{ color: ativo ? undefined : c.cor }}>{c.sigla}</button>
-            );
-          })}
-          {cats.length > 0 && <button type="button" className="text-[11px] text-muted-foreground underline" onClick={() => setCats([])}>limpar saídas</button>}
-          <button
-            type="button"
-            className="bevel-3d ml-auto min-h-10 px-3 text-[10px] font-bold uppercase"
-            onClick={() => gerarCarga.mutate({ data: {} })}
-            disabled={gerarCarga.isPending}
-            data-testid="button-gerar-propostas"
-          >
+          <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground" aria-live="polite" data-testid="faixa-ajuda" title={ajuda}>{ajuda}</p>
+          {modo === "EDICAO" && propostasFiltradas().length > 0 && (
+            <button type="button" disabled={loteEmCurso} onClick={() => aprovarLote("todas")} className="tecla-3d h-9 px-3 text-[10px] font-bold uppercase" data-testid="button-aprovar-lote" title="Aprova todas as propostas pendentes das perguntas e filtros visíveis agora">
+              {loteEmCurso ? "Aprovando..." : loteArmado === "todas" ? `Confirmar ${propostasFiltradas().length}` : "Aprovar propostas filtradas"}
+            </button>
+          )}
+          <button type="button" className="tecla-3d h-9 px-3 text-[10px] font-bold uppercase" onClick={() => gerarCarga.mutate({ data: {} })} disabled={gerarCarga.isPending} data-testid="button-gerar-propostas">
             {gerarCarga.isPending ? "Gravando propostas…" : "Gerar propostas iniciais"}
           </button>
         </div>
-        <p className="mt-2 text-[11px] text-muted-foreground" aria-live="polite" data-testid="faixa-ajuda">{ajuda}</p>
+        {ajudaAberta && (
+          <div className="concave-3d mt-2 space-y-1 p-2 text-[11px] leading-snug" data-testid="faixa-ajuda-detalhe">
+            <p><b>Para cadastrar rápido:</b> em Edição, clique numa pergunta, aperte <b>Travar pergunta</b> na faixa abaixo e clique nas saídas à direita. Cada clique liga (ou aprova a proposta daquela saída).</p>
+            <p><b>Também funciona:</b> clicar no ponto da pergunta e depois no ponto de uma saída, ou arrastar. Alt + arraste copia as ligações; Ctrl+C e Ctrl+V copiam perguntas selecionadas. Escape cancela e destrava.</p>
+            <p><b>Fios:</b> contínuo = saída real; tracejado dourado = proposta; tracejado vermelho = ligação ativa sem saída. Esta tela só cadastra ligações; não emite nem envia nada.</p>
+          </div>
+        )}
+
+        {/* CORRESPONDENCIA ATUAL */}
+        <div className="concave-3d mt-2 flex min-h-[2.75rem] items-center gap-2 px-2 py-1.5" data-testid="faixa-correspondencia-atual">
+          <span className="hidden shrink-0 text-[9px] font-black uppercase leading-tight tracking-wider text-primary/80 sm:block">Correspondência<br />atual</span>
+          {perguntaAtiva ? (
+            <>
+              <div className="flex min-w-0 max-w-[40%] shrink-0 items-center gap-1.5">
+                <span className="concave-3d sinapse-janela-codigo font-mono text-[10px] font-bold text-[#0f1e36]">{perguntaAtiva.perguntaId}</span>
+                <span className="min-w-0 truncate text-[11px] font-semibold" title={perguntaAtiva.pergunta}>{perguntaAtiva.pergunta}</span>
+              </div>
+              {modo === "EDICAO" && (
+                <button type="button" aria-pressed={travada === perguntaAtiva.perguntaId} onClick={() => setTravada((v) => (v === perguntaAtiva.perguntaId ? null : perguntaAtiva.perguntaId))} className="tecla-3d flex h-8 shrink-0 items-center gap-1 px-2 text-[10px] font-bold uppercase" data-testid="faixa-travar" title="Com a pergunta travada, cada clique numa saída à direita liga essa saída a ela.">
+                  {travada === perguntaAtiva.perguntaId ? <><Lock className="h-3 w-3" />Travada</> : <><Unlock className="h-3 w-3" />Travar pergunta</>}
+                </button>
+              )}
+              <span className="shrink-0 text-muted-foreground" aria-hidden="true">→</span>
+              <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5" data-testid="faixa-correspondencia-chips">
+                {ligacoesAtiva.length === 0 && propostasAtiva.length === 0 && <span className="text-[11px] text-muted-foreground">Nenhuma saída ligada ainda.{modo === "EDICAO" && travada ? " Clique nas saídas à direita." : ""}</span>}
+                {ligacoesAtiva.map((x) => {
+                  const dst = nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId));
+                  const semSaida = !dst || dst.incompleto;
+                  const armada = armadas.has(x.id);
+                  return (
+                    <span key={x.id} className={`tecla-3d flex h-7 shrink-0 items-center gap-1 pl-1.5 pr-0.5 text-[10px] ${semSaida ? "border-red-400" : ""}`} title={`${codigoDestino(x.categoria, x.destinoTipo, x.destinoId)} · ${ROTULO[x.categoria]} · ${dst?.nome ?? "sem saída"}`}>
+                      <b className="font-mono" style={{ color: semSaida ? "#b91c1c" : COR[x.categoria] }}>{codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}</b>
+                      <span className="max-w-[9rem] truncate">{dst?.nome ?? "sem saída"}</span>
+                      {modo === "EDICAO" && (
+                        <button type="button" onClick={() => cliqueExcluir(x.id)} className="h-6 min-w-6 rounded px-1 text-[11px] font-bold text-red-700 hover:bg-red-50" aria-label={armada ? "Confirmar desvincular" : `Desvincular ${codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}`} title={armada ? "Clique de novo para confirmar" : "Desvincular (desativa, não apaga)"} data-testid={`faixa-chip-desvincular-${x.id}`}>
+                          {armada ? "Confirmar" : "×"}
+                        </button>
+                      )}
+                    </span>
+                  );
+                })}
+                {propostasAtiva.map((x) => (
+                  <span key={`p${x.id}`} className="concave-3d flex h-7 shrink-0 items-center gap-1 border border-dashed border-[#b8892b] px-1.5 text-[10px]" title={`Proposta pendente: ${x.eixo}`}>
+                    <b className="font-mono text-[#9b6b11]">{codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}</b>
+                    <span className="max-w-[8rem] truncate">{nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId))?.nome ?? `#${x.destinoId}`}</span>
+                    <span className="text-[8px] font-bold uppercase text-[#9b6b11]">proposta</span>
+                  </span>
+                ))}
+              </div>
+              {modo === "EDICAO" && propostasAtiva.length > 0 && (
+                <button type="button" disabled={loteEmCurso} onClick={() => aprovarLote(`q-${perguntaAtiva.perguntaId}`, perguntaAtiva.perguntaId)} className="tecla-3d h-8 shrink-0 px-2 text-[10px] font-bold uppercase" data-testid="faixa-aprovar-da-pergunta">
+                  {loteEmCurso ? "Aprovando..." : loteArmado === `q-${perguntaAtiva.perguntaId}` ? `Confirmar ${propostasAtiva.length}` : `Aprovar ${propostasAtiva.length} proposta(s)`}
+                </button>
+              )}
+            </>
+          ) : (
+            <span className="text-[11px] text-muted-foreground">Escolha uma pergunta à esquerda. Aqui aparece, congelado, tudo o que está ligado a ela.</span>
+          )}
+        </div>
         {modo === "SIMULACAO" && (
           <div className="mt-2 grid grid-cols-3 gap-1.5 md:grid-cols-6" data-testid="faixa-resumo-simulacao">
             {CATEGORIAS.map((c) => (
@@ -575,32 +698,49 @@ export default function SinapsesFaixa() {
         </div>
       ) : (
         <>
-          <div className="panel-3d-sub flex flex-wrap items-center gap-3 px-3 py-2 text-[11px]" data-testid="faixa-conducao">
-            <span className="font-bold uppercase tracking-wider text-primary/80">Condução</span>
-            <span><b>{perguntasComSaidaReal}</b> de <b>{data.perguntas.length}</b> perguntas têm saída real</span>
-            {ligacoesSemSaida > 0 && <span className="rounded border border-red-300 bg-red-50 px-2 py-1 font-semibold text-red-700">{ligacoesSemSaida} ligações ativas sem saída</span>}
-            <span className="concave-3d px-2 py-1"><b>{totalPropostasPendentes}</b> propostas pendentes</span>
-            {modo === "EDICAO" && propostasFiltradas().length > 0 && (
-              <button type="button" disabled={loteEmCurso} onClick={() => aprovarLote("todas")} className="evo-bevel px-2 py-1 text-[10px] font-bold" data-testid="button-aprovar-lote" title="Aprova todas as propostas pendentes das perguntas e filtros visíveis agora">
-                {loteEmCurso ? "Aprovando..." : loteArmado === "todas" ? `Confirmar ${propostasFiltradas().length}` : "Aprovar propostas filtradas"}
-              </button>
-            )}
-            <span>·</span>
-            <span>Registros ativos / propostas: {CATEGORIAS.map((c) => `${c.sigla} ${data.sinapses.filter((x) => x.categoria === c.chave).length}/${propostasPorCategoria[c.chave]}`).join(" · ")}</span>
-            <span className="text-muted-foreground">Contínuo = saída real. Tracejado dourado = proposta. Tracejado vermelho = ligação ativa sem saída.</span>
-            <button type="button" onClick={() => setTodos((v) => !v)} className="evo-bevel ml-auto px-2 py-1 text-[10px] font-bold" data-testid="faixa-todos">{todos ? "Mostrar só os ligados" : "Mostrar todos os terminais"}</button>
-          </div>
           <Faixa testid="faixa-grafo" titulo={`Faixa da sinapse · ${esquerda.length} perguntas · ${direita.length} saídas`} aberta={faixaAberta} onToggle={() => setFaixaAberta((v) => !v)}>
+            <div className="mb-1.5 grid items-center gap-x-1" style={{ gridTemplateColumns: "minmax(0,1.55fr) minmax(84px,0.9fr) minmax(0,1.55fr)" }} data-testid="faixa-cabecalho-colunas">
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-[9px] font-black uppercase tracking-wider text-primary/80">Perguntas</span>
+                <button type="button" className="tecla-3d h-7 px-2 text-[10px] font-bold" onClick={() => setFechadosE(new Set())} title="Abrir todos os blocos de perguntas">Abrir blocos +</button>
+                <button type="button" className="tecla-3d h-7 px-2 text-[10px] font-bold" onClick={() => setFechadosE(new Set(linhasE.filter((l) => l.tipo === "grupo").map((l) => l.k)))} title="Recolher todos os blocos de perguntas">Recolher −</button>
+                {modo !== "EDICAO" && <button type="button" aria-pressed={todos} onClick={() => setTodos((v) => !v)} className="tecla-3d h-7 px-2 text-[10px] font-bold" data-testid="faixa-todos">{todos ? "Só os ligados" : "Mostrar todos"}</button>}
+              </div>
+              <div className="px-1 text-center text-[9px] leading-tight text-muted-foreground">contínuo = ativa<br />tracejado = proposta</div>
+              <div className="flex flex-wrap items-center justify-end gap-1" role="group" aria-label="Filtrar saídas por tipo">
+                <button type="button" aria-pressed={cats.length === 0} onClick={() => setCats([])} className="tecla-3d h-7 px-2 text-[10px] font-black" data-testid="faixa-cat-TODAS" title="Todas as saídas, em blocos separados por tipo">TODAS</button>
+                {CATEGORIAS.map((c) => {
+                  const ativo = cats.includes(c.chave);
+                  return (
+                    <button key={c.chave} type="button" aria-pressed={ativo} title={`${c.rotulo}: ${data.sinapses.filter((x) => x.categoria === c.chave).length} ligações ativas, ${propostasPorCategoria[c.chave]} propostas`} data-testid={`faixa-cat-${c.chave}`}
+                      onClick={() => setCats((v) => (ativo ? v.filter((x) => x !== c.chave) : [...v, c.chave]))}
+                      className="tecla-3d h-7 px-2 text-[10px] font-black" style={{ color: c.cor }}>{c.sigla}</button>
+                  );
+                })}
+                <button type="button" className="tecla-3d h-7 w-7 text-[12px] font-bold" onClick={() => setFechadosD(new Set())} title="Abrir todos os blocos de saídas" aria-label="Abrir todos os blocos de saídas">+</button>
+                <button type="button" className="tecla-3d h-7 w-7 text-[12px] font-bold" onClick={() => setFechadosD(new Set(linhasD.filter((l) => l.tipo === "grupo").map((l) => l.k)))} title="Recolher todos os blocos de saídas" aria-label="Recolher todos os blocos de saídas">−</button>
+              </div>
+            </div>
             {esquerda.length === 0 && direita.length === 0 ? (
               <div className="concave-3d p-6 text-center text-sm text-muted-foreground" data-testid="faixa-vazio">
                 {total === 0 ? "Ainda não há ligações ativas. Entre em Edição (E), escolha uma saída e puxe o fio da pergunta." : "Nada corresponde à busca ou aos filtros."}
               </div>
             ) : (
-              <div ref={graficoRef} className="concave-3d max-h-[26rem] overflow-y-auto" data-testid="faixa-grafo-rolagem">
+              <div ref={graficoRef} className="concave-3d max-h-[max(20rem,calc(100vh-19rem))] overflow-y-auto" data-testid="faixa-grafo-rolagem">
                 <div className="relative grid" style={{ gridTemplateColumns: "minmax(0,1.55fr) minmax(84px,0.9fr) minmax(0,1.55fr)", height: altura }}>
                   {/* DENDRITOS ESQUERDA */}
                   <div className="relative border-r border-black/10">
-                    {esquerda.map((p) => {
+                    {linhasE.map((linha, idx) => {
+                      const topo = idx * alturaLinha + 1.5;
+                      if (linha.tipo === "grupo") {
+                        return (
+                          <div key={`g-${linha.k}`} className="absolute flex w-full items-center gap-1 px-1" style={{ top: topo, height: alturaLinha - 3 }}>
+                            {barraGrupo({ titulo: linha.k, n: linha.n, nLig: linha.nLig, fechado: fechadosE.has(linha.k), onClick: () => alternarGrupo(fechadosE, setFechadosE, linha.k), testid: `faixa-grupo-e-${linha.k}` })}
+                            <span className="sinapse-pino-area" aria-hidden="true" />
+                          </div>
+                        );
+                      }
+                      const p = linha.p;
                       const ligacoesDaPergunta = porPergunta.get(p.perguntaId) ?? [];
                       const nSemSaida = ligacoesDaPergunta.filter((ligacao) => {
                         const destino = nomeDe.get(chave(ligacao.categoria, ligacao.destinoTipo, ligacao.destinoId));
@@ -609,16 +749,18 @@ export default function SinapsesFaixa() {
                       const nAtivas = ligacoesDaPergunta.length;
                       const nPendentes = propostasPorPergunta.get(p.perguntaId)?.length ?? 0;
                       const n = nAtivas + nPendentes;
-                      const marcada = sel.includes(p.perguntaId);
+                      const marcada = sel.includes(p.perguntaId) || travada === p.perguntaId;
                       return (
-                        <div key={p.perguntaId} data-pergunta={p.perguntaId} className="absolute flex w-full items-center gap-1 px-1" style={{ top: (yE.get(p.perguntaId) ?? 0) - (alturaLinha - 3) / 2, height: alturaLinha - 3 }}
+                        <div key={p.perguntaId} data-pergunta={p.perguntaId} className="absolute flex w-full items-center gap-1 px-1" style={{ top: topo, height: alturaLinha - 3 }}
                           onMouseEnter={() => setHover(p.perguntaId)} onMouseLeave={() => setHover(null)} title={`${p.perguntaId} · ${p.pergunta}`} aria-label={`${p.perguntaId}: ${p.pergunta}. ${nAtivas} ligações registradas, ${nSemSaida} sem saída e ${nPendentes} propostas pendentes.`}>
-                          <button type="button" onClick={(e) => clicar(e, p.perguntaId)} data-testid={`faixa-dendrito-${p.perguntaId}`}
-                            className={`tecla-3d flex h-full min-w-0 flex-1 items-center gap-1 px-1.5 text-left select-none ${marcada ? "evo-bevel-ativo" : ""}`}>
-<span className="flex w-4 shrink-0 items-center justify-center">
-                              {nSemSaida > 0
-                                ? <AlertTriangle className="h-3 w-3 text-red-600" aria-label={`${nSemSaida} ligação(ões) ativa(s) sem saída real`} role="img" />
-                                : p.eSinalAlarme ? <AlertTriangle className="h-3 w-3 text-red-600" aria-label="Sinal de alarme" role="img" /> : null}
+                          <button type="button" aria-pressed={marcada} onClick={(e) => clicar(e, p.perguntaId)} data-testid={`faixa-dendrito-${p.perguntaId}`}
+                            className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1 px-1.5 text-left select-none">
+                            <span className="flex w-4 shrink-0 items-center justify-center">
+                              {travada === p.perguntaId
+                                ? <Lock className="h-3 w-3 text-[#9b6b11]" aria-label="Pergunta travada" role="img" />
+                                : nSemSaida > 0
+                                  ? <AlertTriangle className="h-3 w-3 text-red-600" aria-label={`${nSemSaida} ligação(ões) ativa(s) sem saída real`} role="img" />
+                                  : p.eSinalAlarme ? <AlertTriangle className="h-3 w-3 text-red-600" aria-label="Sinal de alarme" role="img" /> : null}
                             </span>
                             <span className="concave-3d sinapse-janela-codigo font-mono text-[10px] font-bold text-[#0f1e36]">{p.perguntaId}</span>
                             <span className="min-w-0 flex-1 truncate text-[10px] opacity-90">{p.pergunta}</span>
@@ -700,31 +842,44 @@ export default function SinapsesFaixa() {
                   </div>
                   {/* DENDRITOS DIREITA */}
                   <div className="relative border-l border-black/10">
-                    {direita.map((d) => {
+                    {linhasD.map((linha, idx) => {
+                      const topo = idx * alturaLinha + 1.5;
+                      if (linha.tipo === "grupo") {
+                        const cor = COR[linha.k];
+                        return (
+                          <div key={`g-${linha.k}`} className="absolute flex w-full items-center gap-1 px-1" style={{ top: topo, height: alturaLinha - 3 }}>
+                            <span className="sinapse-pino-area" aria-hidden="true" />
+                            {barraGrupo({ titulo: ROTULO[linha.k], cor, n: linha.n, nLig: linha.nLig, fechado: fechadosD.has(linha.k), onClick: () => alternarGrupo(fechadosD, setFechadosD, linha.k), testid: `faixa-grupo-d-${linha.k}` })}
+                          </div>
+                        );
+                      }
+                      const d = linha.d;
                       const aceso = simAcesos.has(d.k) || (foco !== null && (conexoesPorPergunta.get(foco) ?? []).some((s) => chave(s.categoria, s.destinoTipo, s.destinoId) === d.k));
                       const apagado = modo === "SIMULACAO" && sel.length > 0 && !aceso;
                       const totalConexoes = d.nAtivas + d.nPropostas + d.nSemSaida;
+                      const podeLigar = modo === "EDICAO" && !!travada;
+                      const Corpo = (podeLigar ? "button" : "div") as "button";
                       return (
-                        <div key={d.k} data-dest={d.incompleto ? undefined : d.k} className={`absolute flex w-full items-center gap-1 px-1 ${apagado ? "opacity-35" : !totalConexoes && modo !== "EDICAO" ? "opacity-60" : ""}`} style={{ top: (yD.get(d.k) ?? 0) - (alturaLinha - 3) / 2, height: alturaLinha - 3 }}
+                        <div key={d.k} data-dest={d.incompleto ? undefined : d.k} className={`absolute flex w-full items-center gap-1 px-1 ${apagado ? "opacity-35" : !totalConexoes && modo !== "EDICAO" ? "opacity-60" : ""}`} style={{ top: topo, height: alturaLinha - 3 }}
                           title={`${codigoDestino(d.cat, d.tipo, d.id)} · ${ROTULO[d.cat]} · ${d.nome}${nomeDe.get(d.k)?.detalhe ? ` · ${nomeDe.get(d.k)?.detalhe}` : ""}${d.incompleto ? " · SEM SAÍDA: bloco sem exames cadastrados" : ""}`} aria-label={`${codigoDestino(d.cat, d.tipo, d.id)}: ${d.nome}. ${d.nAtivas} saídas conectadas, ${d.nSemSaida} ligações sem saída e ${d.nPropostas} propostas pendentes.`} data-testid={`faixa-saida-${d.k}`}>
                           {modo === "EDICAO" ? (
-                              <button type="button" disabled={!!d.incompleto} onClick={(e) => { e.stopPropagation(); concluirNoDestino(d.k); }}
-                                className="sinapse-pino-area disabled:cursor-not-allowed disabled:opacity-40"
-                                data-pino-destino={d.incompleto ? undefined : d.k}
-                                data-testid={`faixa-porta-destino-${d.k}`}
-                                aria-label={d.incompleto ? `Destino ${codigoDestino(d.cat, d.tipo, d.id)} sem conteúdo; indisponível` : `Concluir ligação na saída ${codigoDestino(d.cat, d.tipo, d.id)}`}
-                                title={d.incompleto ? "Bloco vazio: não pode receber ligação." : "Clique para concluir o fio iniciado numa pergunta."}>
-                                <span className={`sinapse-pino ${fioRecemSalvo?.endsWith(`|${d.k}`) ? "sinapse-pino-onda" : ""}`} data-estado={d.nAtivas ? "ativo" : d.nPropostas ? "proposta" : "livre"} aria-hidden="true" />
-                              </button>
-                            ) : (
-                              <span className="sinapse-pino-area" aria-hidden="true"><span className="sinapse-pino" data-estado={d.nAtivas ? "ativo" : d.nPropostas ? "proposta" : "livre"} /></span>
-                            )}
-                          <div className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1.5 px-1.5" style={aceso ? { boxShadow: `inset 3px 0 0 ${COR[d.cat]}` } : undefined}>
+                            <button type="button" disabled={!!d.incompleto} onClick={(e) => { e.stopPropagation(); concluirNoDestino(d.k); }}
+                              className="sinapse-pino-area disabled:cursor-not-allowed disabled:opacity-40"
+                              data-pino-destino={d.incompleto ? undefined : d.k}
+                              data-testid={`faixa-porta-destino-${d.k}`}
+                              aria-label={d.incompleto ? `Destino ${codigoDestino(d.cat, d.tipo, d.id)} sem conteúdo; indisponível` : `Concluir ligação na saída ${codigoDestino(d.cat, d.tipo, d.id)}`}
+                              title={d.incompleto ? "Bloco vazio: não pode receber ligação." : "Clique para concluir o fio iniciado numa pergunta."}>
+                              <span className={`sinapse-pino ${fioRecemSalvo?.endsWith(`|${d.k}`) ? "sinapse-pino-onda" : ""}`} data-estado={d.nAtivas ? "ativo" : d.nPropostas ? "proposta" : "livre"} aria-hidden="true" />
+                            </button>
+                          ) : (
+                            <span className="sinapse-pino-area" aria-hidden="true"><span className="sinapse-pino" data-estado={d.nAtivas ? "ativo" : d.nPropostas ? "proposta" : "livre"} /></span>
+                          )}
+                          <Corpo {...(podeLigar ? { type: "button" as const, onClick: () => ligarRapido(d), "data-testid": `faixa-ligar-${d.k}` } : {})} aria-pressed={aceso} className={`tecla-3d flex h-full min-w-0 flex-1 items-center gap-1.5 px-1.5 text-left ${podeLigar ? "cursor-pointer" : ""}`}>
                             <span className="concave-3d sinapse-janela-codigo font-mono text-[10px] font-bold" style={{ color: COR[d.cat] }}>{codigoDestino(d.cat, d.tipo, d.id)}</span>
                             <span className="min-w-0 flex-1 truncate text-[10px] opacity-90">{d.nome}</span>
                             {d.incompleto && <span className="shrink-0 text-[8px] font-bold text-red-700">SEM EXAMES</span>}
                             <span className="ml-auto text-[9px] tabular-nums opacity-60">{totalConexoes || ""}</span>
-                          </div>
+                          </Corpo>
                         </div>
                       );
                     })}
@@ -737,8 +892,8 @@ export default function SinapsesFaixa() {
           <Faixa testid="faixa-sanfona" titulo={`Sanfona das correspondências · ${esquerda.length} perguntas · ${totalPropostasPendentes} propostas pendentes`} aberta={sanfonaAberta} onToggle={() => setSanfonaAberta((v) => !v)}
             direita={sanfonaAberta ? (
               <div className="flex gap-1">
-                <button type="button" className="evo-bevel px-2 py-1 text-[10px] font-bold" onClick={() => setAbertos(new Set(esquerda.map((p) => p.perguntaId)))}>Abrir todas</button>
-                <button type="button" className="evo-bevel px-2 py-1 text-[10px] font-bold" onClick={() => setAbertos(new Set())}>Recolher todas</button>
+                <button type="button" className="tecla-3d px-2 py-1 text-[10px] font-bold" onClick={() => setAbertos(new Set(esquerda.map((p) => p.perguntaId)))}>Abrir todas</button>
+                <button type="button" className="tecla-3d px-2 py-1 text-[10px] font-bold" onClick={() => setAbertos(new Set())}>Recolher todas</button>
               </div>
             ) : null}>
             <div className="concave-3d max-h-[28rem] overflow-y-auto">
@@ -765,7 +920,7 @@ export default function SinapsesFaixa() {
                       <div className="space-y-1.5 px-10 pb-2.5">
                         {lig.length === 0 && pendentes.length === 0 && <div className="text-xs text-muted-foreground">Nenhuma correspondência ativa ou proposta para esta pergunta.</div>}
                         {modo === "EDICAO" && propostasFiltradas(p.perguntaId).length > 0 && (
-                          <button type="button" disabled={loteEmCurso} onClick={() => aprovarLote(p.perguntaId, p.perguntaId)} className="evo-bevel px-2 py-1 text-[10px] font-bold" data-testid={`button-aprovar-lote-${p.perguntaId}`}>
+                          <button type="button" disabled={loteEmCurso} onClick={() => aprovarLote(p.perguntaId, p.perguntaId)} className="tecla-3d px-2 py-1 text-[10px] font-bold" data-testid={`button-aprovar-lote-${p.perguntaId}`}>
                             {loteEmCurso ? "Aprovando..." : loteArmado === p.perguntaId ? `Confirmar ${propostasFiltradas(p.perguntaId).length}` : "Aprovar propostas filtradas"}
                           </button>
                         )}

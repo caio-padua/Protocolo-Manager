@@ -119,3 +119,16 @@
   padding: 0 4px;
 }
 .evo-bevel-ativo .sinapse-janela-codigo:not([style*="color"]) { color: #0f1e36; }
+
+/* Painel de comando congelado (sticky): top negativo = padding do Layout (1rem / 1.5rem) */
+.sinapse-comando {
+  position: sticky;
+  top: -1rem;
+  z-index: 30;
+  background: linear-gradient(180deg, #fdfbf5 0%, #f4efe2 100%);
+}
+@media (min-width: 768px) {
+  .sinapse-comando { top: -1.5rem; }
+}
+/* Teclas mais quadradas: Saliente solto, Côncavo (apertado) quando selecionado */
+.sinapse-tela .tecla-3d { border-radius: 3px; }

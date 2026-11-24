@@ -196,3 +196,16 @@ test("sinapse: clicar na pergunta da sanfona rola o grafo até ela", async ({ pa
   await expect(page.getByTestId("faixa-item-" + perguntaId)).toBeVisible();
   await expect(page.getByTestId("faixa-grafo-rolagem")).toBeAttached();
 });
+
+test("sinapse: travar a pergunta e clicar na saída liga sem arrastar", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const estado = await prepararTela(page);
+  await page.getByTestId(`faixa-dendrito-${perguntaId}`).click();
+  await expect(page.getByTestId("faixa-correspondencia-atual")).toContainText(perguntaId);
+  await page.getByTestId("faixa-travar").click();
+  await expect(page.getByTestId("faixa-travar")).toHaveAttribute("aria-pressed", "true");
+  await page.getByTestId(`faixa-ligar-EXAME|exame|${destinoId}`).click();
+  await expect.poll(() => estado.pedidos.length).toBe(1);
+  await expect(page.getByTestId("faixa-correspondencia-chips")).toContainText("Exame sintético");
+  await page.screenshot({ path: "/tmp/sinapse-travada.png" });
+});
