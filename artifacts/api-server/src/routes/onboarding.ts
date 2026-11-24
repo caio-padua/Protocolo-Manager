@@ -320,34 +320,32 @@ onboardingRouter.get("/stats", async (req: Request, res: Response): Promise<void
     return;
   }
   try {
-    const [totalRow, porDevice, porSecao, pacientesRow, pacientesLista] = await Promise.all([
+    const [totalRow, porDevice, porSecao, pacientesLista] = await Promise.all([
       db.execute(sqlRaw`SELECT COUNT(*)::int AS total FROM onboarding_eventos WHERE ts > NOW() - INTERVAL '30 days' AND empresa_id = ${empresaId}`),
       db.execute(sqlRaw`SELECT device, COUNT(*)::int AS total FROM onboarding_eventos WHERE ts > NOW() - INTERVAL '30 days' AND empresa_id = ${empresaId} GROUP BY device ORDER BY total DESC`),
       db.execute(sqlRaw`SELECT secao, COUNT(*)::int AS total FROM onboarding_eventos WHERE ts > NOW() - INTERVAL '30 days' AND empresa_id = ${empresaId} GROUP BY secao ORDER BY total DESC`),
-      db.execute(sqlRaw`SELECT COUNT(DISTINCT client_id)::int AS pacientes_unicos FROM onboarding_eventos WHERE ts > NOW() - INTERVAL '30 days' AND empresa_id = ${empresaId} AND client_id IS NOT NULL`),
       db.execute(sqlRaw`
         SELECT e.client_id, c.name AS nome, MAX(e.ts)::text AS ultimo_acesso
         FROM onboarding_eventos e
-        JOIN clients c ON c.id = e.client_id
+        JOIN clients c ON c.id = e.client_id AND c.empresa_id = e.empresa_id
         WHERE e.ts > NOW() - INTERVAL '30 days'
           AND e.empresa_id = ${empresaId}
           AND e.client_id IS NOT NULL
         GROUP BY e.client_id, c.name
-        ORDER BY MAX(e.ts) DESC
-        LIMIT 50
+        ORDER BY MAX(e.ts) DESC, e.client_id
       `),
     ]);
 
     const total = (totalRow.rows?.[0] as { total: number } | undefined)?.total ?? 0;
-    const pacientesUnicos = (pacientesRow.rows?.[0] as { pacientes_unicos: number } | undefined)?.pacientes_unicos ?? 0;
+    const pacientes = (pacientesLista.rows ?? []) as { client_id: number; nome: string; ultimo_acesso: string }[];
 
     res.json({
       ok: true,
       total,
-      pacientesUnicos,
+      pacientesUnicos: pacientes.length,
       porDevice:  (porDevice.rows  ?? []) as { device: string; total: number }[],
       porSecao:   (porSecao.rows   ?? []) as { secao:  string; total: number }[],
-      pacientes:  (pacientesLista.rows ?? []) as { client_id: number; nome: string; ultimo_acesso: string }[],
+      pacientes,
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: String(err) });

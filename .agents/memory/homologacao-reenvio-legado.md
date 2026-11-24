@@ -6,9 +6,8 @@ description: Escolha segura de casos existentes para conferir reenvio clínico r
 Uma emissão anterior não comprova que um protocolo legado continua elegível
 para reenvio sob as regras clínicas atuais.
 
-**Why:** na homologação de 24/11/2026, casos existentes foram recusados por
-divergência de unidade e dose ambígua antes de qualquer envio; outro caso
-elegível permitiu conferir o histórico sem modificar dados clínicos.
+**Why:** protocolos antigos podem divergir das regras atuais de unidade e
+dose; uma emissão histórica não demonstra elegibilidade clínica atual.
 
 **How to apply:** conferir previamente unidade, responsável, destino e dose
 com as regras vigentes; não escolher somente pela existência de emissão
