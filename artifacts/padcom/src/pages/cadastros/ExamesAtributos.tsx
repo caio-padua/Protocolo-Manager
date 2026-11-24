@@ -245,16 +245,16 @@ export function BotaoAtivo({ ativo, onChange, rotulo, disabled }: { ativo: boole
   );
 }
 
-// Faixa horizontal retrátil: é um BOTÃO retangular (saliente fechado, afundado aberto) com resumo à direita.
-function Faixa({ titulo, resumo, aberta, onToggle, children, id }: { titulo: string; resumo?: string; aberta: boolean; onToggle: () => void; children: ReactNode; id: string }) {
+// Seção da ficha: só a seção escolhida na barra de botões fica visível (sem acordeão, sem rolagem dupla).
+// Fica montada (hidden) para não perder o que foi digitado ao trocar de seção.
+function Faixa({ titulo, resumo, aberta, children, id }: { titulo: string; resumo?: string; aberta: boolean; onToggle?: () => void; children: ReactNode; id: string }) {
   return (
-    <section className="shrink-0 space-y-2" data-testid={`faixa-${id}`}>
-      <button type="button" onClick={onToggle} aria-expanded={aberta} className="paxter-seletor grid w-full grid-cols-[minmax(0,1fr)_minmax(0,45%)_20px] items-center gap-3 px-3 py-3 text-left">
-        <span className="truncate text-[11px] font-black uppercase tracking-widest">{titulo}</span>
-        <span className="truncate text-right text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{resumo ?? ""}</span>
-        <ChevronDown className={`h-4 w-4 transition-transform ${aberta ? "rotate-180" : ""}`} />
-      </button>
-      <div hidden={!aberta} className="panel-3d-sub p-3">{children}</div>
+    <section hidden={!aberta} className="panel-3d-sub shrink-0 space-y-3 p-4" data-testid={`faixa-${id}`}>
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,50%)] items-center gap-3">
+        <div className="bevel-3d truncate px-3 py-1.5 text-[11px] font-black uppercase tracking-widest">{titulo}</div>
+        <div className="truncate text-right text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{resumo ?? ""}</div>
+      </div>
+      {children}
     </section>
   );
 }
@@ -276,12 +276,12 @@ export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antes
   const { toast } = useToast();
   const [f, setF] = useState<Atributos | null>(null);
   const [sin, setSin] = useState("");
-  const [abertas, setAbertas] = useState<Record<string, boolean>>({ cadastro: true, classificacao: true, vinculos: false, periodizacao: false, embasamento: false });
+  const [abertas, setAbertas] = useState<Record<string, boolean>>({ cadastro: true });
   useEffect(() => {
     if (exame) {
       setF(atual ?? { ...VAZIO(exame.id ?? 0), natureza: naturezaSugerida(modalidade) });
       setSin("");
-      setAbertas({ cadastro: true, classificacao: true, vinculos: false, periodizacao: false, embasamento: false });
+      setAbertas(topo ? { cadastro: true } : { classificacao: true });
     }
   }, [exame?.id, !!exame]); // eslint-disable-line react-hooks/exhaustive-deps
   const impacto = useQuery<{ vinculos: Array<{ blocoId: string; nomeBloco: string; grau: string; ativo: boolean | null }> }>({
@@ -313,9 +313,8 @@ export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antes
   const ehLab = nat === "LABORATORIAL";
   const ehImg = nat === "IMAGEM";
   const set = <K extends keyof Atributos>(k: K, v: Atributos[K]) => setF((x) => (x ? { ...x, [k]: v } : x));
-  const alterna = (k: string) => setAbertas((a) => ({ ...a, [k]: !a[k] }));
-  const todas = Object.values(abertas).every(Boolean);
-  const Simples = ({ k, rotulo, opcoes }: { k: "lateralidade" | "contraste" | "prioridade"; rotulo: string; opcoes: string[] }) => (
+  const alterna = (k: string) => setAbertas({ [k]: true });
+    const Simples = ({ k, rotulo, opcoes }: { k: "lateralidade" | "contraste" | "prioridade"; rotulo: string; opcoes: string[] }) => (
     <div className="space-y-1.5">
       <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{rotulo}</label>
       <Select value={f[k] ?? "__none__"} onValueChange={(v) => v !== "" && set(k, v === "__none__" ? null : v)}>
@@ -331,21 +330,27 @@ export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antes
   const resPer = [f.periodizacaoModo, f.repetirMeses ? `a cada ${f.repetirMeses} meses` : null].filter(Boolean).join(" • ") || "não definida";
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="fixed left-auto right-0 top-0 flex h-screen max-h-screen w-full max-w-2xl flex-col translate-x-0 translate-y-0 overflow-y-auto rounded-none sm:rounded-none" data-testid="gaveta-exame">
+      <DialogContent className="fixed left-auto right-0 top-0 flex h-screen max-h-screen w-[96vw] max-w-[1180px] flex-col translate-x-0 translate-y-0 overflow-y-auto rounded-none sm:rounded-none" data-testid="gaveta-exame">
         <DialogHeader><DialogTitle>{titulo}</DialogTitle></DialogHeader>
         <div className="screen-3d flex items-center gap-2 px-3 py-2 text-xs font-black">
           <NaturezaChip natureza={f.natureza} /> <span className="min-w-0 flex-1 truncate">{exame.nome || "Novo exame"}</span>
         </div>
-        <div className={`grid gap-2 ${onClonar ? "grid-cols-2" : "grid-cols-1"}`}>
-          <button type="button" className="paxter-seletor h-9 px-3 text-[11px] font-black uppercase tracking-wide" aria-pressed={todas} onClick={() => setAbertas({ cadastro: !todas, classificacao: !todas, vinculos: !todas, periodizacao: !todas, embasamento: !todas })} data-testid="button-expandir-faixas">
-            {todas ? "Recolher tudo" : "Expandir tudo"}
-          </button>
-          {onClonar && (
-            <button type="button" className="paxter-seletor h-9 px-3 text-[11px] font-black uppercase tracking-wide" onClick={onClonar} title="Cria um exame NOVO já preenchido com os dados deste. O original não muda." data-testid="button-clonar-exame">
-              Copiar ficha para novo exame
-            </button>
-          )}
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-5" role="tablist" aria-label="Seções da ficha" data-testid="secoes-ficha">
+          {[
+            ...(topo ? [["cadastro", "1. Cadastro"]] : []),
+            ["classificacao", "2. Classificação"],
+            ["vinculos", "3. Vínculos"],
+            ["periodizacao", "4. Periodização"],
+            ["embasamento", "5. Embasamento"],
+          ].map(([k, rot]) => (
+            <button key={k} type="button" role="tab" aria-selected={!!abertas[k]} aria-pressed={!!abertas[k]} onClick={() => alterna(k)} className="paxter-seletor h-10 truncate px-2 text-[11px] font-black uppercase tracking-wide" data-testid={`aba-${k}`}>{rot}</button>
+          ))}
         </div>
+        {onClonar && (
+          <button type="button" className="paxter-seletor h-9 px-3 text-[11px] font-black uppercase tracking-wide" onClick={onClonar} title="Cria um exame NOVO já preenchido com os dados deste. O original não muda." data-testid="button-clonar-exame">
+            Copiar ficha para novo exame
+          </button>
+        )}
         <p className="text-xs text-muted-foreground">
           O código, o bloco e a grade do exame não mudam por atributos. Um só botão salva a ficha inteira.
           {onClonar ? " \"Copiar ficha\" abre um exame novo com os mesmos dados (você escolhe a área e a grade do código novo); o exame original fica intacto." : ""}
