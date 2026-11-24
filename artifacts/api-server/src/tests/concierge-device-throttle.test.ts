@@ -12,7 +12,8 @@
  *  14.  Exatamente 50 ofertas/dia → throttled=true (teto inclusivo)
  *  15.  Falha de DB → fail-open (livre, sem lançar exceção)
  *  16.  Virada de meia-noite BRT — dois requests simultâneos no novo dia não são
- *       bloqueados pelo contador do dia anterior.
+ *       bloqueados pelo contador do dia anterior; dispositivo verificado segue
+ *       livre nos dois dias sem acessar o banco.
  *
  * Estratégia:
  *   - @workspace/db é mockado globalmente (vi.mock hoistado antes dos imports).
@@ -426,6 +427,32 @@ function lastInsertArg(offset = 0): unknown {
 }
 
 describe("checkDeviceThrottle — virada de meia-noite BRT", () => {
+  it("Cenário 16g — dispositivo verificado atravessa meia-noite BRT sem nova verificação nem INSERT", async () => {
+    // Mesmo dispositivo e sessão verificada antes e depois da virada de dia.
+    vi.mocked(brtISODate).mockReturnValue("2026-08-12");
+    const beforeMidnight = await checkDeviceThrottle("fp-verified-midnight", true);
+
+    expect(beforeMidnight).toEqual({
+      allowed: true,
+      remaining: 50,
+      throttled: false,
+      requiresVerification: false,
+    });
+    expect(mockExec()).not.toHaveBeenCalled();
+
+    // A nova data não deve criar contador nem voltar a exigir confirmação.
+    vi.mocked(brtISODate).mockReturnValue("2026-08-13");
+    const afterMidnight = await checkDeviceThrottle("fp-verified-midnight", true);
+
+    expect(afterMidnight).toEqual({
+      allowed: true,
+      remaining: 50,
+      throttled: false,
+      requiresVerification: false,
+    });
+    expect(mockExec()).not.toHaveBeenCalled();
+  });
+
   it("Cenário 16a — INSERT inclui a data BRT de brtISODate() como parâmetro SQL", async () => {
     // Se o código não usar brtISODate() como param do INSERT, este teste falha mesmo
     // que o mock devolva count=1, pois a data não estará nos params inspecionados.
