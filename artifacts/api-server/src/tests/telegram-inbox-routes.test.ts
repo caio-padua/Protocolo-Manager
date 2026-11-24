@@ -227,6 +227,31 @@ describe("GET /cockpit/:clientId/telegram-inbox — HTTP layer", () => {
     );
   });
 
+  it("passa pagina=2 para listarInbox quando solicitado na URL", async () => {
+    vi.mocked(flow.listarInbox).mockResolvedValue(LISTA_OK);
+
+    const res = await request(buildApp()).get(`/cockpit/${CLIENTE_ID}/telegram-inbox?pagina=2`);
+
+    expect(res.status).toBe(200);
+    expect(flow.listarInbox).toHaveBeenCalledExactlyOnceWith(
+      { clienteId: CLIENTE_ID, empresaId: EMPRESA_ID, marcarLidas: false, pagina: 2, tamanhoPagina: 20 },
+      expect.any(Object),
+    );
+  });
+
+  it.each([true, false])("propaga temMais=%s na resposta JSON da página 2", async (temMais) => {
+    vi.mocked(flow.listarInbox).mockResolvedValue({ ...LISTA_OK, temMais });
+
+    const res = await request(buildApp()).get(`/cockpit/${CLIENTE_ID}/telegram-inbox?pagina=2`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      mensagens: LISTA_OK.mensagens,
+      naoLidas: LISTA_OK.naoLidas,
+      temMais,
+    });
+  });
+
   it("passa marcarLidas=true quando query param marcar_lidas=1", async () => {
     vi.mocked(flow.listarInbox).mockResolvedValue(LISTA_OK);
 

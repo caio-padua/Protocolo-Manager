@@ -625,6 +625,43 @@ describe("Paginação — listarInbox (pagina + temMais)", () => {
     if (result.kind !== "ok") return;
     expect(result.mensagens).toHaveLength(20);
     expect(result.temMais).toBe(true);
+    expect(result.mensagens.map((m) => m.id)).toEqual(
+      Array.from({ length: 20 }, (_, i) => 21 - i),
+    );
+    expect(deps.listMensagens).toHaveBeenCalledExactlyOnceWith(
+      CLIENTE_ID, EMPRESA_ID, 21, 0,
+    );
+  });
+
+  it("página 2 completa o histórico sem repetir nem perder mensagens da página 1", async () => {
+    const deps = makeListarDepsComMensagens(gerarMensagens(40));
+    const primeira = await listarInbox(
+      { clienteId: CLIENTE_ID, empresaId: EMPRESA_ID, pagina: 1 }, deps,
+    );
+    expect(primeira.kind).toBe("ok");
+    if (primeira.kind !== "ok") return;
+    const idsRecentes = Array.from({ length: 20 }, (_, i) => 40 - i);
+    expect(primeira.mensagens.map((m) => m.id)).toEqual(idsRecentes);
+    expect(primeira.temMais).toBe(true);
+
+    const segunda = await listarInbox(
+      { clienteId: CLIENTE_ID, empresaId: EMPRESA_ID, pagina: 2 }, deps,
+    );
+    expect(segunda.kind).toBe("ok");
+    if (segunda.kind !== "ok") return;
+    expect(segunda.mensagens.map((m) => m.id)).toEqual(
+      Array.from({ length: 20 }, (_, i) => 20 - i),
+    );
+    expect(segunda.temMais).toBe(false);
+    expect(deps.listMensagens).toHaveBeenCalledTimes(2);
+    expect(deps.listMensagens).toHaveBeenNthCalledWith(1, CLIENTE_ID, EMPRESA_ID, 21, 0);
+    expect(deps.listMensagens).toHaveBeenNthCalledWith(2, CLIENTE_ID, EMPRESA_ID, 21, 20);
+
+    // Carregar as antigas não modifica o lote recente já retornado.
+    expect(primeira.mensagens.map((m) => m.id)).toEqual(idsRecentes);
+    const idsCombinados = [...primeira.mensagens, ...segunda.mensagens].map((m) => m.id);
+    expect(idsCombinados).toEqual(Array.from({ length: 40 }, (_, i) => 40 - i));
+    expect(new Set(idsCombinados).size).toBe(40);
   });
 
   it("página 1 com exatamente 20 mensagens: devolve 20 e temMais=false", async () => {
