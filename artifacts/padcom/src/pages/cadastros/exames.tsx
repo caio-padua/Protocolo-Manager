@@ -461,20 +461,19 @@ function ExamesTab({ slot }: { slot: HTMLElement | null }) {
                   <button
                     type="button"
                     onClick={() => setFechados((s) => { const n = new Set(s); if (n.has(g.nome)) n.delete(g.nome); else n.add(g.nome); return n; })}
-                    className="paxter-seletor flex w-full items-center gap-3 px-3 py-1 text-left"
+                    className="tecla-3d flex w-full items-center gap-3 px-3 py-1.5 text-left"
                     aria-expanded={!fechado}
                   >
                     <span
                       aria-hidden="true"
-                      className="relative h-5 w-9 shrink-0 overflow-hidden rounded-[5px]"
+                      className="bevel-3d inline-flex h-6 w-10 shrink-0"
                       style={{
-                        background: `linear-gradient(180deg, hsl(${hue} 70% 88%) 0%, hsl(${hue} 60% 76%) 48%, hsl(${hue} 55% 68%) 52%, hsl(${hue} 60% 78%) 100%)`,
-                        border: `1px solid hsl(${hue} 45% 70% / 0.8)`,
-                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.85), inset 0 -2px 3px hsl(0 0% 0% / 0.12), 0 2px 4px -1px rgba(7,22,43,0.3)",
+                        borderRadius: 5,
+                        border: "1px solid",
+                        background: `linear-gradient(180deg, rgba(255,255,255,.30) 0%, rgba(255,255,255,0) 48%, rgba(0,0,0,.16) 100%), hsl(${hue} 60% 55%)`,
+                        borderColor: `color-mix(in srgb, hsl(${hue} 60% 55%) 55%, #b8924d)`,
                       }}
-                    >
-                      <span className="absolute inset-x-0.5 top-0.5 h-[40%] rounded-[3px]" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.75), rgba(255,255,255,0.1))" }} />
-                    </span>
+                    />
                     <span className="concave-3d flex h-5 w-9 shrink-0 items-center justify-center text-[10px] font-bold tabular-nums text-primary/80">{g.itens.length}</span>
                     <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-widest text-primary/80">{g.nome}</span>
                     <ChevronDown className={`h-3.5 w-3.5 shrink-0 opacity-60 transition-transform ${fechado ? "-rotate-90" : ""}`} />
