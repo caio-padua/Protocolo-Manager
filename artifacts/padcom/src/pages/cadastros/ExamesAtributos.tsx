@@ -225,16 +225,36 @@ function OpcaoMulti({ tipo, valores, onChange, rotulo }: { tipo: Tipo; valores: 
 
 const VAZIO = (id: number): Atributos => ({ exameId: id, natureza: null, metodo: null, regiao: null, material: null, necessitaSedacao: null, lateralidade: null, contraste: null, tipoResultado: null, prioridade: null, eixos: [], sinonimos: [], gatilhos: [], periodizacaoModo: null, publicoAlvo: null, idadeMinima: null, idadeMaxima: null, repetirMeses: null, regraAntecipacao: null, diretrizes: [], artigos: [] });
 
-// Faixa horizontal retrátil (minimizar/maximizar) com resumo à direita.
+// Botão de estado Ativo/Inativo: retangular, sempre do mesmo tamanho e na mesma posição.
+// Ativo = afundado (insert bevel) com luz verde; Inativo = saliente com luz apagada.
+export function BotaoAtivo({ ativo, onChange, rotulo, disabled }: { ativo: boolean; onChange: (v: boolean) => void; rotulo: string; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={ativo}
+      aria-label={`${ativo ? "Desativar" : "Ativar"} ${rotulo}`}
+      title={ativo ? "Ativo. Clique para desativar." : "Inativo. Clique para ativar."}
+      disabled={disabled}
+      onClick={() => onChange(!ativo)}
+      className="paxter-seletor inline-flex h-8 w-[108px] shrink-0 items-center justify-center gap-2 text-[10px] font-black uppercase tracking-wider disabled:opacity-50"
+      data-testid="botao-ativo"
+    >
+      <span className={`h-2 w-2 rounded-full ${ativo ? "bg-emerald-500 shadow-[0_0_6px_#10b981]" : "bg-slate-400"}`} aria-hidden="true" />
+      {ativo ? "Ativo" : "Inativo"}
+    </button>
+  );
+}
+
+// Faixa horizontal retrátil: é um BOTÃO retangular (saliente fechado, afundado aberto) com resumo à direita.
 function Faixa({ titulo, resumo, aberta, onToggle, children, id }: { titulo: string; resumo?: string; aberta: boolean; onToggle: () => void; children: ReactNode; id: string }) {
   return (
-    <section className="panel-3d-sub shrink-0 overflow-hidden" data-testid={`faixa-${id}`}>
-      <button type="button" onClick={onToggle} aria-expanded={aberta} className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-primary/5">
-        <span className="flex-1 text-[11px] font-black uppercase tracking-widest text-primary">{titulo}</span>
-        {resumo && <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{resumo}</span>}
-        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${aberta ? "rotate-180" : ""}`} />
+    <section className="shrink-0 space-y-2" data-testid={`faixa-${id}`}>
+      <button type="button" onClick={onToggle} aria-expanded={aberta} className="paxter-seletor grid w-full grid-cols-[minmax(0,1fr)_minmax(0,45%)_20px] items-center gap-3 px-3 py-3 text-left">
+        <span className="truncate text-[11px] font-black uppercase tracking-widest">{titulo}</span>
+        <span className="truncate text-right text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{resumo ?? ""}</span>
+        <ChevronDown className={`h-4 w-4 transition-transform ${aberta ? "rotate-180" : ""}`} />
       </button>
-      <div hidden={!aberta} className="border-t border-border/60 p-3">{children}</div>
+      <div hidden={!aberta} className="panel-3d-sub p-3">{children}</div>
     </section>
   );
 }
@@ -313,16 +333,23 @@ export function AtributosDialog({ exame, atual, modalidade, onClose, topo, antes
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="fixed left-auto right-0 top-0 flex h-screen max-h-screen w-full max-w-2xl flex-col translate-x-0 translate-y-0 overflow-y-auto rounded-none sm:rounded-none" data-testid="gaveta-exame">
         <DialogHeader><DialogTitle>{titulo}</DialogTitle></DialogHeader>
-        <div className="flex items-center gap-2">
-          <div className="screen-3d flex flex-1 items-center gap-2 px-3 py-1.5 text-xs font-black">
-            <NaturezaChip natureza={f.natureza} /> <span>{exame.nome || "Novo exame"}</span>
-          </div>
-          <Button type="button" size="sm" variant="outline" onClick={() => setAbertas({ cadastro: !todas, classificacao: !todas, vinculos: !todas, periodizacao: !todas, embasamento: !todas })} data-testid="button-expandir-faixas">
-            {todas ? "Recolher tudo" : "Expandir tudo"}
-          </Button>
-          {onClonar && <Button type="button" size="sm" variant="outline" onClick={onClonar} data-testid="button-clonar-exame">Clonar exame</Button>}
+        <div className="screen-3d flex items-center gap-2 px-3 py-2 text-xs font-black">
+          <NaturezaChip natureza={f.natureza} /> <span className="min-w-0 flex-1 truncate">{exame.nome || "Novo exame"}</span>
         </div>
-        <p className="text-xs text-muted-foreground">O código, o bloco e a grade do exame não mudam por atributos. Um só botão salva a ficha inteira.</p>
+        <div className={`grid gap-2 ${onClonar ? "grid-cols-2" : "grid-cols-1"}`}>
+          <button type="button" className="paxter-seletor h-9 px-3 text-[11px] font-black uppercase tracking-wide" aria-pressed={todas} onClick={() => setAbertas({ cadastro: !todas, classificacao: !todas, vinculos: !todas, periodizacao: !todas, embasamento: !todas })} data-testid="button-expandir-faixas">
+            {todas ? "Recolher tudo" : "Expandir tudo"}
+          </button>
+          {onClonar && (
+            <button type="button" className="paxter-seletor h-9 px-3 text-[11px] font-black uppercase tracking-wide" onClick={onClonar} title="Cria um exame NOVO já preenchido com os dados deste. O original não muda." data-testid="button-clonar-exame">
+              Copiar ficha para novo exame
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          O código, o bloco e a grade do exame não mudam por atributos. Um só botão salva a ficha inteira.
+          {onClonar ? " \"Copiar ficha\" abre um exame novo com os mesmos dados (você escolhe a área e a grade do código novo); o exame original fica intacto." : ""}
+        </p>
 
         {topo && <Faixa id="cadastro" titulo="1. Cadastro do exame" resumo={exame.nome} aberta={!!abertas.cadastro} onToggle={() => alterna("cadastro")}>{topo}</Faixa>}
 
@@ -493,12 +520,14 @@ function CorEditavel({ chave, padrao }: { chave: string; padrao: string }) {
     onError: (e) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
   });
   return (
-    <div className="flex items-center gap-1.5">
-      <SeletorCorVidro rotulo={`Cor de ${chave}`} valor={atual} onChange={(c) => salvar.mutate(c.toUpperCase())} />
-      {cores.personalizada(chave) && (
-        <Button type="button" size="icon" variant="ghost" aria-label={`Voltar ao padrão (${padrao})`} title={`Voltar ao padrão (${padrao})`} onClick={() => salvar.mutate(null)}><RotateCcw className="h-4 w-4" /></Button>
-      )}
-    </div>
+    <>
+      <div className="flex w-[150px] items-center"><SeletorCorVidro rotulo={`Cor de ${chave}`} valor={atual} onChange={(c) => salvar.mutate(c.toUpperCase())} /></div>
+      <div className="flex w-9 items-center justify-center">
+        {cores.personalizada(chave) && (
+          <Button type="button" size="icon" variant="ghost" aria-label={`Voltar ao padrão (${padrao})`} title={`Voltar ao padrão (${padrao})`} onClick={() => salvar.mutate(null)}><RotateCcw className="h-4 w-4" /></Button>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -513,7 +542,7 @@ export function PainelGrades() {
     <div className="panel-3d divide-y">
       {GRADES_COR.map((g) => (
         <div key={g.chave} className="flex items-center gap-3 px-3 py-2">
-          <span className="flex-1 text-sm font-bold">{g.rotulo}</span>
+          <span className="min-w-0 flex-1 text-sm font-bold">{g.rotulo}</span>
           <CorEditavel chave={g.chave} padrao={GRADE_COR[g.chave]} />
         </div>
       ))}
@@ -529,6 +558,7 @@ function PainelOpcoes({ tipo, rotulo }: { tipo: Tipo; rotulo: string }) {
   const criar = useCriarOpcao(tipo);
   const [novo, setNovo] = useState("");
   const [edit, setEdit] = useState<{ id: number; nome: string } | null>(null);
+  const [verInativos, setVerInativos] = useState(false);
   const refaz = () => {
     qc.invalidateQueries({ queryKey: ["/api/cadastros/opcoes-exame", tipo] });
     qc.invalidateQueries({ queryKey: ["/api/cadastros/exames-atributos"] });
@@ -547,6 +577,32 @@ function PainelOpcoes({ tipo, rotulo }: { tipo: Tipo; rotulo: string }) {
     onSuccess: refaz,
     onError: (e) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
   });
+  const ativos = (data ?? []).filter((o) => o.ativo);
+  const inativos = (data ?? []).filter((o) => !o.ativo);
+  // Todas as linhas usam as MESMAS colunas fixas: nome | cor | restaurar cor | contagem | editar | ativo.
+  const linha = (o: NonNullable<typeof data>[number]) => (
+    <div key={o.id} className={`grid grid-cols-[minmax(0,1fr)_150px_36px_112px_40px_108px] items-center gap-3 px-3 py-2 ${o.ativo ? "" : "opacity-60"}`}>
+      {edit?.id === o.id ? (
+        <div className="col-span-full flex items-center gap-2">
+          <Input autoFocus value={edit.nome} onChange={(e) => setEdit({ id: o.id, nome: e.target.value })} className="field-engraved" />
+          <Button size="icon" className="btn-3d" aria-label="Salvar nome" disabled={renomear.isPending} onClick={() => renomear.mutate()}><Check className="h-4 w-4" /></Button>
+          <Button size="icon" variant="outline" aria-label="Cancelar" onClick={() => setEdit(null)}><X className="h-4 w-4" /></Button>
+        </div>
+      ) : (
+        <>
+          <div className="min-w-0">{tipo === "natureza" ? <NaturezaChip natureza={o.nome} /> : <span className="block truncate text-sm font-bold">{o.nome}</span>}</div>
+          {tipo === "natureza" && NATUREZA_COR[o.nome.toUpperCase()] ? (
+            <CorEditavel chave={o.nome.toUpperCase()} padrao={NATUREZA_COR[o.nome.toUpperCase()]} />
+          ) : (
+            <><div className="w-[150px] text-center text-xs text-muted-foreground">—</div><div className="w-9" /></>
+          )}
+          <div className="concave-3d px-2 py-1 text-center text-[10px] font-black tabular-nums">{o.total} exame(s)</div>
+          <Button size="icon" variant="ghost" aria-label={`Renomear ${o.nome}`} onClick={() => setEdit({ id: o.id, nome: o.nome })}><Pencil className="h-4 w-4" /></Button>
+          <BotaoAtivo ativo={o.ativo} rotulo={o.nome} onChange={(v) => alterna.mutate({ id: o.id, ativo: v })} />
+        </>
+      )}
+    </div>
+  );
   return (
     <div className="space-y-3">
       <div className="flex gap-2">
@@ -557,28 +613,18 @@ function PainelOpcoes({ tipo, rotulo }: { tipo: Tipo; rotulo: string }) {
       </div>
       <div className="panel-3d divide-y">
         {isLoading && <div className="p-3 text-sm text-muted-foreground">Carregando...</div>}
-        {(data ?? []).map((o) => (
-          <div key={o.id} className={`flex items-center gap-2 px-3 py-2 ${o.ativo ? "" : "opacity-50"}`}>
-            {edit?.id === o.id ? (
-              <>
-                <Input autoFocus value={edit.nome} onChange={(e) => setEdit({ id: o.id, nome: e.target.value })} className="field-engraved" />
-                <Button size="icon" className="btn-3d" aria-label="Salvar nome" disabled={renomear.isPending} onClick={() => renomear.mutate()}><Check className="h-4 w-4" /></Button>
-                <Button size="icon" variant="outline" aria-label="Cancelar" onClick={() => setEdit(null)}><X className="h-4 w-4" /></Button>
-              </>
-            ) : (
-              <>
-                {tipo === "natureza" && <NaturezaChip natureza={o.nome} />}
-                {tipo === "natureza" && NATUREZA_COR[o.nome.toUpperCase()] && <CorEditavel chave={o.nome.toUpperCase()} padrao={NATUREZA_COR[o.nome.toUpperCase()]} />}
-                {tipo !== "natureza" && <span className="flex-1 text-sm font-bold">{o.nome}</span>}
-                <span className="flex-1" />
-                <Badge variant="outline" className="text-[10px]">{o.total} exame(s)</Badge>
-                <Button size="icon" variant="ghost" aria-label={`Renomear ${o.nome}`} onClick={() => setEdit({ id: o.id, nome: o.nome })}><Pencil className="h-4 w-4" /></Button>
-                <Switch checked={o.ativo} aria-label={`Ativar ${o.nome}`} onCheckedChange={(v) => alterna.mutate({ id: o.id, ativo: v })} />
-              </>
-            )}
-          </div>
-        ))}
+        {ativos.map(linha)}
+        {!isLoading && ativos.length === 0 && <div className="p-3 text-sm text-muted-foreground">Nenhuma opção ativa.</div>}
       </div>
+      {inativos.length > 0 && (
+        <div className="space-y-2">
+          <button type="button" aria-expanded={verInativos} onClick={() => setVerInativos((v) => !v)} className="paxter-seletor flex h-9 w-full items-center justify-between px-3 text-[11px] font-black uppercase tracking-wide" data-testid={`button-desativados-${tipo}`}>
+            <span>Desativadas ({inativos.length}) — guardadas, fora das listas de escolha</span>
+            <ChevronDown className={`h-4 w-4 transition-transform ${verInativos ? "rotate-180" : ""}`} />
+          </button>
+          {verInativos && <div className="panel-3d divide-y">{inativos.map(linha)}</div>}
+        </div>
+      )}
     </div>
   );
 }
@@ -587,12 +633,12 @@ export function GestaoOpcoes({ extras: extrasRecebidos = [] }: { extras?: Array<
   const extras = [{ chave: "grades-cor", rotulo: "Grades", conteudo: <PainelGrades /> }, ...extrasRecebidos];
   return (
     <Tabs defaultValue="natureza" className="space-y-3">
-      <TabsList className="concave-3d h-auto flex-wrap justify-start p-1">
+      <TabsList className="h-auto flex-wrap justify-start gap-2 bg-transparent p-0">
         {TIPOS.map((t) => (
-          <TabsTrigger key={t.tipo} value={t.tipo} className="text-[11px] font-black uppercase tracking-wide">{t.rotulo}</TabsTrigger>
+          <TabsTrigger key={t.tipo} value={t.tipo} className="paxter-seletor h-9 px-4 text-[11px] font-black uppercase tracking-wide">{t.rotulo}</TabsTrigger>
         ))}
         {extras.map((x) => (
-          <TabsTrigger key={x.chave} value={x.chave} className="text-[11px] font-black uppercase tracking-wide">{x.rotulo}</TabsTrigger>
+          <TabsTrigger key={x.chave} value={x.chave} className="paxter-seletor h-9 px-4 text-[11px] font-black uppercase tracking-wide">{x.rotulo}</TabsTrigger>
         ))}
       </TabsList>
       {TIPOS.map((t) => (

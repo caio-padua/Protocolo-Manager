@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
-import { type Atributos, AtributosDialog, GestaoOpcoes, UploadManualExames, NaturezaChip, naturezaSugerida, useAtributos, useCores } from "./ExamesAtributos";
+import { type Atributos, AtributosDialog, BotaoAtivo, GestaoOpcoes, UploadManualExames, NaturezaChip, naturezaSugerida, useAtributos, useCores } from "./ExamesAtributos";
 import {
   Search,
   Plus,
@@ -417,7 +417,7 @@ function ExamesTab() {
         </div>
       ) : (
         <div className="panel-3d overflow-hidden" data-testid="lista-exames-faixas">
-          <div className="hidden md:grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_64px_48px] gap-3 bg-primary/10 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-primary">
+          <div className="hidden md:grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_112px_48px] gap-3 bg-primary/10 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-primary">
             <div>Exame</div>
             <div>Natureza / Modalidade</div>
             <div>Preparo</div>
@@ -448,7 +448,7 @@ function ExamesTab() {
                     return (
                       <div
                         key={e.id}
-                        className={`neon-hover grid grid-cols-[minmax(0,1fr)_64px_48px] md:grid-cols-[minmax(0,2.6fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_64px_48px] items-center gap-3 px-4 py-2.5 ${e.ativo === false ? "opacity-50" : ""}`}
+                        className={`neon-hover grid grid-cols-[minmax(0,1fr)_112px_48px] md:grid-cols-[minmax(0,2.6fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_112px_48px] items-center gap-3 px-4 py-2.5 ${e.ativo === false ? "opacity-50" : ""}`}
                         style={{ background: `hsl(${hue} 45% ${i % 2 === 0 ? "97%" : "93%"} / 0.9)`, borderLeft: `6px solid hsl(${hue} 55% 60% / 0.55)` }}
                       >
                         <div className="min-w-0">
@@ -461,7 +461,7 @@ function ExamesTab() {
                         </div>
                         <div className="hidden md:block min-w-0 text-xs text-[#5b6578] line-clamp-2">{txt(e.preparo)}</div>
                         <div className="flex justify-center">
-                          <Switch checked={e.ativo !== false} onCheckedChange={(v) => toggleMutation.mutate({ id: e.id, ativo: v })} />
+                          <BotaoAtivo ativo={e.ativo !== false} rotulo={txt(e.nomeExame)} onChange={(v) => toggleMutation.mutate({ id: e.id, ativo: v })} />
                         </div>
                         <div className="flex justify-end">
                           <Button variant="ghost" size="icon" onClick={() => openEdit(e)} aria-label="Editar" title="Editar ficha completa do exame" data-testid={`button-editar-${e.id}`}>
@@ -1127,11 +1127,7 @@ function ClassificacaoPainel({ item }: { item: (typeof CAMPOS_CLASS)[number] }) 
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               )}
-              <Switch
-                checked={c.ativo}
-                onCheckedChange={(v) => alternar.mutate({ id: c.id, ativo: v })}
-                aria-label={`Ativar ${c.nome}`}
-              />
+<BotaoAtivo ativo={c.ativo} rotulo={c.nome} onChange={(v) => alternar.mutate({ id: c.id, ativo: v })} />
             </div>
           ))}
           {lista.length === 0 && <div className="text-sm text-muted-foreground">Nada cadastrado ainda.</div>}
@@ -1146,9 +1142,9 @@ function ClassificacaoPainel({ item }: { item: (typeof CAMPOS_CLASS)[number] }) 
 export function ClassificacoesCadastro() {
   return (
     <Tabs defaultValue="categoria" className="space-y-4">
-      <TabsList className="concave-3d h-auto flex-wrap justify-start p-1">
+      <TabsList className="h-auto flex-wrap justify-start gap-2 bg-transparent p-0">
         {CAMPOS_CLASS.map((c) => (
-          <TabsTrigger key={c.campo} value={c.campo} className="text-[11px] font-black uppercase tracking-wide">
+          <TabsTrigger key={c.campo} value={c.campo} className="paxter-seletor h-9 px-4 text-[11px] font-black uppercase tracking-wide">
             {c.plural}
           </TabsTrigger>
         ))}
@@ -1182,14 +1178,14 @@ export default function CadastroExames({ comClassificacoes = MOSTRAR_CLASSIFICAC
       </div>
 
       <Tabs defaultValue="exames" className="space-y-4">
-        <TabsList className="concave-3d h-auto flex-wrap justify-start p-1">
-          <TabsTrigger value="exames" className="gap-1.5 text-xs font-black uppercase tracking-wide">
+        <TabsList className="h-auto flex-wrap justify-start gap-2 bg-transparent p-0">
+          <TabsTrigger value="exames" className="paxter-seletor h-10 gap-1.5 px-5 text-xs font-black uppercase tracking-wide">
             <TestTube className="h-4 w-4" /> Catálogo
           </TabsTrigger>
-          <TabsTrigger value="blocos" className="gap-1.5 text-xs font-black uppercase tracking-wide">
+          <TabsTrigger value="blocos" className="paxter-seletor h-10 gap-1.5 px-5 text-xs font-black uppercase tracking-wide">
             <Layers className="h-4 w-4" /> Blocos clínicos e grades
           </TabsTrigger>
-          <TabsTrigger value="opcoes" className="gap-1.5 text-xs font-black uppercase tracking-wide">
+          <TabsTrigger value="opcoes" className="paxter-seletor h-10 gap-1.5 px-5 text-xs font-black uppercase tracking-wide">
             <Tags className="h-4 w-4" /> Gerenciamento de opções
           </TabsTrigger>
         </TabsList>
