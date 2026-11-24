@@ -12,6 +12,7 @@ import {
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronDown, ChevronRight, Lock, Unlock, Search, Pencil, Play, Eye, AlertTriangle } from "lucide-react";
 
@@ -115,6 +116,7 @@ export default function SinapsesFaixa() {
   const [menu, setMenu] = useState<{ perguntaId: string; x: number; y: number; acima: boolean } | null>(null);
   const [buscaSeletor, setBuscaSeletor] = useState("");
   const [seletorAberto, setSeletorAberto] = useState(false);
+  const [telaSinapses, setTelaSinapses] = useState(false);
   const [seletorCats, setSeletorCats] = useState<Categoria[]>([]);
   const [desligadasMenu, setDesligadasMenu] = useState<Record<string, Array<{ categoria: Categoria; destinoTipo: string; destinoId: number }>>>({});
 
@@ -725,10 +727,15 @@ export default function SinapsesFaixa() {
         {/* PAINEL DA PERGUNTA ATUAL: faixa independente, de ponta a ponta; esquerda = busca + pergunta; direita = seletor (lingueta fechada ate usar) */}
         <section className="bevel-3d grid w-full gap-2 p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" style={{ background: "#fbfcfe" }} data-testid="faixa-painel-pergunta">
           <div className="min-w-0 space-y-2" data-testid="faixa-painel-pergunta-texto">
-            <div className="relative w-full sm:max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar código, pergunta ou saída..." className="h-9 pl-9 field-engraved" data-testid="faixa-busca" />
-          </div>
+            <div className="flex items-center gap-1">
+              <div className="relative min-w-0 flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar código, pergunta ou saída..." className="h-8 pl-9 field-engraved" data-testid="faixa-busca" />
+              </div>
+              <button type="button" disabled={!perguntaAtiva} onClick={() => setTelaSinapses(true)} aria-label="Ver sinapses desta pergunta" title={perguntaAtiva ? `Ver sinapses desta pergunta (${ligacoesAtiva.length} ativa(s), ${propostasAtiva.length} proposta(s))` : "Escolha uma pergunta"} className="tecla-3d flex h-8 w-8 shrink-0 items-center justify-center disabled:opacity-50" data-testid="faixa-ver-sinapses">
+                <Eye className="h-4 w-4" />
+              </button>
+            </div>
 
             {perguntaAtiva ? (
               <>
@@ -739,35 +746,6 @@ export default function SinapsesFaixa() {
                 <p className="mt-1 text-[11px] tracking-wide text-muted-foreground" data-testid="faixa-painel-pergunta-subtitulo">
                   {perguntaAtiva.bloco ?? "Sem bloco"} · {ligacoesAtiva.length} ligação(ões) ativa(s) · {propostasAtiva.length} proposta(s){perguntaAtiva.eSinalAlarme ? " · sinal de alarme" : ""}
                 </p>
-                <div className="concave-3d mt-2 flex min-h-[2.5rem] items-center gap-2 px-2 py-1" data-testid="faixa-correspondencia-atual">
-                  <span className="hidden shrink-0 text-[9px] font-black uppercase leading-tight tracking-wider text-primary/80 sm:block">Saídas<br />ligadas</span>
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 py-0.5" data-testid="faixa-correspondencia-chips">
-                  {ligacoesAtiva.length === 0 && propostasAtiva.length === 0 && <span className="text-[11px] text-muted-foreground">Nenhuma saída ligada ainda.{modo === "EDICAO" && travada ? " Clique nas saídas à direita." : ""}</span>}
-                  {ligacoesAtiva.map((x) => {
-                    const dst = nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId));
-                    const semSaida = !dst || dst.incompleto;
-                    const armada = armadas.has(x.id);
-                    return (
-                      <span key={x.id} className={`tecla-3d flex h-7 shrink-0 items-center gap-1 pl-1.5 pr-0.5 text-[10px] ${semSaida ? "border-red-400" : ""}`} title={`${codigoDestino(x.categoria, x.destinoTipo, x.destinoId)} · ${ROTULO[x.categoria]} · ${dst?.nome ?? "sem saída"}`}>
-                        <b className="font-mono" style={{ color: semSaida ? "#b91c1c" : COR[x.categoria] }}>{codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}</b>
-                        <span className="max-w-[9rem] truncate">{dst?.nome ?? "sem saída"}</span>
-                        {modo === "EDICAO" && (
-                          <button type="button" onClick={() => cliqueExcluir(x.id)} className="h-6 min-w-6 rounded px-1 text-[11px] font-bold text-red-700 hover:bg-red-50" aria-label={armada ? "Confirmar desvincular" : `Desvincular ${codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}`} title={armada ? "Clique de novo para confirmar" : "Desvincular (desativa, não apaga)"} data-testid={`faixa-chip-desvincular-${x.id}`}>
-                            {armada ? "Confirmar" : "×"}
-                          </button>
-                        )}
-                      </span>
-                    );
-                  })}
-                  {propostasAtiva.map((x) => (
-                    <span key={`p${x.id}`} className="concave-3d flex h-7 shrink-0 items-center gap-1 border border-dashed border-[#b8892b] px-1.5 text-[10px]" title={`Proposta pendente: ${x.eixo}`}>
-                      <b className="font-mono text-[#9b6b11]">{codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}</b>
-                      <span className="max-w-[8rem] truncate">{nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId))?.nome ?? `#${x.destinoId}`}</span>
-                      <span className="text-[8px] font-bold uppercase text-[#9b6b11]">proposta</span>
-                    </span>
-                  ))}
-                </div>
-                </div>
               </>
             ) : (
               <p className="py-1 text-[13px] text-muted-foreground" data-testid="faixa-painel-pergunta-vazio">Selecione uma pergunta</p>
@@ -1260,6 +1238,58 @@ export default function SinapsesFaixa() {
           </div>
         );
       })()}
+
+      {perguntaAtiva && (
+        <Dialog open={telaSinapses} onOpenChange={setTelaSinapses}>
+          <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto border border-[#d9ccb0]" style={{ background: "#fdfbf5", opacity: 1 }} data-testid="faixa-tela-sinapses">
+            <DialogHeader>
+              <DialogTitle className="flex items-start gap-2 text-[15px]">
+                <span className="concave-3d sinapse-janela-codigo shrink-0 font-mono text-[11px] font-bold text-[#0f1e36]">{perguntaAtiva.perguntaId}</span>
+                <span className="min-w-0 leading-snug">{perguntaAtiva.pergunta}</span>
+              </DialogTitle>
+              <DialogDescription>{perguntaAtiva.bloco ?? "Sem bloco"} · {ligacoesAtiva.length} ligação(ões) ativa(s) · {propostasAtiva.length} proposta(s)</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3" data-testid="faixa-correspondencia-chips">
+              {ligacoesAtiva.length === 0 && propostasAtiva.length === 0 && <p className="text-[12px] text-muted-foreground">Nenhuma saída ligada ainda.</p>}
+              {CATEGORIAS.map((c) => {
+                const lig = ligacoesAtiva.filter((x) => x.categoria === c.chave);
+                const prop = propostasAtiva.filter((x) => x.categoria === c.chave);
+                if (!lig.length && !prop.length) return null;
+                return (
+                  <section key={c.chave} className="concave-3d p-2" data-testid={`faixa-tela-sinapses-${c.chave}`}>
+                    <h4 className="mb-1.5 text-[10px] font-black uppercase tracking-wider" style={{ color: c.cor }}>{c.sigla} · {c.rotulo} · {lig.length} ativa(s) · {prop.length} proposta(s)</h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {lig.map((x) => {
+                        const dst = nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId));
+                        const semSaida = !dst || dst.incompleto;
+                        const armada = armadas.has(x.id);
+                        return (
+                          <span key={x.id} className={`tecla-3d flex h-8 items-center gap-1.5 pl-2 pr-1 text-[11px] ${semSaida ? "border-red-400" : ""}`}>
+                            <b className="font-mono" style={{ color: semSaida ? "#b91c1c" : c.cor }}>{codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}</b>
+                            <span className="max-w-[16rem] truncate">{dst?.nome ?? "sem saída"}</span>
+                            {modo === "EDICAO" && (
+                              <button type="button" onClick={() => cliqueExcluir(x.id)} className="h-6 min-w-6 rounded px-1 text-[12px] font-bold text-red-700 hover:bg-red-50" aria-label={armada ? "Confirmar desvincular" : `Desvincular ${codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}`} title={armada ? "Clique de novo para confirmar" : "Desvincular (desativa, não apaga)"} data-testid={`faixa-chip-desvincular-${x.id}`}>
+                                {armada ? "Confirmar" : "×"}
+                              </button>
+                            )}
+                          </span>
+                        );
+                      })}
+                      {prop.map((x) => (
+                        <span key={`p${x.id}`} className="concave-3d flex h-8 items-center gap-1.5 border border-dashed border-[#b8892b] px-2 text-[11px]" title={`Proposta pendente: ${x.eixo}`}>
+                          <b className="font-mono text-[#9b6b11]">{codigoDestino(x.categoria, x.destinoTipo, x.destinoId)}</b>
+                          <span className="max-w-[16rem] truncate">{nomeDe.get(chave(x.categoria, x.destinoTipo, x.destinoId))?.nome ?? `#${x.destinoId}`}</span>
+                          <span className="text-[8px] font-bold uppercase text-[#9b6b11]">proposta</span>
+                        </span>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {arraste && (
         <svg className="pointer-events-none fixed inset-0 z-50" width="100%" height="100%" aria-hidden>

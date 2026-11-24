@@ -206,7 +206,9 @@ test("sinapse: travar a pergunta e clicar na saída liga sem arrastar", async ({
   await expect(page.getByTestId("faixa-travar")).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId(`faixa-ligar-EXAME|exame|${destinoId}`).click();
   await expect.poll(() => estado.pedidos.length).toBe(1);
+  await page.getByTestId("faixa-ver-sinapses").click();
   await expect(page.getByTestId("faixa-correspondencia-chips")).toContainText("Exame sintético");
+  await page.keyboard.press("Escape");
   await page.screenshot({ path: "/tmp/sinapse-travada.png" });
 });
 
@@ -305,4 +307,8 @@ test("sinapse: painel da pergunta atual espelha caixa sim/não e fio nos dois se
   await expect(caixa).toBeChecked();
   await expect(page.getByTestId("faixa-painel-pergunta-subtitulo")).toContainText("1 ligação");
   await page.screenshot({ path: "/tmp/sinapse-painel.png" });
+  await page.getByTestId("faixa-ver-sinapses").click();
+  await expect(page.getByTestId("faixa-tela-sinapses-EXAME")).toContainText("Exame sintético");
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: "/tmp/sinapse-tela.png" });
 });
