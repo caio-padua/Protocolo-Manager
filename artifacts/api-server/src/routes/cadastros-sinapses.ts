@@ -172,6 +172,12 @@ router.get("/cadastros/sinapses/resumo/:tipo/:id", async (req, res): Promise<voi
   res.status(400).json({ error: "tipo inválido" });
 });
 
+router.get("/cadastros/sinapses/bloco-cores", async (_req, res): Promise<void> => {
+  await garantir();
+  const r = await db.execute(sql`SELECT bloco, cor FROM anamnese_blocos_cor`);
+  res.json(Object.fromEntries((r.rows as any[]).map((c) => [c.bloco, c.cor])));
+});
+
 // Cor de cada categoria (bloco) de perguntas: cadastro persistente; a tela usa uma paleta padrao quando nao ha cor salva.
 router.put("/cadastros/sinapses/bloco-cor", async (req, res): Promise<void> => {
   await garantir();
