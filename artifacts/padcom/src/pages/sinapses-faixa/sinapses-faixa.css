@@ -140,19 +140,20 @@
 .sinapse-sem-trilho { scrollbar-width: none; -ms-overflow-style: none; }
 .sinapse-sem-trilho::-webkit-scrollbar { display: none; }
 
-/* Termostato discreto: sulco fino + botão estreito, quase imperceptível até o mouse chegar perto */
+/* Termostato camuflado: sulco quase da cor do fundo e botão fosco, 9 px de largura. */
 .sinapse-termostato {
-  position: absolute; top: 14px; bottom: 14px; width: 15px; z-index: 5;
-  border-radius: 3px; overflow: hidden;
-  background: #d8ceb2;
-  box-shadow: inset 0 1px 2px rgba(7,22,43,0.22);
+  position: absolute; top: 14px; bottom: 14px; width: 9px; z-index: 5;
+  border-radius: 2px; overflow: hidden;
+  background: rgba(120,100,60,0.08);
+  box-shadow: inset 0 0 0 1px rgba(120,100,60,0.12);
 }
 .sinapse-termostato-botao {
-  position: absolute; left: 0; right: 0; border-radius: 3px; cursor: grab; touch-action: none;
-  background: linear-gradient(90deg, #f6e6b4, #c9a24a);
-  border: 1px solid rgba(120,92,36,0.75);
-  box-shadow: 0 1px 2px rgba(7,22,43,0.3), inset 0 1px 0 #fff;
+  position: absolute; left: 1px; right: 1px; border-radius: 2px; cursor: grab; touch-action: none;
+  background: rgba(150,128,82,0.38);
+  border: 0; box-shadow: inset 0 1px 0 rgba(255,255,255,0.35);
+  transition: background 0.2s ease;
 }
+.sinapse-termostato-botao:hover { background: rgba(150,128,82,0.6); }
 .sinapse-termostato-botao:active { cursor: grabbing; }
 
 /* Vidro puro (sem moldura): mesma cúpula de vidro do medalhão da marca (.pax-medallion::after) —
@@ -221,36 +222,25 @@
   mask-image: repeating-linear-gradient(90deg, #000 0 2px, transparent 2px 5px);
 }
 
-/* Soquete do neurônio: quadrado vazado só na face medial (a que olha para o centro), com abertura centrada na vertical.
-   Esquerda abre à direita; direita abre à esquerda (espelho). A moldura é dourada (mesmo tom das teclas), nunca preta.
-   Conectado (ou armado), uma haste curta sai da abertura até a borda da coluna e emenda com o fio: o fio nunca sai por trás. */
-.sinapse-pino-area[class*="sinapse-soquete"] { position: relative; --moldura: rgba(184,146,77,0.95); }
+/* Soquete do neurônio: moldura fina dourada, aberta só na face medial (a que olha para o centro) com a abertura centrada
+   na vertical. O fio NASCE dentro do quadradinho e atravessa a abertura (o desenho do fio vem do SVG; nada é pré-desenhado aqui). */
+.sinapse-pino-area[class*="sinapse-soquete"] { position: relative; --moldura: rgba(176,140,74,0.7); }
 .sinapse-soquete-d::after, .sinapse-soquete-e::after {
-  content: ""; position: absolute; inset: 0; pointer-events: none; border: 1px solid var(--moldura); border-radius: 2px;
+  content: ""; position: absolute; inset: 0; pointer-events: none; border: 1px solid var(--moldura); border-radius: 3px;
 }
-.sinapse-soquete-d::after { border-right: 0; border-radius: 2px 0 0 2px; }
-.sinapse-soquete-e::after { border-left: 0; border-radius: 0 2px 2px 0; }
+.sinapse-soquete-d::after { border-right: 0; border-radius: 3px 0 0 3px; }
+.sinapse-soquete-e::after { border-left: 0; border-radius: 0 3px 3px 0; }
+/* Só as duas pontas da face medial (30% em cima e 30% embaixo); o meio fica aberto. */
 .sinapse-soquete-d::before, .sinapse-soquete-e::before {
-  content: ""; position: absolute; top: 0; bottom: 0; width: 6px; pointer-events: none; background-repeat: no-repeat;
-  background-image: linear-gradient(180deg, var(--moldura) 0 30%, transparent 30% 70%, var(--moldura) 70% 100%);
-  background-size: 1px 100%;
+  content: ""; position: absolute; top: 0; bottom: 0; width: 1px; pointer-events: none;
+  background: linear-gradient(180deg, var(--moldura) 0 30%, transparent 30% 70%, var(--moldura) 70% 100%);
 }
-.sinapse-soquete-d::before { left: 100%; margin-left: -1px; background-position: left top; }
-.sinapse-soquete-e::before { right: 100%; margin-right: -1px; background-position: right top; }
-.sinapse-soquete-d:has(.sinapse-pino:is([data-estado="ativo"], [data-estado="proposta"], [data-estado="armado"]))::before {
-  background-image:
-    linear-gradient(180deg, var(--moldura) 0 30%, transparent 30% 70%, var(--moldura) 70% 100%),
-    linear-gradient(180deg, transparent calc(50% - 1px), var(--cor-haste, #64748b) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px));
-  background-size: 1px 100%, 5px 100%;
-  background-position: left top, right top;
+.sinapse-soquete-d::before { right: 0; }
+.sinapse-soquete-e::before { left: 0; }
+/* Quadradinho interno: vidro na cor da classificação, sem anel branco. */
+.sinapse-pino-area[class*="sinapse-soquete"] .sinapse-pino { width: 14px; height: 14px; border: 0; background: transparent; box-shadow: none; }
+.sinapse-pino-area[class*="sinapse-soquete"] .sinapse-pino::before {
+  inset: 0; border-radius: 2px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--cor-pino) 55%, #fff) 0%, var(--cor-pino) 55%, color-mix(in srgb, var(--cor-pino) 80%, #0b1d2c) 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 0 0 1px color-mix(in srgb, var(--cor-pino) 55%, #07162b);
 }
-.sinapse-soquete-e:has(.sinapse-pino:is([data-estado="ativo"], [data-estado="proposta"], [data-estado="armado"]))::before {
-  background-image:
-    linear-gradient(180deg, var(--moldura) 0 30%, transparent 30% 70%, var(--moldura) 70% 100%),
-    linear-gradient(180deg, transparent calc(50% - 1px), var(--cor-haste, #64748b) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px));
-  background-size: 1px 100%, 5px 100%;
-  background-position: right top, left top;
-}
-/* Caixa branca limitada à moldura; o quadradinho colorido volta a ter o tamanho original. */
-.sinapse-pino-area[class*="sinapse-soquete"] .sinapse-pino { width: calc(100% - 3px); height: calc(100% - 3px); border-color: transparent; background: #ffffff; }
-.sinapse-pino-area[class*="sinapse-soquete"] .sinapse-pino::before { inset: 2px; border-radius: 1px; }

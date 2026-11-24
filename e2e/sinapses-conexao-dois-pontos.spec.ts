@@ -405,7 +405,7 @@ for (const tela of [{ nome: "minimizada", ampliar: false }, { nome: "maximizada"
     expect(d.y + d.height).toBeLessThanOrEqual(moldura.y + moldura.height);
     expect(vidro.x).toBeGreaterThan(e.x + e.width);
     expect(vidro.x + vidro.width).toBeLessThan(d.x);
-    expect(d.width).toBeGreaterThanOrEqual(14);
+    expect(d.width).toBeGreaterThanOrEqual(8);
   });
 }
 

@@ -36,6 +36,7 @@ const CATEGORIAS: Array<{ chave: Categoria; rotulo: string; sigla: string; cor: 
   { chave: "INJETAVEL_EV", rotulo: "Injetáveis EV", sigla: "EV", cor: "#dc2626" },
   { chave: "IMPLANTE", rotulo: "Implantes", sigla: "IMP", cor: "#ca8a04" },
 ];
+const EXT_FIO = 6;
 const COR = Object.fromEntries(CATEGORIAS.map((c) => [c.chave, c.cor])) as Record<Categoria, string>;
 const ROTULO = Object.fromEntries(CATEGORIAS.map((c) => [c.chave, c.rotulo])) as Record<Categoria, string>;
 const SIGLA = Object.fromEntries(CATEGORIAS.map((c) => [c.chave, c.sigla])) as Record<Categoria, string>;
@@ -148,6 +149,9 @@ export default function SinapsesFaixa() {
   const [rolE, setRolE] = useState(0);
   const [rolD, setRolD] = useState(0);
   const [alturaVisivel, setAlturaVisivel] = useState(480);
+  const [larguraVidro, setLarguraVidro] = useState(300);
+  // O fio nasce 6 px dentro da caixa do pino (na face medial do quadradinho) e atravessa a abertura da moldura.
+  const eu = (EXT_FIO / Math.max(larguraVidro, 1)) * 100;
   // Menu de ligacoes de uma pergunta (dropdown fixo na tela, fora da area rolavel)
   const [menu, setMenu] = useState<{ perguntaId: string; x: number; y: number; acima: boolean } | null>(null);
   const [menuSaida, setMenuSaida] = useState<{ k: string; cat: Categoria; tipo: TipoDestino; id: number; nome: string; x: number; y: number; acima: boolean } | null>(null);
@@ -178,7 +182,7 @@ export default function SinapsesFaixa() {
   }, []);
 
   useEffect(() => {
-    const medir = () => { const h = graficoRef.current?.clientHeight; if (h) setAlturaVisivel(h); };
+    const medir = () => { const h = graficoRef.current?.clientHeight; if (h) setAlturaVisivel(h); const w = centroRef.current?.clientWidth; if (w) setLarguraVidro(w); };
     medir();
     window.addEventListener("resize", medir);
     return () => window.removeEventListener("resize", medir);
@@ -1002,17 +1006,16 @@ export default function SinapsesFaixa() {
             ) : (
               <div ref={graficoRef} className="concave-3d" style={{ height: ampliada ? "calc(100vh - 15rem)" : "max(20rem, calc(100vh - 25rem))" }} data-testid="faixa-grafo-rolagem">
                 <div className="relative grid h-full min-h-0 overflow-hidden" style={{ gridTemplateRows: "minmax(0,1fr)", gridTemplateColumns: `minmax(0,1.2fr) minmax(${ampliada ? 420 : 240}px,1.2fr) minmax(0,1.2fr)` }}>
-                  <div className="absolute bottom-0 left-[3px] top-0 z-20 w-[15px]"><Termostato alvo={colEsqRef} rotulo="Rolar perguntas" testid="faixa-termostato-perguntas" /></div>
-                  <div className="absolute bottom-0 right-[3px] top-0 z-20 w-[15px]"><Termostato alvo={colDirRef} rotulo="Rolar saídas" testid="faixa-termostato-saidas" /></div>
+                  <div className="absolute bottom-0 left-[2px] top-0 z-20 w-[9px]"><Termostato alvo={colEsqRef} rotulo="Rolar perguntas" testid="faixa-termostato-perguntas" /></div>
+                  <div className="absolute bottom-0 right-[2px] top-0 z-20 w-[9px]"><Termostato alvo={colDirRef} rotulo="Rolar saídas" testid="faixa-termostato-saidas" /></div>
                   {/* DENDRITOS ESQUERDA: rolagem propria */}
-                  <div ref={colEsqRef} onScroll={(e) => setRolE(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-r border-black/10 pl-[21px]" data-testid="faixa-coluna-perguntas">
+                  <div ref={colEsqRef} onScroll={(e) => setRolE(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-r border-black/10 pl-[13px]" data-testid="faixa-coluna-perguntas">
                   <div className="relative" style={{ height: altura }}>
                     {linhasE.map((linha, idx) => {
                       const topo = idx * alturaLinha + 1.5;
                       if (linha.tipo === "grupo") {
                         return (
                           <div key={`g-${linha.k}`} className="absolute flex w-full items-center gap-1 px-1" style={{ top: topo, height: alturaLinha - 3 }}>
-                            <span className="block h-full w-5 shrink-0" aria-hidden="true" />
                             {barraGrupo({ titulo: linha.k, n: linha.n, nLig: linha.nLig, fechado: fechadosE.has(linha.k), onClick: () => alternarGrupo(fechadosE, setFechadosE, linha.k), testid: `faixa-grupo-e-${linha.k}` })}
                             <span className="sinapse-pino-area">
                             <label className="bevel-3d sinapse-vidro-cor relative block h-full w-full cursor-pointer overflow-hidden !rounded-[3px] !p-0" style={{ "--ev": corDoBloco(linha.k) } as React.CSSProperties} title="Cor desta categoria de perguntas (clique para trocar)" data-testid={`faixa-cor-${linha.k}`}>
@@ -1035,7 +1038,6 @@ export default function SinapsesFaixa() {
                       return (
                         <div key={p.perguntaId} data-pergunta={p.perguntaId} className="absolute flex w-full items-center gap-1 px-1" style={{ top: topo, height: alturaLinha - 3 }}
                           onMouseEnter={() => setHover(p.perguntaId)} onMouseLeave={() => setHover(null)} title={`${p.perguntaId} · ${p.pergunta}`} aria-label={`${p.perguntaId}: ${p.pergunta}. ${nAtivas} ligações registradas, ${nSemSaida} sem saída e ${nPendentes} propostas pendentes.`}>
-                          <span className={`block h-full w-5 shrink-0 rounded-[3px] ${marcada ? "sinapse-vidro-cor" : ""}`} style={marcada ? ({ "--ev": corDaPergunta.get(p.perguntaId) ?? "#64748b" } as React.CSSProperties) : undefined} data-testid={`faixa-espinha-${p.perguntaId}`} aria-hidden="true" />
                           <button type="button" aria-pressed={marcada} onClick={(e) => clicar(e, p.perguntaId)} data-testid={`faixa-dendrito-${p.perguntaId}`}
                             className="tecla-3d flex h-full min-w-0 flex-1 items-center gap-1 px-1.5 text-left select-none" style={marcada ? { background: `linear-gradient(90deg, ${corDaPergunta.get(p.perguntaId) ?? "#999"}33, transparent 70%)` } : undefined}>
                             <span className="flex w-4 shrink-0 items-center justify-center">
@@ -1060,6 +1062,7 @@ export default function SinapsesFaixa() {
                             }}>
                             <ChevronDown className="h-4 w-4 text-[#16284a]" strokeWidth={3} />
                           </button>
+                          <span className={`block h-full w-5 shrink-0 rounded-[3px] ${marcada ? "sinapse-vidro-cor" : ""}`} style={marcada ? ({ "--ev": corDaPergunta.get(p.perguntaId) ?? "#64748b" } as React.CSSProperties) : undefined} data-testid={`faixa-espinha-${p.perguntaId}`} aria-hidden="true" />
                           {modo === "EDICAO" && (
                             <button type="button" onPointerDown={(e) => iniciar(e, p.perguntaId)} onClick={(e) => {
                               e.stopPropagation();
@@ -1084,8 +1087,9 @@ export default function SinapsesFaixa() {
                   </div>
                   </div>
                   {/* FIOS */}
-                  <div ref={centroRef} className="sinapse-escafandro h-full w-full"><div className="sinapse-vidro" onClick={() => setFioAberto(null)} onDoubleClick={() => { if (arrasteRef.current) cancelarArraste(); }} data-testid="faixa-vidro">
-                  <svg className="block" width="100%" height={alturaVisivel} viewBox={`0 0 100 ${alturaVisivel}`} preserveAspectRatio="none" aria-hidden>
+                  <div ref={centroRef} className="sinapse-escafandro relative z-10 h-full w-full"><div className="sinapse-vidro" onClick={() => setFioAberto(null)} onDoubleClick={() => { if (arrasteRef.current) cancelarArraste(); }} data-testid="faixa-vidro">
+                  </div>
+                  <svg className="pointer-events-none absolute top-0" style={{ left: -EXT_FIO, width: `calc(100% + ${2 * EXT_FIO}px)`, overflow: "visible" }} height={alturaVisivel} viewBox={`${-eu} 0 ${100 + 2 * eu} ${alturaVisivel}`} preserveAspectRatio="none" aria-hidden>
                     <defs>
                       <linearGradient id="sinapse-gradiente-fibra" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="100" y2="0">
                         <stop offset="0%" stopColor="#1D4ED8" />
@@ -1100,7 +1104,7 @@ export default function SinapsesFaixa() {
                       const em = emPerg || fioAberto === s.id;
                       const apagado = modo === "SIMULACAO" && sel.length > 0 && !em;
                       const semSaida = s.estado === "SEM_SAIDA";
-                      const d = `M 0 ${y1} C 50 ${y1}, 50 ${y2}, 100 ${y2}`;
+                      const d = `M ${-eu} ${y1} C 50 ${y1}, 50 ${y2}, ${100 + eu} ${y2}`;
                       const corBloco = corDaPergunta.get(s.perguntaId) ?? "#1e3a8a";
                       const corFio = semSaida ? "#dc2626" : corBloco;
                       if (!mostrar[semSaida ? "SEM_SAIDA" : s.estado === "ATIVA" ? "ATIVA" : "PROPOSTA"] && !em) return null;
@@ -1117,7 +1121,7 @@ export default function SinapsesFaixa() {
                       );
                     })}
                   </svg>
-                  </div></div>
+                  </div>
                   {(() => {
                     const f = fios.find((x) => x.s.id === fioAberto);
                     if (!f || !centroRef.current) return null;
@@ -1159,7 +1163,7 @@ export default function SinapsesFaixa() {
                     );
                   })()}
                   {/* DENDRITOS DIREITA: rolagem propria */}
-                  <div ref={colDirRef} onScroll={(e) => setRolD(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-l border-black/10 pr-[21px]" data-testid="faixa-coluna-saidas">
+                  <div ref={colDirRef} onScroll={(e) => setRolD(e.currentTarget.scrollTop)} className="sinapse-sem-trilho h-full overflow-y-auto border-l border-black/10 pr-[13px]" data-testid="faixa-coluna-saidas">
                   <div className="relative" style={{ height: altura }}>
                     {linhasD.map((linha, idx) => {
                       const topo = idx * alturaLinha + 1.5;
