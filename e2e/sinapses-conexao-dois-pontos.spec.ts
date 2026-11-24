@@ -209,3 +209,29 @@ test("sinapse: travar a pergunta e clicar na saída liga sem arrastar", async ({
   await expect(page.getByTestId("faixa-correspondencia-chips")).toContainText("Exame sintético");
   await page.screenshot({ path: "/tmp/sinapse-travada.png" });
 });
+
+test("sinapse: clicar de novo na pergunta apaga os fios dela", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await prepararTela(page);
+  const linha = page.getByTestId(`faixa-dendrito-${perguntaId}`);
+  await linha.click();
+  await expect(page.getByTestId("faixa-correspondencia-atual")).toContainText(perguntaId);
+  await linha.click();
+  await page.mouse.move(900, 700);
+  await expect(page.getByTestId("faixa-correspondencia-atual")).toContainText("Escolha uma pergunta");
+});
+
+test("sinapse: clicar de novo no pino ou noutra pergunta desarma o fio", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await prepararTela(page);
+  await page.getByTestId("faixa-modo-EDICAO").click();
+  const pino = page.getByTestId(`faixa-porta-${perguntaId}`);
+  await pino.click();
+  await expect(pino).toHaveAttribute("aria-pressed", "true");
+  await pino.click();
+  await expect(pino).toHaveAttribute("aria-pressed", "false");
+  await pino.click();
+  await expect(pino).toHaveAttribute("aria-pressed", "true");
+  await page.getByTestId(`faixa-dendrito-${perguntaId}`).click();
+  await expect(pino).toHaveAttribute("aria-pressed", "false");
+});

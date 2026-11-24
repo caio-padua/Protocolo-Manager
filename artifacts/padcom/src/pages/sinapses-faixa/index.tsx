@@ -244,8 +244,11 @@ export default function SinapsesFaixa() {
     return m;
   }, [data, cats, modo, nomeDe]);
 
+  const selecaoInicialFeita = useRef(false);
   useEffect(() => {
-    if (!data || sel.length) return;
+    // Seleciona uma pergunta so na abertura; depois, desmarcar deve deixar tudo sem fios.
+    if (!data || sel.length || selecaoInicialFeita.current) return;
+    selecaoInicialFeita.current = true;
     const primeira = data.perguntas.find((p) => p.perguntaId === "C-GER03" && conexoesPorPergunta.has(p.perguntaId))
       ?? data.perguntas.find((p) => conexoesPorPergunta.has(p.perguntaId));
     if (primeira) setSel([primeira.perguntaId]);
@@ -259,7 +262,7 @@ export default function SinapsesFaixa() {
       if (!todos && modo !== "EDICAO" && lig.length === 0) return false;
       if (!q) return true;
       return semAcento(`${p.perguntaId} ${p.pergunta} ${p.bloco ?? ""}`).includes(q) || lig.some((s) => semAcento(nomeDe.get(chave(s.categoria, s.destinoTipo, s.destinoId))?.nome ?? "").includes(q));
-    }).sort((a, b) => Number((conexoesPorPergunta.get(b.perguntaId)?.length ?? 0) > 0) - Number((conexoesPorPergunta.get(a.perguntaId)?.length ?? 0) > 0));
+    }).sort((a, b) => a.perguntaId.localeCompare(b.perguntaId, "pt-BR", { numeric: true })); // ordem fixa por codigo: ligar nunca muda a posicao
   }, [data, porPergunta, conexoesPorPergunta, modo, q, nomeDe, todos]);
 
   // Direita: destinos ligados; na EDICAO com saida escolhida, o catalogo inteiro dela.
@@ -305,7 +308,7 @@ export default function SinapsesFaixa() {
       }
     });
     const ordemCat = (c: Categoria) => CATEGORIAS.findIndex((x) => x.chave === c);
-    return Array.from(m.values()).sort((a, b) => ordemCat(a.cat) - ordemCat(b.cat) || Number((b.nAtivas + b.nPropostas + b.nSemSaida) > 0) - Number((a.nAtivas + a.nPropostas + a.nSemSaida) > 0) || a.nome.localeCompare(b.nome));
+    return Array.from(m.values()).sort((a, b) => ordemCat(a.cat) - ordemCat(b.cat) || a.nome.localeCompare(b.nome, "pt-BR", { numeric: true }));
   }, [data, modo, cats, q, esquerda, conexoesPorPergunta, nomeDe, todos]);
 
   // Linhas do grafo: cada lado e uma lista de grupos recolhiveis (blocos a esquerda, saidas por categoria a direita).
@@ -373,6 +376,7 @@ export default function SinapsesFaixa() {
 
   // ---- selecao (clique, Ctrl, Shift) ----
   const clicar = (e: React.MouseEvent, id: string) => {
+    if (arrasteRef.current) cancelarArraste(); // clicar em qualquer pergunta desarma o fio em andamento
     if (e.shiftKey && ancora) {
       const ordem = esquerda.map((p) => p.perguntaId);
       const a = ordem.indexOf(ancora), b = ordem.indexOf(id);
@@ -380,7 +384,8 @@ export default function SinapsesFaixa() {
     }
     setAncora(id);
     if (e.ctrlKey || e.metaKey || modo === "SIMULACAO") { setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id])); return; }
-    setSel((s) => (s.length === 1 && s[0] === id ? [] : [id]));
+    if (sel.length === 1 && sel[0] === id) { setSel([]); setHover(null); setTravada((t) => (t === id ? null : t)); return; }
+    setSel([id]);
   };
   const centralizar = (perguntaId: string) => {
     const caixa = graficoRef.current;
@@ -507,8 +512,11 @@ export default function SinapsesFaixa() {
     return () => { window.removeEventListener("pointermove", mover); window.removeEventListener("pointerup", soltar); window.removeEventListener("scroll", reancorar, true); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!arraste]);
+  const cancelarArraste = () => { arrasteRef.current = null; setArraste(null); };
   const iniciarNoPonto = (de: string, x: number, y: number, clonarOrigem = false) => {
     if (modo !== "EDICAO") return;
+    // Clicar de novo no mesmo ponto desarma o fio.
+    if (arrasteRef.current?.de === de) { cancelarArraste(); return; }
     const proximo = {
       de,
       origens: sel.includes(de) && sel.length > 1 ? [...sel] : [de],
