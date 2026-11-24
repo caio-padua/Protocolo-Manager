@@ -67,6 +67,44 @@ export function resumoErroSeguro(err: unknown): string {
     .slice(0, 160);
 }
 
+export function iniciarJobLimpezaDeviceOfferLimits(logger: pino.Logger, scheduler: CronScheduler): void {
+  scheduler.schedule(
+    "0 3 * * *",
+    async () => {
+      try {
+        const { purgeOldDeviceOfferLimits } = await import(
+          "../../api-server/src/lib/concierge-device-throttle.js" as string
+        );
+        const removed = await purgeOldDeviceOfferLimits();
+        logger.info({ removed }, "Worker: limpeza de device_offer_limits concluída");
+      } catch (err) {
+        const error = resumoErroSeguro(err instanceof Error ? err : new Error(String(err)));
+        logger.error({ err: error }, "Worker: falha na limpeza de device_offer_limits");
+        try {
+          const channelId = process.env.PADAXOR_SLACK_CHANNEL_ID?.trim();
+          if (!channelId) throw new Error("PADAXOR_SLACK_CHANNEL_ID não configurado");
+          const { brtDateTime } = await import("../../api-server/src/lib/brt.js" as string);
+          const { postSlackAlertChecked } = await import(
+            "../../api-server/src/lib/slack-reporter.js" as string
+          );
+          const escapedError = error.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          await postSlackAlertChecked(channelId, [
+            "*Concierge — falha na limpeza diária de device_offer_limits*",
+            `Erro: ${escapedError}`,
+            `Horário: ${brtDateTime()} (BRT)`,
+          ].join("\n"));
+        } catch (slackErr) {
+          logger.error(
+            { err: resumoErroSeguro(slackErr) },
+            "Worker: falha ao alertar CEO no Slack sobre limpeza de device_offer_limits"
+          );
+        }
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+}
+
 function iniciarJobRepasseTelegram(logger: pino.Logger, scheduler: CronScheduler, atendimento = false): void {
   let repasseRodando = false;
   let primeiroTickConcluido = false;
@@ -458,29 +496,8 @@ export function startWorkerJobs(
     });
 
   // ─── Job 7: Limpeza de device_offer_limits — diária às 03h BRT ────────────
-  // Apaga linhas com dia_brt < CURRENT_DATE - 2 dias para evitar crescimento
-  // indefinido da tabela (análogo ao cleanup de idempotência #165).
-  cron.schedule(
-    "0 3 * * *",
-    async () => {
-      try {
-        const { purgeOldDeviceOfferLimits } = await import(
-          "../../api-server/src/lib/concierge-device-throttle.js" as string
-        );
-        const removed = await purgeOldDeviceOfferLimits();
-        logger.info(
-          { removed },
-          "Worker: limpeza de device_offer_limits concluída"
-        );
-      } catch (err) {
-        logger.error(
-          { err: err instanceof Error ? err.message : String(err) },
-          "Worker: falha na limpeza de device_offer_limits"
-        );
-      }
-    },
-    { timezone: "America/Sao_Paulo" }
-  );
+  // O corte usa o calendário BRT no SQL da purga; falhas alertam o CEO.
+  iniciarJobLimpezaDeviceOfferLimits(logger, cron);
 
   // ─── Job 9: Limpeza de device_contact_verifications e device_verified_sessions ─
   // Apaga linhas com expires_at < NOW() das duas tabelas de verificação OTP.
