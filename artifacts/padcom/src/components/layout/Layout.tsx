@@ -89,6 +89,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PaxterLogo } from "./PaxterLogo";
+import { MenuBusca, type ItemBusca } from "./MenuBusca";
 import { AbaTitulo } from "./AbaTitulo";
 import { RESUMO_ABA } from "./resumosAba";
 import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
@@ -535,6 +536,14 @@ export function Layout({ children }: LayoutProps) {
     }
   }
 
+  // Itens que o seletor de menus pode abrir: os mesmos que o papel enxerga na barra.
+  const itensBuscaveis: ItemBusca[] = [];
+  for (const e of navFiltrada) {
+    for (const l of isGroup(e) ? e.children : [e]) {
+      if (podeVer(l.href)) itensBuscaveis.push({ name: l.name, href: l.href, group: isGroup(e) ? e.name : "Menu", icon: l.icon, external: l.external });
+    }
+  }
+
   // Nome do menu ativo (maior href que casa com a rota) para a aba do topo
   const tituloAba = (() => {
     let melhor: { name: string; len: number; href: string } | null = null;
@@ -614,6 +623,16 @@ export function Layout({ children }: LayoutProps) {
             }`}
           >
             <PaxterLogo collapsed={collapsed} />
+          </div>
+
+          {/* Seletor de menus: fixo sob o logo, fora da rolagem do menu */}
+          <div className="hidden md:block shrink-0">
+            <MenuBusca
+              itens={itensBuscaveis}
+              compacto={collapsed}
+              onExpandir={() => setCollapsed(false)}
+              onAbrir={(i) => { if (i.external) window.open(i.href, "_blank", "noopener,noreferrer"); else navigate(i.href); }}
+            />
           </div>
 
           {/* Navegacao */}
