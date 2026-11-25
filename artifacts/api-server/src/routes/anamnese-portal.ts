@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
   db,
@@ -12,6 +12,8 @@ import {
 } from "@workspace/db";
 import { verifyPortalToken } from "../lib/portal-token";
 import { computeMotor, type RespostaMotor } from "../lib/motor-anamnese";
+import { requireCollaborator } from "./collaborator.js";
+import { requireMessageClinic } from "../middleware/messageClinic.js";
 
 const router: IRouter = Router();
 
@@ -144,55 +146,83 @@ router.post("/anamnese-portal/submit", async (req: Request, res: Response): Prom
 });
 
 // ---- Fila de validacao (admin) ----
-router.get("/anamnese-portal/fila", async (_req: Request, res: Response): Promise<void> => {
-  const rows = await db
-    .select({
-      id: motorSugestaoTable.id,
-      sessaoId: motorSugestaoTable.sessaoId,
-      clienteId: motorSugestaoTable.clienteId,
-      status: motorSugestaoTable.status,
-      resumo: motorSugestaoTable.resumo,
-      createdAt: motorSugestaoTable.createdAt,
-      clientName: clientsTable.name,
-      totalItens: sql<number>`(select count(*)::int from ${motorSugestaoItemTable} where ${motorSugestaoItemTable.sugestaoId} = ${motorSugestaoTable.id})`,
-    })
-    .from(motorSugestaoTable)
-    .leftJoin(clientsTable, eq(clientsTable.id, motorSugestaoTable.clienteId))
-    .where(eq(motorSugestaoTable.status, "AGUARDA_VALIDACAO"))
-    .orderBy(desc(motorSugestaoTable.createdAt));
-  res.json(rows);
-});
+router.get(
+  "/anamnese-portal/fila",
+  requireCollaborator,
+  requireMessageClinic,
+  async (req: Request, res: Response): Promise<void> => {
+    const empresaId = req.messageEmpresaId!;
+    const rows = await db
+      .select({
+        id: motorSugestaoTable.id,
+        sessaoId: motorSugestaoTable.sessaoId,
+        clienteId: motorSugestaoTable.clienteId,
+        status: motorSugestaoTable.status,
+        resumo: motorSugestaoTable.resumo,
+        createdAt: motorSugestaoTable.createdAt,
+        clientName: clientsTable.name,
+        totalItens: sql<number>`(select count(*)::int from ${motorSugestaoItemTable} where ${motorSugestaoItemTable.sugestaoId} = ${motorSugestaoTable.id})`,
+      })
+      .from(motorSugestaoTable)
+      .innerJoin(clientsTable, eq(clientsTable.id, motorSugestaoTable.clienteId))
+      .where(and(
+        eq(motorSugestaoTable.status, "AGUARDA_VALIDACAO"),
+        eq(clientsTable.empresaId, empresaId),
+      ))
+      .orderBy(desc(motorSugestaoTable.createdAt));
+    res.json(rows);
+  },
+);
 
 // ---- Decidir (validar / recusar) ----
 const decidirSchema = z.object({ decisao: z.enum(["validado", "recusado"]) });
 
-router.post("/anamnese-portal/sugestao/:id/decidir", async (req: Request, res: Response): Promise<void> => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) {
-    res.status(400).json({ error: "id invalido" });
-    return;
-  }
-  const parsed = decidirSchema.safeParse(req.body ?? {});
-  if (!parsed.success) {
-    res.status(400).json({ error: "decisao deve ser validado ou recusado" });
-    return;
-  }
+router.post(
+  "/anamnese-portal/sugestao/:id/decidir",
+  requireCollaborator,
+  requireMessageClinic,
+  async (req: Request, res: Response): Promise<void> => {
+    const empresaId = req.messageEmpresaId!;
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "id invalido" });
+      return;
+    }
+    const parsed = decidirSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: "decisao deve ser validado ou recusado" });
+      return;
+    }
 
-  const updated = await db
-    .update(motorSugestaoTable)
-    .set({ status: parsed.data.decisao })
-    .where(eq(motorSugestaoTable.id, id))
-    .returning({ id: motorSugestaoTable.id });
-  if (updated.length === 0) {
-    res.status(404).json({ error: "sugestao nao encontrada" });
-    return;
-  }
-  await db
-    .update(motorSugestaoItemTable)
-    .set({ status: parsed.data.decisao })
-    .where(eq(motorSugestaoItemTable.sugestaoId, id));
+    const decided = await db.transaction(async (tx) => {
+      // Locks both records while checking ownership and applying the decision.
+      // A different clinic receives the same 404 as a missing suggestion.
+      const permitted = await tx.execute(sql`
+        SELECT s.id
+        FROM motor_sugestao s
+        JOIN clients c ON c.id = s.cliente_id
+        WHERE s.id = ${id} AND c.empresa_id = ${empresaId}
+        FOR UPDATE OF s, c
+      `);
+      if (permitted.rows.length === 0) return false;
 
-  res.json({ ok: true });
-});
+      await tx
+        .update(motorSugestaoTable)
+        .set({ status: parsed.data.decisao })
+        .where(eq(motorSugestaoTable.id, id));
+      await tx
+        .update(motorSugestaoItemTable)
+        .set({ status: parsed.data.decisao })
+        .where(eq(motorSugestaoItemTable.sugestaoId, id));
+      return true;
+    });
+    if (!decided) {
+      res.status(404).json({ error: "sugestao nao encontrada" });
+      return;
+    }
+
+    res.json({ ok: true });
+  },
+);
 
 export default router;

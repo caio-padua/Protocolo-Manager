@@ -40,6 +40,29 @@ export interface WebhookInfo {
   fetchError?: string;
 }
 
+/** Monta a URL pública do webhook sem expor ou registrar credenciais. */
+export function resolveTelegramWebhookUrl(
+  env: NodeJS.ProcessEnv = process.env,
+): { url: string | null; error?: string } {
+  const publicBaseUrl = env["PUBLIC_BASE_URL"]?.trim();
+  if (publicBaseUrl) {
+    try {
+      const parsed = new URL(publicBaseUrl);
+      if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
+        return { url: null, error: "public_base_url_https_required" };
+      }
+      return { url: `${parsed.origin}/api/webhooks/telegram` };
+    } catch {
+      return { url: null, error: "public_base_url_invalid" };
+    }
+  }
+
+  const domain = env["RAILWAY_PUBLIC_DOMAIN"] || env["REPLIT_DEV_DOMAIN"] || "";
+  if (!domain.trim()) return { url: null, error: "dominio_publico_ausente" };
+  const host = domain.trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  return { url: `https://${host}/api/webhooks/telegram` };
+}
+
 /**
  * Consulta o Telegram para saber se o webhook ainda está registrado.
  * Retorna WebhookInfo com `url` vazio quando não há webhook (polling assumiu ou nunca foi configurado).
@@ -108,16 +131,13 @@ export async function setWebhook(): Promise<{ ok: boolean; description?: string;
     return { ok: false, mock: true, error: "token_ausente" };
   }
 
-  // Monta a URL pública do webhook
-  const domain =
-    process.env["RAILWAY_PUBLIC_DOMAIN"] ||
-    process.env["REPLIT_DEV_DOMAIN"] ||
-    "";
-  if (!domain) {
-    return { ok: false, error: "dominio_publico_ausente" };
+  // PUBLIC_BASE_URL (domínio oficial) tem prioridade; os fallbacks existentes
+  // continuam disponíveis para Railway e desenvolvimento.
+  const resolvedWebhook = resolveTelegramWebhookUrl();
+  if (!resolvedWebhook.url) {
+    return { ok: false, error: resolvedWebhook.error ?? "dominio_publico_ausente" };
   }
-
-  const webhookUrl = `https://${domain}/api/webhooks/telegram`;
+  const webhookUrl = resolvedWebhook.url;
 
   // O segredo é obrigatório — sem ele o handler público descartará todos os
   // updates (fail-closed), registrando o webhook mas tornando o canal mudo.

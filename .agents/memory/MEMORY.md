@@ -4,7 +4,7 @@
 - **Pulso** — [uma nota por período](pulso-uma-nota-por-periodo.md) · [padrão do gráfico](grafico-linha-padrao-pulso.md) — janelas manhã/tarde/noite; pendentes reaparecem; setas movem o ponto.
 - [Forro risca de giz parado + painéis oficiais](forro-risca-de-giz-parado.md) — leva-fabric-fixo em fundo de página; panel-3d-sub/bevel-3d oficiais; barra inferior com touch-action pan-x.
 - **PaxCare B2C** — [planos](paxcare-planos-b2c.md) · [cofre e vínculos](paxcare-cofre-vinculos.md) — aceite com hash, compartilhamento por clínica e revogação imediata.
-- **PAX FINANCE** — [domínio](pax-finance-dominio.md) · [tributos](pax-finance-painel-tributario-credito.md) · [prioridades](pax-finance-pausa-e-prioridades.md) — isolamento, fontes e sequência.
+- PAX FINANCE: [domínio](pax-finance-dominio.md), [tributos](pax-finance-painel-tributario-credito.md), [prioridades](pax-finance-pausa-e-prioridades.md), [docs](pax-finance-documentos-oficiais.md).
 - [Anexos de mensagem + Curadoria Clínica](anexos-mensagem-curadoria-clinica.md) — biblioteca com interruptor; aviso de pedido + oferta do PAM (modo teste por padrão).
 - [Homologação com participantes presentes](homologacao-presenca-dr-caio.md) — Dr. Caio ao lado do participante = identidade validada; não repetir confirmação.
 - **Fotos** — [upload e histórico](foto-upload-historico.md) · [nome no Drive](drive-foto-nomenclatura.md) · [arquivo vazio](multer-zero-bytes.md).
@@ -29,7 +29,7 @@
 - [Asaas integration quirks](asaas-integration-quirks.md) — header access_token (não Bearer); base prod /v3 vs sandbox /api/v3; criar customer antes do payment; saque bloqueado por padrão (insufficien
 - [NULL nao colide em UNIQUE (Postgres)](postgres-null-unique-idempotencia.md) — onConflictDoNothing falha em coluna nullable do indice unico; idempotencia exige guarda de existencia manual.
 - [PUT/PATCH descarta campos fora do contrato](substancias-put-contrato.md) — campo editavel deve estar no OpenAPI body; zod.object faz strip, 200 nao prova persistencia; nao marcar nullable em coluna
-- [Documentos clínicos e PDF](indice-documentos-clinicos.md) · [prévia e emissão](protocolo-document-pdf-envia-email.md) — assinatura, segurança, paginação e conferência dos efeitos antes de enviar.
+- [Documentos clínicos](indice-documentos-clinicos.md) · [prévia/emissão](protocolo-document-pdf-envia-email.md) · [segunda via](segunda-via-documentos-politica.md) — assinatura e reemissão.
 - [Testes de banco descartável](testes-banco-descartavel.md) — migração e escrita em banco próprio isolado, nunca na conexão configurada da aplicação.
 - [Governança multiclínica autorizada](governanca-multiclinica-parada.md) — isolamento completo autorizado em 30/10/2026; executar sequencialmente; sem alterar cobranças.
 - **Acesso profissional** — [transição de login](login-transicao-email-cpf.md) · [solicitação depende de aprovação](login-solicitacao-acesso-aprovacao.md).
@@ -63,10 +63,8 @@
 - [Tela autossuficiente p/ credenciais](config-tela-autossuficiente.md) — toda chave/token tem campo na própria tela; GET só metadado mascarado; rota que vaza máscara exige requireCollaborator + Beare
 - [Marcacao de consulta: pele por tema](marcacao-pele-por-tema.md) — travado 01/07/2026: CLARO=Editorial (marcacao-fusao), ESCURO=Carteira concierge (marcacao-concierge); detalhe em specs/marcacao-con
 - [Idempotencia doc clinico por paciente](idempotencia-documento-clinico-por-paciente.md) — hash global mistura prontuarios: chave e (cliente,hash); consumo clinico so le docs conferidos.
-- [Autenticação operacional em testes](collab-token-curl-regen.md) — usar o login normal; nunca fabricar tokens para contornar a jornada protegida.
-- [Senha profissional nunca é exibida](acesso-profissional-senha-nao-reversivel.md) — mostrar apenas usuário e existência de senha; qualquer redefinição exige fluxo próprio, autorizado e sem alvo esco
-- [Política global de senhas](politica-global-senhas.md) — credenciais próprias: 10–128 caracteres, maiúscula inicial, número e símbolo; validar em cada criação, troca e recuperação.
-- [Histórico de alterações de acesso](historico-acesso-profissional.md) — valores comuns anteriores ficam visíveis somente ao titular; CPF e e-mail são protegidos; credenciais nunca entram no históric
+- [Segurança de acesso](collab-token-curl-regen.md) · [senha](acesso-profissional-senha-nao-reversivel.md) · [política](politica-global-senhas.md).
+- [Histórico de acesso](historico-acesso-profissional.md) — credenciais e dados pessoais protegidos.
 - [Emissão de documento substitui variáveis no servidor](emissao-documento-variaveis-servidor.md) — /emitir aplica {{...}} e grava corpo final no back (idempotente); rotas gêmeas com contrato idêntico
 - [Fusão mestre-detalhe (exames)](fusao-mestre-detalhe-exames.md) — detalhe async exige guard de corrida por reqId em useRef; lista por merge tem de ser UNIÃO (left-join esconde linhas).
 - [Postgres upper() não remove acento](postgres-upper-nao-remove-acento.md) — match por nome entre rotas gêmeas exige normalização igual dos 2 lados (removeDiacritics em JS); upper() cru vs valor sem
@@ -178,7 +176,6 @@
 - [Webhook órfão ZapSign + vínculo cobrança×bolão por titular](assinatura-webhook-orfao-e-cobranca-bolao-titular.md) — órfão fica pendente (200); cobrança só vincula a bolão se o titular for o mesmo c
 - [Meus Jogos individuais](meus-jogos-individuais.md) — separado dos bolões; sem aposta/pagamento real automático; Caixa só com canal oficial autorizado; calendário por concurso e margem de quatro hor
 - [Código de Renomeação de Exames](codigo-renomeacao-exames.md) — regra única aprovada: `LABOR`, siglas históricas, cintilografia por extenso e preservação contra homônimos.
-- [Segunda via de documentos](segunda-via-documentos-politica.md) — Members só verificado; webhook confere no provedor; recusa bloqueada com cobrança; um só caminho de entrega.
 - [Conversa unificada WWP+TG](comunicacao-unificada-wwp-tg.md) — conversa única, backup e categorias versionadas; trilhas financeiras separadas.
 - [Tela publica de pagamento PaxMed](pagamento-link-tela-publica.md) — /pagar/:token; valor sempre do Asaas; previa estatica; token em hash.
 - [Comunicação padronizada](comunicacao-padronizada.md) — compositor sem IA, modelos por clínica, regra de flyer, histórico.
@@ -188,7 +185,6 @@
 - [Anamnese de retorno — identidade e cirurgias](anamnese-retorno-identidade-cirurgias.md) — ids 1/2/41 = cadastro; cirurgias 8/9/88/315 só crescem; caso BETE BOQUETE era herança, não mistura.
 - [Anamnese — seletor sem opções vira texto](anamnese-seletor-sem-opcoes.md) — LISTA sem `opcoes` degrada para texto; sexo do cadastro não editável; gênero separado.
 - [Anamnese — seletor pesquisável e tema](anamnese-combobox-tema-portal.md) — portal na raiz tematica; filtro sem acento; correcao de sexo com historico.
-- [PAX FINANCE documentos oficiais](pax-finance-documentos-oficiais.md) — slots CNPJ/JUCESP/contrato; sensíveis cifrados; aplicar com confirmação; visão de IA p/ digitalizado.
 - **Pulso Diário** — [níveis](pulso-diario-niveis-area-cliente.md) · [frequência](pulso-frequencia-cardiaca-niveis.md) — limites centrais; dados de demonstração excepcionados.
 - [Ajuda "?" da antropometria exige referências](antropometria-ajuda-referencias.md) — nacionais+internacionais, mais recente marcada; lista única em .ts; spec em specs/.
 - [Molde do "?" de ajuda](molde-botao-ajuda-pulso.md) — copiar DiretrizesDialog do Pulso; molde escrito na skill-layout-paxter/references/botao-ajuda-interrogacao.md.
