@@ -37,8 +37,17 @@ function buildAllowedOrigins(): string[] {
     .filter((d) => d.length > 0)
     .map((d) => (d.startsWith("http") ? d : `https://${d}`));
 
+  // Portas de entrada oficiais (lista fechada, nunca curinga *.lovable.app:
+  // qualquer pessoa pode publicar um site em lovable.app).
+  const fromOfficial = [
+    "https://paxmed.com.br",
+    "https://www.paxmed.com.br",
+    "https://paxmed.lovable.app",
+    "https://padaxor.lovable.app",
+  ];
+
   // União sem duplicatas.
-  const merged = Array.from(new Set([...fromManual, ...fromReplit]));
+  const merged = Array.from(new Set([...fromManual, ...fromReplit, ...fromOfficial]));
 
   if (merged.length === 0) {
     logger.warn(
