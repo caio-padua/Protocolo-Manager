@@ -23,7 +23,7 @@ export interface Oferta {
   modalidade: Modalidade;
 }
 
-export type Etapa = "inicio" | "vinculo" | "identidade" | "modalidade" | "preferencias" | "escolha" | "nome" | "telefone" | "concluido";
+export type Etapa = "inicio" | "vinculo" | "confirmar_paciente" | "identidade" | "modalidade" | "preferencias" | "escolha" | "nome" | "telefone" | "concluido";
 
 export interface EstadoConversa {
   etapa: Etapa;
@@ -76,6 +76,8 @@ export interface DepsAgendamento {
 
 export interface ContextoAgendamento {
   ehCliente: boolean;
+  /** Interruptor da clínica: mesmo reconhecido, o paciente responde "já é paciente?" antes de receber o link. */
+  perguntarSeJaPaciente?: boolean;
   /** Primeiro nome já cadastrado (cliente). */
   primeiroNome?: string;
   /** Nome real da clínica (empresa) em que a conversa acontece. Ausente = "da clínica", sem inventar nome. */
@@ -341,6 +343,16 @@ export async function conduzirAgendamento(
   }
 
   // Cliente vinculado que quer marcar consulta: recebe o link de marcação (quando configurado).
+  if (ctx.ehCliente && deps.linkMarcacao && estado.etapa === "confirmar_paciente") {
+    if (!lerVinculo(texto) && estado.tentativas < 1) { estado.tentativas++; return fim(F("vinculo_nao_entendido"), "vinculo_nao_entendido"); }
+    estado.etapa = "concluido";
+    return fim(ap(F("enviar_link_marcacao", { link: deps.linkMarcacao() })), "link_marcacao_enviado");
+  }
+  if (ctx.ehCliente && deps.linkMarcacao && ctx.perguntarSeJaPaciente && !emAndamento && ehPedidoDeAgendamento(texto)) {
+    estado.etapa = "confirmar_paciente";
+    estado.tentativas = 0;
+    return fim(ap(F("pergunta_ja_paciente")), "perguntou_vinculo");
+  }
   if (ctx.ehCliente && deps.linkMarcacao && ehPedidoDeAgendamento(texto)) {
     estado.etapa = "concluido";
     return fim(ap(F("enviar_link_marcacao", { link: deps.linkMarcacao() })), "link_marcacao_enviado");

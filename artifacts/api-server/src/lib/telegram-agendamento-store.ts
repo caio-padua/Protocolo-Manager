@@ -251,7 +251,7 @@ export async function planejarAgendamentoCliente(e: {
     conferirLeitura: e.semIA ? undefined : criarConferenteLeitura(e.empresaId, e.inboxMessageId, onUso),
   };
   const agora = new Date().toISOString();
-  const r = await conduzirAgendamento(anterior, e.texto, { ehCliente: true, primeiroNome, nomeClinica: await nomeDaClinica(e.empresaId) }, deps, agora);
+  const r = await conduzirAgendamento(anterior, e.texto, { ehCliente: true, primeiroNome, nomeClinica: await nomeDaClinica(e.empresaId), perguntarSeJaPaciente: await perguntarSeJaPacienteLigado(e.empresaId) }, deps, agora);
   if (!r.tratada) return {
     tratada: false, pausa: null, alerta: null, resposta: null, desfecho: r.desfecho,
     caminhoResolucao: r.caminhoResolucao, interpreteChamado: e.usoIA?.interprete ?? r.interpreteChamado,
@@ -373,3 +373,9 @@ export async function atenderVisitante(chatId: string, texto: string, updateId: 
 }
 
 export { ESTADO_INICIAL };
+
+/** Interruptor por clínica (padrão desligado): só o valor "true" liga a pergunta "já é paciente?" para cadastrados. */
+export async function perguntarSeJaPacienteLigado(empresaId: number): Promise<boolean> {
+  const r = await db.execute(sql`SELECT value FROM app_settings WHERE key=${`atendimento.perguntar_ja_paciente.ativo.${empresaId}`}`);
+  return (r.rows[0] as { value?: string } | undefined)?.value === "true";
+}
