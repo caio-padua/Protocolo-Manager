@@ -8,6 +8,7 @@ import {
   CATEGORIAS, VARIAVEIS_GLOBAIS, FLYER_VERSAO, ehCategoria, validarModelo, modeloTexto, carregarRegras, decidirFlyer,
   gravarModeloClinica, gravarRegraClinica, prepararTabelas, enviarComunicacao, ErroComunicacao, type Categoria,
 } from "../lib/comunicacao-padrao.js";
+import { chaveMenuNumerado, menuNumeradoLigado } from "../lib/atendimento-whatsapp-store.js";
 import { avisarPedidoRecebido, listarAvisos } from "../lib/solicitacao-aviso.js";
 import { isPedidoKind } from "../lib/pedido-medico.js";
 import { beneficioAtivo } from "../lib/member-beneficios.js";
@@ -105,6 +106,18 @@ router.post("/comunicacao/solicitacao-avisos/:pedidoId/reenviar", requireCollabo
   if (!ped || !isPedidoKind(ped.kind)) { res.status(404).json({ error: "pedido não encontrado nesta clínica" }); return; }
   const ben = await beneficioAtivo(ped.client_id, ped.empresa_id, ped.kind);
   res.json({ resultados: await avisarPedidoRecebido({ pedidoId: ped.id, clienteId: ped.client_id, empresaId: ped.empresa_id, kind: ped.kind, beneficioAtivo: !!ben }) });
+});
+
+// Interruptor do menu numerado ("1 — ... 6 —"): desligar nunca apaga o texto, só troca por abertura conversacional.
+router.get("/comunicacao/menu-numerado", requireCollaborator, requireMessageClinic, async (req, res): Promise<void> => {
+  res.json({ ativo: await menuNumeradoLigado(req.messageEmpresaId!) });
+});
+router.put("/comunicacao/menu-numerado", requireCollaborator, requireMessageClinic, requireCeoInstance, async (req, res): Promise<void> => {
+  if (typeof req.body?.ativo !== "boolean") { res.status(400).json({ error: "ativo deve ser verdadeiro ou falso" }); return; }
+  const empresaId = req.messageEmpresaId!;
+  await db.execute(sql`INSERT INTO app_settings(key,value,updated_at) VALUES (${chaveMenuNumerado(empresaId)},${String(req.body.ativo)},NOW())
+    ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()`);
+  res.json({ ativo: req.body.ativo });
 });
 
 // Envio de TESTE: so proprietario da plataforma, so participantes autorizados, valor ate o teto de teste.

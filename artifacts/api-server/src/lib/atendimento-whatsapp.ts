@@ -66,6 +66,8 @@ const ROTULO_PEDIDO: Partial<Record<IntencaoWhatsapp, string>> = {
 
 export interface DepsOperacionaisWhatsapp {
   menuAtivo: () => Promise<boolean>;
+  /** Interruptor do menu numerado ("1 — ... 6 —"). Ausente = ligado. Desligado: abertura conversacional, sem números. */
+  menuNumeradoAtivo?: () => Promise<boolean>;
   frase: (chave: string, vars?: Record<string, string>) => Promise<string>;
   /** Contém apenas dado verificado do próprio cliente e clínica. */
   consultarRetorno: () => Promise<string | null>;
@@ -107,7 +109,8 @@ async function planejarInterno(
   if (interrompida) return { ...interrompida, intencao: "orcamento", intencaoDetectada: "orcamento", origemIntencao: "regra", intencoes: ["orcamento"] };
   // A opção numérica pertence exclusivamente ao menu mais recente entregue.
   const n = normalizar(e.texto);
-  const numero = n.match(/^(?:(?:opcao|numero) )?([1-6])$/)?.[1];
+  const menuNumerado = await (ops.menuNumeradoAtivo?.() ?? true);
+  const numero = menuNumerado ? n.match(/^(?:(?:opcao|numero) )?([1-6])$/)?.[1] : undefined;
   const opcao = numero ? OPCOES_MENU[numero] : undefined;
   const texto = opcao && await ops.menuAtivo() ? opcao : e.texto;
   const tc0 = Date.now();
@@ -193,6 +196,10 @@ async function planejarInterno(
     return { ...respostaRegra(await ops.frase("atendimento_nao_reconhecida")), intencoes: [], intencao: "desconhecida",
       alerta: `${canalNome}: pergunta não reconhecida, atendimento #${e.inboxMessageId}, cliente #${e.clienteId}. Abra a conversa protegida.`,
       desfecho: "encaminhado_humano", caminhoResolucao: "equipe", fonteOperacional: { chave: "atendimento_nao_reconhecida" } };
+  }
+  if (!menuNumerado) {
+    return { ...respostaRegra(await ops.frase("atendimento_abertura_livre")), intencao: "menu",
+      fonteOperacional: { chave: "atendimento_abertura_livre" } };
   }
   return { ...respostaRegra(await ops.frase("atendimento_menu"), "menu_enviado"), intencao: "menu",
     fonteOperacional: {chave:"atendimento_menu"} };

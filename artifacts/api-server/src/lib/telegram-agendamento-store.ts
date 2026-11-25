@@ -242,7 +242,7 @@ export async function planejarAgendamentoCliente(e: {
     registrarPedido: async () => 0, // cliente não usa pedido: reserva direta
     encaminharEquipe: async (m) => { motivoEquipe = m; },
     endereco: (m) => enderecoReal(m, e.empresaId),
-    linkMarcacao: e.canal === "whatsapp" ? undefined : () => `${baseUrlFromEnv()}/agendar`,
+    linkMarcacao: () => `${baseUrlFromEnv()}/agendar`,
     interpretar: e.semIA ? undefined : criarInterpretador(e.empresaId, e.inboxMessageId, onUso),
     conferirEscolha: e.semIA ? async ({texto,escolha,opcoes}) => {
       const numero = normalizar(texto).match(/^(?:(?:opcao|numero|horario) )?([1-9]\d?)$/)?.[1];

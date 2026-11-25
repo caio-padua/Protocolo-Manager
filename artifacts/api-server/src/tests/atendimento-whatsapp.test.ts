@@ -129,3 +129,22 @@ describe("cérebro real sem inteligência artificial",()=>{
     expect(ops.frase).not.toHaveBeenCalled();
   });
 });
+
+describe("interruptor do menu numerado",()=>{
+  it("desligado: pede conversa livre, sem menu numerado",async()=>{
+    ops.menuNumeradoAtivo=vi.fn(async()=>false);
+    const p=await planejarAtendimentoWhatsapp(d,entrada("menu"),ops);
+    expect(p.resposta).toBe("atendimento_abertura_livre"); expect(p.desfecho).toBe("operacional_enviada");
+    expect(ops.frase).not.toHaveBeenCalledWith("atendimento_menu",expect.anything());
+  });
+  it("desligado: número solto deixa de virar opção do menu",async()=>{
+    ops.menuNumeradoAtivo=vi.fn(async()=>false); ops.menuAtivo=vi.fn(async()=>true);
+    const p=await planejarAtendimentoWhatsapp(d,entrada("1"),ops);
+    expect(ops.agendar).not.toHaveBeenCalledWith("Quero agendar uma consulta");
+    expect(p.intencao).not.toBe("agendar");
+  });
+  it("ligado (padrão): mantém o menu numerado como antes",async()=>{
+    const p=await planejarAtendimentoWhatsapp(d,entrada("menu"),ops);
+    expect(p.resposta).toBe("atendimento_menu");
+  });
+});

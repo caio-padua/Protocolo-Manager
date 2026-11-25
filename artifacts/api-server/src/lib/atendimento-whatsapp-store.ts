@@ -11,13 +11,21 @@ import { modeloTexto, renderTexto, type CategoriaOperacional } from "./comunicac
 import { getNomeAssistenteAtendimento } from "./atendimento-ia-config";
 
 /** Frases sem categoria própria de modelo por clínica (texto vem da tela Frases do Assistente). */
-const SEM_MODELO_DA_CLINICA = new Set(["atendimento_endereco", "atendimento_esclarecer", "atendimento_nao_reconhecida"]);
+const SEM_MODELO_DA_CLINICA = new Set(["atendimento_endereco", "atendimento_esclarecer", "atendimento_nao_reconhecida", "atendimento_abertura_livre"]);
+
+/** Interruptor por clínica do menu numerado. Sem registro = ligado (nada é apagado); só o valor "false" desliga. */
+export const chaveMenuNumerado = (empresaId: number) => `atendimento.menu_numerado.ativo.${empresaId}`;
+export async function menuNumeradoLigado(empresaId: number): Promise<boolean> {
+  const r = await db.execute(sql`SELECT value FROM app_settings WHERE key=${chaveMenuNumerado(empresaId)}`);
+  return (r.rows[0] as { value?: string } | undefined)?.value !== "false";
+}
 
 /** Somente leituras do cliente/clínica resolvidos pelo webhook; reserva exige revalidação adicional. */
 export function depsOperacionaisWhatsapp(
   e: EntradaAtendimento, autorizarAcao?: () => Promise<boolean>,
 ): DepsOperacionaisWhatsapp {
   return {
+    menuNumeradoAtivo: () => menuNumeradoLigado(e.empresaId),
     menuAtivo: async () => {
       const r = await pool.query(`SELECT i.plano_atendimento->>'intencao' AS intencao,i.processamento,
           EXISTS(SELECT 1 FROM evolution_mensagens s WHERE s.empresa_id=i.empresa_id
