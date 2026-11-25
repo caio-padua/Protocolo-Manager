@@ -881,6 +881,17 @@ publico.post("/evolution/webhook/:empresaId/:token", async (req, res) => {
         const jid = jidBruto.endsWith("@lid") && jidAlt.endsWith("@s.whatsapp.net") ? jidAlt : jidBruto;
         const id = typeof d?.key?.id === "string" ? d.key.id : null;
         const c = contatoDoJid(jid);
+        // Nono dígito: o WhatsApp pode entregar o mesmo celular com ou sem o 9. Usa a variante que a homologação autoriza.
+        if (c && !c.grupo && /^55\d{10,11}$/.test(c.contato) && !contatoAutorizado(c.contato)) {
+          const alt = c.contato.length === 12 ? `${c.contato.slice(0, 4)}9${c.contato.slice(4)}`
+            : c.contato[4] === "9" ? `${c.contato.slice(0, 4)}${c.contato.slice(5)}` : null;
+          if (alt && contatoAutorizado(alt)) c.contato = alt;
+        }
+        if (c && !c.grupo && !d?.key?.fromMe && !contatoAutorizado(c.contato)) {
+          const dig = String(c.contato).replace(/\D/g, "");
+          logger.warn({ empresaId, formato: jidBruto.split("@")[1] ?? "?", temAlt: Boolean(jidAlt), digitos: dig.length, final: dig.slice(-8) },
+            "[evolution] descarte pela lista autorizada: remetente não autorizado");
+        }
         if (c && !c.grupo && !d?.key?.fromMe && jid.endsWith("@lid")) {
           logger.warn({ empresaId }, "[evolution] remetente @lid sem número real (remoteJidAlt ausente): ignorado");
         }
