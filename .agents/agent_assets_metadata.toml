@@ -1782,3 +1782,17 @@ mtime_ms = 1795527113543
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9bca1bfb-e83e-4b73-80d2-ae6da90febb8/3b437ef3-c1a6-47c4-965b-600eb49c4f4a"
 storage_version_token = "1795527203114527"
 content_type = "image/png"
+
+[[outputs]]
+id = "rXZU-v0sArogjKlg0dK5r"
+uri = "file://generated-artifacts/logotipo-paxmed-codigo.zip"
+type = "unspecified"
+title = "Código do logotipo PAXMED (zip)"
+description = "11 arquivos do logotipo: componentes, estilos e animações do raio."
+logical_id = "a3f5b15c-850e-4ed3-8f87-259f903ddfbe"
+content_hash = "sha256:21d578c8ee52e8399ad4e4218008a936ee929a0dbdc65d7a6a276755601e2492"
+size = 24453
+mtime_ms = 1795586334074
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/a3f5b15c-850e-4ed3-8f87-259f903ddfbe/3f61ecf0-ec17-445d-a16d-63973dc3343e"
+storage_version_token = "1795586337504865"
+content_type = "application/octet-stream"
