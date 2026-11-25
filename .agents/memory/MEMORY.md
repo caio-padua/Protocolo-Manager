@@ -200,3 +200,4 @@
 - [Lei do lugar fixo (TDAH)](lei-lugar-fixo-tdah.md) — botão não muda de lugar/texto; confirmar em slot reservado; aviso junto do mouse; ler a skill antes de toda tela.
 - [Formatador da Helena e cérebro global](helena-formatador-global.md) — formato aplicado no envio; base global anonimizada com consentimento.
 - [Teste real Telegram Dayana/Carlúcia](teste-telegram-dayana-carlucia.md) — rota enviar-teste + três listas de autorização distintas; envio pelo Cockpit pausa a IA.
+- [Troca PAXTER por PAXMED na marca](paxmed-wordmark-troca-arte.md) — só a imagem da palavra mudou; motor de luz, símbolo e subtítulo intactos.

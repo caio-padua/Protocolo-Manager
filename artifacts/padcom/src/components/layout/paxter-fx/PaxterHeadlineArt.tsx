@@ -6,9 +6,9 @@
 //
 // A mascara (paxter-headline-clean.png) foi gerada a partir da headline binarizando o
 // canal alpha (remove a sombra suave) — mesma logica do par paxter-paxter(-clean).
-import headlinePng from "@/assets/brand/paxter-headline.png";
-import headlineWebp from "@/assets/brand/paxter-headline.webp";
-import headlineCleanPng from "@/assets/brand/paxter-headline-clean.png";
+import headlinePng from "@/assets/brand/paxmed-headline.png";
+import headlineWebp from "@/assets/brand/paxmed-headline.webp";
+import headlineCleanPng from "@/assets/brand/paxmed-headline-clean.png";
 import { PaxterRasterGlow } from "./PaxterRasterGlow";
 
 type Props = {
@@ -31,7 +31,7 @@ export function PaxterHeadlineArt({ width = 220, tone = "dark", cycleDelay = 900
       tone={tone}
       cycleDelay={cycleDelay}
       className={className}
-      alt="PAXTER — Clinical Intelligence System"
+      alt="PAXMED — Clinical Intelligence System"
     />
   );
 }
