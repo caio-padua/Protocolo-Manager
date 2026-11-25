@@ -226,6 +226,24 @@ export interface ItemLembretePrescricao {
   posologia?: string;
 }
 
+export const LIMITE_WHATSAPP = 1500;
+
+/** Divide o texto em partes de até `limite` caracteres, cortando só em quebra de parágrafo/linha/frase. Sem perda de conteúdo. */
+export function dividirParaWhatsapp(texto: string, limite = LIMITE_WHATSAPP): string[] {
+  const partes: string[] = [];
+  let resto = texto.trim();
+  while (resto.length > limite) {
+    const janela = resto.slice(0, limite);
+    let corte = Math.max(janela.lastIndexOf("\n\n"), janela.lastIndexOf("\n"), janela.lastIndexOf(". ") + 1);
+    if (corte < limite / 2) corte = janela.lastIndexOf(" ");
+    if (corte <= 0) corte = limite;
+    partes.push(resto.slice(0, corte).trim());
+    resto = resto.slice(corte).trim();
+  }
+  if (resto) partes.push(resto);
+  return partes;
+}
+
 // Mapa período antigo → canônico do IHE (sigla, nome, janela_inicio HH:MM).
 export const MAPA_PERIODO: Record<PeriodoAntigo, { sigla: string; nome: string; inicio: string }> = {
   jejum: { sigla: "JE", nome: "Jejum", inicio: "05:00" },
@@ -505,11 +523,18 @@ export async function executarLembretesPeriodo(
     }
     let resultado: Awaited<ReturnType<typeof sendWhatsapp>>;
     try {
-      resultado = await sendWhatsapp(telefone, mensagem, {
-        contexto: "lembrete_prescricao",
-        clienteId: ctx.clienteId,
-        mirrorTelegram: false,
-      });
+      // Twilio recusa corpo acima de 1600 caracteres (erro 21617, HTTP 400). Nada é cortado:
+      // mensagem longa é dividida em partes por parágrafo, enviadas em ordem; falhou uma, para.
+      const partes = dividirParaWhatsapp(mensagem);
+      resultado = { sent: false, via: "link", link: "", error: "mensagem vazia" };
+      for (const parte of partes) {
+        resultado = await sendWhatsapp(telefone, parte, {
+          contexto: "lembrete_prescricao",
+          clienteId: ctx.clienteId,
+          mirrorTelegram: false,
+        });
+        if (!resultado.sent) break;
+      }
     } catch (err) {
       resultado = { sent: false, via: "link", link: "", error: err instanceof Error ? err.message : String(err) };
     }
