@@ -875,9 +875,15 @@ publico.post("/evolution/webhook/:empresaId/:token", async (req, res) => {
         `SELECT motor_ativo FROM evolution_homologacao_config WHERE empresa_id=$1`, [empresaId]);
       const motorAtivo = Boolean((motorConfig.rows[0] as { motor_ativo?: boolean } | undefined)?.motor_ativo);
       for (const d of itens) {
-        const jid = String(d?.key?.remoteJid ?? "");
+        // O WhatsApp pode entregar o remetente como identificador anônimo (@lid); o número real vem em remoteJidAlt.
+        const jidBruto = String(d?.key?.remoteJid ?? "");
+        const jidAlt = String(d?.key?.remoteJidAlt ?? "");
+        const jid = jidBruto.endsWith("@lid") && jidAlt.endsWith("@s.whatsapp.net") ? jidAlt : jidBruto;
         const id = typeof d?.key?.id === "string" ? d.key.id : null;
         const c = contatoDoJid(jid);
+        if (c && !c.grupo && !d?.key?.fromMe && jid.endsWith("@lid")) {
+          logger.warn({ empresaId }, "[evolution] remetente @lid sem número real (remoteJidAlt ausente): ignorado");
+        }
         if (!c || c.grupo || d?.key?.fromMe || !id) continue;
         if (!contatoAutorizado(c.contato)) { logger.info({ empresaId, contato: mascararContato(c.contato) }, "[evolution] recebida ignorada: contato fora da homologação"); continue; }
         const texto = textoDaMensagem(d?.message);
