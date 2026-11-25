@@ -133,6 +133,7 @@ export async function enriquecerItemFormula(
 
   let tituloFormula = "";
   let subs01 = "";
+  const subsExtras: { ordem: number; raw: string }[] = [];
   let via = "";
   let apresentacao = ""; // lido mas IGNORADO (nunca vira dose)
   const posologias: string[] = [];
@@ -143,7 +144,8 @@ export async function enriquecerItemFormula(
     const val = (l.conteudo ?? "").trim();
     if (!val) continue;
     if (id === "TITL") tituloFormula = val;
-    else if (id === "SUBS01" && !subs01) subs01 = val; // só o principal
+    else if (id === "SUBS01" && !subs01) subs01 = val;
+    else if (/^SUBS0[2-3]$/.test(id)) subsExtras.push({ ordem: Number(id.slice(4)), raw: val }); // até 3 substâncias, com legenda
     else if (id === "VIA") via = val;
     else if (id === "APRE") apresentacao = val;
     else if (id.startsWith("POSO")) posologias.push(val);
@@ -155,6 +157,17 @@ export async function enriquecerItemFormula(
   const principal = subs01 ? ativoPrincipalDeSubs(subs01) : undefined;
   const ativoPrincipal = principal?.nome || undefined;
   const dose = principal?.dose;
+  const listaSubs = [
+    ...(subs01 ? [{ ordem: 1, raw: subs01 }] : []),
+    ...subsExtras.sort((a, b) => a.ordem - b.ordem),
+  ].map(({ ordem, raw }) => {
+    const a = ativoPrincipalDeSubs(raw);
+    return {
+      rotulo: `SUBS ${String(ordem).padStart(2, "0")}`,
+      nome: semAcento(a.nome),
+      ...(a.dose ? { dose: a.dose } : {}),
+    };
+  });
   const observacaoRefeicao = obs ? sentenca(obs) : undefined;
 
   // Campos gerados saem SEM acento (regra do CEO, 09/07/2026).
@@ -163,6 +176,7 @@ export async function enriquecerItemFormula(
     nome: semAcento(nome),
     ativoPrincipal: ativoPrincipal ? semAcento(ativoPrincipal) : undefined,
     dose,
+    substancias: listaSubs.length ? listaSubs : undefined,
     horario: horaFormatada(MAPA_PERIODO[per].inicio),
     observacaoRefeicao: observacaoRefeicao ? semAcento(observacaoRefeicao) : undefined,
     posologia: posologia ? semAcento(posologia) : undefined,

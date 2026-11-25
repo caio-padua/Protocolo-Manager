@@ -220,6 +220,7 @@ export interface ItemLembretePrescricao {
   detalhe?: string;
   periodos?: PeriodoAntigo[];
   ativoPrincipal?: string;
+  substancias?: { rotulo: string; nome: string; dose?: string }[];
   dose?: string;
   horario?: string;
   observacaoRefeicao?: string;
@@ -326,6 +327,7 @@ export async function sincronizarLembretePrescricao(
       bloco.formulas.push({
         nome: item.nome,
         ativoPrincipal: item.ativoPrincipal ?? anterior?.ativoPrincipal,
+        substancias: item.substancias ?? anterior?.substancias,
         dose: item.dose ?? anterior?.dose,
         horario: item.horario ?? anterior?.horario,
         observacaoRefeicao: item.observacaoRefeicao ?? anterior?.observacaoRefeicao,

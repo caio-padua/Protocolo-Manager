@@ -71,7 +71,11 @@ export function blocoPrescricaoPeriodos(periodos: LembretePeriodoJson[]): string
     for (const formula of periodo.formulas) {
       linhas.push("");
       linhas.push(`${cor} *${formula.nome}*`);
-      if (formula.ativoPrincipal) {
+      if (formula.substancias?.length) {
+        for (const s of formula.substancias) {
+          linhas.push(`   [${s.rotulo}] ${s.nome}${s.dose ? ` — ${s.dose}` : ""}`);
+        }
+      } else if (formula.ativoPrincipal) {
         const dose = formula.dose ? ` — ${formula.dose}` : "";
         linhas.push(`   ${formula.ativoPrincipal}${dose}`);
       }

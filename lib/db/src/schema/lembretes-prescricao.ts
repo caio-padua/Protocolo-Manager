@@ -14,10 +14,18 @@ import { whatsappMensagensLogTable } from "./whatsapp-log";
 // Manager é single-tenant: sem unidadeId, fuso fixo BRT (America/Sao_Paulo).
 // ============================================================================
 
+// Substância de uma fórmula, com a legenda do catálogo ([SUBS 01], [SUBS 02]...).
+export interface SubstanciaLembrete {
+  rotulo: string; // ex.: "SUBS 01"
+  nome: string;
+  dose?: string;
+}
+
 // Uma fórmula dentro de um período do lembrete.
 export interface LembreteFormulaJson {
   nome: string;
   ativoPrincipal?: string;
+  substancias?: SubstanciaLembrete[];
   dose?: string;
   horario?: string; // HH:MM (BRT)
   observacaoRefeicao?: string;
