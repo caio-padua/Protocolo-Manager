@@ -63,9 +63,29 @@ export function formatarSaidaHelena(texto: string, assinatura: string): string {
   return corpo ? `${corpo}\n\n${ass}` : ass;
 }
 
+const MARCA_CONTINUIDADE = "Posso ajudar com mais alguma coisa?";
+/** Respostas operacionais que apenas informam (endereço e consulta marcada) e por isso fecham com a continuidade. */
+const CHAVES_INFORMATIVAS = new Set(["atendimento_endereco", "atendimento_consulta_agenda"]);
+
+/** Resposta informativa = orientação aprovada ou resposta operacional que só informa. Pedidos à equipe, esclarecimentos, agendamento, menu, abertura e documentos ficam de fora. */
+export function respostaEhInformativa(plano?: { desfecho?: string; fonteOperacional?: { chave?: string } | null } | null): boolean {
+  if (!plano) return false;
+  if (plano.desfecho === "orientacao_enviada") return true;
+  return plano.desfecho === "operacional_enviada" && CHAVES_INFORMATIVAS.has(plano.fonteOperacional?.chave ?? "");
+}
+
 /** Assinatura vigente (tabela de frases). Erro de leitura derruba o envio: nunca sai mensagem sem assinatura. */
-export async function formatarSaidaHelenaDoBanco(texto: string): Promise<string> {
+export async function formatarSaidaHelenaDoBanco(
+  texto: string, plano?: { desfecho?: string; fonteOperacional?: { chave?: string } | null } | null,
+): Promise<string> {
   const { carregarFrases } = await import("./telegram-frases");
   const F = await carregarFrases();
-  return formatarSaidaHelena(texto, F("assinatura", { clinica: "" }));
+  let corpo = texto;
+  if (respostaEhInformativa(plano) && !texto.includes(MARCA_CONTINUIDADE)) {
+    const marca = F("assinatura", { clinica: "" }).split("\n")[0];
+    const pos = marca ? texto.indexOf(marca) : -1;
+    const base = (pos >= 0 ? texto.slice(0, pos) : texto).trim();
+    corpo = `${base}\n\n${F("continuidade_ajuda")}`;
+  }
+  return formatarSaidaHelena(corpo, F("assinatura", { clinica: "" }));
 }

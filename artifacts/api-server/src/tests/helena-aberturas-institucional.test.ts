@@ -22,7 +22,7 @@ const ops = (st: StatusSilencioso): DepsOperacionaisWhatsapp => {
 
 describe("4 aberturas por status", () => {
   it.each([
-    [{ tipo: "consulta", nome: "Dayana Ludman", data: "26/11/2026", hora: "09:00", unidade: "Sede" } as StatusSilencioso, "Localizei o seu cadastro.\n\nA sua consulta está agendada para 26/11/2026, às 09:00, na unidade Sede."],
+    [{ tipo: "consulta", nome: "Dayana Ludman", data: "26/11/2026", hora: "09:00", unidade: "Sede" } as StatusSilencioso, "Localizei o seu cadastro.\n\nA sua consulta está agendada para 26/11/2026, às 09:00, em Sede."],
     [{ tipo: "protocolo", nome: "Dayana" } as StatusSilencioso, "protocolo em andamento no Instituto Pádua"],
     [{ tipo: "antigo", nome: "Dayana" } as StatusSilencioso, "agendar um retorno ou um novo acompanhamento"],
     [{ tipo: "novo" } as StatusSilencioso, "qual é o seu nome completo"],
@@ -52,5 +52,14 @@ describe("respostas institucionais aprovadas", () => {
     const p = await planejarAtendimentoWhatsapp(deps(), e("Estou com tontura forte depois da aplicação"), ops({ tipo: "antigo", nome: "Ana" }));
     expect(p.pausa).toBeTruthy(); expect(p.alerta).toBeTruthy();
     expect(p.resposta ?? "").not.toMatch(/R\$ 750/);
+  });
+});
+
+describe("agenda não é local", () => {
+  it("aplicação de enfermagem mostra endereço físico e nunca o nome da agenda", async () => {
+    const st: StatusSilencioso = { tipo: "consulta", nome: "Dayana", data: "26/11/2026", hora: "09:00", unidade: "Instituto Pádua — Rua Guaxupé, 327, Vila Formosa, São Paulo/SP", atendimento: "aplicacao" };
+    const p = await planejarAtendimentoWhatsapp(deps(), e("Olá"), ops(st));
+    expect(p.resposta).toContain("A sua aplicação está agendada para 26/11/2026, às 09:00, em Instituto Pádua — Rua Guaxupé, 327");
+    expect(p.resposta).not.toMatch(/AGENDA (MEDICO|ENFERMAGEM)/);
   });
 });

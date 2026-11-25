@@ -358,9 +358,9 @@ export async function enviarAssinatura(
     undefined;
   const primeiroNome = paciente.name.split(" ")[0] || paciente.name;
   const corpoMsg = linkPaciente
-    ? `Ola ${primeiroNome}, o Instituto Padua preparou um documento para sua assinatura digital. ` +
+    ? `Ola ${primeiroNome}, o Instituto Pádua preparou um documento para sua assinatura digital. ` +
       `Acesse com seguranca: ${linkPaciente}`
-    : `Ola ${primeiroNome}, o Instituto Padua preparou um documento para sua assinatura digital.`;
+    : `Ola ${primeiroNome}, o Instituto Pádua preparou um documento para sua assinatura digital.`;
 
   const canaisMsg = mock ? [] : canais.filter((c) => c !== "DRIVE");
   for (const canal of canaisMsg) {
@@ -613,7 +613,7 @@ export async function receberWebhook(
               canal: "WHATSAPP",
               momento: "POS_ASSINATURA",
               destinatario: p.phone,
-              corpo: `Obrigado, ${primeiroNome}! Seu documento foi assinado e arquivado com seguranca pelo Instituto Padua.`,
+              corpo: `Obrigado, ${primeiroNome}! Seu documento foi assinado e arquivado com seguranca pelo Instituto Pádua.`,
               status: "PENDENTE",
             });
           }

@@ -72,6 +72,9 @@ function providerFetch() {
         const marca = "\n\nE informo que se precisar de qualquer orientação adicional,\nEncontro-me à sua inteira disposição.\n\nMuito obrigada pela confiança.\n\nHelena\nAtendimento e Relacionamento\nInstituto Pádua";
         if (!texto.endsWith(marca)) throw new Error("mensagem ao paciente sem a assinatura da Helena: " + texto.slice(0, 60));
         texto = texto.slice(0, -marca.length);
+        // Respostas informativas fecham com o bloco de continuidade (regra de 25/11/2026); o teste o retira para comparar o corpo.
+        const i = texto.indexOf("\n\nPosso ajudar com mais alguma coisa?");
+        if (i >= 0) texto = texto.slice(0, i);
       }
       h.enviados.push({ chat: String(body.chat_id), text: texto });
       return resp(200, { ok: true, result: { message_id: 5000 + ++h.seq } });

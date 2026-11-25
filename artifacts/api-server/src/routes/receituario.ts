@@ -739,7 +739,7 @@ router.get("/receituario/preview-html", async (req, res): Promise<void> => {
     const html = buildPrescricaoHtml({
       medicoNome: identity.professional.name,
       medicoCrm:  crmRqe,
-      clinicaNome: clinica?.name ?? "Instituto Padua",
+      clinicaNome: clinica?.name ?? "Instituto Pádua",
       clinicaEndereco: (clinica as any)?.address ?? "Av. Brigadeiro Faria Lima, 3000 — São Paulo / SP",
       pacienteNome: identity.client.name,
       pacienteCpf:  cliente?.cpf ?? "",

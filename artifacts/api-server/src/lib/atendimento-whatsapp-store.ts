@@ -15,6 +15,48 @@ import { getNomeAssistenteAtendimento } from "./atendimento-ia-config";
 /** Frases sem categoria própria de modelo por clínica (texto vem da tela Frases do Assistente). */
 const SEM_MODELO_DA_CLINICA = new Set(["resposta_quem_e_dr_caio", "resposta_preco_consulta", "continuidade_ajuda", "abertura_consulta_agendada", "abertura_protocolo_andamento", "abertura_paciente_antigo", "abertura_contato_novo", "atendimento_endereco", "atendimento_esclarecer", "atendimento_nao_reconhecida", "atendimento_abertura_livre"]);
 
+/**
+ * Agenda (calendário interno) NÃO é local. A sessão guarda o NOME da agenda em `unit`; o paciente só vê o
+ * endereço físico vinculado a ela (locations, ou o endereço externo da própria agenda) com o nome oficial da clínica.
+ * Tipo: agenda de medicina = consulta médica; enfermagem = aplicação/procedimento. Nome de agenda nunca sai.
+ */
+export async function resolverLocalFisicoDaAgenda(empresaId: number, nomeAgenda: string | null):
+  Promise<{ endereco: string | null; atendimento: "consulta" | "aplicacao" }> {
+  const emp = await db.execute(sql`SELECT nome,endereco,bairro,cidade,estado FROM empresas WHERE id=${empresaId}`);
+  const em = emp.rows[0] as { nome?: string; endereco?: string | null; bairro?: string | null; cidade?: string | null; estado?: string | null } | undefined;
+  const nomeClinica = (em?.nome ?? "").replace(/Padua/g, "Pádua").trim();
+  const monta = (log: string | null | undefined, num: string | null | undefined, bairro: string | null | undefined, cidade: string | null | undefined, uf: string | null | undefined) => {
+    const rua = [log?.trim(), num?.trim()].filter(Boolean).join(", ");
+    const cid = [cidade?.trim(), uf?.trim()].filter(Boolean).join("/");
+    const corpo = [rua, bairro?.trim(), cid].filter(Boolean).join(", ");
+    return corpo ? [nomeClinica, corpo].filter(Boolean).join(" — ") : null;
+  };
+  const a = nomeAgenda?.trim()
+    ? await db.execute(sql`SELECT r.kind,r.modality,r.external_logradouro,r.external_numero,r.external_bairro,r.external_cidade,r.external_uf,
+        l.logradouro,l.numero,l.bairro,l.cidade,l.estado
+        FROM agenda_resources r LEFT JOIN locations l ON l.id=r.location_id
+        WHERE r.empresa_id=${empresaId} AND r.name=${nomeAgenda.trim()} LIMIT 1`)
+    : { rows: [] as unknown[] };
+  const r = a.rows[0] as Record<string, string | null> | undefined;
+  if (!r) {
+    // Sem agenda vinculada, mas o agendamento traz o nome da própria clínica: usa o endereço cadastrado da clínica.
+    const semAcento = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+    if (nomeAgenda?.trim() && nomeClinica && em?.endereco?.trim() && semAcento(nomeAgenda) === semAcento(nomeClinica)) {
+      const cid = [em.cidade?.trim(), em.estado?.trim()].filter(Boolean).join("/");
+      return { endereco: [nomeClinica, [em.endereco.trim(), em.bairro?.trim(), cid].filter(Boolean).join(", ")].join(" — "), atendimento: "consulta" };
+    }
+    return { endereco: null, atendimento: "consulta" };
+  }
+  const atendimento = r.kind === "enfermagem" ? "aplicacao" as const : "consulta" as const;
+  let endereco = monta(r.logradouro, r.numero, r.bairro, r.cidade, r.estado)
+    ?? monta(r.external_logradouro, r.external_numero, r.external_bairro, r.external_cidade, r.external_uf);
+  // Agenda sem local cadastrado e de sede: usa o endereço da própria empresa. Nunca inventa para online/externa.
+  if (!endereco && r.modality === "local" && em?.endereco?.trim()) {
+    endereco = [nomeClinica, [em.endereco.trim(), em.bairro?.trim(), [em.cidade?.trim(), em.estado?.trim()].filter(Boolean).join("/")].filter(Boolean).join(", ")].filter(Boolean).join(" — ");
+  }
+  return { endereco, atendimento };
+}
+
 /** Interruptor por clínica do menu numerado. Sem registro = ligado (nada é apagado); só o valor "false" desliga. */
 export const chaveMenuNumerado = (empresaId: number) => `atendimento.menu_numerado.ativo.${empresaId}`;
 export async function menuNumeradoLigado(empresaId: number): Promise<boolean> {
@@ -71,7 +113,10 @@ export function depsOperacionaisWhatsapp(
           AND NOT s.agenda_archived AND s.scheduled_date>=${brtISODate()}
         ORDER BY s.scheduled_date,s.scheduled_time LIMIT 1`);
       const x = f.rows[0] as { scheduled_date: string; scheduled_time: string; unit?: string | null } | undefined;
-      if (x) return { tipo: "consulta" as const, nome, data: x.scheduled_date.split("-").reverse().join("/"), hora: x.scheduled_time.slice(0, 5), unidade: x.unit };
+      if (x) {
+        const loc = await resolverLocalFisicoDaAgenda(e.empresaId, x.unit ?? null);
+        return { tipo: "consulta" as const, nome, data: x.scheduled_date.split("-").reverse().join("/"), hora: x.scheduled_time.slice(0, 5), unidade: loc.endereco, atendimento: loc.atendimento };
+      }
       const p = await db.execute(sql`SELECT 1 FROM protocols WHERE empresa_id=${e.empresaId} AND client_id=${e.clienteId} AND status IN ('active','validated') LIMIT 1`);
       return { tipo: p.rows.length ? "protocolo" as const : "antigo" as const, nome };
     },

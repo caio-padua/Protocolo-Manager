@@ -32,7 +32,6 @@ vi.mock("../lib/secure-settings", () => ({
   getSetting: vi.fn(async (k: string) => h.settings[k] ?? null),
   setSetting: vi.fn(async (k: string, v: string) => { h.settings[k] = v; }),
 }));
-vi.mock("../lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: (...a: any[]) => { if (process.env.DEBUG_CIRCUITO) console.log("LOGERR", ...a); }, debug: vi.fn() } }));
 vi.mock("node:dns/promises", () => ({ default: { lookup: vi.fn(async () => [{ address: "203.0.113.10" }]) } }));
 vi.mock("../routes/collaborator", () => ({ requireCollaborator: (_q: any, _r: any, n: () => void) => n() }));
 vi.mock("@workspace/integrations-anthropic-ai", () => ({ anthropic: { messages: { create: (...a: any[]) => h.ia(...a) } } }));
@@ -69,7 +68,14 @@ function providerFetch() {
     if (u.includes("sendText")) {
       if (h.envio === "503") return resp(503, { error: "indisponivel" });
       const body = JSON.parse(init.body);
-      h.enviados.push({ number: body.number, text: body.text });
+      // Toda mensagem termina na assinatura da Helena (e as informativas, no bloco de continuidade): o teste confere e retira para comparar o corpo.
+      let texto = String(body.text);
+      const marca = "\n\nE informo que se precisar de qualquer orientação adicional,\nEncontro-me à sua inteira disposição.\n\nMuito obrigada pela confiança.\n\nHelena\nAtendimento e Relacionamento\nInstituto Pádua";
+      if (!texto.endsWith(marca)) throw new Error("mensagem ao paciente sem a assinatura da Helena: " + texto.slice(0, 60));
+      texto = texto.slice(0, -marca.length);
+      const ic = texto.indexOf("\n\nPosso ajudar com mais alguma coisa?");
+      if (ic >= 0) texto = texto.slice(0, ic);
+      h.enviados.push({ number: body.number, text: texto });
       return resp(200, { key: { id: `PROV-${++h.seq}` } });
     }
     return resp(404, null);
@@ -138,7 +144,8 @@ describe("circuito WhatsApp: saudação e fonte local", () => {
       await enviarEvento(5, evento("inst5", DAYANA, t, novoId())).expect(200);
       expect(h.enviados).toHaveLength(1);
       expect(h.enviados[0].number).toBe(DAYANA);
-      expect(h.enviados[0].text).toBe(HELENA);
+      // Saudação simples recebe a abertura por status (regra de 25/11/2026); identidade recebe a apresentação exata.
+      if (t === "Oi") expect(h.enviados[0].text).toContain("Olá, Dayana!"); else expect(h.enviados[0].text).toBe(HELENA);
     }
     expect(h.ia).not.toHaveBeenCalled();
   });

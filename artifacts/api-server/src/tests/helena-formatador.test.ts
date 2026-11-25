@@ -42,3 +42,16 @@ describe("abreviações não quebram frases", () => {
     expect(formatarCorpoHelena("Como o próprio Dr. Caio costuma dizer.")).toContain("Dr. Caio");
   });
 });
+
+import { respostaEhInformativa } from "../lib/helena-formatador";
+describe("continuidade em respostas informativas", () => {
+  it("endereço, consulta marcada e orientação aprovada fecham com continuidade; pedido à equipe e esclarecimento não", () => {
+    expect(respostaEhInformativa({ desfecho: "orientacao_enviada" })).toBe(true);
+    expect(respostaEhInformativa({ desfecho: "operacional_enviada", fonteOperacional: { chave: "atendimento_endereco" } })).toBe(true);
+    expect(respostaEhInformativa({ desfecho: "operacional_enviada", fonteOperacional: { chave: "atendimento_consulta_agenda" } })).toBe(true);
+    expect(respostaEhInformativa({ desfecho: "operacional_enviada", fonteOperacional: { chave: "atendimento_esclarecer" } })).toBe(false);
+    expect(respostaEhInformativa({ desfecho: "encaminhado_humano", fonteOperacional: { chave: "atendimento_pedido_equipe" } })).toBe(false);
+    expect(respostaEhInformativa({ desfecho: "queixa_encaminhada" })).toBe(false);
+    expect(respostaEhInformativa(null)).toBe(false);
+  });
+});

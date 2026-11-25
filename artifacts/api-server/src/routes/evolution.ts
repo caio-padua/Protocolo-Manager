@@ -171,7 +171,10 @@ async function autorizarSaidaEvolution(entrada: EntradaAtendimento, plano: Plano
   if (plano.fonteOperacional) {
     const ops = depsOperacionaisWhatsapp(entrada);
     const f = plano.fonteOperacional;
-    if (await ops.frase(f.chave,f.variaveis) !== plano.resposta) return false;
+    let esperado = await ops.frase(f.chave,f.variaveis);
+    // Respostas institucionais aprovadas (currículo e valor) saem com o bloco de continuidade logo após o texto.
+    if (f.chave.startsWith("resposta_")) esperado += `\n\n${await ops.frase("continuidade_ajuda")}`;
+    if (esperado !== plano.resposta) return false;
     if (f.chave === "atendimento_endereco" &&
       await ops.endereco?.() !== f.variaveis?.endereco) return false;
     if (f.chave === "atendimento_consulta_agenda" &&
@@ -324,7 +327,7 @@ async function processarEntradaEvolutionNucleo(p: {
         [p.mensagemId, p.empresaId]);
       return;
     }
-    const enviado = await enviarUma(p.empresaId, p.telefone, await formatarSaidaHelenaDoBanco(plano.resposta), "motor_evolution", null,
+    const enviado = await enviarUma(p.empresaId, p.telefone, await formatarSaidaHelenaDoBanco(plano.resposta, plano), "motor_evolution", null,
       {clienteId:p.clienteId,mensagemOrigemId:p.mensagemId});
     const dados = enviado.corpo as { ok?: boolean };
     if (dados.ok && plano.documento?.acao === "ofertar_reenvio") await marcarOfertaReenvioEntregue(entrada);
@@ -816,7 +819,7 @@ export async function recuperarEnviosPendentesEvolution(limite = 10, esperaSegun
         await pool.query(`UPDATE evolution_mensagens SET processamento='autorizacao_revogada',atualizado_em=NOW() WHERE id=$1`, [l.id]);
         continue;
       }
-      const env = await enviarUma(l.empresa_id, l.contato, await formatarSaidaHelenaDoBanco(plano.resposta as string), "motor_evolution", null,
+      const env = await enviarUma(l.empresa_id, l.contato, await formatarSaidaHelenaDoBanco(plano.resposta as string, plano), "motor_evolution", null,
         { clienteId: Number(l.cliente_id), mensagemOrigemId: Number(l.id) });
       const ok = Boolean(env.corpo.ok);
       const naoEnviado = !ok && (!env.corpo.id || env.corpo.status === "falha");

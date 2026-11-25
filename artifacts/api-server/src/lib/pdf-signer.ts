@@ -965,7 +965,7 @@ function drawRubricLine(page: PDFPage, fonts: Fonts, clientName: string) {
 }
 
 function drawDocFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages: number, clientName: string) {
-  const footerText = `Instituto Padua · PaxMed - desenvolvido pela Padcon · Advanced Systems Architecture | Protocolo Medico Personalizado | Pagina ${pageNum} de ${totalPages}`;
+  const footerText = `Instituto Pádua · PaxMed - desenvolvido pela Padcon · Advanced Systems Architecture | Protocolo Medico Personalizado | Pagina ${pageNum} de ${totalPages}`;
   page.drawText(footerText, { x: MARGIN, y: 18, size: 6, font: fonts.regular, color: GRAY });
   drawRubricLine(page, fonts, clientName);
 }
@@ -3078,7 +3078,7 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
 
   const pdfDoc = await PDFDocument.create();
   pdfDoc.setTitle(`Protocolo ${data.protocolTitle} — ${data.clientName}`);
-  pdfDoc.setAuthor("Instituto Padua — PAXMED");
+  pdfDoc.setAuthor("Instituto Pádua — PAXMED");
   pdfDoc.setSubject("Carta de Tratamento Premium PAXMED");
   pdfDoc.setCreator("Sistema PAXMED");
 
@@ -3091,7 +3091,7 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
   const pdfBytes = await embedPadesSignature(pdfDoc, {
     name: sName,
     reason: "Assinatura digital do protocolo (ICP-Brasil)",
-    location: data.unit || "Instituto Padua",
+    location: data.unit || "Instituto Pádua",
     contactInfo: data.clientCpf || "",
   });
 

@@ -432,7 +432,7 @@ export async function processarAtendimentosPendentes(): Promise<void> {
       if(contexto?.etapa==="resposta" && contexto.plano.documento?.acao==="confirmar_reenvio"){
         return enviarLinkReceitaConfirmada(chat,contexto.entrada,contexto.plano,contexto.dono);
       }
-      return sendTelegram(chat,escaparHtmlTelegram(await formatarSaidaHelenaDoBanco(texto))).then(async r=>{
+      return sendTelegram(chat,escaparHtmlTelegram(await formatarSaidaHelenaDoBanco(texto, contexto?.etapa==="resposta" ? contexto.plano : null))).then(async r=>{
         if(contexto?.etapa==="resposta"){
           const ent={...contexto.entrada,canal:"telegram" as const};
           if(r.sent&&!r.mock&&r.messageId) idsEnviados.set(ent.inboxMessageId,String(r.messageId));

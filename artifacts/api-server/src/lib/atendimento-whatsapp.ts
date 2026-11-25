@@ -66,7 +66,7 @@ const ROTULO_PEDIDO: Partial<Record<IntencaoWhatsapp, string>> = {
 
 /** Situação do contato lida em silêncio no banco (só após o vínculo do número com um cadastro único). */
 export type StatusSilencioso =
-  | { tipo: "consulta"; nome: string; data: string; hora: string; unidade?: string | null }
+  | { tipo: "consulta"; nome: string; data: string; hora: string; unidade?: string | null; atendimento?: "consulta" | "aplicacao" }
   | { tipo: "protocolo" | "antigo"; nome: string }
   | { tipo: "novo" };
 
@@ -146,7 +146,7 @@ async function planejarInterno(
   // Saudação: abertura escolhida pela situação real do cadastro (consulta futura, protocolo, antigo ou novo).
   if (intencao === "apresentacao" && plano.desfecho === "apresentacao_enviada" && saudacaoPura(texto)) {
     const ab = await aberturaPorStatus(ops);
-    if (ab) { plano.resposta = ab.texto; plano.fonteOperacional = { chave: ab.chave }; }
+    if (ab) { plano.resposta = ab.texto; plano.desfecho = "operacional_enviada"; plano.fonteOperacional = { chave: ab.chave, variaveis: ab.vars }; }
   }
   if (["desligado", "fora_da_lista", "pausado_humano", "ja_tratado"].includes(plano.desfecho)) return plano;
   // Não substituir decisões clínicas, resposta aprovada ou documentos.
@@ -161,7 +161,7 @@ async function planejarInterno(
     const intInst: IntencaoWhatsapp = inst === "preco_consulta" ? "orcamento" : "desconhecida";
     return { pausa: null, alerta: null, resposta: `${corpo}\n\n${cont}`, orientacaoId: null, faqId: null, desfecho: "operacional_enviada",
       caminhoResolucao: "regra", intencao: intInst, intencaoDetectada: intInst, origemIntencao: "regra", intencoes: [intInst],
-      interpreteChamado: false, conferenteChamado: false, aprendizChamado: false, fonteOperacional: { chave } };
+      interpreteChamado: false, conferenteChamado: false, aprendizChamado: false, fonteOperacional: { chave, variaveis: { link: ops.linkMarcacao() } } };
   }
   // Sem regra que reconheça: IA leve só escolhe a intenção; resposta continua sendo texto aprovado.
   let origem: "regra" | "ia" = "regra";
@@ -233,7 +233,7 @@ async function planejarInterno(
   }
   if (!menuNumerado) {
     const ab = await aberturaPorStatus(ops);
-    if (ab) return { ...respostaRegra(ab.texto), intencao: "menu", fonteOperacional: { chave: ab.chave } };
+    if (ab) return { ...respostaRegra(ab.texto), intencao: "menu", fonteOperacional: { chave: ab.chave, variaveis: ab.vars } };
     return { ...respostaRegra(await ops.frase("atendimento_abertura_livre")), intencao: "menu",
       fonteOperacional: { chave: "atendimento_abertura_livre" } };
   }
@@ -242,17 +242,26 @@ async function planejarInterno(
 }
 
 /** Escolhe uma das 4 aberturas gravadas no banco conforme a situação real do cadastro. */
-async function aberturaPorStatus(ops: DepsOperacionaisWhatsapp): Promise<{ chave: string; texto: string } | null> {
+async function aberturaPorStatus(ops: DepsOperacionaisWhatsapp): Promise<{ chave: string; texto: string; vars: Record<string, string> } | null> {
+  // Qualquer falha (consulta ou frase ausente) cai na apresentação padrão da Helena, nunca derruba a conversa.
+  return aberturaPorStatusInterna(ops).catch(() => null);
+}
+async function aberturaPorStatusInterna(ops: DepsOperacionaisWhatsapp): Promise<{ chave: string; texto: string; vars: Record<string, string> } | null> {
   if (!ops.statusSilencioso) return null;
-  const st = await ops.statusSilencioso();
+  // Falha na consulta silenciosa nunca derruba a conversa: cai na apresentação padrão da Helena.
+  const st = await ops.statusSilencioso().catch(() => null);
+  if (!st) return null;
   const nome = "nome" in st ? (st.nome.trim().split(/\s+/)[0] ?? "") : "";
   if (st.tipo === "consulta") {
-    const unidade = st.unidade?.trim() ? `, na unidade ${st.unidade.trim()}` : "";
-    return { chave: "abertura_consulta_agendada", texto: await ops.frase("abertura_consulta_agendada", { nome, data: st.data, hora: st.hora, unidade }) };
+    // "unidade" chega aqui já como ENDEREÇO FÍSICO resolvido (nunca o nome interno da agenda).
+    const unidade = st.unidade?.trim() ? `, em ${st.unidade.trim()}` : "";
+    const atendimento = st.atendimento === "aplicacao" ? "A sua aplicação" : "A sua consulta";
+    const vars = { nome, data: st.data, hora: st.hora, unidade, atendimento };
+    return { chave: "abertura_consulta_agendada", vars, texto: await ops.frase("abertura_consulta_agendada", vars) };
   }
-  if (st.tipo === "protocolo") return { chave: "abertura_protocolo_andamento", texto: await ops.frase("abertura_protocolo_andamento", { nome }) };
-  if (st.tipo === "antigo") return { chave: "abertura_paciente_antigo", texto: await ops.frase("abertura_paciente_antigo", { nome }) };
-  return { chave: "abertura_contato_novo", texto: await ops.frase("abertura_contato_novo") };
+  if (st.tipo === "protocolo") return { chave: "abertura_protocolo_andamento", vars: { nome }, texto: await ops.frase("abertura_protocolo_andamento", { nome }) };
+  if (st.tipo === "antigo") return { chave: "abertura_paciente_antigo", vars: { nome }, texto: await ops.frase("abertura_paciente_antigo", { nome }) };
+  return { chave: "abertura_contato_novo", vars: {}, texto: await ops.frase("abertura_contato_novo") };
 }
 
 /** Só saudação simples ("Olá", "bom dia"): perguntas de identidade ("com quem falo?") continuam apresentando a Helena. */

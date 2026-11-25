@@ -292,7 +292,7 @@ export class ZapsignAdapter extends BaseMockableAdapter {
 
   /** Nome corporativo apresentado no envelope ZapSign. */
   private get brandName() {
-    return process.env["ZAPSIGN_BRAND_NAME"] || "Instituto Padua";
+    return process.env["ZAPSIGN_BRAND_NAME"] || "Instituto Pádua";
   }
 
   /**
