@@ -351,7 +351,7 @@ export async function conduzirAgendamento(
   if (ctx.ehCliente && deps.linkMarcacao && ctx.perguntarSeJaPaciente && !emAndamento && ehPedidoDeAgendamento(texto)) {
     estado.etapa = "confirmar_paciente";
     estado.tentativas = 0;
-    return fim(ap(F("pergunta_ja_paciente")), "perguntou_vinculo");
+    return fim(F("pergunta_agendar_helena", { nome: ctx.primeiroNome ?? "", link: deps.linkMarcacao() }), "perguntou_vinculo");
   }
   if (ctx.ehCliente && deps.linkMarcacao && ehPedidoDeAgendamento(texto)) {
     estado.etapa = "concluido";

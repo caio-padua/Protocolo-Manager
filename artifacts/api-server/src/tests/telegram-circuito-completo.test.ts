@@ -66,7 +66,14 @@ function providerFetch() {
         if (h.envio === "500") return resp(500, {});
         if (h.envio === "rede") throw new Error("rede caiu");
       }
-      h.enviados.push({ chat: String(body.chat_id), text: String(body.text) });
+      // Toda mensagem ao paciente termina na assinatura da Helena (formatador); o teste confere e a retira para comparar o corpo.
+      let texto = String(body.text);
+      if (String(body.chat_id) !== CEO) {
+        const marca = "\n\nE informo que se precisar de qualquer orientação adicional,\nEncontro-me à sua inteira disposição.\n\nMuito obrigada pela confiança.\n\nHelena\nAtendimento e Relacionamento\nInstituto Pádua";
+        if (!texto.endsWith(marca)) throw new Error("mensagem ao paciente sem a assinatura da Helena: " + texto.slice(0, 60));
+        texto = texto.slice(0, -marca.length);
+      }
+      h.enviados.push({ chat: String(body.chat_id), text: texto });
       return resp(200, { ok: true, result: { message_id: 5000 + ++h.seq } });
     }
     return resp(404, null);
@@ -139,11 +146,13 @@ describe("circuito Telegram: porta de entrada", () => {
     expect((await b.pool.query(`SELECT COUNT(*)::int n FROM telegram_inbox_messages`)).rows[0].n).toBe(0);
   });
   it("2. saudação e identidade devolvem EXATAMENTE a apresentação da Helena, sem IA", async () => {
-    for (const t of ["Olá", "Com quem estou falando?"]) {
-      h.enviados.length = 0;
-      await falar(TG_DAYANA, t);
-      expect(paraChat(TG_DAYANA), t + dump()).toEqual([{ chat: TG_DAYANA, text: HELENA }]);
-    }
+    // Identidade: apresentação exata. Saudação simples: abertura por status (nova regra de 25/11/2026), tratada em helena-aberturas-institucional.
+    h.enviados.length = 0;
+    await falar(TG_DAYANA, "Com quem estou falando?");
+    expect(paraChat(TG_DAYANA), dump()).toEqual([{ chat: TG_DAYANA, text: HELENA }]);
+    h.enviados.length = 0;
+    await falar(TG_DAYANA, "Olá");
+    expect(paraChat(TG_DAYANA)[0]?.text, dump()).toContain("Olá, Dayana!");
     expect(h.ia).not.toHaveBeenCalled();
   });
   it("3. endereço vem da clínica correta e acompanha a mudança da fonte, sem cache", async () => {

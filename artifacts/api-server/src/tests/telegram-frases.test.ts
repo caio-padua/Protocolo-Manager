@@ -94,8 +94,9 @@ describe("apresentacao, nome, paragrafos e link", () => {
     const resolve = (k: string) => { const def = (FRASES_PADRAO as Record<string, { variaveis: string[] }>)[k]; return F(k as never, Object.fromEntries(def.variaveis.map((v) => [v, "X"]))); };
     for (const k of Object.keys(FRASES_PADRAO)) expect(resolve(k)).not.toMatch(/\{\w+\}/);
   });
-  it("frases nao presumem o sexo da pessoa (sem 'bem-vindo/a', 'obrigado/a' dirigidos a ela)", () => {
-    for (const d of Object.values(FRASES_PADRAO)) expect(d.texto).not.toMatch(/\b(bem-vind[oa]|querid[oa]|paciente)\b/i);
+  it("frases nao presumem o sexo da pessoa (sem bem-vindo/a nem querido/a; a palavra paciente foi aprovada pelo Dr. Caio em 25/11/2026)", () => {
+    for (const d of Object.values(FRASES_PADRAO)) expect(d.texto).not.toMatch(/\b(bem-vind[oa]|querid[oa])\b/i);
+
   });
 });
 

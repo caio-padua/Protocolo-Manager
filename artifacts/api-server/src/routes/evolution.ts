@@ -4,6 +4,7 @@
  * só vale com o token secreto da clínica na URL. Simulações e saídas supervisionadas
  * são separadas do tráfego recebido e nunca fingem ser mensagens da pessoa.
  */
+import { formatarSaidaHelenaDoBanco } from "../lib/helena-formatador";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, pool } from "@workspace/db";
 import { getSecret, getSecretStatus } from "../lib/secure-settings";
@@ -323,7 +324,7 @@ async function processarEntradaEvolutionNucleo(p: {
         [p.mensagemId, p.empresaId]);
       return;
     }
-    const enviado = await enviarUma(p.empresaId, p.telefone, plano.resposta, "motor_evolution", null,
+    const enviado = await enviarUma(p.empresaId, p.telefone, await formatarSaidaHelenaDoBanco(plano.resposta), "motor_evolution", null,
       {clienteId:p.clienteId,mensagemOrigemId:p.mensagemId});
     const dados = enviado.corpo as { ok?: boolean };
     if (dados.ok && plano.documento?.acao === "ofertar_reenvio") await marcarOfertaReenvioEntregue(entrada);
@@ -815,7 +816,7 @@ export async function recuperarEnviosPendentesEvolution(limite = 10, esperaSegun
         await pool.query(`UPDATE evolution_mensagens SET processamento='autorizacao_revogada',atualizado_em=NOW() WHERE id=$1`, [l.id]);
         continue;
       }
-      const env = await enviarUma(l.empresa_id, l.contato, plano.resposta as string, "motor_evolution", null,
+      const env = await enviarUma(l.empresa_id, l.contato, await formatarSaidaHelenaDoBanco(plano.resposta as string), "motor_evolution", null,
         { clienteId: Number(l.cliente_id), mensagemOrigemId: Number(l.id) });
       const ok = Boolean(env.corpo.ok);
       const naoEnviado = !ok && (!env.corpo.id || env.corpo.status === "falha");

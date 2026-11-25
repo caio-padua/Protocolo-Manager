@@ -2,6 +2,8 @@
  * Banco, IA e envio reais do atendimento por IA no Telegram. A regra de decisão está em
  * lib/atendimento-telegram.ts (pura e testada); aqui só ficam as ligações.
  */
+import { migrarConhecimentoGlobal } from "./global-conhecimento";
+import { formatarSaidaHelenaDoBanco } from "./helena-formatador";
 import { registrarFicha } from "./atendimento-ficha";
 import { decidirControle } from "./atendimento-controle";
 import { planejarAtendimentoWhatsapp } from "./atendimento-whatsapp";
@@ -167,6 +169,7 @@ export async function aplicarMigracaoAtendimento(exec: ExecutorAtendimento): Pro
   await migrarRecuperacaoAtendimento(exec);
   await migrarTabelasTelegramAprendiz(exec);
   await migrarBaseGlobal(exec);
+  await migrarConhecimentoGlobal(exec);
   /* Assistente de agendamento: estado, visitantes e pedidos (aditiva) */
   await aplicarMigracaoAgendamentoTelegram(exec);
 }
@@ -298,7 +301,7 @@ export function depsReaisAtendimento(
       opcoes: cand.map((c) => `${c.orientacao.id}: ${c.orientacao.tema} — ${c.orientacao.perguntasExemplo}`.slice(0, 400)),
     }),
     enviarAoPaciente: async (chatId, texto) => {
-      const r = await sendTelegram(chatId, escaparHtmlTelegram(texto));
+      const r = await sendTelegram(chatId, escaparHtmlTelegram(await formatarSaidaHelenaDoBanco(texto)));
       return r.sent && !r.mock;
     },
     registrarSaida: async (p) => {
@@ -425,11 +428,11 @@ export async function processarAtendimentosPendentes(): Promise<void> {
       if(plano.documento?.acao==="cancelar_reenvio" && !await autorizarCancelamentoReenvio(db,e,plano)) return false;
       return !plano.pausa || plano.desfecho!=="queixa_texto_enviado" || cfg.queixaRevisada;
     },
-    enviar: (chat,texto,contexto)=>{
+    enviar: async (chat,texto,contexto)=>{
       if(contexto?.etapa==="resposta" && contexto.plano.documento?.acao==="confirmar_reenvio"){
         return enviarLinkReceitaConfirmada(chat,contexto.entrada,contexto.plano,contexto.dono);
       }
-      return sendTelegram(chat,escaparHtmlTelegram(texto)).then(async r=>{
+      return sendTelegram(chat,escaparHtmlTelegram(await formatarSaidaHelenaDoBanco(texto))).then(async r=>{
         if(contexto?.etapa==="resposta"){
           const ent={...contexto.entrada,canal:"telegram" as const};
           if(r.sent&&!r.mock&&r.messageId) idsEnviados.set(ent.inboxMessageId,String(r.messageId));

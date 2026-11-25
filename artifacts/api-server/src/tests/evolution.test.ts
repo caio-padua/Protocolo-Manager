@@ -43,6 +43,11 @@ vi.mock("../lib/atendimento-whatsapp-store",async()=>{
 vi.mock("../lib/atendimento-telegram", async importOriginal => ({
   ...await importOriginal<typeof import("../lib/atendimento-telegram")>(), planejarAtendimento: h.plan,
 }));
+vi.mock("../lib/helena-formatador", async importOriginal => {
+  const o = await importOriginal<typeof import("../lib/helena-formatador")>();
+  const ASS = "E informo que se precisar de qualquer orientação adicional,\nEncontro-me à sua inteira disposição.\n\nMuito obrigada pela confiança.\n\nHelena\nAtendimento e Relacionamento\nInstituto Pádua";
+  return { ...o, formatarSaidaHelenaDoBanco: async (t: string) => o.formatarSaidaHelena(t, ASS) };
+});
 vi.mock("node:dns/promises", () => ({ default: { lookup: vi.fn(async () => [{ address: "203.0.113.10" }]) } }));
 vi.mock("../routes/collaborator", () => ({ requireCollaborator: (_q: any, _r: any, n: () => void) => n() }));
 
@@ -163,7 +168,7 @@ describe("webhook", () => {
     expect(saida).toHaveLength(1);
     const enviada=JSON.parse(saida[0][1].body);
     expect(enviada.number).toBe("5511999990000"); // apenas provedor falso
-    if(intencao==="apresentacao")expect(enviada.text).toBe(mapaPadrao().atendimento_apresentacao_instituto_padua);
+    if(intencao==="apresentacao")expect(enviada.text.startsWith(mapaPadrao().atendimento_apresentacao_instituto_padua)).toBe(true); expect(enviada.text.endsWith("Helena\nAtendimento e Relacionamento\nInstituto Pádua")).toBe(true);
     const planos=h.query.mock.calls.filter(c=>String(c[0]).includes("plano_atendimento="))
       .flatMap(c=>c[1]??[]).filter(v=>typeof v==="string"&&v.startsWith("{")).map(v=>JSON.parse(v));
     expect(planos.some(p=>p.intencao===intencao)).toBe(true);
@@ -216,7 +221,7 @@ describe("webhook", () => {
     const send = h.fetch.mock.calls.find((call) => String(call[0]).includes("/message/sendText/"));
     expect(send).toBeTruthy();
     const body = JSON.parse(send![1].body);
-    expect(body.text).toBe("Resposta aprovada pelo motor.");
+    expect(body.text.startsWith("Resposta aprovada pelo motor.\n\nE informo")).toBe(true);
   });
   it("instância de outra clínica é ignorada", async () => {
     await wh("/evolution/webhook/5/tok5", { ...upsert(), instance: "outra" });

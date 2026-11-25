@@ -270,7 +270,7 @@ describe("SQL real", () => {
   it("só orientação APROVADA da PRÓPRIA empresa sai; envia, grava saída e desfecho", async () => {
     h.enviados.length = 0;
     expect(await run(101, "quantas horas de jejum para o exame de sangue?")).toBe("orientacao_enviada");
-    expect(h.enviados).toEqual([{ chat: "C1", texto: "APROVADA: jejum de 8 horas." }]);
+    expect(h.enviados).toHaveLength(1); expect(h.enviados[0].chat).toBe("C1"); expect(h.enviados[0].texto).toContain("jejum de 8 horas."); expect(h.enviados[0].texto.endsWith("Helena\nAtendimento e Relacionamento\nInstituto Pádua")).toBe(true);
     const s = await pool.query(`SELECT direcao, texto FROM telegram_inbox_messages`);
     expect(s.rows).toEqual([{ direcao: "saida", texto: "APROVADA: jejum de 8 horas." }]);
     const r = await pool.query(`SELECT desfecho FROM telegram_atendimento_respostas WHERE inbox_message_id=101`);
@@ -993,7 +993,7 @@ describe("consumidor real do atendimento com banco descartável e somente transp
     await entrada(201,"quantas horas de jejum para o exame de sangue?");
     expect(h.enviados).toHaveLength(0);
     await processarAtendimentosPendentes();await processarAtendimentosPendentes();
-    expect(h.enviados).toEqual([{chat:"C1",texto:"APROVADA: jejum de 8 horas."}]);
+    expect(h.enviados).toHaveLength(1); expect(h.enviados[0].texto).toContain("jejum de 8 horas."); expect(h.enviados[0].texto.endsWith("Instituto Pádua")).toBe(true);
     const r=await pool.query("SELECT estado,orientacao_id FROM telegram_atendimento_respostas WHERE inbox_message_id=201");
     expect(r.rows[0]).toEqual({estado:"concluido",orientacao_id:"1"});
   });

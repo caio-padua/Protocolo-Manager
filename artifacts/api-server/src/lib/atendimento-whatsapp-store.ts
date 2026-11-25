@@ -6,12 +6,14 @@ import { carregarFrases, type ChaveFrase } from "./telegram-frases";
 import { planejarAgendamentoCliente } from "./telegram-agendamento-store";
 import { classificarIntencaoComIA, registrarPerguntaInedita } from "./atendimento-aprendizado-whatsapp";
 import { consultarIntencaoGlobal } from "./base-global-intencoes";
+import { consultarConhecimentoGlobal, promoverPerguntaParaGlobal } from "./global-conhecimento";
+import { baseUrlFromEnv } from "./messaging/base-url.js";
 import { brtISODate } from "./brt";
 import { modeloTexto, renderTexto, type CategoriaOperacional } from "./comunicacao-padrao";
 import { getNomeAssistenteAtendimento } from "./atendimento-ia-config";
 
 /** Frases sem categoria própria de modelo por clínica (texto vem da tela Frases do Assistente). */
-const SEM_MODELO_DA_CLINICA = new Set(["atendimento_endereco", "atendimento_esclarecer", "atendimento_nao_reconhecida", "atendimento_abertura_livre"]);
+const SEM_MODELO_DA_CLINICA = new Set(["resposta_quem_e_dr_caio", "resposta_preco_consulta", "continuidade_ajuda", "abertura_consulta_agendada", "abertura_protocolo_andamento", "abertura_paciente_antigo", "abertura_contato_novo", "atendimento_endereco", "atendimento_esclarecer", "atendimento_nao_reconhecida", "atendimento_abertura_livre"]);
 
 /** Interruptor por clínica do menu numerado. Sem registro = ligado (nada é apagado); só o valor "false" desliga. */
 export const chaveMenuNumerado = (empresaId: number) => `atendimento.menu_numerado.ativo.${empresaId}`;
@@ -59,6 +61,20 @@ export function depsOperacionaisWhatsapp(
       const cidade = [x.cidade?.trim(), x.estado?.trim()].filter(Boolean).join("/");
       return [x.endereco.trim(), x.bairro?.trim(), cidade, x.cep?.trim() ? `CEP ${x.cep.trim()}` : ""].filter(Boolean).join(", ");
     },
+    linkMarcacao: () => `${baseUrlFromEnv().replace(/\/$/, "")}/agendar`,
+    statusSilencioso: async () => {
+      const c = await db.execute(sql`SELECT name FROM clients WHERE id=${e.clienteId} AND empresa_id=${e.empresaId}`);
+      const nome = (c.rows[0] as { name?: string } | undefined)?.name;
+      if (!nome) return { tipo: "novo" as const };
+      const f = await db.execute(sql`SELECT s.scheduled_date,s.scheduled_time,s.unit FROM sessions s
+        WHERE s.empresa_id=${e.empresaId} AND s.client_id=${e.clienteId} AND s.status IN ('scheduled','confirmed')
+          AND NOT s.agenda_archived AND s.scheduled_date>=${brtISODate()}
+        ORDER BY s.scheduled_date,s.scheduled_time LIMIT 1`);
+      const x = f.rows[0] as { scheduled_date: string; scheduled_time: string; unit?: string | null } | undefined;
+      if (x) return { tipo: "consulta" as const, nome, data: x.scheduled_date.split("-").reverse().join("/"), hora: x.scheduled_time.slice(0, 5), unidade: x.unit };
+      const p = await db.execute(sql`SELECT 1 FROM protocols WHERE empresa_id=${e.empresaId} AND client_id=${e.clienteId} AND status IN ('active','validated') LIMIT 1`);
+      return { tipo: p.rows.length ? "protocolo" as const : "antigo" as const, nome };
+    },
     consultarRetorno: async () => {
       const r = await db.execute(sql`SELECT s.scheduled_date,s.scheduled_time FROM sessions s
         JOIN clients c ON c.id=s.client_id AND c.empresa_id=${e.empresaId}
@@ -71,6 +87,12 @@ export function depsOperacionaisWhatsapp(
       return dados.map(x => `${x.scheduled_date.split("-").reverse().join("/")} às ${x.scheduled_time.slice(0,5)}`).join("\n");
     },
     classificarGlobal: e.simulacao ? undefined : async (texto) => {
+      const aprendida = await consultarConhecimentoGlobal(e.empresaId, texto).catch(() => null);
+      if (aprendida) {
+        const m: Record<string, IntencaoWhatsapp> = { agendar: "agendar", retorno: "retorno", orcamento: "orcamento", documentos: "documentos", exames: "exames", endereco: "endereco", humano: "humano", menu: "menu" };
+        const i = aprendida.intencao ? m[aprendida.intencao] : undefined;
+        if (i) return i;
+      }
       const g = await consultarIntencaoGlobal(e.empresaId, texto);
       const mapa: Record<string, IntencaoWhatsapp> = { "agendamento:marcar": "agendar", "agendamento:consultar": "retorno", "agendamento:remarcar": "agendar",
         "financeiro:orcamento": "orcamento", "receitas_exames:receitas": "documentos", "receitas_exames:exames": "exames", "receitas_exames:segunda_via": "documentos",
@@ -84,6 +106,8 @@ export function depsOperacionaisWhatsapp(
     registrarInedita: async (texto, intencao, origem) => {
       if (e.simulacao) return;
       await registrarPerguntaInedita({ empresaId: e.empresaId, canal: e.canal ?? "whatsapp", texto, intencao, origemIntencao: origem });
+      // Aprendizado entre clínicas: só com consentimento, anonimizado e sem dado clínico; falha aqui nunca afeta o atendimento.
+      await promoverPerguntaParaGlobal({ empresaId: e.empresaId, pergunta: texto, por: "motor_automatico" }).catch(() => undefined);
     },
     agendar: async (texto) => {
       const ag = await planejarAgendamentoCliente({
