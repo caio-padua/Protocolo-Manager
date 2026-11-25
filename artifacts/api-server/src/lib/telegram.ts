@@ -44,23 +44,52 @@ export interface WebhookInfo {
 export function resolveTelegramWebhookUrl(
   env: NodeJS.ProcessEnv = process.env,
 ): { url: string | null; error?: string } {
+  const httpsOrigin = (value: string): string | null => {
+    const candidate = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+    try {
+      const parsed = new URL(candidate);
+      if (parsed.protocol !== "https:" || parsed.username || parsed.password || !parsed.hostname) return null;
+      return parsed.origin;
+    } catch {
+      return null;
+    }
+  };
+
   const publicBaseUrl = env["PUBLIC_BASE_URL"]?.trim();
   if (publicBaseUrl) {
-    try {
-      const parsed = new URL(publicBaseUrl);
-      if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
-        return { url: null, error: "public_base_url_https_required" };
-      }
-      return { url: `${parsed.origin}/api/webhooks/telegram` };
-    } catch {
-      return { url: null, error: "public_base_url_invalid" };
+    const origin = httpsOrigin(publicBaseUrl);
+    if (!origin) {
+      const protocol = /^https?:\/\//i.test(publicBaseUrl)
+        ? (() => { try { return new URL(publicBaseUrl).protocol; } catch { return ""; } })()
+        : "https:";
+      return {
+        url: null,
+        error: protocol && protocol !== "https:" ? "public_base_url_https_required" : "public_base_url_invalid",
+      };
     }
+    if (env["NODE_ENV"] === "production" && new URL(origin).hostname.endsWith(".replit.dev")) {
+      return { url: null, error: "dominio_temporario_nao_permitido_em_producao" };
+    }
+    return { url: `${origin}/api/webhooks/telegram` };
   }
 
-  const domain = env["RAILWAY_PUBLIC_DOMAIN"] || env["REPLIT_DEV_DOMAIN"] || "";
-  if (!domain.trim()) return { url: null, error: "dominio_publico_ausente" };
-  const host = domain.trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
-  return { url: `https://${host}/api/webhooks/telegram` };
+  const railwayDomain = env["RAILWAY_PUBLIC_DOMAIN"]?.trim();
+  if (railwayDomain) {
+    const origin = httpsOrigin(railwayDomain);
+    if (!origin) return { url: null, error: "railway_public_domain_invalido" };
+    if (env["NODE_ENV"] === "production" && new URL(origin).hostname.endsWith(".replit.dev")) {
+      return { url: null, error: "dominio_temporario_nao_permitido_em_producao" };
+    }
+    return { url: `${origin}/api/webhooks/telegram` };
+  }
+
+  if (env["NODE_ENV"] === "production") return { url: null, error: "dominio_publico_ausente" };
+
+  const developmentDomain = env["REPLIT_DEV_DOMAIN"]?.trim();
+  if (!developmentDomain) return { url: null, error: "dominio_publico_ausente" };
+  const origin = httpsOrigin(developmentDomain);
+  if (!origin) return { url: null, error: "dominio_desenvolvimento_invalido" };
+  return { url: `${origin}/api/webhooks/telegram` };
 }
 
 /**
@@ -119,8 +148,8 @@ export async function getWebhookInfo(): Promise<WebhookInfo> {
 
 /**
  * Registra (ou atualiza) o webhook do bot no Telegram.
- * A URL é montada a partir de RAILWAY_PUBLIC_DOMAIN (produção) ou
- * REPLIT_DEV_DOMAIN (dev), com o segredo do cofre.
+ * A URL prioriza PUBLIC_BASE_URL; em produção, não usa domínio temporário do Replit.
+ * Em desenvolvimento, REPLIT_DEV_DOMAIN continua disponível como fallback.
  * MOCK quando sem token — nunca lança exceção.
  */
 export async function setWebhook(): Promise<{ ok: boolean; description?: string; mock?: boolean; error?: string }> {
@@ -131,8 +160,8 @@ export async function setWebhook(): Promise<{ ok: boolean; description?: string;
     return { ok: false, mock: true, error: "token_ausente" };
   }
 
-  // PUBLIC_BASE_URL (domínio oficial) tem prioridade; os fallbacks existentes
-  // continuam disponíveis para Railway e desenvolvimento.
+  // PUBLIC_BASE_URL tem prioridade; Railway é fallback de produção e o domínio
+  // temporário do Replit só é permitido fora de produção.
   const resolvedWebhook = resolveTelegramWebhookUrl();
   if (!resolvedWebhook.url) {
     return { ok: false, error: resolvedWebhook.error ?? "dominio_publico_ausente" };

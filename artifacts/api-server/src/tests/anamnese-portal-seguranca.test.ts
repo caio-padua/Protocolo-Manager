@@ -4,7 +4,10 @@ import request from "supertest";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { startIsolatedPostgres } from "./helpers/postgres-isolado";
 
-const state = vi.hoisted(() => ({ database: null as any }));
+const state = vi.hoisted(() => {
+  process.env.SESSION_SECRET = "synthetic-only-anamnese-route-test-secret";
+  return { database: null as any };
+});
 vi.mock("@workspace/db", async () => {
   const schema = await import("@workspace/db/schema");
   const db = new Proxy({}, {
@@ -15,29 +18,9 @@ vi.mock("@workspace/db", async () => {
   });
   return { ...schema, db };
 });
-vi.mock("../routes/collaborator.js", () => ({
-  requireCollaborator: (req: any, res: any, next: any) => {
-    if (!req.headers["x-collab"]) {
-      res.status(401).json({ error: "Não autenticado" });
-      return;
-    }
-    req.collaborator = { professionalId: 101 };
-    next();
-  },
-}));
-vi.mock("../middleware/messageClinic.js", () => ({
-  requireMessageClinic: (req: any, res: any, next: any) => {
-    const empresaId = Number(req.headers["x-empresa"]);
-    if (!Number.isSafeInteger(empresaId) || empresaId <= 0) {
-      res.status(403).json({ error: "Clínica não resolvida" });
-      return;
-    }
-    req.messageEmpresaId = empresaId;
-    next();
-  },
-}));
 
 import anamnesePortalRouter from "../routes/anamnese-portal";
+import { createCollaboratorToken } from "../lib/collaborator-auth";
 
 let isolated: Awaited<ReturnType<typeof startIsolatedPostgres>>;
 const app = express();
@@ -45,12 +28,34 @@ app.use(express.json(), anamnesePortalRouter);
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
 });
-const headers = (empresaId: number) => ({ "x-collab": "synthetic", "x-empresa": String(empresaId) });
+const headers = (professionalId: number) => ({
+  authorization: `Bearer ${createCollaboratorToken({
+    professionalId,
+    role: "medico",
+    credentialVersion: 1,
+  })}`,
+});
 
 beforeAll(async () => {
   isolated = await startIsolatedPostgres();
   state.database = drizzle(isolated.pool);
   await isolated.pool.query(`
+    CREATE TABLE empresas (
+      id integer PRIMARY KEY,
+      nome text NOT NULL,
+      slug text,
+      telegram_bot_username text,
+      area_url text,
+      ativa boolean NOT NULL DEFAULT true,
+      status text NOT NULL DEFAULT 'ATIVO'
+    );
+    CREATE TABLE professionals (
+      id integer PRIMARY KEY,
+      role text NOT NULL,
+      active boolean NOT NULL DEFAULT true,
+      credential_version integer NOT NULL DEFAULT 1,
+      empresa_id integer
+    );
     CREATE TABLE clients (
       id integer PRIMARY KEY,
       name text NOT NULL,
@@ -73,6 +78,12 @@ beforeAll(async () => {
     );
   `);
   await isolated.pool.query(`
+    INSERT INTO empresas (id, nome, slug) VALUES
+      (51, 'Clínica Sintética A', 'clinica-a'),
+      (52, 'Clínica Sintética B', 'clinica-b');
+    INSERT INTO professionals (id, role, active, credential_version, empresa_id) VALUES
+      (101, 'medico', true, 1, 51),
+      (102, 'medico', true, 1, 52);
     INSERT INTO clients (id, name, empresa_id) VALUES
       (9101, 'Cliente Sintético A', 51),
       (9102, 'Cliente Sintético B', 52);
@@ -96,19 +107,19 @@ describe("fila de validação da anamnese: autenticação e isolamento", () => {
       .expect(401);
   });
 
-  it("lista apenas as sugestões ligadas à clínica autenticada", async () => {
+  it("usa uma sessão médica assinada e lista somente a clínica do vínculo no banco", async () => {
     const response = await request(app)
-      .get("/anamnese-portal/fila")
-      .set(headers(51))
+      .get("/anamnese-portal/fila?empresaId=52")
+      .set(headers(101))
       .expect(200);
     expect(response.body.map((row: { id: number }) => row.id)).toEqual([9201]);
   });
 
-  it("não permite decidir sugestão de outra clínica e mantém os dados intactos", async () => {
+  it("ignora empresa enviada pelo cliente e bloqueia decisão entre clínicas", async () => {
     await request(app)
       .post("/anamnese-portal/sugestao/9202/decidir")
-      .set(headers(51))
-      .send({ decisao: "recusado" })
+      .set(headers(101))
+      .send({ decisao: "recusado", empresaId: 52 })
       .expect(404);
     const result = await isolated.pool.query(`
       SELECT s.status AS suggestion_status, i.status AS item_status
@@ -122,10 +133,10 @@ describe("fila de validação da anamnese: autenticação e isolamento", () => {
     });
   });
 
-  it("permite decisão da própria clínica e atualiza pacote e itens na mesma transação", async () => {
+  it("permite ao médico da clínica vinculada decidir e atualiza pacote e itens juntos", async () => {
     const response = await request(app)
       .post("/anamnese-portal/sugestao/9201/decidir")
-      .set(headers(51))
+      .set(headers(101))
       .send({ decisao: "validado" });
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     expect(response.body).toEqual({ ok: true });
@@ -139,5 +150,13 @@ describe("fila de validação da anamnese: autenticação e isolamento", () => {
       suggestion_status: "validado",
       item_status: "validado",
     });
+  });
+
+  it("mantém o acesso legítimo do médico da segunda clínica aos próprios registros", async () => {
+    const response = await request(app)
+      .get("/anamnese-portal/fila")
+      .set(headers(102))
+      .expect(200);
+    expect(response.body.map((row: { id: number }) => row.id)).toEqual([9202]);
   });
 });
