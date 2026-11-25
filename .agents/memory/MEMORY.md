@@ -198,3 +198,4 @@
 - [Exames: classificações e código semântico](exames-classificacoes-codigo-semantico.md) — tabela de classificações dos dropdowns; código de 5 blocos existe nos dados, sem spec escrita.
 - [Sinapses clínicas pendentes](sinapses-propostas-pendentes.md) — propostas não conduzem até aprovação; destino vazio ou inativo nunca é saída real nem entra na simulação.
 - [Lei do lugar fixo (TDAH)](lei-lugar-fixo-tdah.md) — botão não muda de lugar/texto; confirmar em slot reservado; aviso junto do mouse; ler a skill antes de toda tela.
+- [Teste real Telegram Dayana/Carlúcia](teste-telegram-dayana-carlucia.md) — rota enviar-teste + três listas de autorização distintas; envio pelo Cockpit pausa a IA.
