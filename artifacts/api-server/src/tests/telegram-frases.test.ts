@@ -86,7 +86,7 @@ describe("apresentacao, nome, paragrafos e link", () => {
     expect(r.desfecho).toBe("link_marcacao_enviado");
     expect(r.resposta!.startsWith("Carlucia,\n\nSou a assistente virtual de Instituto Padua.\n\nTudo bem?\n\n")).toBe(true);
     expect(r.resposta).toContain("https://x.test/agendar");
-    expect(r.resposta!.endsWith("Assistente virtual de Instituto Padua")).toBe(true);
+    expect(r.resposta!.endsWith("Helena\nAtendimento e Relacionamento\nInstituto Pádua")).toBe(true);
     expect(r.resposta).not.toMatch(/\{\w+\}/);
   });
   it("nenhuma frase padrao deixa variavel solta quando renderizada com os globais", () => {
