@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { db } from "@workspace/db";
 import { clientsTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import multer from "multer";
 import {
   ensureClientFolderStructure,
@@ -94,12 +94,11 @@ router.post("/client-portal/identify", async (req: Request, res: Response) => {
       return;
     }
 
-    const formattedCpf = cleanCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-
+    // Compara so os digitos: o cadastro pode guardar o CPF com ou sem mascara.
     const clients = await db
       .select()
       .from(clientsTable)
-      .where(eq(clientsTable.cpf, formattedCpf));
+      .where(sql`regexp_replace(coalesce(${clientsTable.cpf}, ''), '[^0-9]', '', 'g') = ${cleanCpf}`);
 
     if (clients.length === 0) {
       res.status(401).json({ error: "CPF errado." });
