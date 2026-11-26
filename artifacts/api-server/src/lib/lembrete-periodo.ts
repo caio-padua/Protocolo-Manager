@@ -225,6 +225,8 @@ export interface ItemLembretePrescricao {
   horario?: string;
   observacaoRefeicao?: string;
   posologia?: string;
+  /** Dúvidas na leitura de dose/posologia. Presente = o lembrete NÃO é enviado. */
+  alertas?: string[];
 }
 
 export const LIMITE_WHATSAPP = 1500;
@@ -335,6 +337,7 @@ export async function sincronizarLembretePrescricao(
           ? anterior?.posologia
           : item.posologia ?? item.detalhe ?? anterior?.posologia,
         ...(posologiaManual ? { posologiaManual: true } : {}),
+        ...(item.alertas?.length ? { alertas: item.alertas } : {}),
       });
       formulas += 1;
     }
@@ -451,6 +454,17 @@ export async function executarLembretesPeriodo(
       );
     }
     const periodosJanela = doDia.periodos;
+
+    // TRAVA DE DÚVIDA: dose/posologia lida sem certeza = nada é enviado (nunca mensagem errada).
+    const comAlerta = periodosJanela.flatMap((p) => p.formulas).filter((f) => f.alertas?.length);
+    if (comAlerta.length > 0) {
+      falhas += 1;
+      const erro = `dose_nao_confirmada: ${comAlerta.map((f) => `${f.nome} (${f.alertas!.join("; ")})`).join(" | ")}`.slice(0, 900);
+      await db.update(lembreteEnviosTable).set({ status: "FALHOU", erro }).where(eq(lembreteEnviosTable.id, envioId));
+      logger.warn({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, erro }, "[lembrete-periodo] envio bloqueado: dose ou posologia nao confirmada");
+      detalhes.push({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, sucesso: false, erro });
+      return;
+    }
 
     // Gênero não existe hoje em `clients` → tratamento cai no primeiro nome.
     const genero: Genero = "nao_informado";

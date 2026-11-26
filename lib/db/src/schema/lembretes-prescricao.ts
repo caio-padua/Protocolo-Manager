@@ -34,6 +34,8 @@ export interface LembreteFormulaJson {
   // re-sincronização do Cockpit respeita e NÃO sobrescreve com a sugestão
   // automática do catálogo (ordem do CEO, 09/07/2026).
   posologiaManual?: boolean;
+  // Dúvidas na leitura de dose/posologia do catálogo. Presente = o motor NÃO envia.
+  alertas?: string[];
 }
 
 // Um período (janela) do lembrete, com suas fórmulas.

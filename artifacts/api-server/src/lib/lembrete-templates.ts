@@ -7,6 +7,7 @@
 import type { LembretePeriodoJson } from "@workspace/db";
 import { semAcento } from "@workspace/posologia";
 import { parseBrtParts } from "./brt";
+import { colarUnidades, limparTextoMensagem } from "./dose-substancia";
 
 export type Genero = "masculino" | "feminino" | "outro" | "nao_informado";
 
@@ -55,13 +56,27 @@ export function montarSaudacao(
 // Só a listagem de PERÍODOS/FÓRMULAS (sem saudação nem rodapé). Reutilizado pelo
 // template simples E pelo montador rico (Mensageria PAXMED), que injeta este bloco
 // no lugar do placeholder {BLOCO_PRESCRICAO}.
-// Largura da linha de substância: 32 caracteres estimados no WhatsApp menos a margem
-// de 5 = 27 (estimativa, ainda não medida no aparelho do CEO).
-const LARGURA_NOME = 14;
-const LARGURA_DOSE = 7;
-export function linhaSubstancia(s: { rotulo: string; nome: string; dose?: string }): string {
-  const nome = s.nome.length <= LARGURA_NOME ? s.nome : `${s.nome.slice(0, LARGURA_NOME - 3)}...`;
-  return `${s.rotulo} ${nome.padEnd(LARGURA_NOME)}  ${(s.dose ?? "").padStart(LARGURA_DOSE)}`;
+// Largura total da linha de substância: 32 caracteres estimados no WhatsApp menos a
+// margem de 5 = 27 (estimativa, ainda não medida no aparelho do CEO). Colunas:
+// legenda | espaço | nome (esquerda, cortado com "...") | 2 espaços | dose (direita).
+const LARGURA_LINHA = 27;
+const LARGURA_DOSE_MINIMA = 7;
+const LARGURA_NOME_MINIMA = 8;
+
+type LinhaSubs = { rotulo: string; nome: string; dose?: string };
+
+/** Linhas alinhadas em colunas fixas (mesma largura em todas as linhas do bloco). */
+export function linhasSubstancias(entrada: LinhaSubs[]): string[] {
+  // Dentro do bloco de código só a crase é perigosa (fecharia o bloco).
+  const semCrase = (t: string) => t.replace(/`/g, "");
+  const subs = entrada.map((s) => ({ rotulo: semCrase(s.rotulo), nome: semCrase(s.nome), dose: s.dose ? semCrase(s.dose) : undefined }));
+  const rot = Math.max(...subs.map((s) => s.rotulo.length));
+  const dw = Math.max(LARGURA_DOSE_MINIMA, ...subs.map((s) => (s.dose ?? "").length));
+  const nw = Math.max(LARGURA_NOME_MINIMA, LARGURA_LINHA - rot - 1 - 2 - dw);
+  return subs.map((s) => {
+    const nome = s.nome.length <= nw ? s.nome : `${s.nome.slice(0, nw - 3).trimEnd()}...`;
+    return `${s.rotulo.padEnd(rot)} ${nome.padEnd(nw)}  ${(s.dose ?? "").padStart(dw)}`;
+  });
 }
 
 export function blocoPrescricaoPeriodos(periodos: LembretePeriodoJson[]): string {
@@ -79,17 +94,17 @@ export function blocoPrescricaoPeriodos(periodos: LembretePeriodoJson[]): string
 
     for (const formula of periodo.formulas) {
       linhas.push("");
-      linhas.push(`${cor} *${formula.nome}*`);
+      linhas.push(`${cor} *${colarUnidades(limparTextoMensagem(formula.nome))}*`);
       if (formula.substancias?.length) {
         // Layout alinhado (ordem do CEO): legenda n/total, nome à esquerda (cortado com
         // "..."), dose à direita colada à unidade; fonte de largura fixa (crases triplas).
-        const corpo = formula.substancias.slice(0, 3).map((s) => linhaSubstancia(s));
+        const corpo = linhasSubstancias(formula.substancias.slice(0, 3));
         linhas.push("```", ...corpo, "```", "");
         const tecnico: string[] = [];
-        if (formula.horario) tecnico.push(`Horario: ${formula.horario}`);
-        if (formula.posologia) tecnico.push("Posologia:", ...formula.posologia.split("\n"));
+        if (formula.horario) tecnico.push(`Horario: ${formula.horario.replace(/`/g, "")}`);
+        if (formula.posologia) tecnico.push("Posologia:", ...formula.posologia.replace(/`/g, "").split("\n"));
         if (tecnico.length) linhas.push("```", ...tecnico, "```");
-        if (formula.observacaoRefeicao) linhas.push("", formula.observacaoRefeicao);
+        if (formula.observacaoRefeicao) linhas.push("", colarUnidades(limparTextoMensagem(formula.observacaoRefeicao)));
         linhas.push("");
         continue;
       }

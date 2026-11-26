@@ -200,6 +200,8 @@ function sanitizarFormula(raw: unknown): LembreteFormulaJson | null {
     observacaoRefeicao: s(o.observacaoRefeicao),
     posologia: s(o.posologia),
     ...(o.posologiaManual === true ? { posologiaManual: true } : {}),
+    ...(Array.isArray(o.alertas) && o.alertas.every((a) => typeof a === "string") && o.alertas.length
+      ? { alertas: o.alertas as string[] } : {}),
   };
 }
 
@@ -218,6 +220,8 @@ function marcarPosologiaManual(
   for (const per of novos) {
     for (const f of per.formulas) {
       const antes = antigasPorChave.get(`${per.sigla ?? ""}::${f.nome}`);
+      // A tela não conhece `alertas`: a trava de dúvida não pode cair por uma edição.
+      if (!f.alertas?.length && antes?.alertas?.length) f.alertas = antes.alertas;
       if (!f.posologia) {
         delete f.posologiaManual;
       } else if (antes && (antes.posologia ?? "") !== f.posologia) {
