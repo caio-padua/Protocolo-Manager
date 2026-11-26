@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { BODY_SYSTEM_LABELS, barColorForScore, CATEGORY_METERS, CATEGORY_METER_ORDER } from "./shared";
 import { VariantesSubstanciaConsulta } from "./VariantesSubstanciaConsulta";
+import { ValoresPorFornecedor } from "./ValoresPorFornecedor";
 import { GerenciarCategorias, Quadrado, useCategorias } from "../matriz-fornecedores/Categorias";
 
 const NULLABLE_TEXT = "";
@@ -758,6 +759,7 @@ export function SubstanceEditForm({
                     placeholder="Preservada para conferência; prefira as linhas estruturadas."
                   />
                 </Field>
+                <ValoresPorFornecedor substanceId={substance.id} />
               </div>
             </SectionCard>
 
