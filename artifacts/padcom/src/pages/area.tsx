@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useRef, lazy, Suspense, type ReactNode } from "react";
 import { PreCadastroObrigatorio, usePreCadastro } from "@/components/area/PreCadastroObrigatorio";
 import { ComunicacaoPaineis } from "@/components/area/ComunicacaoPaineis";
 import { tituloProprio } from "@/lib/utils";
@@ -17,18 +17,18 @@ import { PAXTER_SITE_URL } from "@/lib/brand";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { isAppPasswordValid, PASSWORD_POLICY_MESSAGE } from "@workspace/password-policy";
-import EvolucaoExamesPanel from "@/pages/cockpit/panels/EvolucaoExamesPanel";
+const EvolucaoExamesPanel = lazy(() => import("@/pages/cockpit/panels/EvolucaoExamesPanel"));
 
 import PedidosMedicosCliente from "@/components/PedidosMedicosCliente";
 import ExamesAvulsosCliente from "@/components/ExamesAvulsosCliente";
-import { GrupoVipBoloes } from "@/components/GrupoVipConexao";
-import MeusBoloesCliente from "@/components/MeusBoloesCliente";
-import ClubVipCliente from "@/components/ClubVipCliente";
-import MeusJogosCliente from "@/components/meus-jogos/MeusJogosCliente";
-import MinhaCategoriaCliente from "@/components/MinhaCategoriaCliente";
-import FotosCorpoCliente from "@/components/FotosCorpoCliente";
-import PaxCareCofre from "@/components/PaxCareCofre";
-import MeuPulsoCliente from "@/components/MeuPulsoCliente";
+const GrupoVipBoloes = lazy(() => import("@/components/GrupoVipConexao").then((m) => ({ default: m.GrupoVipBoloes })));
+const MeusBoloesCliente = lazy(() => import("@/components/MeusBoloesCliente"));
+const ClubVipCliente = lazy(() => import("@/components/ClubVipCliente"));
+const MeusJogosCliente = lazy(() => import("@/components/meus-jogos/MeusJogosCliente"));
+const MinhaCategoriaCliente = lazy(() => import("@/components/MinhaCategoriaCliente"));
+const FotosCorpoCliente = lazy(() => import("@/components/FotosCorpoCliente"));
+const PaxCareCofre = lazy(() => import("@/components/PaxCareCofre"));
+const MeuPulsoCliente = lazy(() => import("@/components/MeuPulsoCliente"));
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -268,6 +268,7 @@ export default function Area() {
 
       {/* Conteúdo principal — pb-24 libera espaço para bottom nav fixa */}
       <main className={`relative isolate z-0 flex-1 px-4 py-5 w-full mx-auto pb-36 ${tab === "evolucao" ? "max-w-lg lg:max-w-6xl" : "max-w-lg"}`}>
+        <Suspense fallback={<p role="status" className="text-center text-xs py-10 opacity-70">Carregando…</p>}>
         {tab === "inicio"     && <InicioTab     client={client} onGo={setTab} />}
         {tab === "protocolos" && <ProtocolosTab client={client} />}
         {tab === "agenda"     && <AgendaTab     client={client} />}
@@ -306,6 +307,7 @@ export default function Area() {
             <PlanilhaComparativaPortal token={client.token} />
           </div>
         )}
+        </Suspense>
       </main>
 
       {/* Mini-painel VERTICAL — largura 58px, altura automática igual à nav */}

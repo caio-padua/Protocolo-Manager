@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, Redirect } from "wouter";
 import { usePermissoes } from "@/lib/permissoes";
+import { HOMOLOGACAO_PERMISSOES, PERFIS_SIMULADOS, usePerfilSimuladoId, simulaPodeVer, type PerfilMapaFront } from "@/lib/transmutacao";
+import { SeletorTransmutacao, ItemTravado } from "./SeletorTransmutacao";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useClerkActions } from "@/lib/clerk-app";
 import { clearCollabSession, getCollabToken } from "@/lib/collab-auth";
 import {
@@ -388,6 +391,25 @@ export function Layout({ children }: LayoutProps) {
   const isCockpit = location === "/cockpit" || location.startsWith("/cockpit/");
   const { available: clerkAvailable, signOut: signOutGoogle } = useClerkActions();
   const { pode, me, loading: identityLoading } = usePermissoes();
+
+  // Seletor de Transmutação (simulação visual, só CEO). O servidor continua decidindo o acesso real.
+  const perfilSimId = usePerfilSimuladoId();
+  const ehCeo = !!me?.isPlatformOwner;
+  const simulando = ehCeo && perfilSimId !== "ceo";
+  const [mapaPerfis, setMapaPerfis] = useState<PerfilMapaFront[] | null>(null);
+  useEffect(() => {
+    if (!ehCeo) return;
+    let vivo = true;
+    fetch("/api/ceo/permissoes/mapa", { headers: collabAuthHeaders() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { perfis?: PerfilMapaFront[] } | null) => { if (vivo) setMapaPerfis(d?.perfis ?? null); })
+      .catch(() => { if (vivo) setMapaPerfis(null); });
+    return () => { vivo = false; };
+  }, [ehCeo]);
+  const perfilAtual = PERFIS_SIMULADOS.find((p) => p.id === perfilSimId) ?? PERFIS_SIMULADOS[0];
+  const perfilMapa = mapaPerfis?.find((m) => m.id === perfilAtual.mapaId) ?? null;
+  const bloqueadoSim = (href: string): boolean => simulando && !simulaPodeVer(perfilMapa, href);
+  const itemVisivel = (href: string): boolean => podeVer(href) && (HOMOLOGACAO_PERMISSOES || !bloqueadoSim(href));
   const [profileOpen, setProfileOpen] = useState(false);
   const [cpfVisible, setCpfVisible] = useState(false);
   const [profileActionBusy, setProfileActionBusy] = useState(false);
@@ -541,7 +563,7 @@ export function Layout({ children }: LayoutProps) {
   const itensBuscaveis: ItemBusca[] = [];
   for (const e of navFiltrada) {
     for (const l of isGroup(e) ? e.children : [e]) {
-      if (podeVer(l.href)) itensBuscaveis.push({ name: l.name, href: l.href, group: isGroup(e) ? e.name : "Menu", icon: l.icon, external: l.external });
+      if (itemVisivel(l.href) && !bloqueadoSim(l.href)) itensBuscaveis.push({ name: l.name, href: l.href, group: isGroup(e) ? e.name : "Menu", icon: l.icon, external: l.external });
     }
   }
 
@@ -636,6 +658,12 @@ export function Layout({ children }: LayoutProps) {
             />
           </div>
 
+          {ehCeo && (
+            <div className="shrink-0">
+              <SeletorTransmutacao perfilId={perfilSimId} compacto={compactMenu} />
+            </div>
+          )}
+
           {/* Navegacao */}
           <nav className={`flex-1 px-2.5 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${isCockpit ? "min-h-0" : ""}`}>
             {navFiltrada.map((item) => {
@@ -653,7 +681,7 @@ export function Layout({ children }: LayoutProps) {
                         title={item.name}
                       />
                       <div className="space-y-0.5">
-                        {item.children.filter((c) => podeVer(c.href)).map((child) => {
+                        {item.children.filter((c) => itemVisivel(c.href)).map((child) => {
                           const ChildIcon = child.icon;
                           const isActive =
                             location === child.href || location.startsWith(`${child.href}/`);
@@ -680,6 +708,9 @@ export function Layout({ children }: LayoutProps) {
                               )}
                             </div>
                           );
+                          if (bloqueadoSim(child.href)) {
+                            return <ItemTravado key={child.name} nome={child.name} Icon={ChildIcon} compacto />;
+                          }
                           if (child.external) {
                             return (
                               <a
@@ -718,7 +749,7 @@ export function Layout({ children }: LayoutProps) {
                       </span>
                     </div>
                     <div className="space-y-0.5">
-                      {item.children.filter((c) => podeVer(c.href)).map((child) => {
+                      {item.children.filter((c) => itemVisivel(c.href)).map((child) => {
                         const ChildIcon = child.icon;
                         const isActive =
                           location === child.href || location.startsWith(`${child.href}/`);
@@ -748,6 +779,9 @@ export function Layout({ children }: LayoutProps) {
                             )}
                           </div>
                         );
+                        if (bloqueadoSim(child.href)) {
+                          return <ItemTravado key={child.name} nome={child.name} Icon={ChildIcon} compacto={false} />;
+                        }
                         if (child.external) {
                           return (
                             <a
@@ -1008,7 +1042,14 @@ export function Layout({ children }: LayoutProps) {
             dentro do sistema. O canto superior DIREITO e reservado so para os
             PDFs emitidos (decisao do CEO em 26/06/2026, sobre a spec do Manus). */}
         <AbaTitulo titulo={tituloAba.titulo} resumo={tituloAba.resumo} />
-        <div ref={conteudoRef} className={isCockpit ? "flex-1" : "flex-1 overflow-y-auto p-4 md:px-8 md:pb-8 md:pt-6"}>{children}</div>
+        <div key={perfilSimId} ref={conteudoRef} className={isCockpit ? "flex-1" : "flex-1 overflow-y-auto p-4 md:px-8 md:pb-8 md:pt-6"}>
+          {bloqueadoSim(location) ? (
+            <div role="alert" data-testid="aviso-acesso-restrito" className="panel-3d-sub p-6 max-w-xl mx-auto text-center space-y-2">
+              <h2 className="font-semibold uppercase">Acesso restrito neste perfil</h2>
+              <p className="text-sm text-muted-foreground">Simulação visual de &quot;{perfilAtual.rotulo}&quot;. Esta tela fica bloqueada para esse perfil. Volte ao Dashboard Geral para sair da simulação.</p>
+            </div>
+          ) : children}
+        </div>
       </main>
 
       {sidebarOpen && (

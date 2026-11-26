@@ -52,7 +52,7 @@ beforeAll(async () => {
   });
   app.use("/api", papeisEmpresaMiddleware);
   app.all(/.*/, (_req, res) => res.status(200).json({ ok: true }));
-  await new Promise<void>((r) => { server = app.listen(0, r); });
+  await new Promise<void>((r) => { server = app.listen(0, () => r()); });
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api`;
 });
 afterAll(() => { server.close(); });
