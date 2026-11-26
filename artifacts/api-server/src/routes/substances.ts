@@ -270,7 +270,7 @@ const PATCHABLE_FIELDS = [
   "physicalPerformance", "muscleStrength", "mentalClarity", "skinHairNails", "immuneSupport",
   "contraindications", "scientificEvidence", "categoryType",
   "categoryMeters", "pricePerUnit", "composicao", "posologia",
-  "isBlend", "presentationQuantity", "presentationUnit", "ampouleVolumeMl",
+  "isBlend", "presentationQuantity", "presentationUnit", "ampouleVolumeMl", "disponivel",
 ] as const;
 
 router.patch("/substances/:id", requireCatalogOwner, async (req, res): Promise<void> => {
@@ -291,6 +291,10 @@ router.patch("/substances/:id", requireCatalogOwner, async (req, res): Promise<v
   if ("doctorParticipation" in updates && updates.doctorParticipation !== null &&
       typeof updates.doctorParticipation !== "boolean") {
     res.status(400).json({ error: "A participação médica deve ser sim, não ou não definida." });
+    return;
+  }
+  if ("disponivel" in updates && updates.disponivel !== null && typeof updates.disponivel !== "boolean") {
+    res.status(400).json({ error: "A situação da substância deve ser verdadeiro ou falso." });
     return;
   }
   if ("durationMinutes" in updates) {

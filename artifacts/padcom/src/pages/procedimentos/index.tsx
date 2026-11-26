@@ -1,3 +1,4 @@
+import { PrecoSubstanciasVinculadas } from "./PrecoSubstanciasVinculadas";
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as ApiClient from "@workspace/api-client-react";
@@ -444,8 +445,10 @@ export default function Procedimentos() {
     const termo = termoSubstancia.trim().toLocaleLowerCase("pt-BR");
     return [...substancias]
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR") || a.id - b.id)
+      // Substância desativada sai da escolha, mas continua visível se o procedimento já a usa.
+      .filter((substance) => (substance as { disponivel?: boolean | null }).disponivel !== false || formulario.produtoIds.includes(substance.id))
       .filter((substance) => !termo || nomeSubstancia(substance).toLocaleLowerCase("pt-BR").includes(termo));
-  }, [substancias, termoSubstancia]);
+  }, [substancias, termoSubstancia, formulario.produtoIds]);
 
   const substanciasVinculadasAusentes = formulario.produtoIds.filter(
     (id) => !substancias.some((substance) => substance.id === id),
@@ -639,6 +642,7 @@ export default function Procedimentos() {
                     </div>
                   );
                 })()}
+                <PrecoSubstanciasVinculadas ids={formulario.produtoIds} nomes={Object.fromEntries(substancias.map((x) => [x.id, x.name]))} />
                 {vinculosHabilitados && formulario.produtoIds.length > 0 && (
                   <p className="text-xs text-muted-foreground">
                     {formulario.fontesCampos.dose ? "Dose vinculada ao produto; alterações exigem nova conferência." : "Dose personalizada."}{" "}

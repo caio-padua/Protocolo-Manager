@@ -591,7 +591,7 @@ export default function MatrizFornecedores() {
   return (
     <div className="mx-root" data-testid="page-matriz-fornecedores">
       <div className="mx-t2" data-testid="faixa-topo-matriz">
-        <h1 className="bevel-3d mx-t2-plate" title="Matrix: Substâncias x Fornecedores">Matrix: Substâncias x Fornecedores</h1>
+        <h1 className="bevel-3d mx-t2-plate" title="Substâncias e Fornecedores — Matriz">Substâncias e Fornecedores — Matriz</h1>
         <div className="mx-t2-kpis">
           <div className="panel-3d-sub mx-t2-k" title={`${filtrados.length} de ${todos.length} produtos na tela · ${comPreco} com preço`}>
             <span className="bevel-3d mx-t2-kl">Produtos na tela</span>

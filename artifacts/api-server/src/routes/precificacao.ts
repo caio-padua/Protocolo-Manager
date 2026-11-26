@@ -8,6 +8,8 @@ import { aplicarAgora, CATEGORIAS, ErroPrecificacao, salvarConfiguracao, validar
 import { gravarOferta, validarOferta } from "../lib/oferta-apresentacao";
 import { cadastrarBlend, ErroBlend, validarBlend } from "../lib/blend-cadastro";
 import { liberarReservaProtocolo, saldosPorSubstancia } from "../lib/estoque-reserva";
+import multer from "multer";
+import { aplicarLista, lerPlanilha, montarPrevia, validarLinha, type Decisao } from "../lib/importar-lista-fornecedor";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 
 const router = Router();
@@ -22,7 +24,7 @@ async function estrutura(_req: Request, res: Response, next: NextFunction): Prom
 }
 
 function tratar(res: Response, e: unknown): void {
-  if (e instanceof ErroPrecificacao) { res.status(e.status).json({ error: e.message }); return; }
+  if (e instanceof ErroPrecificacao || e instanceof ErroBlend) { res.status(e.status).json({ error: e.message }); return; }
   throw e;
 }
 
@@ -51,6 +53,47 @@ router.post("/matriz-fornecedores/oferta", requireCollaborator, acesso, estrutur
     if (e instanceof ErroBlend) { res.status(e.status).json({ error: e.message }); return; }
     throw e;
   }
+});
+
+const uploadLista = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } });
+
+// Importação de lista do fornecedor — passo 1: lê a planilha e devolve a PRÉVIA (nada é gravado).
+router.post("/matriz-fornecedores/importar-lista/previa", requireCollaborator, acesso, estrutura, (req, res, next) => {
+  uploadLista.single("file")(req, res, (err: unknown) => {
+    if (err) { res.status(400).json({ error: err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE" ? "Arquivo acima de 5 MB." : "Falha ao receber o arquivo." }); return; }
+    next();
+  });
+}, async (req, res) => {
+  try {
+    const fornecedorId = Number(req.body?.fornecedorId);
+    if (!Number.isSafeInteger(fornecedorId) || fornecedorId < 1) throw new ErroBlend(400, "Escolha o fornecedor.");
+    if (!req.file) throw new ErroBlend(400, "Envie a planilha (.xlsx ou .csv).");
+    const { linhas, invalidas } = await lerPlanilha(req.file.buffer, req.file.originalname);
+    const itens = await montarPrevia(pool, req.tenantContext.empresaId, fornecedorId, linhas);
+    res.json({ arquivo: req.file.originalname.slice(0, 160), fornecedorId, itens, invalidas });
+  } catch (e) { tratar(res, e); }
+});
+
+// Passo 2: grava SOMENTE depois da aprovação humana. Duvidosas exigem decisão; reenviar não duplica.
+router.post("/matriz-fornecedores/importar-lista/aplicar", requireCollaborator, acesso, estrutura, async (req, res) => {
+  try {
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const fornecedorId = Number(b.fornecedorId);
+    if (!Number.isSafeInteger(fornecedorId) || fornecedorId < 1) throw new ErroBlend(400, "Escolha o fornecedor.");
+    if (b.aprovado !== true) throw new ErroBlend(400, "A prévia precisa ser aprovada por uma pessoa antes de gravar.");
+    if (!Array.isArray(b.linhas) || b.linhas.length === 0 || b.linhas.length > 2000) throw new ErroBlend(400, "Nenhuma linha para gravar.");
+    const arquivo = typeof b.arquivo === "string" && b.arquivo.trim() ? b.arquivo.trim().slice(0, 160) : "lista do fornecedor";
+    const linhas = b.linhas.map(validarLinha);
+    const decisoes: Decisao[] = Array.isArray(b.decisoes) ? b.decisoes.map((d: any) => {
+      const linha = Number(d?.linha);
+      if (!Number.isSafeInteger(linha)) throw new ErroBlend(400, "Decisão inválida.");
+      if (d.acao === "casar") { const varianteId = Number(d.varianteId); if (!Number.isSafeInteger(varianteId)) throw new ErroBlend(400, "Decisão inválida."); return { linha, acao: "casar", varianteId }; }
+      if (d.acao === "nova" || d.acao === "ignorar") return { linha, acao: d.acao };
+      throw new ErroBlend(400, "Decisão inválida.");
+    }) : [];
+    const resultados = await aplicarLista(pool, req.tenantContext.empresaId, req.tenantContext.professionalId as number, fornecedorId, arquivo, linhas, decisoes);
+    res.json({ resultados });
+  } catch (e) { tratar(res, e); }
 });
 
 router.put("/precificacao", requireCollaborator, acesso, estrutura, async (req, res) => {

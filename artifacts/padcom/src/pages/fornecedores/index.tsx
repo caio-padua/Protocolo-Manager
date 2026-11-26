@@ -14,9 +14,11 @@ import {
   RotateCw,
   Search,
   ShieldCheck,
+  Upload,
   Users,
   X,
 } from "lucide-react";
+import { EnviarLista } from "./EnviarLista";
 import * as ApiClient from "@workspace/api-client-react";
 import type { Fornecedor, FornecedorEntrada } from "@workspace/api-client-react";
 import { COLLAB_EVENT, collabAuthHeaders } from "@/lib/collab-auth";
@@ -240,7 +242,7 @@ function CampoClassificacao({
   );
 }
 
-export default function Fornecedores() {
+export default function Fornecedores({ embutido = false }: { embutido?: boolean } = {}) {
   const queryClient = useQueryClient();
   const [mountId] = useState(() => ++fornecedorMountSequence);
   const [sessionEpoch, setSessionEpoch] = useState(0);
@@ -266,10 +268,10 @@ export default function Fornecedores() {
     };
   }, [queryClient, scopeId]);
 
-  return <FornecedoresSessao key={scopeId} scopeId={scopeId} />;
+  return <FornecedoresSessao key={scopeId} scopeId={scopeId} embutido={embutido} />;
 }
 
-function FornecedoresSessao({ scopeId }: { scopeId: string }) {
+function FornecedoresSessao({ scopeId, embutido }: { scopeId: string; embutido: boolean }) {
   const queryClient = useQueryClient();
   const queryKey = [...ApiClient.getListFornecedoresQueryKey(), "fornecedores-session", scopeId] as const;
   const fornecedoresQuery = ApiClient.useListFornecedores({
@@ -290,6 +292,8 @@ function FornecedoresSessao({ scopeId }: { scopeId: string }) {
   const [editando, setEditando] = useState<Fornecedor | null>(null);
   const [erroFormulario, setErroFormulario] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [confirmandoId, setConfirmandoId] = useState<number | null>(null);
+  const [listaId, setListaId] = useState<number | null>(null);
   const formulario = useForm<FormValues>({
     resolver: zodResolver(fornecedorSchema),
     defaultValues: FORMULARIO_VAZIO,
@@ -363,8 +367,7 @@ function FornecedoresSessao({ scopeId }: { scopeId: string }) {
 
   const alternarAtivo = async (item: Fornecedor) => {
     const proximoAtivo = !item.ativo;
-    const verbo = proximoAtivo ? "reativar" : "inativar";
-    if (!window.confirm(`Deseja ${verbo} “${item.nome}”? O cadastro será preservado; não há exclusão.`)) return;
+    setConfirmandoId(null);
     setAviso(null);
     try {
       await atualizarFornecedor.mutateAsync({
@@ -398,8 +401,19 @@ function FornecedoresSessao({ scopeId }: { scopeId: string }) {
   const statusLista = statusErro(erroLista);
 
   return (
-    <main className="mx-auto w-full max-w-[1480px] space-y-5 pb-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <header className="panel-3d-hero p-4 sm:p-6">
+    <main className={embutido ? "w-full space-y-4" : "mx-auto w-full max-w-[1480px] space-y-5 pb-10 animate-in fade-in slide-in-from-bottom-2 duration-300"}>
+      {embutido && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" data-testid="topo-fornecedores-embutido">
+          <p className="text-sm text-muted-foreground">
+            {fornecedoresQuery.data ? `${fornecedores.length} cadastros · ${fornecedores.filter((item) => item.ativo).length} ativos` : "Carregando fornecedores…"} · clínica da sessão
+          </p>
+          <Button type="button" className="btn-3d min-h-11 w-full shrink-0 gap-2 sm:w-auto" onClick={iniciarNovo} disabled={formularioAberto || fornecedoresQuery.isError} data-testid="button-new-fornecedor">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Novo cadastro
+          </Button>
+        </div>
+      )}
+      {!embutido && <header className="panel-3d-hero p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="bevel-3d mb-3 inline-flex items-center gap-2 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-primary">
@@ -436,7 +450,7 @@ function FornecedoresSessao({ scopeId }: { scopeId: string }) {
             <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Escopo</p><p className="truncate text-sm font-bold text-primary">Clínica da sessão</p></div>
           </div>
         </div>
-      </header>
+      </header>}
 
       <div className="bevel-3d flex items-start gap-3 p-4" role="note" data-testid="notice-fornecedores">
         <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden="true" />
@@ -602,11 +616,24 @@ function FornecedoresSessao({ scopeId }: { scopeId: string }) {
                     <Button type="button" variant="outline" className="btn-3d-soft min-h-10 gap-2" onClick={() => iniciarEdicao(item)} disabled={formularioAberto || salvando} data-testid={`button-edit-fornecedor-${item.id}`}>
                       <FileText className="h-4 w-4" aria-hidden="true" /> Editar
                     </Button>
-                    <Button type="button" variant="outline" className="btn-3d-soft min-h-10 gap-2" onClick={() => alternarAtivo(item)} disabled={salvando} data-testid={`button-toggle-fornecedor-${item.id}`}>
+                    <Button type="button" variant="outline" className="btn-3d-soft min-h-10 gap-2" onClick={() => setListaId(listaId === item.id ? null : item.id)} disabled={salvando || !item.ativo} aria-expanded={listaId === item.id} data-testid={`button-enviar-lista-${item.id}`}>
+                      <Upload className="h-4 w-4" aria-hidden="true" /> Enviar lista
+                    </Button>
+                    <Button type="button" variant="outline" className="btn-3d-soft min-h-10 gap-2" onClick={() => setConfirmandoId(confirmandoId === item.id ? null : item.id)} disabled={salvando} aria-expanded={confirmandoId === item.id} data-testid={`button-toggle-fornecedor-${item.id}`}>
                       {item.ativo ? <X className="h-4 w-4" aria-hidden="true" /> : <Factory className="h-4 w-4" aria-hidden="true" />}
                       {item.ativo ? "Inativar" : "Reativar"}
                     </Button>
                   </div>
+                  {listaId === item.id && <EnviarLista fornecedorId={item.id} nome={item.nome} onFechar={() => setListaId(null)} />}
+                  {confirmandoId === item.id && (
+                    <div className="concave-3d mt-3 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between" role="alert" data-testid={`confirmar-fornecedor-${item.id}`}>
+                      <p className="text-sm font-semibold">{item.ativo ? "Inativar" : "Reativar"} “{item.nome}”? O cadastro é preservado; não há exclusão.</p>
+                      <div className="flex gap-2">
+                        <Button type="button" variant="outline" className="btn-3d-soft min-h-10" onClick={() => setConfirmandoId(null)} disabled={salvando}>Cancelar</Button>
+                        <Button type="button" className="btn-3d min-h-10" onClick={() => alternarAtivo(item)} disabled={salvando} data-testid={`button-confirm-toggle-fornecedor-${item.id}`}>Confirmar</Button>
+                      </div>
+                    </div>
+                  )}
                 </article>
               ))}
             </div>
