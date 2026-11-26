@@ -5,7 +5,7 @@ import type { Request } from "express";
 
 /** Dominio proprio da marca (ex.: https://receita.suamarca.com.br). Tem prioridade
  *  sobre o dominio tecnico da hospedagem, para o paciente nunca ver o dominio do provedor. */
-function brandBaseUrl(): string | null {
+export function brandBaseUrl(): string | null {
   const raw = process.env.PUBLIC_BASE_URL?.trim();
   if (!raw) return null;
   try {

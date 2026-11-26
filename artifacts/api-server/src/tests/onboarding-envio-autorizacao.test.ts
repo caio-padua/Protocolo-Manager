@@ -1,3 +1,4 @@
+process.env.PUBLIC_BASE_URL = "https://app.exemplo.test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";

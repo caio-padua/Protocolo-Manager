@@ -19,6 +19,7 @@ import { sendWhatsapp } from "../lib/whatsapp.js";
 import { sendTelegram } from "../lib/telegram.js";
 import { z } from "zod";
 import { resolveOnboardingClinic } from "../lib/onboarding-clinic.js";
+import { brandBaseUrl } from "../lib/messaging/base-url.js";
 
 export const onboardingRouter = Router();
 
@@ -131,7 +132,17 @@ onboardingRouter.post("/enviar-guia", async (req: Request, res: Response): Promi
     res.status(403).json({ ok: false, error: "Clínica não autorizada para este colaborador." });
     return;
   }
+  // O endereco do link e decidido AQUI, pelo dominio oficial da marca (PUBLIC_BASE_URL).
+  // O host que veio da tela nunca e usado: endereco de teste (replit.dev) jamais sai ao cliente.
+  const baseOficial = brandBaseUrl();
+  if (!baseOficial) {
+    res.status(503).json({ ok: false, error: "Endereço oficial do aplicativo não configurado neste ambiente. Envio bloqueado para não enviar link de teste." });
+    return;
+  }
   const guiaLink = new URL(guiaUrl);
+  const guiaOficial = new URL(`${guiaLink.pathname}${guiaLink.search}`, baseOficial);
+  guiaLink.protocol = guiaOficial.protocol;
+  guiaLink.host = guiaOficial.host;
   const linkTenant = guiaLink.searchParams.get("tenant");
   if (linkTenant && linkTenant !== clinic.slug) {
     res.status(403).json({ ok: false, error: "O link do guia pertence a outra clínica." });

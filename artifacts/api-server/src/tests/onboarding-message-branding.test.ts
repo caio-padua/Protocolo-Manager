@@ -1,3 +1,4 @@
+process.env.PUBLIC_BASE_URL = "https://app.exemplo.test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
@@ -66,7 +67,8 @@ describe("Marca na mensagem do Guia Digital", () => {
     for (const provider of [mocks.whatsapp, mocks.telegram]) {
       const text = provider.mock.calls[0][1];
       expect(text).not.toContain("Instituto Pádua");
-      expect(text).toContain("https://example.com/guia-digital?tenant=licenciada");
+      expect(text).toContain("https://app.exemplo.test/guia-digital?tenant=licenciada");
+      expect(text).not.toContain("example.com");
       expect(text).toContain("Olá, Paciente!");
     }
     const queries = mocks.execute.mock.calls.map(([query]) => dialect.sqlToQuery(query));

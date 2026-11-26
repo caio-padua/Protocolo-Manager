@@ -1,3 +1,4 @@
+process.env.PUBLIC_BASE_URL = "https://app.exemplo.test";
 /**
  * Real route + real PostgreSQL quota SQL; external delivery and client lookup
  * are stubbed. Only a connection-local temporary table is written.
