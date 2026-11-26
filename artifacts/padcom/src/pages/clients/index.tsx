@@ -111,13 +111,21 @@ export default function Clients() {
       });
   }, []);
 
+  // Busca aplicada: espera 250 ms depois da ultima tecla (evita uma consulta por letra).
+  const [buscaAplicada, setBuscaAplicada] = useState("");
+  useEffect(() => {
+    if (search === "") { setBuscaAplicada(""); return; }
+    const t = setTimeout(() => setBuscaAplicada(search.trim()), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
   useEffect(() => {
     setSelected(new Set());
     setConfirmDelete(false);
     setDisplayCount(PAGE_SIZE);
     setFilterLetra(null);
-    loadClients(tab, search);
-  }, [tab, search, loadClients]);
+    loadClients(tab, buscaAplicada);
+  }, [tab, buscaAplicada, loadClients]);
 
   useEffect(() => {
     setDisplayCount(PAGE_SIZE);
@@ -138,12 +146,22 @@ export default function Clients() {
   }, [tabClients, filterLetra]);
 
   // Ordena tudo alfabeticamente (pt-BR)
-  const sorted = useMemo(
-    () => [...tabClients].sort((a, b) =>
+  // Com busca ativa: quem COMEÇA com o texto vem primeiro, depois quem tem uma
+  // palavra começando com o texto, depois o resto (sempre A-Z dentro do grupo).
+  const sorted = useMemo(() => {
+    const termo = norm(buscaAplicada);
+    const rank = (nome: string) => {
+      if (!termo) return 0;
+      const n = norm(nome);
+      if (n.startsWith(termo)) return 0;
+      if (n.split(/\s+/).some((p) => p.startsWith(termo))) return 1;
+      return 2;
+    };
+    return [...tabClients].sort((a, b) =>
+      rank(a.name) - rank(b.name) ||
       tituloProprio(a.name).localeCompare(tituloProprio(b.name), "pt-BR"),
-    ),
-    [tabClients],
-  );
+    );
+  }, [tabClients, buscaAplicada]);
 
   // Letras disponíveis para a barra A-Z
   const disponíveis = useMemo(() => {
@@ -167,6 +185,8 @@ export default function Clients() {
   // Agrupa visible por letra
   const groups = useMemo(() => {
     const g: { letra: string; clientes: any[] }[] = [];
+    // Busca ativa: um unico bloco, na ordem de relevancia (sem quebrar por letra).
+    if (buscaAplicada) return visible.length ? [{ letra: "•", clientes: visible }] : g;
     for (const c of visible) {
       const l = tituloProprio(c.name).charAt(0).toUpperCase() || "#";
       const last = g[g.length - 1];
@@ -174,7 +194,7 @@ export default function Clients() {
       else g.push({ letra: l, clientes: [c] });
     }
     return g;
-  }, [visible]);
+  }, [visible, buscaAplicada]);
 
   function toggleSelect(id: number) {
     setSelected((prev) => {
