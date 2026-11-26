@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { EnviarLista } from "./EnviarLista";
+import { CatalogosFornecedor } from "./CatalogosFornecedor";
 import * as ApiClient from "@workspace/api-client-react";
 import type { Fornecedor, FornecedorEntrada } from "@workspace/api-client-react";
 import { COLLAB_EVENT, collabAuthHeaders } from "@/lib/collab-auth";
@@ -294,6 +295,7 @@ function FornecedoresSessao({ scopeId, embutido }: { scopeId: string; embutido: 
   const [aviso, setAviso] = useState<string | null>(null);
   const [confirmandoId, setConfirmandoId] = useState<number | null>(null);
   const [listaId, setListaId] = useState<number | null>(null);
+  const [catalogoId, setCatalogoId] = useState<number | null>(null);
   const formulario = useForm<FormValues>({
     resolver: zodResolver(fornecedorSchema),
     defaultValues: FORMULARIO_VAZIO,
@@ -616,6 +618,9 @@ function FornecedoresSessao({ scopeId, embutido }: { scopeId: string; embutido: 
                     <Button type="button" variant="outline" className="btn-3d-soft min-h-10 gap-2" onClick={() => iniciarEdicao(item)} disabled={formularioAberto || salvando} data-testid={`button-edit-fornecedor-${item.id}`}>
                       <FileText className="h-4 w-4" aria-hidden="true" /> Editar
                     </Button>
+                    <Button type="button" variant="outline" className="btn-3d-soft min-h-10 gap-2" onClick={() => setCatalogoId(catalogoId === item.id ? null : item.id)} aria-expanded={catalogoId === item.id} data-testid={`button-catalogos-${item.id}`}>
+                      <FileText className="h-4 w-4" aria-hidden="true" /> Catálogos
+                    </Button>
                     <Button type="button" variant="outline" className="btn-3d-soft min-h-10 gap-2" onClick={() => setListaId(listaId === item.id ? null : item.id)} disabled={salvando || !item.ativo} aria-expanded={listaId === item.id} data-testid={`button-enviar-lista-${item.id}`}>
                       <Upload className="h-4 w-4" aria-hidden="true" /> Enviar lista
                     </Button>
@@ -624,6 +629,7 @@ function FornecedoresSessao({ scopeId, embutido }: { scopeId: string; embutido: 
                       {item.ativo ? "Inativar" : "Reativar"}
                     </Button>
                   </div>
+                  {catalogoId === item.id && <CatalogosFornecedor fornecedorId={item.id} nome={item.nome} onFechar={() => setCatalogoId(null)} />}
                   {listaId === item.id && <EnviarLista fornecedorId={item.id} nome={item.nome} onFechar={() => setListaId(null)} />}
                   {confirmandoId === item.id && (
                     <div className="concave-3d mt-3 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between" role="alert" data-testid={`confirmar-fornecedor-${item.id}`}>

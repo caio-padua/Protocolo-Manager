@@ -31,6 +31,7 @@ import { runSeedDieta } from "./lib/seed-dieta";
 import { ensureDietaReceitasSchema } from "./lib/ensure-dieta-receitas-schema";
 import { ensurePesquisasSchema } from "./lib/ensure-pesquisas-schema";
 import { ensureSubstanceApplicationsUnique } from "./lib/ensure-substance-applications-unique";
+import { ensureFornecedorCatalogosSchema } from "./lib/fornecedor-catalogos";
 import { ensureSubstanceBlendsSchema } from "./lib/ensure-substance-blends-schema";
 import { ensureProtocolEmissoesTable } from "./routes/protocols.js";
 import { ensureEmailLogProtocolId } from "./lib/ensure-email-log-protocol-id";
@@ -239,6 +240,7 @@ if (Number.isNaN(port) || port <= 0) {
 
   try {
     await ensureSubstanceBlendsSchema();
+    await ensureFornecedorCatalogosSchema();
     await ensureAgendaIntegrationSchema();
     logger.info("substance blends: schema e correção segura da ADEK garantidos antes do listen");
   } catch (e) {
