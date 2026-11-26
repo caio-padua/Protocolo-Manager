@@ -1,3 +1,4 @@
+process.env.PUBLIC_BASE_URL = "https://app.exemplo.test";
 /**
  * Actual signed tokens + actual PostgreSQL queries on connection-local
  * temporary tables. No persistent patient data or real message delivery.
