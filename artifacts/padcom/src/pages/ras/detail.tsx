@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
-import { useGetRAS } from "@workspace/api-client-react";
+import { useGetRAS, getGetRASQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
@@ -30,7 +30,7 @@ export default function RASDetail() {
   const [certInfo, setCertInfo] = useState<CertInfo | null>(null);
 
   const { data: ras, isLoading } = useGetRAS(id, {
-    query: { enabled: !!id }
+    query: { queryKey: getGetRASQueryKey(id), enabled: !!id }
   });
 
   useEffect(() => {

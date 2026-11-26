@@ -541,7 +541,7 @@ function PainelCustoIA() {
 
 // ── Painel de Onboarding Digital ─────────────────────────────────────────────
 
-interface OnboardingStats {
+export interface OnboardingStats {
   ok: boolean;
   total: number;
   pacientesUnicos: number;

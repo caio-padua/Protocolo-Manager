@@ -320,7 +320,7 @@ export default function Injetaveis({
                     </div>
 
                     {/* Linhas de substâncias — grid fixo, sem ícone nas células */}
-                    <div className="divide-y" style={{ divideColor: "rgba(0,0,0,0.06)" }}>
+                    <div className="divide-y divide-black/[0.06]">
                       {protocol.items.map((item) => {
                         const appliedCount = appliedCountById.get(item.substanceId) ?? 0;
                         const isComplete = appliedCount >= (item.totalSessions ?? 1);

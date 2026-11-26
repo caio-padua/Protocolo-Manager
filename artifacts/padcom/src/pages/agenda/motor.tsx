@@ -6,6 +6,9 @@ import {
   useCreateAgendaResource,
   useUpdateAgendaResource,
   useListAgendaWindows,
+  getListAgendaWindowsQueryKey,
+  getGetAgendaSlotsQueryKey,
+  type CreateAgendaExceptionBodyKind,
   useReplaceAgendaWindows,
   useListAgendaExceptions,
   useCreateAgendaException,
@@ -272,7 +275,7 @@ export default function AgendaMotor() {
 
   // ---- Janelas ----
   const { data: windows } = useListAgendaWindows(selectedId ?? 0, {
-    query: { enabled: !!selectedId },
+    query: { queryKey: getListAgendaWindowsQueryKey(selectedId ?? 0), enabled: !!selectedId },
   });
   const [windowsDraft, setWindowsDraft] = useState<WindowsDraft>({});
   const [windowsDirty, setWindowsDirty] = useState(false);
@@ -321,7 +324,7 @@ export default function AgendaMotor() {
   }, [settings]);
 
   // ---- Nova exceção ----
-  const [newExc, setNewExc] = useState({ date: "", kind: "feriado", description: "", resourceId: "" });
+  const [newExc, setNewExc] = useState<{ date: string; kind: CreateAgendaExceptionBodyKind; description: string; resourceId: string }>({ date: "", kind: "feriado", description: "", resourceId: "" });
 
   // ---- Prova viva ----
   const [slotResource, setSlotResource] = useState<number | null>(null);
@@ -338,13 +341,14 @@ export default function AgendaMotor() {
     setOccupied(new Set());
   }, [slotResource, slotDate]);
 
+  const slotsParams = {
+    resourceId: slotResource ?? 0,
+    date: slotDate,
+    occupied: occupied.size ? Array.from(occupied).join(",") : undefined,
+  };
   const { data: slotsData, isFetching: slotsFetching, refetch: refetchSlots } = useGetAgendaSlots(
-    {
-      resourceId: slotResource ?? 0,
-      date: slotDate,
-      occupied: occupied.size ? Array.from(occupied).join(",") : undefined,
-    },
-    { query: { enabled: !!slotResource && !!slotDate } },
+    slotsParams,
+    { query: { queryKey: getGetAgendaSlotsQueryKey(slotsParams), enabled: !!slotResource && !!slotDate } },
   );
 
   // ---- Marcacao real (F2.3 recepcao) ----
@@ -1179,7 +1183,7 @@ export default function AgendaMotor() {
               />
               </ComRegistro>
               <ComRegistro codigo="X1" nota="tipo">
-              <Select value={newExc.kind} onValueChange={(v) => setNewExc((s) => ({ ...s, kind: v }))}>
+              <Select value={newExc.kind} onValueChange={(v) => setNewExc((s) => ({ ...s, kind: v === "bloqueio" ? "bloqueio" : "feriado" }))}>
                 <SelectTrigger className="field-engraved">
                   <SelectValue />
                 </SelectTrigger>
@@ -1340,7 +1344,7 @@ export default function AgendaMotor() {
                           disabled={!clickable}
                           className={`px-2 py-1 text-xs font-medium tabular-nums transition ${slotColor(
                             s.state,
-                            s.reason,
+                            s.reason ?? null,
                           )} ${clickable ? "cursor-pointer hover:brightness-110" : "cursor-default"}`}
                           style={{ borderRadius: "3px" }}
                         >

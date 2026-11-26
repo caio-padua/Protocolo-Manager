@@ -403,7 +403,7 @@ export default function Prontuario() {
                       <span className="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-600">
                         {String(p.token)}
                       </span>
-                      {p.drive_url && (
+                      {Boolean(p.drive_url) && (
                         <a href={String(p.drive_url)} target="_blank" rel="noopener noreferrer">
                           <Button variant="ghost" size="sm" className="text-[#1a2744] h-7 px-2">
                             <ExternalLink className="w-3 h-3" />

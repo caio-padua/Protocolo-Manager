@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { format } from "date-fns";
-import { useGetClient } from "@workspace/api-client-react";
+import { useGetClient, getGetClientQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,7 +18,7 @@ interface Props { clientId: number; }
 export default function CadastroPanel({ clientId }: Props) {
   const { toast } = useToast();
   const { data: client, isLoading } = useGetClient(clientId, {
-    query: { enabled: !!clientId },
+    query: { queryKey: getGetClientQueryKey(clientId), enabled: !!clientId },
   });
 
   const driveSetup = useMutation({

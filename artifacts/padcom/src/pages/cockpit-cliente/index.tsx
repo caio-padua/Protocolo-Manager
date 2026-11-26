@@ -1008,7 +1008,7 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                           credit_card: <CreditCard className="w-4 h-4" />,
                           debit_card: <CreditCard className="w-4 h-4" />,
                           transfer: <Banknote className="w-4 h-4" />,
-                        } as Record<string, JSX.Element>)[payment.method as string] || <DollarSign className="w-4 h-4" />;
+                        } as Record<string, React.JSX.Element>)[payment.method as string] || <DollarSign className="w-4 h-4" />;
 
                         const methodLabel = ({
                           pix: "PIX", credit: "CRÉDITO", debit: "DÉBITO", boleto: "BOLETO",

@@ -937,7 +937,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
   // vizinho / contiguidade) ANTES do pagamento. So dispara no estagio "oferta".
   // Inclui CPF na query para a trava de escassez verificar penalidade no servidor.
   const cpfDigitsOffer = cpf.replace(/\D/g, "");
-  const offerQuery = useQuery({
+  const offerQuery = useQuery<OfertaConcierge>({
     queryKey: [
       "concierge-offer",
       prefWeekday,
@@ -956,12 +956,16 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
         `${BASE}/api/scheduling/concierge-offer?${params.toString()}`,
       );
       if (res.status === 403) {
-        const blocked = await res.json();
+        const blocked = (await res.json()) as OfertaConcierge & { code?: string };
         if (blocked.code === "CONCIERGE_BLOCKED" && blocked.blocked === true) return blocked;
         throw new Error("Falha ao buscar oferta");
       }
       if (!res.ok) throw new Error("Falha ao buscar oferta");
-      return res.json() as Promise<{
+      return res.json() as Promise<OfertaConcierge>;
+    },
+    enabled: stage === "oferta",
+  });
+  type OfertaConcierge = {
         blocked?: boolean;
         throttled?: boolean;
         requiresVerification?: boolean;
@@ -973,10 +977,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
         tentativas?: number;
         penalidade_dias?: number;
         days?: { date: string; times: { time: string }[] }[];
-      }>;
-    },
-    enabled: stage === "oferta",
-  });
+  };
 
   // ── Verificação de dispositivo: envio do código OTP ──────────────────────────
 

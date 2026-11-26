@@ -28,6 +28,7 @@ type AlertaSlot = {
   dataFormatada: string;
   status: string;
   clientName: string;
+  clientId?: number;
   formulas: { nome: string }[];
 };
 

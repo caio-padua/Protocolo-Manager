@@ -69,7 +69,7 @@ function rodar(p: Premissas, ov: Overrides, cen: Cenario) {
     const m = somaMes(p.inicio, i); const o = ov[m] ?? {};
     // Valor digitado vira nova âncora: os meses seguintes seguem a curva a partir dele, sem o usuário precisar "voltar à curva".
     const g = 1 + p.crescimentoMensalPct / 100;
-    let fat = o.faturamentoCents ?? (anc ? Math.round(anc.fat * Math.pow(g, i - anc.i)) : Math.round(p.faturamentoBaseCents * Math.pow(g, i)));
+    let fat: number = o.faturamentoCents ?? (anc ? Math.round(anc.fat * Math.pow(g, i - anc.i)) : Math.round(p.faturamentoBaseCents * Math.pow(g, i)));
     if (o.faturamentoCents === undefined && p.tetoFaturamentoCents !== null) fat = Math.min(fat, p.tetoFaturamentoCents);
     if (o.faturamentoCents !== undefined) anc = { i, fat };
     const folhaClt = o.folhaCltCents ?? p.folhaCltCents; const fgts = Math.round((folhaClt * VALORES.folha.fgts) / 100);

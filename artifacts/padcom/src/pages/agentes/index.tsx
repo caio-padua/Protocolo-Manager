@@ -1164,7 +1164,7 @@ function AbaChat({ agentes }: { agentes: Agente[] }) {
         </div>
         <select value={modelo} onChange={e => setModelo(e.target.value)}
           className="text-xs bg-background border border-border rounded-[4px] px-2 py-1">
-          {PROVEDORES_OPCOES.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+          {MODELOS_CHAT.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
         <button onClick={limpar} className="btn-3d-soft px-2 py-1 text-xs flex items-center gap-1 text-muted-foreground">
           <RotateCcw className="w-3 h-3" /> Limpar
@@ -2476,7 +2476,7 @@ _PAXTER — Clinical Intelligence System_`;
                 borderTopWidth: 3, borderTopColor: p.cor,
                 ...(((p as Record<string,unknown>).destaque) ? { outlineColor: p.cor } : {}),
               }}>
-              {((p as Record<string,unknown>).destaque) && (
+              {Boolean((p as Record<string,unknown>).destaque) && (
                 <div className="text-center py-1 text-[9px] font-black uppercase tracking-widest"
                   style={{ backgroundColor: p.cor + "30", color: p.cor }}>
                   MAIS POPULAR

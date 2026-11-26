@@ -23,7 +23,7 @@ export function lerFormedicaInjetaveis(texto: string): { linhas: LinhaLista[]; i
     const conc = /(\d[\d.,]*)\s*(mg|mcg|g|UI)\s*\/\s*mL/i.exec(nomeBruto);
     const nome = nomeBruto.replace(/\*+/g, "").replace(/\s+/g, " ").trim();
     const produto = (conc ? nome.slice(0, nome.toLowerCase().indexOf(conc[0].toLowerCase().trim())) : nome).replace(/\s+\d+(?:,\d+)?\s*%\s*$/, "").trim() || nome;
-    const vias = (viasTxt.match(/\b(IM|EV|SC|ID)\b/g) ?? []);
+    const vias: string[] = (viasTxt.match(/\b(IM|EV|SC|ID)\b/g) ?? []);
     const via = (["IM", "SC", "EV", "ID"] as const).find((v) => vias.includes(v)) ?? null;
     let dose: string; let concentracao: string | null = null;
     if (conc) {

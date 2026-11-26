@@ -187,8 +187,8 @@ function Router() {
       <Route path="/foto" component={Foto} />
       <Route path="/cadastro" component={Cadastro} />
       <Route path="/agendar/status/:id" component={AgendarStatus} />
-      <Route path="/agendar-antigo" component={AgendarAntigo} />
-      <Route path="/agendar" component={Agendar} />
+      <Route path="/agendar-antigo"><AgendarAntigo /></Route>
+      <Route path="/agendar"><Agendar /></Route>
       <Route path="/anamnese"><Redirect to="/anamnese/v2" /></Route>
       <Route path="/anamnese/v2" component={AnamneseV2} />
       <Route path="/area" component={Area} />
@@ -314,7 +314,7 @@ function Router() {
                   <Route path="/cadastros/config-exames" component={CadastroConfigExames} />
                   <Route path="/cadastros/governanca" component={Governanca} />
                   <Route path="/cadastros/cadastro-exames" component={CadastroExamesUnificado} />
-                  <Route path="/cadastros/exames" component={CadastroExames} />
+                  <Route path="/cadastros/exames"><CadastroExames /></Route>
                   <Route path="/cadastros/console-exames" component={CadastroConsoleExames} />
                   <Route path="/cadastros/direcao-exames" component={CadastroConsoleExames} />
                   <Route path="/cadastros/planilha-faixas" component={CadastroConsoleExames} />

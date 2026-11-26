@@ -98,7 +98,7 @@ function ItemEditor({
   isVideo,
   onSaved,
 }: {
-  item: { id: number; title: string; body: string | null; mediaUrl: string | null };
+  item: { id: number; title: string; body?: string | null; mediaUrl?: string | null };
   multiline: boolean;
   isVideo?: boolean;
   onSaved: () => void;

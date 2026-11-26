@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { loadOnboardingStats, PainelOnboarding } from "./CommandCenter";
+import { loadOnboardingStats, PainelOnboarding, type OnboardingStats } from "./CommandCenter";
 
 const state = vi.hoisted(() => ({ values: [] as unknown[] }));
 vi.mock("react", async (importOriginal) => ({
@@ -13,7 +13,7 @@ const paciente = {
   nome: "Cliente Sintético com Nome Completo Extenso",
   ultimo_acesso: "2026-11-24 02:30:00+00",
 };
-const stats = { ok: true, total: 3, pacientesUnicos: 1, pacientes: [paciente], porDevice: [], porSecao: [] };
+const stats: OnboardingStats = { ok: true, total: 3, pacientesUnicos: 1, pacientes: [paciente], porDevice: [], porSecao: [] };
 const render = (data = stats, loading = false, error: string | null = null) => {
   state.values = [data, loading, error];
   return renderToStaticMarkup(<PainelOnboarding />);

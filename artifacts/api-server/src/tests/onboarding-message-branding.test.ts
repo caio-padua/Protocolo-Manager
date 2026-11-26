@@ -72,7 +72,7 @@ describe("Marca na mensagem do Guia Digital", () => {
       expect(text).toContain("Olá, Paciente!");
     }
     const queries = mocks.execute.mock.calls.map(([query]) => dialect.sqlToQuery(query));
-    expect(queries.find(({ sql }) => sql.includes("FROM professionals p"))?.params).toEqual([77]);
+    expect(queries.find(({ sql }) => sql.includes("FROM professionals p"))?.params).toEqual([77, 0]);
     expect(mocks.telegram.mock.calls[0][1]).not.toContain("*");
   });
 

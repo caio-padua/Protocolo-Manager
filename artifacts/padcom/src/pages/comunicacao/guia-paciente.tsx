@@ -41,7 +41,7 @@ function useMinhaConfig() {
     const token = getCollabToken();
     setClientes([]);
     const options = {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: (token ? { Authorization: `Bearer ${token}` } : {}) as Record<string, string>,
       signal: controller.signal,
     };
     Promise.all([
