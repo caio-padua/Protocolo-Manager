@@ -46,20 +46,31 @@ export function usaTelegram(cfg: ConfigLembreteTelegram, clienteId: number, chat
   return false;
 }
 
+/**
+ * Aparência do bloco de largura fixa no Telegram. "codigo" = cada linha em código
+ * inline (fundo só atrás do texto, o mais discreto que o Telegram permite);
+ * "bloco" = caixa <pre> (fundo cobrindo a largura toda, com barra lateral).
+ */
+export type EstiloBlocoTelegram = "codigo" | "bloco";
+export const ESTILO_BLOCO_TELEGRAM: EstiloBlocoTelegram = "codigo";
+
+const escHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 /** Converte a marcação do WhatsApp (*negrito*, _itálico_) para HTML do Telegram, escapando o resto. */
-export function formatarParaTelegram(msg: string): string {
-  // Blocos ``` viram <pre> (largura fixa) e não recebem negrito/itálico dentro.
+export function formatarParaTelegram(msg: string, estilo: EstiloBlocoTelegram = ESTILO_BLOCO_TELEGRAM): string {
+  // Blocos ``` não recebem negrito/itálico dentro.
   if (msg.includes("```")) {
     return msg
       .split(/```\n?/)
-      .map((parte, i) =>
-        i % 2 === 1
-          ? `<pre>${parte.replace(/\n$/, "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`
-          : formatarParaTelegram(parte),
-      )
+      .map((parte, i) => {
+        if (i % 2 === 0) return formatarParaTelegram(parte, estilo);
+        const corpo = parte.replace(/\n$/, "");
+        if (estilo === "bloco") return `<pre>${escHtml(corpo)}</pre>`;
+        return corpo.split("\n").map((l) => (l.trim() ? `<code>${escHtml(l)}</code>` : "")).join("\n") + "\n";
+      })
       .join("");
   }
-  const esc = msg.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const esc = escHtml(msg);
   return esc
     .replace(/\*([^*\n]+)\*/g, "<b>$1</b>")
     .replace(/(^|[\s(])_([^_\n]+)_(?=$|[\s).,;:!?])/g, "$1<i>$2</i>");

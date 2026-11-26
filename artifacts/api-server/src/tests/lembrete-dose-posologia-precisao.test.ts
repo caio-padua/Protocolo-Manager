@@ -27,7 +27,7 @@ vi.mock("../lib/logger", () => ({ logger: { warn: vi.fn(), error: vi.fn(), info:
 
 import { interpretarSubstancia, colarUnidades, limparTextoMensagem } from "../lib/dose-substancia";
 import { linhaPosologia, momentoDaPosologia, periodoDaPosologia, quantidadeDaPosologia } from "../lib/posologia-lembrete";
-import { blocoPrescricaoPeriodos, linhasSubstancias } from "../lib/lembrete-templates";
+import { blocoPrescricaoPeriodos, linhasSubstancias, linhasPosologia } from "../lib/lembrete-templates";
 import { formatarParaTelegram } from "../lib/lembrete-telegram";
 import { executarLembretesPeriodo } from "../lib/lembrete-periodo";
 
@@ -206,9 +206,40 @@ describe("alinhamento em colunas fixas (WhatsApp e Telegram)", () => {
     linhas.forEach((l, i) => { if (subs[i].dose) expect(l.endsWith(subs[i].dose!)).toBe(true); });
   });
 
-  it("nome longo é cortado com três pontinhos, sem estourar a coluna", () => {
-    const [l] = linhasSubstancias([{ rotulo: "1/4", nome: "Cha Verde Extrato", dose: "300mg" }]);
-    expect(l).toContain("Cha Verde E...");
+  it("nome longo usa todo o espaço até a dose: três pontinhos, UM espaço, dose", () => {
+    const l = linhasSubstancias([
+      { rotulo: "1/12", nome: "L-carnitina Tartarato", dose: "1.500mg" },
+      { rotulo: "2/12", nome: "Coenzima Q10 Ubiquinol", dose: "100mg" },
+    ]);
+    expect(l[0]).toBe("1/12 L-carnitina... 1.500mg");
+    expect(l[1]).toBe("2/12 Coenzima Q10...  100mg"); // corte no espaço: sobra 1 a mais
+    expect(l.every((x) => x.length === 27)).toBe(true);
+    const cortado = linhasSubstancias([{ rotulo: "1/4", nome: "Substanciaextremamentelonga", dose: "5g" }])[0];
+    expect(cortado).toMatch(/\.\.\. 5g$/); // exatamente um espaço entre "..." e a dose
+  });
+
+  it("nome que cabe inteiro não é cortado", () => {
+    expect(linhasSubstancias([{ rotulo: "3/4", nome: "Cha Verde Extrato", dose: "300mg" }])[0]).toBe("3/4 Cha Verde Extrato 300mg");
+  });
+
+  it("posologia em andares de no máximo 27 caracteres, sem perder nenhuma palavra", () => {
+    expect(linhasPosologia("1 dose, via oral, antes do jantar")).toEqual(["1 dose, via oral", "antes do jantar"]);
+    expect(linhasPosologia("1 dose, via oral")).toEqual(["1 dose, via oral"]);
+    expect(linhasPosologia("1 dose, via sublingual, 30 minutos antes do cafe da manha"))
+      .toEqual(["1 dose, via sublingual", "30 minutos antes", "do cafe da manha"]);
+    for (const t of ["2 doses, via sublingual, 30 minutos antes do cafe da manha", "0,5 dose, via oral, ao meio-dia", "1 hora antes do almoco, via oral, 1,5 doses"]) {
+      const l = linhasPosologia(t);
+      expect(l.every((x) => x.length <= 27)).toBe(true);
+      expect(l.join(" ").split(/,?\s+/)).toEqual(t.split(/,?\s+/));
+    }
+  });
+
+  it("um único bloco de código por fórmula (sem vão entre substâncias e posologia)", () => {
+    const msg = blocoPrescricaoPeriodos([{ sigla: "NO", nome: "Noite", tipo: "tomar", formulas: [{
+      nome: "F", substancias: [{ rotulo: "1/1", nome: "Zinco", dose: "15mg" }], horario: "18h00", posologia: "1 dose, via oral, antes do jantar",
+    }] }]);
+    expect((msg.match(/```/g) ?? []).length).toBe(2);
+    expect(msg).toContain("Horario: 18h00\nPosologia:\n1 dose, via oral\nantes do jantar\n```");
   });
 
   it("layout aprovado pelo CEO se mantém para os casos reais do catálogo", () => {
@@ -247,9 +278,11 @@ describe("mensagem renderizada com caracteres difíceis", () => {
   });
 
   it("Telegram: converte para pre, escapa símbolos e mantém as doses", () => {
-    const html = formatarParaTelegram(msg);
+    const html = formatarParaTelegram(msg, "bloco");
     expect(html).toContain("<pre>");
     expect(html).toContain("5.000mcg");
+    expect(formatarParaTelegram(msg)).toContain("<code>"); // padrão discreto: código por linha, sem caixa
+    expect(formatarParaTelegram(msg)).not.toContain("<pre>");
     expect(html).toContain("Zinco &lt;&amp;&gt;");
     expect(html).not.toMatch(/<pre>[^]*<b>[^]*<\/pre>/);
     expect(html).not.toContain("```");
