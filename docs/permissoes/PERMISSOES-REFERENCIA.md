@@ -51,7 +51,7 @@ Papéis (podem se combinar na mesma clínica): administrador, médico, enfermage
 - Enfermagem registra aplicação, mas abrir prescrição dá 403.
 
 ## 7. Simulação visual x autorização real
-- Simulação visual (planejada, Fatia 3): seletor de transmutação do CEO e menu com cadeado. Serve para ver a tela como outro perfil. NÃO concede nem retira acesso real.
+- Simulação visual (pronta, Fatia 3): seletor de transmutação do CEO e menu com cadeado. Serve para ver a tela como outro perfil. NÃO concede nem retira acesso real.
 - Autorização real: sempre do servidor. Esconder um botão não protege nada; o 403 do servidor protege.
 
 ## 8. Referências de implementação e testes
@@ -62,6 +62,8 @@ Papéis (podem se combinar na mesma clínica): administrador, médico, enfermage
 - Testes da matriz: `artifacts/api-server/src/tests/papeis-acesso.test.ts`
 - Testes de API com o middleware real: `artifacts/api-server/src/tests/papeis-empresa-api.test.ts`
 - Prova HTTP no servidor de desenvolvimento: `artifacts/api-server/scripts/prova-papeis-http.ts`
+- Bateria final: `artifacts/api-server/src/tests/papeis-bateria-final.test.ts`
+- Seletor visual: `artifacts/padcom/src/lib/transmutacao.ts` (+ teste `transmutacao.test.ts`, e2e `e2e/transmutacao-ceo.spec.ts`)
 - Especificação da fatia: `specs/permissoes-fatia-2-servidor.md`
 - Organograma na tela: `/ceo/cabine`, aba Organograma (calculado pela regra real).
 
@@ -74,9 +76,11 @@ Papéis (podem se combinar na mesma clínica): administrador, médico, enfermage
 | Administrador não médico sem prontuário | CONFIRMADO no código; decisão do CEO pendente |
 | Profissionais sem papel cadastrado ficam bloqueados | CONFIRMADO |
 | Domínios fora da matriz (agenda, estoque, comunicação, catálogos de orçamento) | NÃO COBERTOS ainda |
-| Seletor de transmutação do CEO | PLANEJADO (Fatia 3) |
-| Modo visual com cadeado e texto riscado | PLANEJADO (Fatia 3) |
-| Bateria final e checklist de republicação | PLANEJADO (Fatia 4) |
+| Seletor de transmutação do CEO (só visual, usa o mapa real) | CONFIRMADO (testes e navegador) |
+| Modo visual com cadeado e texto riscado (flag HOMOLOGACAO_PERMISSOES) | CONFIRMADO |
+| Regras de agenda, estoque e comunicação | SÓ VISUAIS (o servidor não bloqueia) |
+| Bateria final dos 6 perfis (`papeis-bateria-final.test.ts`, 38 testes) | CONFIRMADO |
+| Checklist de republicação | `docs/permissoes/CHECKLIST-REPUBLICACAO.md` |
 
 ## 10. Como atualizar
 1. Mude a regra em `papeis-acesso.ts` e rode os testes.
