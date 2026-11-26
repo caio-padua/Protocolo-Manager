@@ -61,6 +61,7 @@ export const substancesTable = pgTable("substances", {
   concentrationMg: text("concentration_mg"),
   volumeAmpola: text("volume_ampola"),
   isBlend: boolean("is_blend").notNull().default(false),
+  antioxidante: boolean("antioxidante").notNull().default(false),
   presentationQuantity: real("presentation_quantity"),
   presentationUnit: text("presentation_unit"),
   ampouleVolumeMl: real("ampoule_volume_ml"),

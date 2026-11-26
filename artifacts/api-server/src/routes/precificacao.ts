@@ -55,6 +55,16 @@ router.post("/matriz-fornecedores/oferta", requireCollaborator, acesso, estrutur
   }
 });
 
+// Classificação "antioxidante" da substância (marcação humana; nada é inferido).
+router.patch("/matriz-fornecedores/substancia/:id/antioxidante", requireCollaborator, acesso, estrutura, async (req, res) => {
+  const id = Number(req.params.id);
+  const valor = (req.body as { antioxidante?: unknown })?.antioxidante;
+  if (!Number.isSafeInteger(id) || id < 1 || typeof valor !== "boolean") { res.status(400).json({ error: "Informe a substância e se é antioxidante (sim ou não)." }); return; }
+  const r = await pool.query("UPDATE substances SET antioxidante=$2 WHERE id=$1 RETURNING id", [id, valor]);
+  if (!r.rowCount) { res.status(404).json({ error: "Substância não encontrada." }); return; }
+  res.json({ ok: true, id, antioxidante: valor });
+});
+
 const uploadLista = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } });
 
 // Importação de lista do fornecedor — passo 1: lê a planilha e devolve a PRÉVIA (nada é gravado).

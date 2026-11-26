@@ -4,10 +4,11 @@ import { Coins } from "lucide-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Valor, Numeral } from "@/components/numeral/Numeral";
 
-type Celula = { fornecedorId: number; custoUnitarioCentavos: number; custoEmbalagemCentavos: number; quantidadeEmbalagem: number };
-type Linha = {
-  varianteId: number; substanciaId: number; doseTotal: string; forma: string;
+export type Celula = { fornecedorId: number; custoUnitarioCentavos: number; custoEmbalagemCentavos: number; quantidadeEmbalagem: number };
+export type Linha = {
+  varianteId: number; substanciaId: number; produto: string; doseTotal: string; forma: string;
   volumeMl: string | null; concentracao: string | null; celulas: Celula[];
+  classe: string; antioxidante: boolean; isBlend: boolean; disponivel: boolean;
   publicado: { precoCentavos: number; origem: string } | null;
 };
 export type Matriz = { fornecedores: { id: number; nome: string; ativo: boolean }[]; linhas: Linha[]; parametros?: { referenciaModo?: string } };
@@ -30,7 +31,6 @@ export function useMatrizCompleta() {
 export function ValoresPorFornecedor({ substanceId }: { substanceId: number }) {
   const q = useMatrizCompleta();
   const linhas = (q.data?.linhas ?? []).filter((l) => l.substanciaId === substanceId);
-  const nome = (id: number) => q.data?.fornecedores.find((f) => f.id === id)?.nome ?? `Fornecedor ${id}`;
 
   return (
     <section className="panel-3d-sub p-4" data-testid={`valores-fornecedor-${substanceId}`} aria-label="Valores por fornecedor">
@@ -53,42 +53,35 @@ export function ValoresPorFornecedor({ substanceId }: { substanceId: number }) {
           {linhas.map((l) => {
             const custos = l.celulas.filter((c) => c.custoUnitarioCentavos > 0);
             const maior = custos.length ? Math.max(...custos.map((c) => c.custoUnitarioCentavos)) : null;
+            const media = custos.length ? Math.round(custos.reduce((a, c) => a + c.custoUnitarioCentavos, 0) / custos.length) : null;
             return (
               <div key={l.varianteId} className="concave-3d p-3">
                 <p className="text-xs font-black uppercase tracking-wide">
                   {l.doseTotal} · {l.forma}{l.volumeMl ? ` · ${l.volumeMl} mL` : ""}{l.concentracao ? ` · ${l.concentracao}` : ""}
                 </p>
-                {custos.length === 0 ? (
-                  <p className="mt-2 text-xs text-muted-foreground">Sem custo de fornecedor registrado.</p>
-                ) : (
-                  <div className="mt-2 overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                          <th className="py-1 pr-3">Fornecedor</th>
-                          <th className="py-1 pr-3 text-right">Custo unitário</th>
-                          <th className="py-1 text-right">Embalagem</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {custos.map((c) => (
-                          <tr key={c.fornecedorId} className="border-t border-border/40">
-                            <td className="py-1 pr-3 font-semibold">{nome(c.fornecedorId)}</td>
-                            <td className="py-1 pr-3 text-right tabular-nums"><Valor valor={c.custoUnitarioCentavos / 100} /></td>
-                            <td className="py-1 text-right tabular-nums text-muted-foreground">
-                              <Valor valor={c.custoEmbalagemCentavos / 100} /> · <Numeral>{c.quantidadeEmbalagem}</Numeral> un.
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4" data-testid={`posicoes-precos-${l.varianteId}`}>
+                  <div className="panel-3d-sub p-2" data-testid="posicao-maior">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Maior preço</p>
+                    <p className="text-sm font-black tabular-nums">{maior === null ? <span className="opacity-30">—</span> : <Valor valor={maior / 100} />}</p>
                   </div>
-                )}
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <div className="panel-3d-sub p-2">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Maior custo</p>
-                    <p className="text-base font-black tabular-nums">{maior === null ? "—" : <Valor valor={maior / 100} />}</p>
+                  <div className="panel-3d-sub p-2" data-testid="posicao-media">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Preço médio</p>
+                    <p className="text-sm font-black tabular-nums">{media === null ? <span className="opacity-30">—</span> : <Valor valor={media / 100} />}</p>
                   </div>
+                  {(q.data?.fornecedores ?? []).map((f) => {
+                    const c = custos.find((x) => x.fornecedorId === f.id);
+                    return (
+                      <div key={f.id} className={`panel-3d-sub p-2 ${c ? "" : "opacity-35"}`} data-testid={`posicao-fornecedor-${f.id}`} data-tem={c ? "1" : "0"}>
+                        <p className="truncate text-[9px] font-black uppercase tracking-widest text-muted-foreground">{f.nome}</p>
+                        <p className="text-sm font-black tabular-nums">
+                          {c ? <Valor valor={c.custoUnitarioCentavos / 100} /> : <span aria-label="sem preço deste fornecedor">—</span>}
+                        </p>
+                        {c && <p className="text-[10px] text-muted-foreground tabular-nums"><Valor valor={c.custoEmbalagemCentavos / 100} /> · <Numeral>{c.quantidadeEmbalagem}</Numeral> un.</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-3">
                   <div className="panel-3d-sub p-2">
                     <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Preço precificado</p>
                     <p className="text-base font-black tabular-nums">{l.publicado ? <Valor valor={l.publicado.precoCentavos / 100} /> : "Não publicado"}</p>

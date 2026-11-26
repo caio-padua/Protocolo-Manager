@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, Building2 } from "lucide-react";
 import Fornecedores from "@/pages/fornecedores";
+import { ComparativoFornecedores, ProdutosDoFornecedor } from "./CatalogoFornecedores";
+
+const ABAS = [
+  { id: "cadastros", rotulo: "Fornecedores — Cadastros" },
+  { id: "produtos", rotulo: "Fornecedores — Produtos" },
+  { id: "comparativo", rotulo: "Comparativo" },
+] as const;
 
 const CHAVE = "substancias-painel-fornecedores-aberto";
 
@@ -9,6 +16,7 @@ export function FornecedoresPainel() {
   const [aberto, setAberto] = useState(() => {
     try { return localStorage.getItem(CHAVE) !== "0"; } catch { return true; }
   });
+  const [aba, setAba] = useState<(typeof ABAS)[number]["id"]>("cadastros");
   const alternar = () => {
     const prox = !aberto;
     setAberto(prox);
@@ -33,7 +41,15 @@ export function FornecedoresPainel() {
       </div>
       {aberto && (
         <div id="painel-fornecedores-corpo" className="border-t p-3 sm:p-4">
-          <Fornecedores embutido />
+          <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Seções de fornecedores">
+            {ABAS.map((a) => (
+              <button key={a.id} type="button" role="tab" aria-selected={aba === a.id} onClick={() => setAba(a.id)}
+                className={`min-h-10 min-w-[200px] px-4 text-xs font-black uppercase tracking-widest ${aba === a.id ? "btn-3d" : "btn-3d-soft"}`} data-testid={`aba-${a.id}`}>{a.rotulo}</button>
+            ))}
+          </div>
+          {aba === "cadastros" && <Fornecedores embutido />}
+          {aba === "produtos" && <ProdutosDoFornecedor />}
+          {aba === "comparativo" && <ComparativoFornecedores />}
         </div>
       )}
     </section>

@@ -10,7 +10,7 @@ export type LinhaMatriz = {
   vias: ViaCodigo[];
   /** Área clínica do produto (ex.: VITAMINICO, ORTOMOLECULAR), para agrupar a tela. */
   classe: string;
-  isBlend: boolean; composicao: string | null; produtoFonte: string | null;
+  isBlend: boolean; antioxidante: boolean; composicao: string | null; produtoFonte: string | null;
   disponivel: boolean;
   celulas: CelulaMatriz[];
 };
@@ -49,7 +49,7 @@ export async function montarMatriz(db: Queryable, empresaId: number): Promise<{ 
             v.forma, v.volume_ml AS "volumeMl", v.concentracao,
             COALESCE(NULLIF(btrim(v.vias_fonte),''), s.via_uso) AS via,
             COALESCE(NULLIF(btrim(s.category),''), 'SEM CLASSE') AS classe,
-            s.is_blend AS "isBlend", COALESCE(v.composicao, s.composicao) AS composicao, COALESCE(s.disponivel, true) AS disponivel,
+            s.is_blend AS "isBlend", COALESCE(s.antioxidante,false) AS antioxidante, COALESCE(v.composicao, s.composicao) AS composicao, COALESCE(s.disponivel, true) AS disponivel,
             (SELECT o.produto_fonte FROM substance_ofertas o WHERE o.variante_id=v.id AND o.produto_fonte IS NOT NULL ORDER BY o.posicao LIMIT 1) AS "produtoFonte"
        FROM substance_variantes v JOIN substances s ON s.id=v.substance_id
       WHERE v.empresa_id=$1 ORDER BY s.name, v.dose_total, v.id`, [empresaId]);
