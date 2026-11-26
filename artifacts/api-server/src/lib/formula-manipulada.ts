@@ -29,6 +29,11 @@ const STOPWORDS = new Set(["de", "do", "da", "dos", "das", "e", "ou", "com", "no
 
 // Nome/ativo do catálogo (TODO-MAIÚSCULO) em Title Case legível: cada palavra
 // capitalizada, conectores em minúscula (menos a primeira) e unidades minúsculas.
+// Garante que o total nunca fique menor que a posição mostrada.
+function listaTotalMin(ordem: number): number {
+  return ordem;
+}
+
 function titulo(txt: string): string {
   const palavras = txt.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const out = palavras.map((w, i) => {
@@ -54,7 +59,7 @@ function ativoPrincipalDeSubs(subsRaw: string): { nome: string; dose?: string } 
   let resto = subsRaw;
   if (m) {
     const numero = m[1].replace(".", ","); // vírgula decimal (Brasil)
-    dose = `${numero} ${m[2].toLowerCase()}`;
+    dose = `${numero}${m[2].toLowerCase()}`; // número colado na unidade (ordem do CEO)
     resto = subsRaw.replace(m[0], " ");
   }
   return { nome: titulo(resto), dose };
@@ -133,6 +138,7 @@ export async function enriquecerItemFormula(
 
   let tituloFormula = "";
   let subs01 = "";
+  let totalSubs = 0;
   const subsExtras: { ordem: number; raw: string }[] = [];
   let via = "";
   let apresentacao = ""; // lido mas IGNORADO (nunca vira dose)
@@ -144,8 +150,11 @@ export async function enriquecerItemFormula(
     const val = (l.conteudo ?? "").trim();
     if (!val) continue;
     if (id === "TITL") tituloFormula = val;
-    else if (id === "SUBS01" && !subs01) subs01 = val;
-    else if (/^SUBS0[2-3]$/.test(id)) subsExtras.push({ ordem: Number(id.slice(4)), raw: val }); // até 3 substâncias, com legenda
+    else if (id === "SUBS01" && !subs01) { subs01 = val; totalSubs += 1; }
+    else if (/^SUBS\d\d$/.test(id)) {
+      totalSubs += 1; // conta todas; só as 3 primeiras aparecem
+      if (/^SUBS0[2-3]$/.test(id)) subsExtras.push({ ordem: Number(id.slice(4)), raw: val });
+    }
     else if (id === "VIA") via = val;
     else if (id === "APRE") apresentacao = val;
     else if (id.startsWith("POSO")) posologias.push(val);
@@ -163,7 +172,7 @@ export async function enriquecerItemFormula(
   ].map(({ ordem, raw }) => {
     const a = ativoPrincipalDeSubs(raw);
     return {
-      rotulo: `SUBS ${String(ordem).padStart(2, "0")}`,
+      rotulo: `${ordem}/${Math.max(totalSubs, listaTotalMin(ordem))}`,
       nome: semAcento(a.nome),
       ...(a.dose ? { dose: a.dose } : {}),
     };

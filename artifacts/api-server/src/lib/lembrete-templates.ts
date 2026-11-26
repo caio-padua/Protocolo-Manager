@@ -55,6 +55,15 @@ export function montarSaudacao(
 // Só a listagem de PERÍODOS/FÓRMULAS (sem saudação nem rodapé). Reutilizado pelo
 // template simples E pelo montador rico (Mensageria PAXMED), que injeta este bloco
 // no lugar do placeholder {BLOCO_PRESCRICAO}.
+// Largura da linha de substância: 32 caracteres estimados no WhatsApp menos a margem
+// de 5 = 27 (estimativa, ainda não medida no aparelho do CEO).
+const LARGURA_NOME = 14;
+const LARGURA_DOSE = 7;
+export function linhaSubstancia(s: { rotulo: string; nome: string; dose?: string }): string {
+  const nome = s.nome.length <= LARGURA_NOME ? s.nome : `${s.nome.slice(0, LARGURA_NOME - 3)}...`;
+  return `${s.rotulo} ${nome.padEnd(LARGURA_NOME)}  ${(s.dose ?? "").padStart(LARGURA_DOSE)}`;
+}
+
 export function blocoPrescricaoPeriodos(periodos: LembretePeriodoJson[]): string {
   const linhas: string[] = [];
   for (const periodo of periodos) {
@@ -71,6 +80,19 @@ export function blocoPrescricaoPeriodos(periodos: LembretePeriodoJson[]): string
     for (const formula of periodo.formulas) {
       linhas.push("");
       linhas.push(`${cor} *${formula.nome}*`);
+      if (formula.substancias?.length) {
+        // Layout alinhado (ordem do CEO): legenda n/total, nome à esquerda (cortado com
+        // "..."), dose à direita colada à unidade; fonte de largura fixa (crases triplas).
+        const corpo = formula.substancias.slice(0, 3).map((s) => linhaSubstancia(s));
+        linhas.push("```", ...corpo, "```", "");
+        const tecnico: string[] = [];
+        if (formula.horario) tecnico.push(`Horario: ${formula.horario}`);
+        if (formula.posologia) tecnico.push("Posologia:", ...formula.posologia.split("\n"));
+        if (tecnico.length) linhas.push("```", ...tecnico, "```");
+        if (formula.observacaoRefeicao) linhas.push("", formula.observacaoRefeicao);
+        linhas.push("");
+        continue;
+      }
       if (formula.substancias?.length) {
         for (const s of formula.substancias) {
           linhas.push(`   [${s.rotulo}] ${s.nome}${s.dose ? ` — ${s.dose}` : ""}`);

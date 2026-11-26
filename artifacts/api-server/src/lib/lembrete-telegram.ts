@@ -48,6 +48,17 @@ export function usaTelegram(cfg: ConfigLembreteTelegram, clienteId: number, chat
 
 /** Converte a marcação do WhatsApp (*negrito*, _itálico_) para HTML do Telegram, escapando o resto. */
 export function formatarParaTelegram(msg: string): string {
+  // Blocos ``` viram <pre> (largura fixa) e não recebem negrito/itálico dentro.
+  if (msg.includes("```")) {
+    return msg
+      .split(/```\n?/)
+      .map((parte, i) =>
+        i % 2 === 1
+          ? `<pre>${parte.replace(/\n$/, "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`
+          : formatarParaTelegram(parte),
+      )
+      .join("");
+  }
   const esc = msg.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   return esc
     .replace(/\*([^*\n]+)\*/g, "<b>$1</b>")
