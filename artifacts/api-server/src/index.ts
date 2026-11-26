@@ -11,6 +11,7 @@ import { ensureSystemErrorLogTable } from "./lib/system-error-log";
 import { ensurePrescriptionProtocolsTable } from "./lib/ensure-prescription-protocols";
 import { ensurePedidosMedicosTable } from "./lib/ensure-pedidos-medicos.js";
 import { ensureCeoDocumentosTable } from "./lib/ensure-ceo-documentos.js";
+import { ensurePapeisIniciais } from "./lib/ensure-papeis-iniciais.js";
 import { ensurePaxcareTables } from "./lib/ensure-paxcare.js";
 import { ensurePaxcarePlanosTables } from "./lib/paxcare-planos.js";
 import { ensureClinicalDocumentReissuesTable } from "./lib/ensure-clinical-document-reissues.js";
@@ -165,6 +166,13 @@ if (Number.isNaN(port) || port <= 0) {
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao criar tabela client_medical_requests — abortando boot");
     process.exit(1);
+  }
+
+  try {
+    await ensurePapeisIniciais();
+  } catch (e) {
+    // Não derruba o boot: sem preenchimento, o guarda continua negando (fail-closed), nunca liberando.
+    logger.error({ err: e }, "Falha no preenchimento inicial de papéis por clínica");
   }
 
   try {
