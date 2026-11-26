@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, foreignKey, integer, jsonb, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, check, foreignKey, integer, jsonb, pgTable, serial, text, timestamp, unique, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { empresasTable } from "./empresas";
@@ -26,7 +26,7 @@ export const fornecedoresTable = pgTable("fornecedores_cadastrados", {
   atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("fornecedores_empresa_nome_uq").on(t.empresaId, sql`lower(btrim(${t.nome}))`),
-  uniqueIndex("fornecedores_empresa_id_uq").on(t.empresaId, t.id),
+  unique("fornecedores_empresa_id_uq").on(t.empresaId, t.id),
 ]);
 
 export const fornecedorHistoricoTable = pgTable("fornecedor_historico", {

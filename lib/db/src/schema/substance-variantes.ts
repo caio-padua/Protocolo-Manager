@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, foreignKey, integer, jsonb, numeric, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { check, foreignKey, integer, jsonb, numeric, pgTable, serial, text, timestamp, unique, uniqueIndex } from "drizzle-orm/pg-core";
 import { empresasTable } from "./empresas";
 import { substancesTable } from "./substances";
 import { fornecedoresTable } from "./fornecedores";
@@ -19,7 +19,7 @@ export const substanceVariantesTable = pgTable("substance_variantes", {
   versao: integer("versao").notNull().default(1),
   criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  uniqueIndex("substance_variantes_empresa_id_uq").on(t.empresaId, t.id),
+  unique("substance_variantes_empresa_id_uq").on(t.empresaId, t.id),
   check("substance_variantes_campos_ck", sql`length(btrim(${t.doseTotal})) > 0 AND length(btrim(${t.forma})) > 0 AND length(btrim(${t.viasFonte})) > 0 AND (${t.volumeMl} IS NULL OR ${t.volumeMl} > 0)`),
   check("substance_variantes_implante_ck", sql`${t.subtipoImplante} IS NULL OR (${t.forma} = 'implante' AND ${t.subtipoImplante} IN ('absorvivel', 'nao_absorvivel'))`),
 ]);
@@ -47,7 +47,7 @@ export const substanceOfertasTable = pgTable("substance_ofertas", {
   foreignKey({ name: "substance_ofertas_variante_empresa_fk", columns: [t.empresaId, t.varianteId], foreignColumns: [substanceVariantesTable.empresaId, substanceVariantesTable.id] }),
   foreignKey({ name: "substance_ofertas_fornecedor_empresa_fk", columns: [t.empresaId, t.fornecedorId], foreignColumns: [fornecedoresTable.empresaId, fornecedoresTable.id] }),
   uniqueIndex("substance_ofertas_origem_uq").on(t.empresaId, t.origemChave),
-  uniqueIndex("substance_ofertas_empresa_id_uq").on(t.empresaId, t.id),
+  unique("substance_ofertas_empresa_id_uq").on(t.empresaId, t.id),
   uniqueIndex("substance_ofertas_posicao_uq").on(t.varianteId, t.posicao),
   check("substance_ofertas_valores_ck", sql`${t.posicao} BETWEEN 1 AND 5 AND ${t.pagina} > 0 AND ${t.linha} > 0 AND ${t.quantidadeEmbalagem} > 0 AND ${t.custoUnitarioCentavos} >= 0 AND ${t.custoEmbalagemCentavos} >= 0 AND length(btrim(${t.origemChave})) > 0 AND length(btrim(${t.fonteTexto})) > 0 AND length(btrim(${t.documento})) > 0 AND length(btrim(${t.embalagemOriginal})) > 0`),
 ]);
