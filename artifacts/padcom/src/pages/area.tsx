@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
+import { PreCadastroObrigatorio, usePreCadastro } from "@/components/area/PreCadastroObrigatorio";
 import { ComunicacaoPaineis } from "@/components/area/ComunicacaoPaineis";
 import { tituloProprio } from "@/lib/utils";
 import {
@@ -184,7 +185,24 @@ export default function Area() {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, [tab]);
 
+  const preCadastro = usePreCadastro(client?.token ?? null, !!client && !adminMode);
+
   if (!client) return <LoginScreen onSuccess={setClient} />;
+
+  if (preCadastro.situacao === "carregando") {
+    return <div className="min-h-screen flex items-center justify-center text-sm font-semibold">Carregando…</div>;
+  }
+  if (preCadastro.situacao === "erro") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="text-sm font-semibold">Não foi possível conferir seu cadastro.</p>
+        <button type="button" onClick={preCadastro.refazer} className="bevel-3d h-11 px-6 font-black uppercase tracking-widest text-xs">TENTAR DE NOVO</button>
+      </div>
+    );
+  }
+  if (preCadastro.situacao === "pendente" && preCadastro.estado) {
+    return <PreCadastroObrigatorio token={client.token} estado={preCadastro.estado} onConcluido={preCadastro.concluir} />;
+  }
 
   const themeClass = theme === "dark" ? "dark" : "";
 

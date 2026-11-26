@@ -679,3 +679,50 @@ CREATE TABLE IF NOT EXISTS sinapses_clinicas_propostas (
 );
 CREATE INDEX IF NOT EXISTS sinapses_clinicas_propostas_status_idx
   ON sinapses_clinicas_propostas (status, id);
+
+-- ── Papéis por clínica (Fatia 1 do Plano Mestre de Permissões) ─────────────
+-- Cinco interruptores INDEPENDENTES por profissional e por clínica (empresa_id).
+-- Aditivo e idempotente. Não substitui category/role atuais (Regra de Ouro).
+CREATE TABLE IF NOT EXISTS professional_papeis_empresa (
+  id              SERIAL PRIMARY KEY,
+  professional_id INTEGER NOT NULL REFERENCES professionals(id),
+  empresa_id      INTEGER NOT NULL REFERENCES empresas(id),
+  is_clinic_admin BOOLEAN NOT NULL DEFAULT FALSE,
+  is_doctor       BOOLEAN NOT NULL DEFAULT FALSE,
+  is_nurse        BOOLEAN NOT NULL DEFAULT FALSE,
+  is_reception    BOOLEAN NOT NULL DEFAULT FALSE,
+  is_finance      BOOLEAN NOT NULL DEFAULT FALSE,
+  origem          TEXT NOT NULL DEFAULT 'categoria',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT professional_papeis_empresa_uk UNIQUE (professional_id, empresa_id)
+);
+CREATE INDEX IF NOT EXISTS professional_papeis_empresa_empresa_idx
+  ON professional_papeis_empresa (empresa_id);
+
+-- Preenchimento inicial SÓ a partir da categoria já cadastrada (nada inventado).
+INSERT INTO professional_papeis_empresa
+  (professional_id, empresa_id, is_clinic_admin, is_doctor, is_nurse, is_reception, is_finance, origem)
+SELECT p.id, p.empresa_id,
+  p.category = 'administrador_clinica',
+  p.category = 'medico',
+  p.category = 'enfermagem',
+  p.category = 'recepcao',
+  p.category = 'financeiro',
+  'categoria'
+FROM professionals p
+WHERE p.empresa_id IS NOT NULL
+  AND p.category IN ('administrador_clinica','medico','enfermagem','recepcao','financeiro')
+ON CONFLICT (professional_id, empresa_id) DO NOTHING;
+
+-- Decisão do Dr. Caio (cenário 3): médico + administrador na própria clínica.
+UPDATE professional_papeis_empresa SET is_clinic_admin = TRUE, origem = 'decisao_ceo', updated_at = NOW()
+ WHERE professional_id = 6 AND empresa_id = 5 AND NOT is_clinic_admin;
+INSERT INTO professional_papeis_empresa (professional_id, empresa_id, is_clinic_admin, is_doctor, origem)
+SELECT 7, 2, TRUE, TRUE, 'decisao_ceo'
+WHERE EXISTS (SELECT 1 FROM professionals WHERE id = 7) AND EXISTS (SELECT 1 FROM empresas WHERE id = 2)
+ON CONFLICT (professional_id, empresa_id) DO NOTHING;
+
+-- Pré-cadastro obrigatório da área do cliente (/area): só quem foi convidado é exigido.
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS pre_cadastro_exigido BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS pre_cadastro_completo_em TIMESTAMPTZ;

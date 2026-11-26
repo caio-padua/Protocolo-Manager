@@ -49,6 +49,9 @@ export const clientsTable = pgTable("clients", {
   needsReview: boolean("needs_review").notNull().default(false),
   // Cadastro que representa o celular oficial da empresa/licenca; so o CEO liga (rota /clients/:id/canal-clinica).
   numeroOficialEmpresa: boolean("numero_oficial_empresa").notNull().default(false),
+  // Pré-cadastro obrigatório em /area: exigido só para convidados; completo_em marca o fim.
+  preCadastroExigido: boolean("pre_cadastro_exigido").notNull().default(false),
+  preCadastroCompletoEm: timestamp("pre_cadastro_completo_em", { withTimezone: true }),
   deletedAt: timestamp("deleted_at", { withTimezone: true }).default(sql`NULL`),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

@@ -229,6 +229,15 @@ Qualquer dúvida, estamos à disposição! 😊`;
     }
   }
 
+  // Convite entregue: a área do cliente passa a exigir o pré-cadastro completo.
+  if (resultados.some((r) => r.ok)) {
+    try {
+      await db.update(clientsTable).set({ preCadastroExigido: true }).where(and(eq(clientsTable.id, clientId), eq(clientsTable.empresaId, clinic.id)));
+    } catch (err) {
+      console.error("[Onboarding] Falha ao marcar pré-cadastro exigido:", err instanceof Error ? err.message : err);
+    }
+  }
+
   res.json({ ok: resultados.some((r) => r.ok), resultados });
 });
 

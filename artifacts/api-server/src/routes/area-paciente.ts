@@ -26,6 +26,7 @@ import { codigoTelegramSemantico } from "../lib/telegram-codigo";
 import { BOT_USERNAME, BOT_LINK, emitirLinkMagico } from "../lib/telegram-magic-link";
 import { contarCadastrosComCodigo } from "../lib/telegram-contato";
 import { z } from "zod/v4";
+import { lerEstadoPreCadastro, pendentesDe, CAMPOS_PRE_CADASTRO } from "../lib/pre-cadastro";
 
 // ===========================================================================
 // AREA DO PACIENTE (token-bound, sem auth de admin)
@@ -55,6 +56,64 @@ function unauthorized(res: Response) {
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+// ── Pré-cadastro obrigatório ────────────────────────────────────────────────
+// Convidado com cadastro incompleto não abre nenhuma rota da área (428), exceto
+// as de entrada e a do próprio pré-cadastro. Token inválido segue para a rota,
+// que responde 401 como sempre.
+const ROTAS_LIVRES_PRE_CADASTRO = ["/area-paciente/login", "/area-paciente/trocar-senha", "/area-paciente/definir-senha", "/area-paciente/pre-cadastro"];
+router.use("/area-paciente", async (req: Request, res: Response, next) => {
+  const caminho = `/area-paciente${req.path === "/" ? "" : req.path}`;
+  if (ROTAS_LIVRES_PRE_CADASTRO.includes(caminho)) { next(); return; }
+  const clientId = getClientId(req);
+  if (clientId === null) { next(); return; }
+  try {
+    const est = await lerEstadoPreCadastro(clientId);
+    if (est && !est.completo) {
+      res.status(428).json({ error: "Complete seu cadastro para continuar.", codigo: "PRE_CADASTRO_PENDENTE", pendentes: est.pendentes });
+      return;
+    }
+    next();
+  } catch (err) {
+    console.error("[Area] Falha ao conferir pré-cadastro:", err instanceof Error ? err.message : err);
+    res.status(503).json({ error: "Não foi possível conferir seu cadastro. Tente novamente." });
+  }
+});
+
+router.get("/area-paciente/pre-cadastro", async (req: Request, res: Response): Promise<void> => {
+  const clientId = getClientId(req);
+  if (clientId === null) { unauthorized(res); return; }
+  const est = await lerEstadoPreCadastro(clientId);
+  if (!est) { res.status(404).json({ error: "Cadastro não encontrado." }); return; }
+  res.json({ ...est, campos: CAMPOS_PRE_CADASTRO });
+});
+
+const preCadastroBody = z.object({
+  birthDate: z.string().trim(),
+  phone: z.string().trim(),
+  email: z.string().trim(),
+  sexoBiologico: z.string().trim(),
+  address: z.string().trim(),
+});
+
+router.post("/area-paciente/pre-cadastro", async (req: Request, res: Response): Promise<void> => {
+  const clientId = getClientId(req);
+  if (clientId === null) { unauthorized(res); return; }
+  const parsed = preCadastroBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Dados inválidos." }); return; }
+  const v = { ...parsed.data, sexoBiologico: parsed.data.sexoBiologico.toUpperCase() };
+  const pendentes = pendentesDe(v);
+  if (pendentes.length > 0) { res.status(400).json({ error: "Preencha todos os campos obrigatórios.", pendentes }); return; }
+  const est = await lerEstadoPreCadastro(clientId);
+  if (!est) { res.status(404).json({ error: "Cadastro não encontrado." }); return; }
+  if (!est.exigido) { res.status(409).json({ error: "Este cadastro não exige pré-cadastro." }); return; }
+  await db.execute(sql`
+    UPDATE clients SET birth_date = ${v.birthDate}, phone = ${v.phone}, email = ${v.email},
+      sexo_biologico = ${v.sexoBiologico}, address = ${v.address},
+      pre_cadastro_completo_em = NOW(), updated_at = NOW()
+    WHERE id = ${clientId}`);
+  res.json({ ok: true });
+});
 
 // Erro GENERICO de acesso (linha vermelha 4 — anti-enumeracao: nunca revela se o
 // CPF existe ou se a senha e que esta errada).

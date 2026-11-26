@@ -77,3 +77,4 @@ export * from "./client-avaliacoes";
 export * from "./antropometria-figuras";
 export * from "./client-body-photos";
 export * from "./evolution-accounts";
+export * from "./professional-papeis-empresa";

@@ -11,6 +11,7 @@ import {
 import { createPortalToken, verifyPortalToken } from "../lib/portal-token";
 import { startExamIngestion } from "./exames-lab";
 import { brtDateStr } from "../lib/brt";
+import { lerEstadoPreCadastro } from "../lib/pre-cadastro";
 import {
   buildExamFileName,
   classifyExamLabel,
@@ -173,6 +174,11 @@ router.post(
       const client = clients[0];
       if (client.status !== "active") {
         res.status(404).json({ error: "Cliente não encontrado" });
+        return;
+      }
+      const preCadastro = await lerEstadoPreCadastro(client.id);
+      if (preCadastro && !preCadastro.completo) {
+        res.status(428).json({ error: "Complete seu cadastro para continuar.", codigo: "PRE_CADASTRO_PENDENTE", pendentes: preCadastro.pendentes });
         return;
       }
       // Exame clínico: o conteúdo precisa ser PDF, JPEG ou PNG de verdade e coerente com o tipo declarado.
