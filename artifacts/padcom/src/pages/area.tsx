@@ -5,7 +5,7 @@ import {
   User, Loader2, AlertCircle, ChevronRight, LogOut, Home, Syringe,
   CalendarDays, FileText, Upload, CheckCircle, Download, Clock,
   FileUp, Wallet, FlaskConical, ClipboardList, KeyRound, ChevronDown, ChevronUp,
-  HelpCircle, MessageCircle, TrendingUp, Sun, Moon, Crown, Award, Camera, ShieldCheck, Activity,
+  MessageCircle, TrendingUp, Sun, Moon, Crown, Award, Camera, ShieldCheck, Activity,
 } from "lucide-react";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PaxterWordmarkArt } from "@/components/layout/paxter-fx/PaxterWordmarkArt";
@@ -117,8 +117,6 @@ const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "agenda",     label: "AGENDA",      icon: CalendarDays },
   { key: "documentos", label: "DOCUMENTOS",  icon: FileText },
   { key: "enviar",     label: "UPLOAD EXAMES", icon: Upload },
-  { key: "duvidas",    label: "DÚVIDAS",     icon: HelpCircle },
-  { key: "suporte",    label: "SUPORTE",     icon: MessageCircle },
   { key: "evolucao",   label: "EVOLUÇÃO",    icon: TrendingUp },
   { key: "pulso",      label: "MEU PULSO",   icon: Activity },
   { key: "fotos",      label: "MINHAS FOTOS", icon: Camera },
@@ -203,10 +201,10 @@ export default function Area() {
           ⚙ MODO VISUALIZAÇÃO ADMIN — você está vendo como o cliente enxerga esta tela
         </div>
       )}
-      {/* Header logado — símbolo glass + wordmark PADAXOR oficial + subtítulo */}
+      {/* Header logado — símbolo glass + wordmark PAX CARE + subtítulo */}
       <header ref={publicarAlturaTopbar} className="panel-3d sticky top-0 z-20 flex items-center justify-between px-4 py-3 border-b border-border/60">
 
-        {/* Esquerda: símbolo glass + PADAXOR wordmark oficial */}
+        {/* Esquerda: símbolo glass + wordmark PAX CARE */}
         <a
           href={PAXTER_SITE_URL}
           target="_blank"
@@ -216,12 +214,7 @@ export default function Area() {
         >
           <PaxterSymbolGlass size={40} tone={theme === "dark" ? "dark" : "light"} sharp={true} />
           <div className="flex flex-col items-start gap-0.5">
-            <img
-              src="/brand/padaxor-wordmark-trim.png"
-              alt="PADAXOR"
-              style={{ height: 22, width: "auto", objectFit: "contain" }}
-              draggable={false}
-            />
+            <span aria-label="PAX CARE" style={{ fontFamily: "'EB Garamond', serif", fontWeight: 800, fontSize: 18, lineHeight: 1, letterSpacing: "0.22em", color: "#b8924d", whiteSpace: "nowrap" }}>PAX CARE</span>
             <p
               className="text-accent"
               style={{
@@ -460,23 +453,13 @@ function TernoFooter({ theme = "light" }: { theme?: "light" | "dark" }) {
       {/* Tecido de terno — risca de giz sobre o rodapé */}
       <div className="leva-fabric" aria-hidden="true" style={{ opacity: isDark ? 0.70 : 0.55 }} />
 
-      {/* Conteúdo — PADAXOR à esquerda, PAXTER à direita */}
+      {/* Conteúdo — PAX CARE à esquerda, PAXTER à direita */}
       <div
         className="relative z-10 flex items-center justify-between max-w-lg mx-auto"
         style={{ gap: 12 }}
       >
-        {/* Wordmark PADAXOR — arte oficial PNG, sem filtros */}
-        <img
-          src="/brand/padaxor-wordmark-trim.png"
-          alt="PADAXOR"
-          style={{
-            height: 18,
-            width: "auto",
-            objectFit: "contain",
-            opacity: isDark ? 0.92 : 0.85,
-          }}
-          draggable={false}
-        />
+        {/* Wordmark PAX CARE (texto) */}
+        <span aria-label="PAX CARE" style={{ fontFamily: "'EB Garamond', serif", fontWeight: 800, fontSize: 15, lineHeight: 1, letterSpacing: "0.22em", color: "#b8924d", whiteSpace: "nowrap", opacity: isDark ? 0.92 : 0.85 }}>PAX CARE</span>
 
         {/* Linha divisória */}
         <div
@@ -522,12 +505,7 @@ function LoginShell({ subtitle, children }: { subtitle: string; children: ReactN
               <PaxterSymbolGlass size={52} tone={isDark ? "dark" : "light"} sharp={true} />
             </a>
             <div className="flex flex-col items-start gap-1">
-              <img
-                src="/brand/padaxor-wordmark-trim.png"
-                alt="PADAXOR"
-                style={{ height: 28, width: "auto", objectFit: "contain" }}
-                draggable={false}
-              />
+              <span aria-label="PAX CARE" style={{ fontFamily: "'EB Garamond', serif", fontWeight: 800, fontSize: 23, lineHeight: 1, letterSpacing: "0.22em", color: "#b8924d", whiteSpace: "nowrap" }}>PAX CARE</span>
               <p
                 className="text-accent"
                 style={{

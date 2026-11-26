@@ -42,6 +42,9 @@ function buildAllowedOrigins(): string[] {
   const fromOfficial = [
     "https://paxmed.com.br",
     "https://www.paxmed.com.br",
+    "https://paxcare.com.br",
+    "https://www.paxcare.com.br",
+    "https://lovable.app",
     "https://paxmed.lovable.app",
     "https://padaxor.lovable.app",
   ];
