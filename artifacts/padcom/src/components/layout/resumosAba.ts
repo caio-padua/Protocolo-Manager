@@ -31,7 +31,7 @@ export const RESUMO_ABA: Record<string, string> = {
   "/experiencia-cliente": "Como o cliente enxerga o sistema",
   "/area": "PaxCare, visão direta",
   "/prescricao": "Prescrever fórmulas e protocolos",
-  "/substances": "Catálogo de fórmulas e substâncias",
+  "/substances": "Cadastro de substâncias (fonte de procedimentos, protocolos, matrix e estoque)",
   "/dieta": "Plano alimentar do cliente",
   "/central-pesquisa": "Buscar em todo o sistema",
   "/treino": "Plano de treino do cliente",

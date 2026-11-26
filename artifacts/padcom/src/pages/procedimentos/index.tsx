@@ -708,9 +708,9 @@ export default function Procedimentos() {
               <div className="flex items-start gap-3">
                 <Syringe className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                 <div>
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Substâncias do catálogo</h3>
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Substâncias — Cadastro</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Vínculos usam os registros existentes. Consulta não exige substância.
+                    Vínculos usam o menu Cadastros Clínicos › Substâncias — Cadastro. Consulta não exige substância.
                     O primeiro produto pode sugerir nome e duração; revise os campos.
                   </p>
                   {!vinculosHabilitados && <p className="mt-1 text-xs font-semibold text-amber-800" role="note">

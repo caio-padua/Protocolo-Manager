@@ -175,7 +175,6 @@ const navigation: NavEntry[] = [
     icon: ClipboardList,
     children: [
       { name: "Prescrição", href: "/prescricao", icon: ClipboardList },
-      { name: "Fórmulas & Substâncias", href: "/substances", icon: Beaker },
       { name: "Dieta", href: "/dieta", icon: Salad },
       { name: "Central de Pesquisa", href: "/central-pesquisa", icon: Search },
       { name: "Treino", href: "/treino", icon: Dumbbell },
@@ -204,6 +203,7 @@ const navigation: NavEntry[] = [
       { name: "Protocolos", href: "/protocols", icon: FlaskConical },
       { name: "Procedimentos", href: "/procedimentos", icon: ClipboardList },
       { name: "Fornecedores e Fabricantes", href: "/fornecedores", icon: Building2 },
+      { name: "Substâncias — Cadastro", href: "/substances", icon: Beaker },
       { name: "Matrix: Substâncias x Fornecedores", href: "/matriz-fornecedores", icon: Table2 },
       { name: "RASP", href: "/ras", icon: FileText },
       { name: "Catálogos", href: "/catalogos", icon: Library },
