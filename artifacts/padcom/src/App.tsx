@@ -133,6 +133,7 @@ import DominioEditPage from "@/pages/comunicacao/dominio-edit";
 import PropostaNova from "@/pages/comunicacao/proposta-nova";
 import Hierarquia from "@/pages/hierarquia";
 import CommandCenter from "@/pages/CommandCenter";
+import CabineComando from "@/pages/CabineComando";
 import ConciergePenalidades from "@/pages/ConciergePenalidades";
 import Governanca from "@/pages/governanca";
 import EmpresasLicenciadas from "@/pages/cadastros/empresas-licenciadas";
@@ -388,6 +389,7 @@ function Router() {
             <Route path="/comunicacao/dominios" component={PainelDominios} />
             <Route path="/hierarquia" component={Hierarquia} />
             <Route path="/ceo/command-center" component={CommandCenter} />
+            <Route path="/ceo/cabine" component={CabineComando} />
             <Route path="/ceo/concierge-penalidades" component={ConciergePenalidades} />
             <Route path="/prova-de-valor" component={ProvaDeValor} />
             <Route path="/vitrine-leads" component={VitrineLeads} />

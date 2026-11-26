@@ -10,6 +10,7 @@ import { ensureExamSetsTable } from "./lib/exam-sets";
 import { ensureSystemErrorLogTable } from "./lib/system-error-log";
 import { ensurePrescriptionProtocolsTable } from "./lib/ensure-prescription-protocols";
 import { ensurePedidosMedicosTable } from "./lib/ensure-pedidos-medicos.js";
+import { ensureCeoDocumentosTable } from "./lib/ensure-ceo-documentos.js";
 import { ensurePaxcareTables } from "./lib/ensure-paxcare.js";
 import { ensurePaxcarePlanosTables } from "./lib/paxcare-planos.js";
 import { ensureClinicalDocumentReissuesTable } from "./lib/ensure-clinical-document-reissues.js";
@@ -157,6 +158,7 @@ if (Number.isNaN(port) || port <= 0) {
 
   try {
     await ensurePedidosMedicosTable();
+    await ensureCeoDocumentosTable();
     await ensurePaxcareTables();
     await ensurePaxcarePlanosTables();
     await ensureClinicalDocumentReissuesTable();

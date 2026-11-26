@@ -283,6 +283,7 @@ const navigation: NavEntry[] = [
     icon: Network,
     children: [
       { name: "CEO Command Center", href: "/ceo/command-center", icon: Crown },
+      { name: "Cabine de Comando", href: "/ceo/cabine", icon: Compass },
       { name: "Penalidades Concierge", href: "/ceo/concierge-penalidades", icon: ShieldOff },
       { name: "Prova de Valor", href: "/prova-de-valor", icon: TrendingUp },
       { name: "Leads da Vitrine", href: "/vitrine-leads", icon: Sparkles },

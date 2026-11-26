@@ -9,6 +9,7 @@ import { logger } from "./lib/logger";
 import { caminhoSeguroParaLog } from "./lib/redact";
 import { checkAiSetup } from "./lib/ai-central";
 import { tenantContextMiddleware } from "./middleware/tenantContext";
+import { papeisEmpresaMiddleware } from "./middleware/papeisEmpresa";
 import { corsMiddleware, helmetMiddleware, rateLimitMiddleware } from "./middleware/securityConfig";
 import { basicAuthMiddleware } from "./middleware/basicAuth";
 import { errorCaptureMiddleware } from "./middleware/errorCapture";
@@ -91,6 +92,7 @@ app.get("/preview-capa.pdf", (_req, res) => {
 app.use(basicAuthMiddleware);
 app.use(rateLimitMiddleware);
 app.use(tenantContextMiddleware);
+app.use("/api", papeisEmpresaMiddleware);
 app.use(protecaoCredenciaisMiddleware);
 app.use(errorCaptureMiddleware);
 

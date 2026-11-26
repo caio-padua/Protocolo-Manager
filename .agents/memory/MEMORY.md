@@ -197,3 +197,5 @@
 - [Formatador da Helena e cérebro global](helena-formatador-global.md) — formato aplicado no envio; base global anonimizada com consentimento.
 - [Teste real Telegram Dayana/Carlúcia](teste-telegram-dayana-carlucia.md) — rota enviar-teste + três listas de autorização distintas; envio pelo Cockpit pausa a IA.
 - [Troca PAXTER por PAXMED na marca](paxmed-wordmark-troca-arte.md) — só a imagem da palavra mudou; motor de luz, símbolo e subtítulo intactos.
+- [Autorização por papel x clínica no servidor](autorizacao-papeis-servidor.md) — guard global lê professional_papeis_empresa; matriz em lib/papeis-acesso.ts; 158 testes antigos já falhavam sem ele.
+- [Cabine de Comando do CEO](cabine-comando-ceo.md) — /ceo/cabine; organograma calculado da regra real; docs em docs/permissoes; documentos arquivados, não apagados.
