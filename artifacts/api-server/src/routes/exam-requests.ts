@@ -4,6 +4,10 @@ import { randomBytes } from "node:crypto";
 import { db, examRequestPdfsTable, professionalsTable } from "@workspace/db";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { eq } from "drizzle-orm";
+import { pool } from "@workspace/db";
+import { resolveEmpresaId } from "../middleware/tenantContext";
+import { moduleGuard } from "../middleware/moduleGuard";
+import { criarTokenExame, decidirAcessoExame, ehTokenLegado, ehTokenNovo, emissaoLinkNovoLigada, tokenParaEnvio, verificarTokenExame } from "../lib/exam-link";
 import { z } from "zod";
 import { generateExamRequestPdf, type ExamRequestItem } from "../lib/exam-request-pdf";
 import { enviarMensagemPaxter, type PaxterDoc } from "../lib/messaging/index.js";
@@ -95,7 +99,7 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
           tipoLabel: TIPO_LABEL[row.tipo] ?? row.tipo,
           fileName: row.fileName,
           examCount: row.examCount,
-          url: `${baseUrl}/api/exam-requests/file/${row.token}`,
+          url: `${baseUrl}/api/exam-requests/file/${tokenParaEnvio(row)}`,
         })),
         email: { attempted: false, success: false },
         whatsapp: { attempted: false, success: false },
@@ -311,7 +315,7 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
       tipoLabel: document.tipoLabel,
       fileName: document.fileName,
       examCount: document.examCount,
-      url: `${baseUrl}/api/exam-requests/file/${document.token}`,
+      url: `${baseUrl}/api/exam-requests/file/${emissaoLinkNovoLigada() ? criarTokenExame({ pdfId: id, clientId: body.clientId }) : document.token}`,
     });
     attachments.push({
       filename: document.fileName,
@@ -368,28 +372,72 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
 
 // Servido por token aleatorio (nao por id sequencial) para evitar enumeracao
 // de documentos clinicos de outros pacientes (IDOR).
+const moduloExames = moduleGuard("exames_lab");
+let colunasLinkProntas = false;
+// Aditivo e idempotente (Regra de Ouro): nada é apagado nem reescrito.
+async function garantirColunasLinkExame(): Promise<void> {
+  if (colunasLinkProntas) return;
+  await pool.query(`ALTER TABLE exam_request_pdfs ADD COLUMN IF NOT EXISTS revogado_em TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE exam_request_pdfs ADD COLUMN IF NOT EXISTS revogado_por TEXT`);
+  colunasLinkProntas = true;
+}
+
 async function servirPdfDeExame(req: Request, res: import("express").Response, token: string, via: string): Promise<void> {
   protegerRespostaLink(res);
   if (excedeuLimiteLink(req, "exame")) { res.status(429).json({ error: "Muitas tentativas. Aguarde um minuto." }); return; }
-  if (!/^[a-f0-9]{48}$/.test(token)) {
+  if (!ehTokenLegado(token) && !ehTokenNovo(token)) {
     await auditarAcessoLink(req, "exame", via, "recusado");
     res.status(400).json({ error: "token inválido" });
     return;
   }
-  const [row] = await db
-    .select()
-    .from(examRequestPdfsTable)
-    .where(eq(examRequestPdfsTable.token, token));
-  await auditarAcessoLink(req, "exame", via, row && row.pdfData ? "aceito" : "recusado");
-  if (!row || !row.pdfData) {
-    res.status(404).json({ error: "PDF não encontrado" });
-    return;
+  await garantirColunasLinkExame();
+  let row: (typeof examRequestPdfsTable.$inferSelect) | undefined;
+  let revogadoEm: Date | null = null;
+  if (ehTokenNovo(token)) {
+    const v = verificarTokenExame(token);
+    if (v.ok) [row] = await db.select().from(examRequestPdfsTable).where(eq(examRequestPdfsTable.id, v.pdfId));
+    if (row) revogadoEm = (await pool.query(`SELECT revogado_em FROM exam_request_pdfs WHERE id=$1`, [row.id])).rows[0]?.revogado_em ?? null;
+    const d = decidirAcessoExame(v, row ? { id: row.id, clientId: row.clientId, revogadoEm } : undefined);
+    if (d !== "liberar" || !row || !row.pdfData) {
+      await auditarAcessoLink(req, "exame", via + ":v1:" + d, "recusado", v.ok ? v.clientId : null);
+      const status = d === "negar_inexistente" ? 404 : d === "negar_invalido" ? 400 : 410;
+      res.status(status).json({ error: d === "negar_expirado" ? "Link vencido. Peça um novo à clínica." : d === "negar_revogado" ? "Link cancelado pela clínica." : d === "negar_inexistente" ? "PDF não encontrado" : "token inválido" });
+      return;
+    }
+    await auditarAcessoLink(req, "exame", via + ":v1", "aceito", row.clientId);
+  } else {
+    [row] = await db.select().from(examRequestPdfsTable).where(eq(examRequestPdfsTable.token, token));
+    if (row) revogadoEm = (await pool.query(`SELECT revogado_em FROM exam_request_pdfs WHERE id=$1`, [row.id])).rows[0]?.revogado_em ?? null;
+    // Legado: sem validade (decisão operacional pendente), mas a revogação também vale.
+    await auditarAcessoLink(req, "exame", via + ":legado", row && row.pdfData && !revogadoEm ? "aceito" : "recusado", row?.clientId ?? null);
+    if (row && revogadoEm) { res.status(410).json({ error: "Link cancelado pela clínica." }); return; }
+    if (!row || !row.pdfData) { res.status(404).json({ error: "PDF não encontrado" }); return; }
   }
   const buf = Buffer.from(row.pdfData, "base64");
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `inline; filename="${row.fileName}"`);
   res.send(buf);
 }
+
+// Revogação: a clínica cancela o link de um documento (vale para link novo E legado). Não apaga o PDF.
+router.post("/exam-requests/:id/revogar", requireCollaborator, moduloExames, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) { res.status(400).json({ error: "Documento inválido." }); return; }
+  try {
+    await garantirColunasLinkExame();
+    const empresaId = resolveEmpresaId(req);
+    const r = await pool.query(
+      `UPDATE exam_request_pdfs p SET revogado_em = COALESCE(p.revogado_em, now()), revogado_por = $3
+         WHERE p.id = $1 AND EXISTS (SELECT 1 FROM clients c WHERE c.id = p.client_id AND c.empresa_id = $2)
+       RETURNING p.id`,
+      [id, empresaId, String((req as { tenantContext?: { userId?: unknown } }).tenantContext?.userId ?? "colaborador")]);
+    if (r.rowCount === 0) { res.status(404).json({ error: "Documento não encontrado." }); return; }
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err: String(err) }, "revogar link de exame");
+    res.status(500).json({ error: "Não foi possível cancelar o link." });
+  }
+});
 
 // Caminho ANTIGO (links já enviados por WhatsApp/e-mail): continua valendo; o token fica no caminho da URL.
 router.get("/exam-requests/file/:token", async (req, res): Promise<void> => {

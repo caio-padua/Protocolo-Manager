@@ -23,6 +23,7 @@ import {
 } from "../lib/telegram-exam-followup-store";
 import { brtNow } from "../lib/brt";
 
+import { tokenParaEnvio } from "../lib/exam-link";
 const router = Router();
 const labels: Record<string, string> = { SANGUE: "Sangue / Laboratorial", IMAGEM: "Imagem", OUTROS: "Outros / Procedimentos" };
 // Keep every link intact below the smaller Telegram media-caption limit.
@@ -194,7 +195,7 @@ router.post("/exam-requests/send", requireCollaborator, async (req, res) => {
       eyebrow: "Documentos do seu atendimento",
       assunto: "Solicitação de exames",
       paragrafos: ["Os pedidos conferidos estão disponíveis nos links abaixo.",
-        ...rows.map(row => `${row.fileName.slice(0, 120)}: ${baseUrl}/api/exam-requests/file/${row.token}`)],
+        ...rows.map(row => `${row.fileName.slice(0, 120)}: ${baseUrl}/api/exam-requests/file/${tokenParaEnvio(row)}`)],
       anexos: rows.map(row => ({ filename: row.fileName, content: Buffer.from(row.pdfData, "base64"), contentType: "application/pdf" })),
     };
     const compactBatches = messageBatches(doc);
