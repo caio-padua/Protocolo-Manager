@@ -57,6 +57,7 @@ const MSG: Record<string, string> = {
   medicacao_nao_encontrada: "Medicamento não encontrado.",
   status_invalido: "Escolha Tomei ou Esqueci.",
   horario_nao_encontrado: "Esse horário não está na sua rotina.",
+  horario_ambiguo: "Há dois medicamentos com o mesmo nome neste horário. Atualize a tela e tente de novo.",
   texto_de_consentimento_desatualizado: "O texto de autorização mudou. Leia de novo e confirme.",
 };
 function responderErro(req: Request, res: Response, err: unknown, rotulo: string): void {
@@ -196,6 +197,7 @@ const tomadaSchema = z.object({
   nome: z.string().trim().min(1).max(200),
   sigla: z.string().trim().min(2).max(3),
   status: z.enum(["tomei", "esqueci"]),
+  referenciaId: z.number().int().positive().nullish(),
 }).strict();
 
 // Horários-chave de hoje + adesão 7/15/30 dias, separados por origem. A data é SEMPRE a de Brasília no servidor.

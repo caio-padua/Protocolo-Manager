@@ -6,9 +6,9 @@ import { iniciarPgDescartavel } from "./helpers/pg-descartavel";
 
 vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_q: unknown, _s: unknown, n: () => void) => n() }));
 vi.mock("../lib/logger", () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
-const ctx = vi.hoisted(() => ({ owner: true }));
+const ctx = vi.hoisted(() => ({ owner: true, empresa: 1 }));
 vi.mock("../routes/collaborator", () => ({
-  requireCollaborator: (req: any, _res: any, next: any) => { req.tenantContext = { isPlatformOwner: ctx.owner, empresaId: 1, professionalId: 7 }; next(); },
+  requireCollaborator: (req: any, _res: any, next: any) => { req.tenantContext = { isPlatformOwner: ctx.owner, empresaId: ctx.empresa, professionalId: 7 }; next(); },
 }));
 vi.mock("../lib/objectStorage", () => ({ ObjectStorageService: class {} }));
 vi.mock("../lib/pre-cadastro", async (orig) => ({ ...(await orig<typeof import("../lib/pre-cadastro")>()), lerEstadoPreCadastro: async () => ({ completo: true, pendentes: [], valores: {} }) }));
@@ -139,5 +139,36 @@ describe("tokens fora dos logs", () => {
       expect(redigirTexto(linha)).not.toContain(t);
       expect(caminhoSeguroParaLog(`/api/exam-requests/file/${t}?x=1`)).not.toContain(t);
     }
+  });
+});
+
+describe("segurança de exames: cabeçalho e isolamento entre empresas na revogação", () => {
+  it("visualização (aceita ou recusada) sempre manda Referrer-Policy: no-referrer", async () => {
+    // documento novo e token novo: independe do estado da política de legados dos testes anteriores
+    const doc = (await pool.query(`INSERT INTO exam_request_pdfs (token, client_id, file_name, pdf_data, created_at) VALUES ($1,1,'h.pdf',$2,now()) RETURNING id`, ["e5".repeat(24), PDF])).rows[0].id;
+    const tok = novo({ pdfId: doc, clientId: 1 });
+    const ok = await abrir(tok);
+    expect(ok.status).toBe(200);
+    expect(ok.headers["referrer-policy"]).toBe("no-referrer");
+    const ruim = await abrir("lixo");
+    expect(ruim.status).toBe(400);
+    expect(ruim.headers["referrer-policy"]).toBe("no-referrer");
+    const arq = await request(app).get("/api/exam-requests/arquivo").set("X-Link-Token", tok);
+    expect(arq.headers["referrer-policy"]).toBe("no-referrer");
+  });
+
+  it("clínica A não revoga documento de cliente da clínica B (404) e o documento segue abrindo", async () => {
+    const TOK_C = "d4".repeat(24);
+    const ins = await pool.query(`INSERT INTO exam_request_pdfs (token, client_id, file_name, pdf_data, created_at) VALUES ($1,3,'c.pdf',$2,'2026-06-16') RETURNING id`, [TOK_C, PDF]);
+    const idC = ins.rows[0].id;
+    ctx.empresa = 1;
+    expect((await request(app).post(`/api/exam-requests/${idC}/revogar`)).status).toBe(404);
+    expect((await pool.query(`SELECT revogado_em FROM exam_request_pdfs WHERE id=$1`, [idC])).rows[0].revogado_em).toBeNull();
+    const tokC = novo({ pdfId: idC, clientId: 3 });
+    expect((await abrir(tokC)).status).toBe(200);
+    ctx.empresa = 2;
+    expect((await request(app).post(`/api/exam-requests/${idC}/revogar`)).status).toBe(200);
+    expect((await abrir(tokC)).status).toBe(410);
+    ctx.empresa = 1;
   });
 });

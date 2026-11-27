@@ -25,7 +25,6 @@
 - [SaaS multiclínica](saas-multitenant-onda-abc.md) — PAXTER é marca futura; vínculos empresariais atuais são simulações e a autoridade global pertence ao profissional.
 - [Restrição SQL do vínculo empresarial](empresa-check-relacionamento.md) — a restrição de valores pode existir no PostgreSQL sem estar declarada no esquema Drizzle; alinhar restrição, padrão e valida
 - [CEO Command Center + Pirâmide](ceo-command-center.md) — SSE /api/ceo/stream push 30s; moduleGuard fábrica fail-open; stockTable=stockItemsTable (nome real); scheduledDate é TEXT "YYYY-MM-DD" (eq, n
-- [PADCOM global typecheck is pre-broken](padcom-typecheck.md) — repo typecheck fails on stale generated/codegen types; validate by runtime/curl + screenshots, not tsc.
 - [api-zod barrel TS2308](api-zod-barrel-ts2308.md) — index.ts exporta SÓ generated/api; reexportar generated/types colide const zod x type homônimo; export type * não resolve.
 - [Asaas integration quirks](asaas-integration-quirks.md) — header access_token (não Bearer); base prod /v3 vs sandbox /api/v3; criar customer antes do payment; saque bloqueado por padrão (insufficien
 - [NULL nao colide em UNIQUE (Postgres)](postgres-null-unique-idempotencia.md) — onConflictDoNothing falha em coluna nullable do indice unico; idempotencia exige guarda de existencia manual.
@@ -203,3 +202,4 @@
 - [Transmutação visual do CEO](cabine-comando-ceo.md) — seletor só visual (lib/transmutacao.ts, flag HOMOLOGACAO_PERMISSOES); usa o mapa real do servidor; e2e com token do CEO.
 - [Área do Cliente: token e exclusão de conta](area-cliente-apple-exclusao-token.md) — token só em cabeçalho; exclusão lógica preserva prontuário; cadeados premium em preparação.
 - [Licença, link de exame e estados comerciais](licenca-link-exame-kaizen.md) — fail-closed, link v1 30 dias, política 90 dias, telas só informam.
+- [Adesão: identidade estável e job diário](adesao-identidade-estavel-job.md) — chave com medicacao_id, migração aditiva, job 00:05 só para quem já usou o app.

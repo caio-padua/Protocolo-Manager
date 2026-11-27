@@ -249,6 +249,39 @@ export function iniciarJobLembretes(logger: pino.Logger): void {
   );
 }
 
+/**
+ * Adesão às medicações: às 00:05 (BRT) materializa os horários esperados dos dias em que o cliente não abriu o app,
+ * como "não informado" (nunca inventa Tomei/Esqueci). Idempotente. Não envia mensagem.
+ */
+export function iniciarJobAgendaMedicacaoDiaria(logger: pino.Logger, scheduler: CronScheduler): void {
+  let rodando = false;
+  scheduler.schedule(
+    "5 0 * * *",
+    async () => {
+      if (rodando) return;
+      rodando = true;
+      try {
+        const { materializarDiasSemAbertura, criarTabelaTomadas } = await import(
+          "../../api-server/src/lib/cliente-medicacao-adesao.js" as string
+        );
+        const { brtISODate } = await import("../../api-server/src/lib/brt.js" as string);
+        const { pool } = await import("@workspace/db" as string);
+        await criarTabelaTomadas(pool);
+        const r = await materializarDiasSemAbertura(pool, brtISODate());
+        logger.info(r, "Worker: agenda diária de medicações materializada (00:05 BRT)");
+      } catch (err) {
+        logger.error(
+          { errorType: err instanceof Error ? err.constructor.name : typeof err, errorCategory: categorizarErroDeWorker(err) },
+          "Worker: falha na agenda diária de medicações"
+        );
+      } finally {
+        rodando = false;
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+}
+
 /** Rotina de calendário e preços oficiais; somente leitura da CAIXA, sem pagamento ou registro de apostas. */
 export function iniciarJobCalendarioMeusJogos(logger: pino.Logger, scheduler: CronScheduler): void {
   let rodando = false;
@@ -335,6 +368,7 @@ export function startWorkerJobs(
   // ─── Job 2: Lembrete por período — tick a cada minuto ───────────────────
   iniciarJobLembretes(logger);
   iniciarJobCalendarioMeusJogos(logger, scheduler);
+  iniciarJobAgendaMedicacaoDiaria(logger, scheduler);
 
   // ─── Job 3: Receituário magistral 06h BRT ───────────────────────────────
   cron.schedule(

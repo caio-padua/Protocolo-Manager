@@ -8,7 +8,7 @@ const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export type OrigemLista = "prescrita" | "propria";
 type Status = "tomei" | "esqueci" | null;
-export type HorarioDia = { origem: OrigemLista; nome: string; nomeChave: string; dose: string | null; sigla: string; periodoNome: string; status: Status };
+export type HorarioDia = { origem: OrigemLista; nome: string; nomeChave: string; referenciaId?: number | null; dose: string | null; sigla: string; periodoNome: string; status: Status };
 type Janela = {
   dias: number; tomei: number; esqueci: number; semRegistro: number; esperado: number; percentual: number | null;
   diasComHistorico?: number; diasSemHistorico?: number; suspenso?: number; retirado?: number; diasSuspensos?: number;
@@ -45,7 +45,7 @@ export function useAdesao(token: string) {
       const r = await fetch(`${API_BASE}/api/area-paciente/medicacoes/tomadas`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ origem: h.origem, nome: h.nome, sigla: h.sigla, status }),
+        body: JSON.stringify({ origem: h.origem, nome: h.nome, sigla: h.sigla, status, referenciaId: h.referenciaId ?? null }),
       });
       if (!r.ok) {
         const d = (await r.json().catch(() => ({}))) as { error?: string };
@@ -78,7 +78,7 @@ export function BlocoAdesao({ origem, adesao, somenteLeitura }: {
         <p className="text-primary font-black text-[10px] uppercase tracking-widest">Hoje · {fmtData(dados.data)}</p>
         {horarios.length === 0 && <p className="text-xs text-muted-foreground">Nenhum horário marcado para hoje.</p>}
         {horarios.map((h) => (
-          <div key={`${h.nomeChave}|${h.sigla}`} className="concave-3d rounded-lg p-3 flex items-center justify-between gap-2 flex-wrap">
+          <div key={`${h.nomeChave}|${h.referenciaId ?? 0}|${h.sigla}`} className="concave-3d rounded-lg p-3 flex items-center justify-between gap-2 flex-wrap">
             <div className="min-w-0">
               <p className="text-primary font-black text-sm break-words">{h.nome}</p>
               <p className="text-[10px] uppercase tracking-widest text-accent">{h.periodoNome}{h.dose ? ` · ${h.dose}` : ""}</p>

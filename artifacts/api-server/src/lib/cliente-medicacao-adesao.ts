@@ -51,8 +51,6 @@ const DDL = [
      CONSTRAINT cliente_medicacao_tomadas_origem_ck CHECK (origem IN ('prescrita','propria')),
      CONSTRAINT cliente_medicacao_tomadas_status_ck CHECK (status IN ('tomei','esqueci'))
    )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS ux_cliente_medicacao_tomadas
-     ON cliente_medicacao_tomadas (client_id, origem, nome_chave, data, periodo)`,
   `CREATE INDEX IF NOT EXISTS ix_cliente_medicacao_tomadas_cliente_data
      ON cliente_medicacao_tomadas (client_id, data)`,
   // Instantâneo diário dos horários esperados (histórico real do denominador). Só cresce; nunca é recalculado para trás.
@@ -71,7 +69,32 @@ const DDL = [
   // Situação do horário no dia: ativo (conta no denominador), suspenso (medicação pausada) ou retirado (horário
   // deixou de existir naquele dia por alteração). Linhas nunca são apagadas; só mudam de situação.
   `ALTER TABLE cliente_medicacao_agenda_dia ADD COLUMN IF NOT EXISTS situacao TEXT NOT NULL DEFAULT 'ativo'`,
+  // Quem gravou o instantâneo: 'app' (abertura/registro do cliente) ou 'job_diario' (horário esperado materializado
+  // pelo job das 00:05 quando o cliente não abriu o app; continua SEM resposta = "não informado").
+  `ALTER TABLE cliente_medicacao_agenda_dia ADD COLUMN IF NOT EXISTS registro_origem TEXT NOT NULL DEFAULT 'app'`,
+  // Identidade ESTÁVEL: medicacao_id (cliente_medicacoes.id) passa a fazer parte da chave. Dois remédios próprios
+  // com o mesmo nome deixam de colapsar. Histórico preservado: só se preenche o id quando o nome tem UM só cadastro.
+  `DO $$ BEGIN IF to_regclass('cliente_medicacoes') IS NOT NULL THEN
+     UPDATE cliente_medicacao_tomadas t SET medicacao_id = m.id FROM cliente_medicacoes m
+      WHERE t.origem='propria' AND t.medicacao_id IS NULL AND m.client_id=t.client_id AND m.origem='autodeclarada'
+        AND m.nome_chave=t.nome_chave
+        AND (SELECT count(*) FROM cliente_medicacoes m2 WHERE m2.client_id=t.client_id AND m2.origem='autodeclarada' AND m2.nome_chave=t.nome_chave)=1;
+     UPDATE cliente_medicacao_agenda_dia a SET medicacao_id = m.id FROM cliente_medicacoes m
+      WHERE a.origem='propria' AND a.medicacao_id IS NULL AND m.client_id=a.client_id AND m.origem='autodeclarada'
+        AND m.nome_chave=a.nome_chave
+        AND (SELECT count(*) FROM cliente_medicacoes m2 WHERE m2.client_id=a.client_id AND m2.origem='autodeclarada' AND m2.nome_chave=a.nome_chave)=1;
+   END IF; END $$`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_cliente_medicacao_tomadas_ref
+     ON cliente_medicacao_tomadas (client_id, origem, nome_chave, (COALESCE(medicacao_id, 0)), data, periodo)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_cliente_medicacao_agenda_dia_ref
+     ON cliente_medicacao_agenda_dia (client_id, data, origem, nome_chave, (COALESCE(medicacao_id, 0)), periodo)`,
+  // Só depois de a chave nova existir saem as chaves antigas (só estrutura; nenhuma linha é apagada).
+  `DROP INDEX IF EXISTS ux_cliente_medicacao_tomadas`,
+  `ALTER TABLE cliente_medicacao_agenda_dia DROP CONSTRAINT IF EXISTS cliente_medicacao_agenda_dia_pkey`,
 ];
+
+/** Chave do horário que distingue homônimos: nome + id estável (só remédio próprio tem id). */
+export const chaveItem = (nome: string, referenciaId?: number | null): string => (referenciaId ? `${nome}#${referenciaId}` : nome);
 
 /** Aditivo e idempotente (Regra de Ouro: nunca DROP). */
 export async function criarTabelaTomadas(pool: Pick<Pool, "query">): Promise<void> {
@@ -80,6 +103,8 @@ export async function criarTabelaTomadas(pool: Pick<Pool, "query">): Promise<voi
 
 export interface HorarioDoDia {
   origem: OrigemLista; nome: string; nomeChave: string; dose: string | null;
+  /** id estável (cliente_medicacoes.id) do remédio próprio; null para fórmula da clínica (o lembrete não traz id). */
+  referenciaId: number | null;
   sigla: string; periodoNome: string; status: "tomei" | "esqueci" | null;
 }
 export interface MedicacaoPrescrita { nome: string; dose: string | null; observacao: string | null; periodos: { sigla: string; nome: string }[] }
@@ -114,38 +139,42 @@ export async function horariosDoDia(pool: Pick<Pool, "query">, clientId: number,
   const prescritas = await prescritasDoLembrete(pool, clientId);
   const itens: Omit<HorarioDoDia, "status">[] = [];
   for (const m of prescritas) {
-    for (const p of m.periodos) itens.push({ origem: "prescrita", nome: m.nome, nomeChave: nomeChave(m.nome), dose: m.dose, sigla: p.sigla, periodoNome: p.nome });
+    for (const p of m.periodos) itens.push({ origem: "prescrita", nome: m.nome, nomeChave: nomeChave(m.nome), dose: m.dose, referenciaId: null, sigla: p.sigla, periodoNome: p.nome });
   }
   for (const m of proprias) {
     for (const p of m.periodos) {
-      itens.push({ origem: "propria", nome: m.nome, nomeChave: nomeChave(m.nome), dose: doseTexto(m), sigla: SIGLA_POR_PERIODO[p].sigla, periodoNome: SIGLA_POR_PERIODO[p].nome });
+      itens.push({ origem: "propria", nome: m.nome, nomeChave: nomeChave(m.nome), dose: doseTexto(m), referenciaId: m.id, sigla: SIGLA_POR_PERIODO[p].sigla, periodoNome: SIGLA_POR_PERIODO[p].nome });
     }
   }
   const t = await pool.query(
-    `SELECT origem, nome_chave, periodo, status FROM cliente_medicacao_tomadas WHERE client_id=$1 AND data=$2::date`,
+    `SELECT origem, nome_chave, medicacao_id, periodo, status FROM cliente_medicacao_tomadas WHERE client_id=$1 AND data=$2::date`,
     [clientId, hoje],
   );
-  const mapa = new Map<string, "tomei" | "esqueci">(t.rows.map((x) => [`${x.origem}|${x.nome_chave}|${x.periodo}`, x.status]));
-  return itens.map((i) => ({ ...i, status: mapa.get(`${i.origem}|${i.nomeChave}|${i.sigla}`) ?? null }));
+  const mapa = new Map<string, "tomei" | "esqueci">(t.rows.map((x) => [`${x.origem}|${chaveItem(x.nome_chave, x.medicacao_id ? Number(x.medicacao_id) : null)}|${x.periodo}`, x.status]));
+  return itens.map((i) => ({ ...i, status: mapa.get(`${i.origem}|${chaveItem(i.nomeChave, i.referenciaId)}|${i.sigla}`) ?? null }));
 }
 
 /** Registra/corrige Tomei ou Esqueci. O horário precisa existir na rotina atual do cliente. */
 export async function registrarTomada(
   pool: Pick<Pool, "query">,
-  p: { clientId: number; hoje: string; origem: OrigemLista; nome: string; sigla: string; status: "tomei" | "esqueci" },
+  p: { clientId: number; hoje: string; origem: OrigemLista; nome: string; sigla: string; status: "tomei" | "esqueci"; referenciaId?: number | null },
 ): Promise<void> {
   if (p.status !== "tomei" && p.status !== "esqueci") throw new ErroMedicacao("status_invalido");
   const chave = nomeChave(p.nome ?? "");
   const doDia = await horariosDoDia(pool, p.clientId, p.hoje);
-  const existe = doDia.some((h) => h.origem === p.origem && h.nomeChave === chave && h.sigla === p.sigla);
-  if (!existe) throw new ErroMedicacao("horario_nao_encontrado", 404);
+  const candidatos = doDia.filter((h) => h.origem === p.origem && h.nomeChave === chave && h.sigla === p.sigla
+    && (p.referenciaId ? h.referenciaId === p.referenciaId : true));
+  if (candidatos.length === 0) throw new ErroMedicacao("horario_nao_encontrado", 404);
+  // Dois remédios com o mesmo nome no mesmo horário: sem o id, não se adivinha qual foi tomado.
+  if (candidatos.length > 1) throw new ErroMedicacao("horario_ambiguo", 409);
+  const ref = candidatos[0].referenciaId;
   await sincronizarAgendaDoDia(pool, p.clientId, p.hoje); // o denominador do dia nasce junto do primeiro registro
   await pool.query(
-    `INSERT INTO cliente_medicacao_tomadas (client_id, origem, nome_chave, data, periodo, status)
-     VALUES ($1,$2,$3,$4::date,$5,$6)
-     ON CONFLICT (client_id, origem, nome_chave, data, periodo)
+    `INSERT INTO cliente_medicacao_tomadas (client_id, origem, nome_chave, medicacao_id, data, periodo, status)
+     VALUES ($1,$2,$3,$4,$5::date,$6,$7)
+     ON CONFLICT (client_id, origem, nome_chave, (COALESCE(medicacao_id, 0)), data, periodo)
      DO UPDATE SET status = EXCLUDED.status, atualizado_em = now()`,
-    [p.clientId, p.origem, chave, p.hoje, p.sigla, p.status],
+    [p.clientId, p.origem, chave, ref, p.hoje, p.sigla, p.status],
   );
 }
 
@@ -181,46 +210,96 @@ export async function registrarAgendaDoDia(
  */
 export async function sincronizarAgendaDoDia(pool: Pick<Pool, "query">, clientId: number, hoje: string): Promise<HorarioDoDia[]> {
   const horarios = await horariosDoDia(pool, clientId, hoje);
-  const ids = await pool.query(`SELECT id, nome_chave FROM cliente_medicacoes WHERE client_id=$1 AND origem='autodeclarada' AND removido_em IS NULL`, [clientId]);
-  const idsPorChave = new Map<string, number>(ids.rows.map((x) => [x.nome_chave as string, Number(x.id)]));
-  const ativos = new Set(horarios.map((h) => `${h.origem}|${h.nomeChave}|${h.sigla}`));
+  type H = { origem: OrigemLista; nomeChave: string; referenciaId: number | null; sigla: string };
+  const kH = (x: H) => `${x.origem}|${chaveItem(x.nomeChave, x.referenciaId)}|${x.sigla}`;
+  const ativos = new Set(horarios.map(kH));
   const pausadas = (await listarAutodeclaradasDoPaciente(pool, clientId))
     .filter((m) => m.pausada && (m.estado === "nao_validada" || m.estado === "validada"));
-  const suspensos = new Set<string>();
-  for (const m of pausadas) for (const per of m.periodos) suspensos.add(`propria|${nomeChave(m.nome)}|${SIGLA_POR_PERIODO[per].sigla}`);
+  const suspensos = new Map<string, H>();
+  for (const m of pausadas) for (const per of m.periodos) {
+    const h: H = { origem: "propria", nomeChave: nomeChave(m.nome), referenciaId: m.id, sigla: SIGLA_POR_PERIODO[per].sigla };
+    suspensos.set(kH(h), h);
+  }
+  const ALVO = `(client_id, data, origem, nome_chave, periodo, (COALESCE(medicacao_id, 0)))`;
   for (const h of horarios) {
     await pool.query(
       `INSERT INTO cliente_medicacao_agenda_dia (client_id, data, origem, nome_chave, periodo, medicacao_id)
        VALUES ($1,$2::date,$3,$4,$5,$6)
-       ON CONFLICT (client_id, data, origem, nome_chave, periodo) DO UPDATE SET situacao='ativo' WHERE cliente_medicacao_agenda_dia.situacao <> 'ativo'`,
-      [clientId, hoje, h.origem, h.nomeChave, h.sigla, h.origem === "propria" ? (idsPorChave.get(h.nomeChave) ?? null) : null],
+       ON CONFLICT ${ALVO} DO UPDATE SET situacao='ativo' WHERE cliente_medicacao_agenda_dia.situacao <> 'ativo'`,
+      [clientId, hoje, h.origem, h.nomeChave, h.sigla, h.referenciaId],
     );
   }
   const jaRespondido = `EXISTS (SELECT 1 FROM cliente_medicacao_tomadas t WHERE t.client_id=a.client_id AND t.data=a.data
-                          AND t.origem=a.origem AND t.nome_chave=a.nome_chave AND t.periodo=a.periodo)`;
-  for (const k of suspensos) {
+                          AND t.origem=a.origem AND t.nome_chave=a.nome_chave AND t.periodo=a.periodo
+                          AND COALESCE(t.medicacao_id,0)=COALESCE(a.medicacao_id,0))`;
+  for (const [k, h] of suspensos) {
     if (ativos.has(k)) continue;
-    const [origem, nome, sigla] = k.split("|");
     await pool.query(
       `INSERT INTO cliente_medicacao_agenda_dia AS a (client_id, data, origem, nome_chave, periodo, medicacao_id, situacao)
        VALUES ($1,$2::date,$3,$4,$5,$6,'suspenso')
-       ON CONFLICT (client_id, data, origem, nome_chave, periodo) DO UPDATE SET situacao='suspenso'
+       ON CONFLICT ${ALVO} DO UPDATE SET situacao='suspenso'
          WHERE a.situacao='ativo' AND NOT ${jaRespondido}`,
-      [clientId, hoje, origem, nome, sigla, idsPorChave.get(nome) ?? null],
+      [clientId, hoje, h.origem, h.nomeChave, h.sigla, h.referenciaId],
     );
   }
   const hojeRows = await pool.query(
-    `SELECT origem, nome_chave, periodo, situacao FROM cliente_medicacao_agenda_dia WHERE client_id=$1 AND data=$2::date`, [clientId, hoje]);
+    `SELECT origem, nome_chave, medicacao_id, periodo, situacao FROM cliente_medicacao_agenda_dia WHERE client_id=$1 AND data=$2::date`, [clientId, hoje]);
   for (const x of hojeRows.rows) {
-    const k = `${x.origem}|${x.nome_chave}|${x.periodo}`;
+    const h: H = { origem: x.origem, nomeChave: x.nome_chave, referenciaId: x.medicacao_id ? Number(x.medicacao_id) : null, sigla: x.periodo };
+    const k = kH(h);
     if (x.situacao === "ativo" && !ativos.has(k) && !suspensos.has(k)) {
       await pool.query(
         `UPDATE cliente_medicacao_agenda_dia a SET situacao='retirado'
-          WHERE a.client_id=$1 AND a.data=$2::date AND a.origem=$3 AND a.nome_chave=$4 AND a.periodo=$5 AND a.situacao='ativo' AND NOT ${jaRespondido}`,
-        [clientId, hoje, x.origem, x.nome_chave, x.periodo]);
+          WHERE a.client_id=$1 AND a.data=$2::date AND a.origem=$3 AND a.nome_chave=$4 AND a.periodo=$5
+            AND COALESCE(a.medicacao_id,0)=COALESCE($6::int,0) AND a.situacao='ativo' AND NOT ${jaRespondido}`,
+        [clientId, hoje, h.origem, h.nomeChave, h.sigla, h.referenciaId]);
     }
   }
   return horarios;
+}
+
+/**
+ * Job diário (00:05 BRT): materializa os horários esperados dos dias que o cliente NÃO abriu o app, como "não informado"
+ * (existe no denominador, nunca vira tomei/esqueci). Regras conservadoras:
+ *  - só clientes que JÁ têm algum instantâneo (usaram o app); nunca recua antes do primeiro instantâneo do cliente;
+ *  - só ontem e até `diasRecuperacao` dias para trás, sem tocar dia que já tem instantâneo;
+ *  - usa a rotina ATUAL (o sistema não guarda a rotina de dias passados); por isso a linha leva registro_origem='job_diario';
+ *  - ON CONFLICT DO NOTHING: rodar duas vezes não duplica; conta excluída é pulada; nada é enviado ao cliente.
+ */
+export async function materializarDiasSemAbertura(
+  pool: Pick<Pool, "query">, hoje: string, opts: { diasRecuperacao?: number } = {},
+): Promise<{ clientes: number; linhas: number }> {
+  const dias = Math.min(Math.max(opts.diasRecuperacao ?? 3, 1), 7);
+  const cand = await pool.query(
+    `SELECT client_id, to_char(min(data),'YYYY-MM-DD') AS primeiro FROM cliente_medicacao_agenda_dia GROUP BY client_id`);
+  let clientes = 0, linhas = 0;
+  for (const c of cand.rows) {
+    const clientId = Number(c.client_id);
+    const excl = await pool.query(`SELECT to_regclass('area_paciente_contas_excluidas') AS t`);
+    if (excl.rows[0]?.t && (await pool.query(`SELECT 1 FROM area_paciente_contas_excluidas WHERE client_id=$1`, [clientId])).rows.length > 0) continue;
+    const faltam: string[] = [];
+    for (let i = 1; i <= dias; i++) {
+      const d = somaDias(hoje, -i);
+      if (d <= c.primeiro) continue; // nunca antes (nem no dia) do primeiro instantâneo real
+      const ja = await pool.query(`SELECT 1 FROM cliente_medicacao_agenda_dia WHERE client_id=$1 AND data=$2::date LIMIT 1`, [clientId, d]);
+      if (ja.rows.length === 0) faltam.push(d);
+    }
+    if (faltam.length === 0) continue;
+    const horarios = await horariosDoDia(pool, clientId, hoje);
+    if (horarios.length === 0) continue;
+    clientes++;
+    for (const d of faltam) {
+      for (const h of horarios) {
+        const r = await pool.query(
+          `INSERT INTO cliente_medicacao_agenda_dia (client_id, data, origem, nome_chave, periodo, medicacao_id, registro_origem)
+           VALUES ($1,$2::date,$3,$4,$5,$6,'job_diario')
+           ON CONFLICT (client_id, data, origem, nome_chave, periodo, (COALESCE(medicacao_id, 0))) DO NOTHING`,
+          [clientId, d, h.origem, h.nomeChave, h.sigla, h.referenciaId]);
+        linhas += r.rowCount ?? 0;
+      }
+    }
+  }
+  return { clientes, linhas };
 }
 
 function somaDias(iso: string, n: number): string {
@@ -285,23 +364,23 @@ export function montarAdesao(
 export async function calcularAdesao(pool: Pick<Pool, "query">, clientId: number, hoje: string) {
   const horarios = await sincronizarAgendaDoDia(pool, clientId, hoje);
   const t = await pool.query(
-    `SELECT origem, nome_chave, periodo, to_char(data,'YYYY-MM-DD') AS data, status
+    `SELECT origem, nome_chave, medicacao_id, periodo, to_char(data,'YYYY-MM-DD') AS data, status
        FROM cliente_medicacao_tomadas WHERE client_id=$1 AND data > $2::date - 30 AND data <= $2::date`,
     [clientId, hoje],
   );
   const ag = await pool.query(
-    `SELECT origem, nome_chave, periodo, situacao, to_char(data,'YYYY-MM-DD') AS data
+    `SELECT origem, nome_chave, medicacao_id, periodo, situacao, to_char(data,'YYYY-MM-DD') AS data
        FROM cliente_medicacao_agenda_dia WHERE client_id=$1 AND data > $2::date - 30 AND data <= $2::date`,
     [clientId, hoje],
   );
   const agendaPorDia = new Map<string, { origem: OrigemLista; nomeChave: string; sigla: string; situacao?: SituacaoHorario }[]>();
   for (const x of ag.rows) {
     const l = agendaPorDia.get(x.data) ?? [];
-    l.push({ origem: x.origem, nomeChave: x.nome_chave, sigla: x.periodo, situacao: x.situacao });
+    l.push({ origem: x.origem, nomeChave: chaveItem(x.nome_chave, x.medicacao_id ? Number(x.medicacao_id) : null), sigla: x.periodo, situacao: x.situacao });
     agendaPorDia.set(x.data, l);
   }
   return montarAdesao(hoje, horarios, t.rows.map((x) => ({
-    origem: x.origem, nomeChave: x.nome_chave, sigla: x.periodo, data: x.data, status: x.status,
+    origem: x.origem, nomeChave: chaveItem(x.nome_chave, x.medicacao_id ? Number(x.medicacao_id) : null), sigla: x.periodo, data: x.data, status: x.status,
   })), agendaPorDia);
 }
 
