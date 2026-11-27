@@ -29,7 +29,7 @@ Onde estão as mudanças (arquivos por pasta):
 Conteúdo funcional recente (já registrado em specs e testes): vitrines PAXMED e PAXCARE por domínio, convite PAXMED, convite de médico pelo cliente, central de acolhimento e primeiro acesso, isolamento entre clínicas A e B, cofre PaxCare.
 
 Cuidados antes de juntar:
-1. Há 3 migrações novas de banco em `scripts/migrations`. Aplicar em produção só com cópia de segurança e ordem escrita.
+1. Há 56 arquivos novos em `scripts/migrations` (não conferi quais são migrações de banco e quais são auxiliares). Aplicar em produção só com cópia de segurança e ordem escrita.
 2. Juntar na main NÃO publica nada por si só: o Railway já ignora os deploys (ver C).
 3. Segredos de produção ausentes no Replit: `APP_ENCRYPTION_KEY` e `PUBLIC_API_BASE_URL`.
 4. Revisão independente do diff inteiro não foi feita; testes rodaram por módulo, não como suíte total.
