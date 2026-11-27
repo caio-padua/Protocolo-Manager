@@ -33,6 +33,42 @@ test.describe("paxmed.com.br", () => {
     await p.close();
   });
 
+  test("pedido de convite: página pública, envio real, protocolo e consulta de status", async () => {
+    const p = await nav.newPage({ viewport: { width: 1280, height: 1000 } });
+    // Em dev o domínio é http com porta; em produção https://paxmed.com.br já está na lista oficial de origens.
+    // A requisição segue ao servidor real: só o cabeçalho de origem é trocado pelo da produção.
+    await p.route("**/api/vitrine-convites**", async (rota) => {
+      const resposta = await rota.fetch({ url: rota.request().url().replace(`paxmed.com.br:${PORTA}`, `127.0.0.1:${PORTA}`), headers: { ...rota.request().headers(), origin: "https://paxmed.com.br" } });
+      await rota.fulfill({ response: resposta });
+    });
+    await p.goto(`${MED}/`, { waitUntil: "load", timeout: 90_000 });
+    await expect(p.getByTestId("botao-solicitar-convite")).toHaveAttribute("href", "/convite", { timeout: 30_000 });
+    await p.goto(`${MED}/convite`, { waitUntil: "load", timeout: 90_000 });
+    await expect(p.getByTestId("pagina-convite")).toBeVisible({ timeout: 30_000 });
+    const email = `sintetico.${Date.now()}@exemplo.invalid`;
+    await p.getByTestId("botao-enviar-convite").click({ force: true });
+    await expect(p.getByTestId("protocolo")).toHaveCount(0);
+    await p.getByTestId("campo-nome").fill("Pessoa Sintetica Teste");
+    await p.getByTestId("campo-email").fill(email);
+    await p.getByTestId("campo-crm").fill("123456");
+    await p.getByTestId("campo-uf").fill("SP");
+    await p.getByTestId("campo-especialidade").fill("Endocrinologia");
+    await p.getByTestId("campo-cidade").fill("Sao Paulo");
+    await p.getByTestId("campo-consentimento").check();
+    await p.getByTestId("botao-enviar-convite").click({ force: true });
+    const protocolo = (await p.getByTestId("protocolo").textContent({ timeout: 30_000 }))!.trim();
+    expect(protocolo).toMatch(/^PXM-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+    await p.getByTestId("botao-consultar-convite").click({ force: true });
+    await expect(p.getByTestId("status")).toContainText("Recebida", { timeout: 30_000 });
+    await p.getByTestId("campo-q-email").fill("outra.pessoa@exemplo.invalid");
+    await p.getByTestId("botao-consultar-convite").click({ force: true });
+    await expect(p.getByTestId("status")).toContainText("Nenhuma solicitação encontrada", { timeout: 30_000 });
+    await p.screenshot({ path: "/tmp/med-convite.png", fullPage: true });
+    await p.setViewportSize({ width: 390, height: 844 });
+    await p.screenshot({ path: "/tmp/med-convite-mobile.png", fullPage: true });
+    await p.close();
+  });
+
   test("rodapé: marca PAXMED e contatos paxmed.com.br", async () => {
     const p = await nav.newPage({ viewport: { width: 1280, height: 900 } });
     await p.goto(`${MED}/`, { waitUntil: "load", timeout: 90_000 });

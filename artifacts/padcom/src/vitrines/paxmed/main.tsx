@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import { StrictMode, useEffect } from "react";
 import "./styles.css";
 import { Index, META } from "./pages/Home";
+import { Convite, META_CONVITE } from "./pages/Convite";
 import { LanguageProvider } from "@paxmed/contexts/LanguageContext";
 import { Toaster } from "@paxmed/components/Sonner";
 
@@ -31,10 +32,11 @@ function carregarFontes(): void {
 }
 
 function Vitrine() {
-  useEffect(() => { aplicarMeta(META); }, []);
+  const convite = window.location.pathname.replace(/\/+$/, "") === "/convite";
+  useEffect(() => { aplicarMeta(convite ? META_CONVITE : META); }, [convite]);
   return (
     <LanguageProvider>
-      <Index />
+      {convite ? <Convite /> : <Index />}
       <Toaster richColors position="top-center" />
     </LanguageProvider>
   );

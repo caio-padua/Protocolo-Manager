@@ -9,6 +9,7 @@ Verificado no código do Manager (artifacts/padcom/src/vitrines). Não prova flu
 | Conhecer planos / Solicitar demonstração | âncora | #contato | nenhum |
 | Área do Médico / Clínica | acesso | /login | login do Manager |
 | Portal do Paciente | acesso | /area | área do paciente do Manager |
+| Solicitar convite | página | /convite (paxmed.com.br) | POST /api/vitrine-convites e /status; tela do CEO em /convites-paxmed; aprovar só muda status |
 | Formulário de contato (enviar) | formulário | POST /api/vitrine-contatos (mesma origem) | rota vitrine-contatos, limite 5/min; só sucesso se resposta ok |
 | Link PADCON | externo | https://padcon.replit.app/ | nenhum |
 | Contraste, movimento, idioma | preferência local | navegador | nenhum |
@@ -26,5 +27,5 @@ Verificado no código do Manager (artifacts/padcom/src/vitrines). Não prova flu
 
 ## Lacunas
 1. Convite do médico (PAXCARE /medicos) é só prévia: sem backend.
-2. PAXMED do Lovable tem páginas de convite/admin/status ligadas ao Supabase; não integradas ao Manager.
+2. Convite PAXMED agora grava no Manager (tabela vitrine_convites). Admin/histórico do Lovable (Supabase) não migrados.
 3. Contato: Lovable usa source "paxmed-homepage"; Manager usa "paxmed-vitrine" (rota aceita qualquer texto).

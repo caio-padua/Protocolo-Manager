@@ -157,6 +157,11 @@ function AccessLinks({ large = false }: { large?: boolean }) {
       <a href="/area" className={cls}>
         <span className="parxis-btn-inner whitespace-nowrap">{tr(c.patient, lang)}</span>
       </a>
+      {large && (
+        <a href="/convite" className={cls} data-testid="botao-solicitar-convite">
+          <span className="parxis-btn-inner whitespace-nowrap">{lang === "pt" ? "Solicitar convite" : "Request invitation"}</span>
+        </a>
+      )}
     </>
   );
 }

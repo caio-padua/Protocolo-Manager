@@ -8,6 +8,11 @@ describe("vitrineDoEndereco", () => {
     expect(vitrineDoEndereco("paxcare.com.br", "/area")).toBeNull();
     expect(vitrineDoEndereco("paxcare.com.br", "/login")).toBeNull();
   });
+  it("paxmed.com.br abre o pedido de convite em /convite", () => {
+    expect(vitrineDoEndereco("paxmed.com.br", "/convite")).toBe("paxmed");
+    expect(vitrineDoEndereco("www.paxmed.com.br", "/convite/")).toBe("paxmed");
+    expect(vitrineDoEndereco("paxcare.com.br", "/convite")).toBeNull();
+  });
   it("paxmed.com.br abre a vitrine só na raiz; /login, /area e /dashboard são do Manager", () => {
     expect(vitrineDoEndereco("paxmed.com.br", "/")).toBe("paxmed");
     expect(vitrineDoEndereco("www.paxmed.com.br", "/")).toBe("paxmed");

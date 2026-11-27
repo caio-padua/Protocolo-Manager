@@ -57,6 +57,7 @@ const BYPASS_PREFIXES = [
   "/api/whatsapp/status",
   "/api/asaas",
   "/api/vitrine-leads",    // POST público (captação); GET/PATCH com requireCollaborator interno
+  "/api/vitrine-convites", // POST público (pedido de convite PAXMED e consulta de status); GET/PATCH com requireCollaborator + titular
   "/api/vitrine-contatos", // POST público (formulário de contato da homepage Parxis/Lovable); GET/PATCH com requireCollaborator interno
   "/api/collaborator/login", // login de médicos licenciados (site Lovable chama sem Basic Auth; rota tem hash próprio)
   "/api/collaborator/me",    // revalidação da sessão pelo navegador; exige Bearer via requireCollaborator
