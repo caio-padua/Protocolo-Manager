@@ -154,3 +154,8 @@ Tela do Manager: `/acolhimento` (menu "Acolhimento"). Rotas, todas só do titula
 - Pedido comercial PAXMED (`vitrine_convites`) e convite clínico do paciente (`paxcare_convites_medico`) continuam separados. O pedido só é ligado a um cadastro de profissional por e-mail E CRM iguais.
 - As mensagens são texto editável para copiar ou abrir o WhatsApp manualmente. O servidor não envia nada e não grava "enviado".
 - Lovable: nada novo depende dele nesta central. As lacunas anteriores (contato sem `consentimento`, login do paciente em rota inexistente, adesão do médico só local) seguem abertas.
+
+## Isolamento entre clínicas e vitrine PAXMED (27/11/2026)
+
+- Teste `servidor-completo-clinicas-ab.test.ts`: servidor completo, clínicas A (5) e B (6), 1 médico e 1 cliente por clínica, logins reais. Médico só lista, abre e busca clientes da própria clínica; ficha, comunicação, canal e redes do cliente alheio dão 404; escrita cruzada não altera o banco; cabeçalho ou parâmetro de clínica não concede acesso; cliente só vê e apaga o que é seu (cofre, convite a médico); token de médico não abre rota de cliente e vice-versa.
+- Vitrine PAXMED: já estava integrada em `artifacts/padcom/src/vitrines/paxmed` e coincide com SITES-LOVABLE `main` (`content/parxis.ts` idêntico byte a byte). Domínio decidido por `lib/host-vitrine.ts`: raiz em paxmed.com.br = vitrine; `/dashboard` = painel; "Área do Médico / Clínica" = `/login`; paxcare.com.br = vitrine PAXCARE com acesso do paciente em `/area`.
