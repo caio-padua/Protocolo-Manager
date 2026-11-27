@@ -202,3 +202,4 @@
 - [Cabine de Comando do CEO](cabine-comando-ceo.md) — /ceo/cabine; organograma calculado da regra real; docs em docs/permissoes; documentos arquivados, não apagados.
 - [Transmutação visual do CEO](cabine-comando-ceo.md) — seletor só visual (lib/transmutacao.ts, flag HOMOLOGACAO_PERMISSOES); usa o mapa real do servidor; e2e com token do CEO.
 - [Área do Cliente: token e exclusão de conta](area-cliente-apple-exclusao-token.md) — token só em cabeçalho; exclusão lógica preserva prontuário; cadeados premium em preparação.
+- [Licença, link de exame e estados comerciais](licenca-link-exame-kaizen.md) — fail-closed, link v1 30 dias, política 90 dias, telas só informam.
