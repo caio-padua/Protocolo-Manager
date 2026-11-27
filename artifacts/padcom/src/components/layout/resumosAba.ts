@@ -101,6 +101,7 @@ export const RESUMO_ABA: Record<string, string> = {
   "/ceo/command-center": "Painel de comando da direção",
   "/ceo/concierge-penalidades": "Regras de faltas e atrasos",
   "/prova-de-valor": "Resultados que comprovam valor",
+  "/vitrine-contatos": "Médicos e clínicas que pediram contato pelo site PAXMED",
   "/vitrine-leads": "Contatos vindos da vitrine",
   "/padteam": "Equipe remota e demandas",
   "/agentes": "Assistentes virtuais",

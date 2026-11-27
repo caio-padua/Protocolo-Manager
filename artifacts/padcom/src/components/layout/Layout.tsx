@@ -295,6 +295,7 @@ const navigation: NavEntry[] = [
       { name: "Penalidades Concierge", href: "/ceo/concierge-penalidades", icon: ShieldOff },
       { name: "Prova de Valor", href: "/prova-de-valor", icon: TrendingUp },
       { name: "Leads da Vitrine", href: "/vitrine-leads", icon: Sparkles },
+      { name: "Contatos da Vitrine", href: "/vitrine-contatos", icon: UserPlus },
       { name: "PADTEAM — Equipe & Demandas", href: "/padteam", icon: Users },
       { name: "Agentes Virtuais", href: "/agentes", icon: Bot },
       { name: "Visão de Empresas Independentes", href: "/hierarquia", icon: Network },
