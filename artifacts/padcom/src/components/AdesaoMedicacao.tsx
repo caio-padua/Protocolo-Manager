@@ -13,7 +13,7 @@ type Janela = {
   dias: number; tomei: number; esqueci: number; semRegistro: number; esperado: number; percentual: number | null;
   diasComHistorico?: number; diasSemHistorico?: number; suspenso?: number; retirado?: number; diasSuspensos?: number;
 };
-type Dia = { data: string; tomei: number; esqueci: number; esperado: number; comHistorico?: boolean; suspenso?: number; retirado?: number };
+type Dia = { data: string; tomei: number; esqueci: number; esperado: number; comHistorico?: boolean; suspenso?: number; retirado?: number; desconhecido?: number };
 export type AdesaoLista = { esperadoPorDia: number; janelas: Janela[]; historico: Dia[] };
 export type DadosAdesao = { hoje: HorarioDia[]; adesao: { prescrita: AdesaoLista; propria: AdesaoLista }; data: string };
 
@@ -137,6 +137,7 @@ export function BlocoAdesao({ origem, adesao, somenteLeitura }: {
               <span className="text-primary">
                 {d.comHistorico === false ? "sem histórico"
                   : d.esperado === 0 && (d.suspenso ?? 0) > 0 ? "suspenso"
+                  : d.esperado === 0 && (d.desconhecido ?? 0) > 0 ? "horário desconhecido (fora da conta)"
                   : `${d.tomei} tomado · ${d.esqueci} não tomado · ${Math.max(0, d.esperado - d.tomei - d.esqueci)} sem resposta`}
               </span>
             </li>

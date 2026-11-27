@@ -178,8 +178,8 @@ export async function registrarTomada(
   );
 }
 
-export type SituacaoHorario = "ativo" | "suspenso" | "retirado";
-export interface DiaAdesao { data: string; tomei: number; esqueci: number; esperado: number; comHistorico: boolean; suspenso: number; retirado: number }
+export type SituacaoHorario = "ativo" | "suspenso" | "retirado" | "desconhecido";
+export interface DiaAdesao { data: string; tomei: number; esqueci: number; esperado: number; comHistorico: boolean; suspenso: number; retirado: number; desconhecido?: number }
 export interface JanelaAdesao {
   dias: number; tomei: number; esqueci: number; semRegistro: number; esperado: number; percentual: number | null;
   /** Dias da janela com instantâneo real dos horários; os demais ficam fora do cálculo (sem histórico). */
@@ -259,47 +259,75 @@ export async function sincronizarAgendaDoDia(pool: Pick<Pool, "query">, clientId
 }
 
 /**
- * Job diário (00:05 BRT): materializa os horários esperados dos dias que o cliente NÃO abriu o app, como "não informado"
- * (existe no denominador, nunca vira tomei/esqueci). Regras conservadoras:
- *  - só clientes que JÁ têm algum instantâneo (usaram o app); nunca recua antes do primeiro instantâneo do cliente;
- *  - só ontem e até `diasRecuperacao` dias para trás, sem tocar dia que já tem instantâneo;
- *  - usa a rotina ATUAL (o sistema não guarda a rotina de dias passados); por isso a linha leva registro_origem='job_diario';
- *  - ON CONFLICT DO NOTHING: rodar duas vezes não duplica; conta excluída é pulada; nada é enviado ao cliente.
+ * Job diário (00:05 BRT): materializa os horários dos dias que o cliente NÃO abriu o app. Só afirma o que é conhecido:
+ *  - remédio próprio vira "ativo" no dia D SÓ se já existia e NÃO foi alterado/pausado desde antes de D
+ *    (criado_em e atualizado_em anteriores a 00:00 de D em Brasília) e D está dentro da vigência (data_inicio/data_fim);
+ *    como o sistema não guarda versões de rotina, qualquer alteração posterior torna o dia "desconhecido";
+ *  - fórmula da clínica (lembrete sem data de vigência) e remédio alterado depois: "desconhecido" (fora do denominador,
+ *    visível); nunca se inventa dose, horário nem resposta (Tomei/Esqueci só nascem de ação do cliente);
+ *  - só clientes que JÁ têm instantâneo; nunca antes do primeiro; ontem e até `diasRecuperacao` dias atrás;
+ *  - dia que já tem instantâneo não é tocado; ON CONFLICT DO NOTHING (execução dupla não duplica); conta excluída é pulada;
+ *  - falha em um cliente é registrada e não impede os demais.
  */
 export async function materializarDiasSemAbertura(
   pool: Pick<Pool, "query">, hoje: string, opts: { diasRecuperacao?: number } = {},
-): Promise<{ clientes: number; linhas: number }> {
+): Promise<{ clientes: number; linhas: number; falhas: number }> {
   const dias = Math.min(Math.max(opts.diasRecuperacao ?? 3, 1), 7);
   const cand = await pool.query(
     `SELECT client_id, to_char(min(data),'YYYY-MM-DD') AS primeiro FROM cliente_medicacao_agenda_dia GROUP BY client_id`);
-  let clientes = 0, linhas = 0;
+  const excl = await pool.query(`SELECT to_regclass('area_paciente_contas_excluidas') AS t`);
+  let clientes = 0, linhas = 0, falhas = 0;
   for (const c of cand.rows) {
     const clientId = Number(c.client_id);
-    const excl = await pool.query(`SELECT to_regclass('area_paciente_contas_excluidas') AS t`);
-    if (excl.rows[0]?.t && (await pool.query(`SELECT 1 FROM area_paciente_contas_excluidas WHERE client_id=$1`, [clientId])).rows.length > 0) continue;
-    const faltam: string[] = [];
-    for (let i = 1; i <= dias; i++) {
-      const d = somaDias(hoje, -i);
-      if (d <= c.primeiro) continue; // nunca antes (nem no dia) do primeiro instantâneo real
-      const ja = await pool.query(`SELECT 1 FROM cliente_medicacao_agenda_dia WHERE client_id=$1 AND data=$2::date LIMIT 1`, [clientId, d]);
-      if (ja.rows.length === 0) faltam.push(d);
-    }
-    if (faltam.length === 0) continue;
-    const horarios = await horariosDoDia(pool, clientId, hoje);
-    if (horarios.length === 0) continue;
-    clientes++;
-    for (const d of faltam) {
-      for (const h of horarios) {
-        const r = await pool.query(
-          `INSERT INTO cliente_medicacao_agenda_dia (client_id, data, origem, nome_chave, periodo, medicacao_id, registro_origem)
-           VALUES ($1,$2::date,$3,$4,$5,$6,'job_diario')
-           ON CONFLICT (client_id, data, origem, nome_chave, periodo, (COALESCE(medicacao_id, 0))) DO NOTHING`,
-          [clientId, d, h.origem, h.nomeChave, h.sigla, h.referenciaId]);
-        linhas += r.rowCount ?? 0;
+    try {
+      if (excl.rows[0]?.t && (await pool.query(`SELECT 1 FROM area_paciente_contas_excluidas WHERE client_id=$1`, [clientId])).rows.length > 0) continue;
+      const faltam: string[] = [];
+      for (let i = 1; i <= dias; i++) {
+        const d = somaDias(hoje, -i);
+        if (d <= c.primeiro) continue; // nunca antes (nem no dia) do primeiro instantâneo real
+        const ja = await pool.query(`SELECT 1 FROM cliente_medicacao_agenda_dia WHERE client_id=$1 AND data=$2::date LIMIT 1`, [clientId, d]);
+        if (ja.rows.length === 0) faltam.push(d);
       }
+      if (faltam.length === 0) continue;
+      const proprias = (await pool.query(
+        `SELECT * FROM cliente_medicacoes WHERE client_id=$1 AND origem='autodeclarada' AND removido_em IS NULL
+            AND estado IN ('nao_validada','validada')`, [clientId])).rows;
+      const prescritas = await prescritasDoLembrete(pool, clientId);
+      let gravouCliente = false;
+      for (const d of faltam) {
+        const inicioDia = Date.parse(`${d}T00:00:00-03:00`);
+        const linhasDia: { origem: OrigemLista; nomeChave: string; ref: number | null; sigla: string; situacao: "ativo" | "desconhecido" }[] = [];
+        for (const m of proprias) {
+          if (Date.parse(m.criado_em) >= inicioDia + 86_400_000) continue; // ainda nem existia naquele dia
+          const intocada = Date.parse(m.criado_em) < inicioDia && Date.parse(m.atualizado_em) < inicioDia && m.pausada_em == null;
+          const ini = m.data_inicio ? new Date(m.data_inicio).toISOString().slice(0, 10) : null;
+          const fim = m.data_fim ? new Date(m.data_fim).toISOString().slice(0, 10) : null;
+          if (intocada && ((ini && d < ini) || (fim && d > fim))) continue; // vigência conhecida: não era dia dela
+          for (const per of PERIODOS_MEDICACAO) {
+            if (m[`p_${per}`] !== true) continue;
+            linhasDia.push({ origem: "propria", nomeChave: m.nome_chave, ref: Number(m.id), sigla: SIGLA_POR_PERIODO[per].sigla, situacao: intocada ? "ativo" : "desconhecido" });
+          }
+        }
+        for (const m of prescritas) for (const p of m.periodos) {
+          linhasDia.push({ origem: "prescrita", nomeChave: nomeChave(m.nome), ref: null, sigla: p.sigla, situacao: "desconhecido" });
+        }
+        for (const h of linhasDia) {
+          const r = await pool.query(
+            `INSERT INTO cliente_medicacao_agenda_dia (client_id, data, origem, nome_chave, periodo, medicacao_id, situacao, registro_origem)
+             VALUES ($1,$2::date,$3,$4,$5,$6,$7,'job_diario')
+             ON CONFLICT (client_id, data, origem, nome_chave, periodo, (COALESCE(medicacao_id, 0))) DO NOTHING`,
+            [clientId, d, h.origem, h.nomeChave, h.sigla, h.ref, h.situacao]);
+          linhas += r.rowCount ?? 0;
+          if (r.rowCount) gravouCliente = true;
+        }
+      }
+      if (gravouCliente) clientes++;
+    } catch (err) {
+      falhas++;
+      console.error(JSON.stringify({ evento: "agenda_diaria_falha_cliente", clientId, errorType: err instanceof Error ? err.constructor.name : typeof err }));
     }
   }
-  return { clientes, linhas };
+  return { clientes, linhas, falhas };
 }
 
 function somaDias(iso: string, n: number): string {
@@ -333,6 +361,7 @@ export function montarAdesao(
       dias.set(data, {
         data, tomei: 0, esqueci: 0, esperado: doDiaOrigem.filter((h) => sit(h) === "ativo").length, comHistorico: doDia !== undefined,
         suspenso: doDiaOrigem.filter((h) => sit(h) === "suspenso").length, retirado: doDiaOrigem.filter((h) => sit(h) === "retirado").length,
+        desconhecido: doDiaOrigem.filter((h) => sit(h) === "desconhecido").length,
       });
     }
     const chavesDia = (data: string) => new Set((agenda.get(data) ?? []).filter((h) => h.origem === origem && (h.situacao ?? "ativo") === "ativo").map((h) => `${h.nomeChave}|${h.sigla}`));
