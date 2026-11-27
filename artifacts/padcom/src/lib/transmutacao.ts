@@ -57,7 +57,7 @@ type Dominio =
   | "equipe" | "estoque" | "comunicacao" | "ceo" | "admin";
 
 const REGRAS_HREF: [RegExp, Dominio][] = [
-  [/^\/$/, "livre"],
+  [/^\/(dashboard)?$/, "livre"],
   [/^\/(agendar|agendar-antigo|agenda|central-telegram|pit-stop|clients)(\/|$|\?)/, "agenda"],
   [/^\/(radar-clinico|medicacoes-adesao|cockpit|cockpit-anamnese|mega-anamnese|anamnese|craniotomia|cartorio|exames|exames-hub|exames-cliente|procedencia-exames|importar-drive|sinapses-clinicas|dieta|treino|central-pesquisa|arsenal)(\/|$|\?)/, "prontuario"],
   [/^\/cadastros\/(cadastro-exames|console-exames|config-exames)(\/|$)/, "prontuario"],

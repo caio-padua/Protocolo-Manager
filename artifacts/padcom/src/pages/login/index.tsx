@@ -131,7 +131,7 @@ export default function LoginPage() {
         !rt.startsWith("/login")
       ) return rt;
     } catch { /* */ }
-    return "/";
+    return "/dashboard";
   }
 
   function beginGoogleLogin() {

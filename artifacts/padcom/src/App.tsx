@@ -208,6 +208,8 @@ function Router() {
       <Route>
         <Layout>
           <Switch>
+            {/* Painel interno: /dashboard é o endereço oficial (em paxmed.com.br a raiz / é a vitrine). "/" segue valendo nos demais endereços. */}
+            <Route path="/dashboard" component={Dashboard} />
             <Route path="/" component={Dashboard} />
             
             <Route path="/clients" component={Clients} />

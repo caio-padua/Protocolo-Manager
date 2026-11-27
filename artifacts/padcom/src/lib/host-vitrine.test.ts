@@ -8,8 +8,13 @@ describe("vitrineDoEndereco", () => {
     expect(vitrineDoEndereco("paxcare.com.br", "/area")).toBeNull();
     expect(vitrineDoEndereco("paxcare.com.br", "/login")).toBeNull();
   });
-  it("paxmed.com.br e domínios do Manager não mudam", () => {
-    expect(vitrineDoEndereco("paxmed.com.br", "/")).toBeNull();
+  it("paxmed.com.br abre a vitrine só na raiz; /login, /area e /dashboard são do Manager", () => {
+    expect(vitrineDoEndereco("paxmed.com.br", "/")).toBe("paxmed");
+    expect(vitrineDoEndereco("www.paxmed.com.br", "/")).toBe("paxmed");
+    for (const c of ["/login", "/area", "/dashboard", "/portal", "/anamnese/v2", "/medicos"]) expect(vitrineDoEndereco("paxmed.com.br", c)).toBeNull();
+  });
+  it("outros domínios não mudam", () => {
     expect(vitrineDoEndereco("localhost", "/")).toBeNull();
+    expect(vitrineDoEndereco("exemplo.replit.dev", "/")).toBeNull();
   });
 });

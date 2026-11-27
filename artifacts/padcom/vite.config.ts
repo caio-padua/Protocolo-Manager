@@ -44,6 +44,7 @@ export default defineConfig({
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
       "@paxcare": path.resolve(import.meta.dirname, "src", "vitrines", "paxcare"),
+      "@paxmed": path.resolve(import.meta.dirname, "src", "vitrines", "paxmed"),
       "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
     },
     dedupe: ["react", "react-dom"],

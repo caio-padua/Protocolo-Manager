@@ -23,7 +23,7 @@ function safeReturnTo(): string {
   ) {
     return value;
   }
-  return "/";
+  return "/dashboard";
 }
 
 function AuthFrame({ children }: { children: ReactNode }) {
@@ -187,7 +187,7 @@ function GoogleLoginReturnFlow() {
           throw new Error("O servidor não confirmou a identidade do profissional.");
         }
         setCollabSession(data.token, data.professional as CollabProfessional);
-        navigate(returnTo === "/" ? data.destino || "/" : returnTo, { replace: true });
+        navigate(returnTo === "/dashboard" ? data.destino || "/dashboard" : returnTo, { replace: true });
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : "Falha ao validar o acesso.");
       }

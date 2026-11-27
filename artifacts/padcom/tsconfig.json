@@ -12,7 +12,8 @@
     "types": ["node", "vite/client"],
     "paths": {
       "@/*": ["./src/*"],
-      "@paxcare/*": ["./src/vitrines/paxcare/*"]
+      "@paxcare/*": ["./src/vitrines/paxcare/*"],
+      "@paxmed/*": ["./src/vitrines/paxmed/*"]
     }
   },
   "references": [

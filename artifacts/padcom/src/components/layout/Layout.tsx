@@ -112,7 +112,7 @@ function isGroup(e: NavEntry): e is NavGroup {
 }
 
 const navigation: NavEntry[] = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   {
     name: "Agenda & Recepção",
     icon: Calendar,
@@ -580,7 +580,7 @@ export function Layout({ children }: LayoutProps) {
     for (const e of navFiltrada) {
       for (const l of isGroup(e) ? e.children : [e]) {
         if (l.external) continue;
-        const casa = location === l.href || (l.href !== "/" && location.startsWith(`${l.href}/`));
+        const casa = location === l.href || (l.href === "/dashboard" && location === "/") || (l.href !== "/" && location.startsWith(`${l.href}/`));
         if (casa && (!melhor || l.href.length > melhor.len)) melhor = { name: l.name, len: l.href.length, href: l.href };
       }
     }
@@ -831,7 +831,7 @@ export function Layout({ children }: LayoutProps) {
               }
 
               const isActive =
-                location === item.href || (item.href !== "/" && location.startsWith(item.href));
+                location === item.href || (item.href === "/dashboard" && location === "/") || (item.href !== "/" && location.startsWith(item.href));
 
               return (
                 <Link key={item.name} href={item.href} onClick={() => setSidebarOpen(false)}>

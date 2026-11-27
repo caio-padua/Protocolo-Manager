@@ -15,9 +15,6 @@ export function vitrineDoEndereco(hostname: string, pathname: string): Vitrine {
   const host = hostname.toLowerCase().replace(/\.$/, "");
   const caminho = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   if (HOSTS_PAXCARE.has(host) && CAMINHOS_PAXCARE.has(caminho)) return "paxcare";
-  if (HOSTS_PAXMED.has(host) && CAMINHOS_PAXMED.has(caminho) && vitrinePaxmedDisponivel()) return "paxmed";
+  if (HOSTS_PAXMED.has(host) && CAMINHOS_PAXMED.has(caminho) && true) return "paxmed";
   return null;
 }
-
-/** A vitrine PAXMED ainda não foi integrada (kit sem módulos e imagens). Enquanto falso, a raiz de paxmed.com.br segue como está. */
-export function vitrinePaxmedDisponivel(): boolean { return false; }

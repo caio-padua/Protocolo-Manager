@@ -1,6 +1,7 @@
 /** Resumo curto (uma frase) de cada tela do menu, mostrado sob o nome na aba do topo. Chave = href do menu. */
 export const RESUMO_ABA: Record<string, string> = {
   "/": "Visão geral da clínica hoje",
+  "/dashboard": "Visão geral da clínica hoje",
   "/agendar": "Marcar consulta para o cliente",
   "/agendar-antigo": "Marcação no modelo anterior",
   "/agenda": "Sessões do dia, por agenda",
