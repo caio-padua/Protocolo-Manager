@@ -39,6 +39,7 @@ import { lerEstadoPreCadastro, pendentesDe, CAMPOS_PRE_CADASTRO } from "../lib/p
 // ===========================================================================
 
 import { criarTokenExame } from "../lib/exam-link";
+import { registrarAcesso } from "../lib/acesso-registro";
 const router: IRouter = Router();
 
 // Le o token SOMENTE de Authorization: Bearer <token> (Apple App Store 3.7/4.6:
@@ -163,6 +164,7 @@ router.post("/area-paciente/login", async (req: Request, res: Response): Promise
       return;
     }
 
+    await registrarAcesso("cliente", client.id, "login_senha");
     res.json({
       id: client.id,
       name: client.name,
@@ -211,6 +213,7 @@ router.post("/area-paciente/trocar-senha", async (req: Request, res: Response): 
     // Senha nova invalida os celulares que já estavam com sessão persistente.
     await revogarSessoesDoCliente(pool, client.id).catch((err) => req.log.error({ err: String(err) }, "Sessões persistentes não revogadas"));
 
+    await registrarAcesso("cliente", client.id, "troca_senha");
     res.json({
       id: client.id,
       name: client.name,
@@ -261,6 +264,7 @@ router.post("/area-paciente/definir-senha", async (req: Request, res: Response):
     // Senha nova invalida os celulares que já estavam com sessão persistente.
     await revogarSessoesDoCliente(pool, client.id).catch((err) => req.log.error({ err: String(err) }, "Sessões persistentes não revogadas"));
 
+    await registrarAcesso("cliente", client.id, "definir_senha");
     res.json({
       id: client.id,
       name: client.name,

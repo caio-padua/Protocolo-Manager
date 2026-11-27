@@ -1,3 +1,4 @@
+import { registrarAcesso } from "../lib/acesso-registro";
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import {
   isAppPasswordValid,
@@ -418,6 +419,7 @@ function sessionForProfessional(prof: {
   isPrimaryDoctor: boolean;
   credentialVersion?: number | null;
 }) {
+  void registrarAcesso("profissional", prof.id, "login_colaborador");
   return {
     token: createCollaboratorToken({
       professionalId: prof.id,

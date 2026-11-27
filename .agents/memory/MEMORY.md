@@ -196,10 +196,5 @@
 - [Lei do lugar fixo (TDAH)](lei-lugar-fixo-tdah.md) — botão não muda de lugar/texto; confirmar em slot reservado; aviso junto do mouse; ler a skill antes de toda tela.
 - [Formatador da Helena e cérebro global](helena-formatador-global.md) — formato aplicado no envio; base global anonimizada com consentimento.
 - [Teste real Telegram Dayana/Carlúcia](teste-telegram-dayana-carlucia.md) — rota enviar-teste + três listas de autorização distintas; envio pelo Cockpit pausa a IA.
-- [Troca PAXTER por PAXMED na marca](paxmed-wordmark-troca-arte.md) — só a imagem da palavra mudou; motor de luz, símbolo e subtítulo intactos.
-- [Autorização por papel x clínica no servidor](autorizacao-papeis-servidor.md) — guard global lê professional_papeis_empresa; matriz em lib/papeis-acesso.ts; 158 testes antigos já falhavam sem ele.
-- [Cabine de Comando do CEO](cabine-comando-ceo.md) — /ceo/cabine; organograma calculado da regra real; docs em docs/permissoes; documentos arquivados, não apagados.
-- [Transmutação visual do CEO](cabine-comando-ceo.md) — seletor só visual (lib/transmutacao.ts, flag HOMOLOGACAO_PERMISSOES); usa o mapa real do servidor; e2e com token do CEO.
-- [Área do Cliente: token e exclusão de conta](area-cliente-apple-exclusao-token.md) — token só em cabeçalho; exclusão lógica preserva prontuário; cadeados premium em preparação.
-- [Licença, link de exame e estados comerciais](licenca-link-exame-kaizen.md) — fail-closed, link v1 30 dias, política 90 dias, telas só informam.
-- [Adesão: identidade estável e job diário](adesao-identidade-estavel-job.md) — chave com medicacao_id, migração aditiva, job 00:05 só para quem já usou o app.
+- [Primeiro acesso e acolhimento](acolhimento-primeiro-acesso.md) — só login real conta; sem registro ≠ nunca acessou; mensagens manuais, nada enviado.
+- [Teste de servidor completo](teste-servidor-completo.md) — app real em PG descartável; helper cria sequência/colunas fora do drizzle; processos em background; 127.0.0.1.

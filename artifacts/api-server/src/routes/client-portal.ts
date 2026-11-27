@@ -20,6 +20,7 @@ import {
   parseExamDatePrefix,
 } from "../lib/exam-file-naming.js";
 
+import { registrarAcesso } from "../lib/acesso-registro";
 const router = Router();
 
 /** Assinatura real do arquivo (o tipo declarado pelo navegador não é prova). */
@@ -133,6 +134,7 @@ router.post("/client-portal/identify", async (req: Request, res: Response) => {
     }
 
     const token = createPortalToken(client.id);
+    await registrarAcesso("cliente", client.id, "login_nascimento");
 
     res.json({
       id: client.id,

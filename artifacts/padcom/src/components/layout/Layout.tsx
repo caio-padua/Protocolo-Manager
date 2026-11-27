@@ -168,6 +168,7 @@ const navigation: NavEntry[] = [
       { name: "Planos PaxCare", href: "/paxcare-planos", icon: Award },
       { name: "Convites PAXMED", href: "/convites-paxmed", icon: UserPlus },
       { name: "Convites a Médicos", href: "/paxcare-convites-medico", icon: Users },
+      { name: "Acolhimento", href: "/acolhimento", icon: Users },
       { name: "Convites de Pacientes (Médico)", href: "/paxcare-convite", icon: Stethoscope },
     ],
   },

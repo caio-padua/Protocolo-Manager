@@ -144,3 +144,13 @@ Ver `specs/entrada-comercial-paxmed-paxcare.md` (matriz completa). Contratos nov
 | Receber e aceitar convite (médico) | Já é do Manager: `/paxcare-convite/:token` | sessão de colaborador | aceitar ou recusar | Não depende do Lovable |
 
 Regras novas: o convite exige consentimento verificável (o servidor entrega o texto e o código do termo; o pedido só vale com o código igual; data e código ficam gravados). `GET/PATCH /api/vitrine-contatos` passou a ser só do titular da plataforma (antes qualquer colaborador lia os dados dos interessados). Observação aberta: `GET /api/vitrine-leads` ainda aceita qualquer colaborador; não alterei por estar fora do pedido.
+
+## Central de acolhimento e primeiro acesso (27/11/2026)
+
+Tela do Manager: `/acolhimento` (menu "Acolhimento"). Rotas, todas só do titular da plataforma (403 para os demais): `GET /api/ceo/acolhimento` (filtros `tipo`, `origem`, `pendencia`, `etapa`+`estado`, `q`), `GET /api/ceo/acolhimento/historico?chave=`, `GET /api/ceo/acolhimento/modelos`.
+
+- Etapa comprovada = há registro com data e fonte. "Sem registro" não prova que não aconteceu.
+- Primeiro acesso: tabela `acesso_primeiro_registro`, gravada só quando um login real emite token (colaborador, cliente por senha/nascimento, troca e definição de senha). Aceite de convite, navegação (`onboarding_eventos`), prévia do administrador e renovação de sessão não contam. Não há dados anteriores à implantação e nenhuma data é inferida.
+- Pedido comercial PAXMED (`vitrine_convites`) e convite clínico do paciente (`paxcare_convites_medico`) continuam separados. O pedido só é ligado a um cadastro de profissional por e-mail E CRM iguais.
+- As mensagens são texto editável para copiar ou abrir o WhatsApp manualmente. O servidor não envia nada e não grava "enviado".
+- Lovable: nada novo depende dele nesta central. As lacunas anteriores (contato sem `consentimento`, login do paciente em rota inexistente, adesão do médico só local) seguem abertas.
