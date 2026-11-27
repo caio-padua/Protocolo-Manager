@@ -15,13 +15,14 @@ import { arquivarDeexNoDrive, nomeArquivoDeex } from "../lib/evolucao-exames-dri
 import { db, clientsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
+import { moduleGuard } from "../middleware/moduleGuard";
 const router: IRouter = Router();
 
 function modoDe(v: unknown): ModoEvolucaoExames | null {
   return v === "ultimas5" || v === "completo" ? v : null;
 }
 
-router.get("/evolucao-exames/cliente/:clientId/pdf", requireCollaborator, async (req: Request, res: Response) => {
+router.get("/evolucao-exames/cliente/:clientId/pdf", requireCollaborator, moduleGuard("exames_lab"), async (req: Request, res: Response) => {
   try {
     const modo = modoDe(req.query["modo"] ?? "ultimas5");
     if (!modo) { res.status(400).json({ error: "modo deve ser ultimas5 ou completo." }); return; }

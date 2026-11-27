@@ -4,6 +4,8 @@ import express from "express";
 import request from "supertest";
 import { iniciarPgDescartavel } from "./helpers/pg-descartavel";
 
+// A licença do módulo é testada em module-guard.test.ts; aqui o guard passa para isolar o fluxo da rota.
+vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_q: unknown, _s: unknown, n: () => void) => n() }));
 vi.mock("../lib/logger", () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 const auth = vi.hoisted(() => ({ owner: true }));
 vi.mock("../lib/clinical-access", () => ({ isPlatformOwner: vi.fn(async () => auth.owner) }));

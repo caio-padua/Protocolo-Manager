@@ -3,6 +3,8 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
 
+// A licença do módulo é testada em module-guard.test.ts; aqui o guard passa para isolar o fluxo da rota.
+vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_q: unknown, _s: unknown, n: () => void) => n() }));
 vi.mock("../routes/collaborator", () => ({ requireCollaborator: (_q: unknown, _s: unknown, n: () => void) => n() }));
 const mockEscopo = vi.fn();
 vi.mock("../lib/exam-tenant", () => ({

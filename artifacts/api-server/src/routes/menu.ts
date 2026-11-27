@@ -63,8 +63,8 @@ router.get("/menu", async (req, res): Promise<void> => {
     res.json({ items });
   } catch (err) {
     req.log.error({ err }, "GET /menu: erro ao filtrar módulos");
-    // Fail-open: em caso de erro retorna lista completa
-    res.json({ items: MENU_ITEMS });
+    // Fail-closed: sem confirmar a licença, não devolve a lista completa.
+    res.status(503).json({ error: "Não foi possível confirmar os módulos da clínica." });
   }
 });
 

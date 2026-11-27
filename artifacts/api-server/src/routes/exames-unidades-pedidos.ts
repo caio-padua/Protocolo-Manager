@@ -8,6 +8,7 @@ import { requireCollaborator } from "./collaborator";
 import { aprovarPedido, executarRevisao, expirarVencidos, rejeitarPedido, LIMITE_PADRAO_DIARIO, TETO_PADRAO_POR_PEDIDO_USD, type Ator } from "../lib/exam-units/pedido-revisao";
 import { CUSTO_ESTIMADO_POR_CONSULTA_USD, chaveOpenAIPresente } from "../lib/exam-units/revisao-openai";
 
+import { moduleGuard } from "../middleware/moduleGuard";
 const router = Router();
 
 function atorDaSessao(req: Request, res: Response): Ator | null {
@@ -18,7 +19,7 @@ function atorDaSessao(req: Request, res: Response): Ator | null {
 const idDe = (req: Request) => { const n = Number(req.params.id); return Number.isSafeInteger(n) && n > 0 ? n : null; };
 const falha = (res: Response, r: { code: string; http: number }) => res.status(r.http).json({ error: r.code });
 
-router.get("/exames-lab/unidades/pedidos", requireCollaborator, async (req, res) => {
+router.get("/exames-lab/unidades/pedidos", requireCollaborator, moduleGuard("exames_lab"), async (req, res) => {
   const ator = atorDaSessao(req, res); if (!ator) return;
   try {
     await expirarVencidos();
@@ -44,7 +45,7 @@ router.get("/exames-lab/unidades/pedidos", requireCollaborator, async (req, res)
 
 const aprovarSchema = z.object({ tetoUsd: z.number().positive().max(1).optional(), ttlMin: z.number().int().min(1).max(240).optional(), reconheceRiscoDuplicidade: z.boolean().optional() }).strict();
 
-router.post("/exames-lab/unidades/pedidos/:id/aprovar", requireCollaborator, async (req, res) => {
+router.post("/exames-lab/unidades/pedidos/:id/aprovar", requireCollaborator, moduleGuard("exames_lab"), async (req, res) => {
   const ator = atorDaSessao(req, res); if (!ator) return;
   const id = idDe(req); if (!id) return res.status(400).json({ error: "id inválido" });
   const body = aprovarSchema.safeParse(req.body ?? {});
@@ -53,14 +54,14 @@ router.post("/exames-lab/unidades/pedidos/:id/aprovar", requireCollaborator, asy
   catch (e) { req.log?.error({ err: e }, "aprovar pedido falhou"); return res.status(500).json({ error: "Falha ao aprovar" }); }
 });
 
-router.post("/exames-lab/unidades/pedidos/:id/rejeitar", requireCollaborator, async (req, res) => {
+router.post("/exames-lab/unidades/pedidos/:id/rejeitar", requireCollaborator, moduleGuard("exames_lab"), async (req, res) => {
   const ator = atorDaSessao(req, res); if (!ator) return;
   const id = idDe(req); if (!id) return res.status(400).json({ error: "id inválido" });
   try { const r = await rejeitarPedido(id, ator); return r.ok ? res.json(r) : falha(res, r); }
   catch (e) { req.log?.error({ err: e }, "rejeitar pedido falhou"); return res.status(500).json({ error: "Falha ao rejeitar" }); }
 });
 
-router.post("/exames-lab/unidades/pedidos/:id/executar", requireCollaborator, async (req, res) => {
+router.post("/exames-lab/unidades/pedidos/:id/executar", requireCollaborator, moduleGuard("exames_lab"), async (req, res) => {
   const ator = atorDaSessao(req, res); if (!ator) return;
   const id = idDe(req); if (!id) return res.status(400).json({ error: "id inválido" });
   try { const r = await executarRevisao(id, ator); return r.ok ? res.json(r) : falha(res, r); }

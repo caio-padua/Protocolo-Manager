@@ -9,6 +9,7 @@ import { EXAMES_AVULSOS_AVISO, EXAMES_AVULSOS_MAX_ABERTAS, EXAMES_AVULSOS_MAX_IT
 
 // Exames avulsos: o cliente escolhe, pede informacao e orcamento. Nao e prescricao.
 // O orcamento so existe depois que o titular da plataforma informa o valor (sem preco padrao).
+import { moduleGuard } from "../middleware/moduleGuard";
 const router: IRouter = Router();
 
 interface Row {
@@ -128,7 +129,7 @@ async function owner(req: Request, res: Response): Promise<number | null> {
   return actor;
 }
 
-router.get("/exames-avulsos/fila", requireCollaborator, async (req, res): Promise<void> => {
+router.get("/exames-avulsos/fila", requireCollaborator, moduleGuard("exames_lab"), async (req, res): Promise<void> => {
   if (!(await owner(req, res))) return;
   const rows = await db.execute(sql`
     SELECT r.*, c.name AS client_name FROM exam_avulso_requests r JOIN clients c ON c.id = r.client_id
@@ -145,7 +146,7 @@ const QuoteBody = z.object({
   confirmo: z.literal(true),
 }).strict();
 
-router.put("/exames-avulsos/:id/orcamento", requireCollaborator, async (req, res): Promise<void> => {
+router.put("/exames-avulsos/:id/orcamento", requireCollaborator, moduleGuard("exames_lab"), async (req, res): Promise<void> => {
   const actor = await owner(req, res);
   if (!actor) return;
   const id = Number(req.params.id);

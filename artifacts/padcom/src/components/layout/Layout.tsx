@@ -331,8 +331,9 @@ function filtrarNavegacao(
   nav: NavEntry[],
   modulosAtivos: Set<string> | null
 ): NavEntry[] {
-  // Null = módulos não carregados ainda → mostrar tudo (fail-open)
-  if (modulosAtivos === null) return nav;
+  // Null = módulos ainda não confirmados pelo servidor → NÃO mostrar grupos que dependem de módulo (fail-closed).
+  // O cadeado é só indicação visual; a autorização real é do servidor.
+  if (modulosAtivos === null) return nav.filter((item) => !isGroup(item) || (GRUPO_MODULO[item.name] ?? null) === null);
 
   return nav.reduce<NavEntry[]>((acc, item) => {
     if (isGroup(item)) {
@@ -433,7 +434,7 @@ export function Layout({ children }: LayoutProps) {
   };
 
   // ─── Menu dinâmico: busca /api/menu para filtrar por módulos ativos ────────
-  // null = carregando (fail-open: mostra tudo); Set = módulos confirmados pelo servidor.
+  // null = carregando (módulos pagos ocultos até confirmar); Set = módulos confirmados pelo servidor.
   const [modulosAtivos, setModulosAtivos] = useState<Set<string> | null>(null);
   const menuFetched = useRef(false);
 
@@ -451,7 +452,8 @@ export function Layout({ children }: LayoutProps) {
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { items?: { moduloRequerido?: string | null }[] } | null) => {
-        if (!data?.items) return;
+        // Resposta inválida ou recusada: módulos pagos ficam trancados (nunca liberados por erro).
+        if (!data?.items) { setModulosAtivos(new Set()); return; }
         // Extrai os módulos com acesso permitido
         const ativos = new Set<string>();
         for (const item of data.items) {
@@ -460,7 +462,7 @@ export function Layout({ children }: LayoutProps) {
         setModulosAtivos(ativos);
       })
       .catch(() => {
-        // Fail-open: se a API falhar, não filtrar nada
+        // Fail-closed: se a API falhar, os módulos pagos ficam trancados
         setModulosAtivos(new Set());
       });
   }, []);
