@@ -29,7 +29,7 @@ beforeAll(async () => {
     tipo text not null default 'SANGUE', file_name text not null, exam_count int not null default 1, observacao text, pdf_data text not null, created_at timestamptz)`);
   await pool.query(`INSERT INTO exam_request_pdfs (token, client_id, file_name, pdf_data, created_at) VALUES
     ($1,1,'a.pdf',$4,'2026-06-16'),($2,2,'b.pdf',$4,'2026-06-16'),($3,1,'sem-data.pdf',$4,NULL)`, [LEG1, LEG2, LEG_SEM_DATA, PDF]);
-  const pt = await import("../lib/portal-token"); patientTok = pt.createPatientToken ?? pt.createPortalToken;
+  const pt = await import("../lib/portal-token"); patientTok = pt.createPortalToken;
   novo = (await import("../lib/exam-link")).criarTokenExame;
   app = express(); app.use(express.json());
   app.use((req: any, _r, n) => { req.log = { error() {}, warn() {}, info() {} }; n(); });

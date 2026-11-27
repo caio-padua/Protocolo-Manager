@@ -11,6 +11,7 @@ const estado = vi.hoisted(() => ({
   falha: false,
 }));
 
+vi.mock("../lib/pre-cadastro", async (orig) => ({ ...(await orig<typeof import("../lib/pre-cadastro")>()), lerEstadoPreCadastro: async () => ({ completo: true, pendentes: [], valores: {} }) }));
 vi.mock("@workspace/db", () => {
   const chain = () => {
     const c: Record<string, unknown> = {

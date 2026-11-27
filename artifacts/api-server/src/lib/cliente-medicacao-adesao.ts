@@ -240,7 +240,8 @@ export function montarAdesao(
   agendaPorDia?: Map<string, { origem: OrigemLista; nomeChave: string; sigla: string; situacao?: SituacaoHorario }[]>,
 ): Record<OrigemLista, AdesaoLista> {
   // Sem histórico gravado (chamada pura antiga): só HOJE é conhecido, vindo dos horários de hoje.
-  const agenda = agendaPorDia ?? new Map([[hoje, horarios.map((h) => ({ origem: h.origem, nomeChave: h.nomeChave, sigla: h.sigla }))]]);
+  const agenda: Map<string, { origem: OrigemLista; nomeChave: string; sigla: string; situacao?: SituacaoHorario }[]> =
+    agendaPorDia ?? new Map([[hoje, horarios.map((h) => ({ origem: h.origem, nomeChave: h.nomeChave, sigla: h.sigla }))]]);
   const out = {} as Record<OrigemLista, AdesaoLista>;
   for (const origem of ["prescrita", "propria"] as OrigemLista[]) {
     const esperadoPorDia = horarios.filter((h) => h.origem === origem).length;

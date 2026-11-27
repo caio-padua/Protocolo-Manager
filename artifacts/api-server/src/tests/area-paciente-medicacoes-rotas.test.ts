@@ -17,11 +17,12 @@ vi.mock("@workspace/db", () => ({
   db: {},
 }));
 
-vi.mock("../lib/lembrete-medicacoes-recalculo", () => ({ recalcularLembreteDoCliente: async () => true }));
+vi.mock("../lib/lembrete-medicacoes-recalculo", () => ({ recalcularLembreteDoCliente: async () => true, recalculoPendente: async () => false, tentarRecuperarRecalculo: async () => undefined }));
 
 import router from "../routes/area-paciente-medicacoes";
 import { createPortalToken } from "../lib/portal-token";
 import { criarTabelasMedicacoes, registrarMedicacao, textoDeConsentimentoVigente } from "../lib/cliente-medicacoes";
+import { criarTabelaTomadas } from "../lib/cliente-medicacao-adesao";
 import { MAPA_PERIODO } from "../lib/lembrete-periodo";
 
 const PG_BIN = process.env.PG_BIN_DIR ?? "/nix/store/bgwr5i8jf8jpg75rr53rz3fqv5k8yrwp-postgresql-16.10/bin";
@@ -30,7 +31,7 @@ let proc: ChildProcess | null = null;
 let pool: pg.Pool;
 const app = express();
 app.use(express.json());
-app.use((req, _res, next) => { (req as unknown as { log: unknown }).log = { error: () => {} }; next(); });
+app.use((req, _res, next) => { (req as unknown as { log: unknown }).log = { error: (o: unknown) => void o }; next(); });
 app.use("/api", router);
 
 const tok = (id: number) => `Bearer ${createPortalToken(id)}`;
@@ -60,6 +61,7 @@ beforeAll(async () => {
     { sigla: "XX", nome: "Evitar", tipo: "nao_tomar", formulas: [{ nome: "Nao Tomar Isto" }] },
   ])]);
   await criarTabelasMedicacoes(pool);
+  await criarTabelaTomadas(pool);
 }, 60000);
 
 afterAll(async () => {
