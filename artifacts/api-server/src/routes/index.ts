@@ -71,6 +71,11 @@ import anamneseV2Router from "./anamnese-v2";
 import areaPacienteRouter from "./area-paciente";
 import areaPacientePedidosRouter from "./area-paciente-pedidos";
 import areaPacienteMedicacoesRouter from "./area-paciente-medicacoes";
+import areaPacienteSessaoRouter from "./area-paciente-sessao";
+import areaPacienteContaRouter from "./area-paciente-conta";
+import { bloqueioContaExcluida } from "../lib/area-paciente-conta.js";
+import { pool as poolContas } from "@workspace/db";
+import cockpitMedicacoesRouter from "./cockpit-medicacoes";
 import paxcareRouter from "./paxcare";
 import paxcarePlanosRouter from "./paxcare-planos";
 import examesAvulsosRouter from "./exames-avulsos";
@@ -174,6 +179,7 @@ const router: IRouter = Router();
 
 // Banner de marca (imagem pública) — buscado por Twilio/Telegram sem sessão.
 // Registrado ANTES do portão de colaborador.
+router.use("/area-paciente", bloqueioContaExcluida(poolContas));
 router.use(brandRouter);
 
 // Pagamentos Asaas (cobranca + webhook): registrado ANTES do portao de
@@ -315,9 +321,12 @@ router.use(examesLabRouter);
 router.use(anamnesePortalRouter);
 router.use(pulsoDiarioRouter);
 router.use(anamneseV2Router);
+router.use(areaPacienteContaRouter);
 router.use(areaPacienteRouter);
 router.use(areaPacientePedidosRouter);
 router.use(areaPacienteMedicacoesRouter);
+router.use(areaPacienteSessaoRouter);
+router.use(cockpitMedicacoesRouter);
 router.use(paxcareRouter);
 router.use(paxcarePlanosRouter);
 router.use(examesAvulsosRouter);

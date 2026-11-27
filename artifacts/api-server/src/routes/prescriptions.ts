@@ -33,7 +33,7 @@ import QRCode from "qrcode";
 // ── MOTOR ÚNICO: cópia visual para o paciente (além do PDF regulatório M3) ──
 import { carregarIdentidadeClinica2b, IdentidadeEmpresa2bError, type IdentidadeClinica2b } from "../lib/documentos/paxmed-2b-identidade-clinica";
 // ── Motor de lembretes por período (portado do IHE) ──
-import { sincronizarLembretePrescricao } from "../lib/lembrete-periodo";
+import { sincronizarLembretePrescricao, type ItemLembretePrescricao } from "../lib/lembrete-periodo";
 import { mapPeriodosTextoToCanonicos } from "../lib/prescription-reminder-message";
 import { resolvePrescriptionClient } from "../lib/prescription-client";
 import { ClinicalIdentityError, medicalRegistration, resolveClinicalEmitter, resolveClinicalMember } from "../lib/clinical-emitter";
@@ -658,7 +658,14 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
         dose: it.dose ?? undefined, periodos: mapPeriodosTextoToCanonicos(it.periodo ?? ""),
       }));
       // Medicações validadas do cliente (PaxCare) acompanham a prescrição; falha não bloqueia.
-      const extrasMedicacao = await itensLembreteDeMedicacoes(medicacoesPool, body.clientId, brtISODate()).catch(() => []);
+      const extrasMedicacao = await itensLembreteDeMedicacoes(medicacoesPool, body.clientId, brtISODate()).catch((err: unknown) => {
+        // Falha visível (não silenciosa): a prescrição segue, mas o time é avisado de que as medicações do cliente ficaram fora do lembrete.
+        req.log.error(
+          { evento: "lembrete_medicacoes_cliente_falhou", clientId: body.clientId, errorType: err instanceof Error ? err.constructor.name : typeof err },
+          "Medicações do cliente não incluídas no lembrete da prescrição",
+        );
+        return [] as ItemLembretePrescricao[];
+      });
       await sincronizarLembretePrescricao(body.clientId, mesclarItensSemDuplicar(itensPrescricao, extrasMedicacao));
     } catch (err) {
       req.log.warn({ err }, "Conteúdo do lembrete não preparado; emissão clínica continua sem envios");

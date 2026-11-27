@@ -8,6 +8,7 @@ import type { AbaId } from "./CockpitTabs";
 
 // ── Importações lazy por aba ─────────────────────────────────────────────────
 const PrescricaoPanel    = lazy(() => import("./panels/PrescricaoPanel"));
+const MedicacoesAdesaoPanel = lazy(() => import("./panels/MedicacoesAdesaoPanel"));
 const InjetaveisPanel    = lazy(() => import("./panels/InjetaveisPanel"));
 const ImplantesPanel     = lazy(() => import("./panels/ImplantesPanel"));
 const ExamesPanel        = lazy(() => import("./panels/ExamesPanel"));
@@ -49,6 +50,7 @@ export default function CockpitContent({ clientId, client, aba, novoProtocoloAbe
     <div className="cockpit-content font-sans text-foreground" data-cockpit-tab={aba}>
       <Suspense fallback={<PanelSkeleton />}>
         {aba === "prescricao"  && <PrescricaoPanel  clientId={clientId} />}
+        {aba === "medicacoes"  && <MedicacoesAdesaoPanel clientId={clientId} />}
         {aba === "injetaveis"  && <InjetaveisPanel  clientId={clientId} onNovoProtocolo={onNovoProtocolo} />}
         {aba === "implantes"   && <ImplantesPanel   clientId={clientId} onNovoProtocolo={onNovoProtocolo} />}
         {aba === "exames"      && <ExamesPanel      clientId={clientId} />}

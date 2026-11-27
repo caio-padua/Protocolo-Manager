@@ -1,12 +1,13 @@
-import { useState, useCallback, useEffect, useRef, lazy, Suspense, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, lazy, Suspense, type ReactNode } from "react";
 import { PreCadastroObrigatorio, usePreCadastro } from "@/components/area/PreCadastroObrigatorio";
 import { ComunicacaoPaineis } from "@/components/area/ComunicacaoPaineis";
 import { tituloProprio } from "@/lib/utils";
+import { encerrarSessaoPersistente, iniciarSessaoPersistente, renovarSessaoPersistente, temSessaoGuardada } from "@/lib/sessaoArea";
 import {
   User, Loader2, AlertCircle, ChevronRight, LogOut, Home, Syringe,
   CalendarDays, FileText, Upload, CheckCircle, Download, Clock,
   FileUp, Wallet, FlaskConical, ClipboardList, KeyRound, ChevronDown, ChevronUp,
-  MessageCircle, TrendingUp, Sun, Moon, Crown, Award, Camera, ShieldCheck, Activity,
+  MessageCircle, TrendingUp, Sun, Moon, Crown, Award, Camera, ShieldCheck, Activity, Lock, UserCog,
 } from "lucide-react";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PaxterWordmarkArt } from "@/components/layout/paxter-fx/PaxterWordmarkArt";
@@ -30,6 +31,9 @@ const FotosCorpoCliente = lazy(() => import("@/components/FotosCorpoCliente"));
 const PaxCareCofre = lazy(() => import("@/components/PaxCareCofre"));
 const MeuPulsoCliente = lazy(() => import("@/components/MeuPulsoCliente"));
 const MeusMedicamentos = lazy(() => import("@/components/MeusMedicamentos"));
+const RecursosPremiumCliente = lazy(() => import("@/components/RecursosPremiumCliente"));
+const PaxCarePlanosPaciente = lazy(() => import("@/components/PaxCarePlanosPaciente"));
+const ExcluirContaPaxCare = lazy(() => import("@/components/ExcluirContaPaxCare"));
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -111,7 +115,7 @@ function formatClientName(fullName: string): string {
 // ---------------------------------------------------------------------------
 type ClientInfo = { id: number; name: string; cpf: string | null; token: string };
 type TabKey = "inicio" | "protocolos" | "agenda" | "documentos" | "enviar"
-           | "duvidas" | "suporte" | "evolucao" | "fotos" | "minhacategoria" | "clubvip" | "comunicacao" | "boloes" | "meusjogos" | "paxcare" | "pulso";
+           | "duvidas" | "suporte" | "evolucao" | "fotos" | "minhacategoria" | "clubvip" | "comunicacao" | "boloes" | "meusjogos" | "paxcare" | "pulso" | "premium" | "conta";
 
 const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "inicio",     label: "INÍCIO",      icon: Home },
@@ -126,6 +130,8 @@ const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "clubvip",    label: "GRUPO VIP",    icon: Crown },
   { key: "comunicacao", label: "COMUNICAÇÃO", icon: MessageCircle },
   { key: "paxcare",    label: "PAXCARE",     icon: ShieldCheck },
+  { key: "premium",    label: "PREMIUM",     icon: Lock },
+  { key: "conta",      label: "MEU PLANO / CONTA", icon: UserCog },
 ];
 
 // ---------------------------------------------------------------------------
@@ -159,23 +165,60 @@ export default function Area() {
     return () => clearTimeout(t);
   }, []);
 
-  // Modo de preview admin: ?preview_id=<n>&preview_name=<name>&preview_token=<tok>
-  // O dono da clínica usa a página /experiencia-cliente para gerar esta URL
-  // e abre numa aba nova, sem precisar digitar CPF/senha do cliente.
+  // Modo de prévia do administrador (/area?previa=1): o token NÃO vem na URL. A aba pede os dados
+  // à janela que a abriu (mesma origem) e os guarda só na memória.
+  const ehPrevia = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("previa");
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const pid = params.get("preview_id");
-    const pname = params.get("preview_name");
-    const ptoken = params.get("preview_token");
-    if (pid && pname && ptoken) {
+    if (!ehPrevia || !window.opener) return;
+    const origem = window.location.origin;
+    const aoMensagem = (ev: MessageEvent) => {
+      const d = ev.data as { tipo?: string; id?: number; name?: string; token?: string } | null;
+      if (ev.origin !== origem || ev.source !== window.opener || d?.tipo !== "paxter-previa-dados") return;
+      if (typeof d.id !== "number" || typeof d.name !== "string" || typeof d.token !== "string") return;
       setAdminMode(true);
-      setClient({ id: Number(pid), name: decodeURIComponent(pname), cpf: null, token: ptoken });
-      // Limpa a URL para não vazar o token no histórico
+      setClient({ id: d.id, name: d.name, cpf: null, token: d.token });
       window.history.replaceState({}, "", window.location.pathname);
-    }
+    };
+    window.addEventListener("message", aoMensagem);
+    (window.opener as Window).postMessage({ tipo: "paxter-previa-pronta" }, origem);
+    return () => window.removeEventListener("message", aoMensagem);
+  }, [ehPrevia]);
+
+  // Sessão persistente: ao abrir, tenta renovar o que ficou guardado no aparelho (sem digitar CPF).
+  const [restaurando, setRestaurando] = useState(() => !ehPrevia && temSessaoGuardada());
+  useEffect(() => {
+    if (!restaurando) return;
+    let vivo = true;
+    void renovarSessaoPersistente().then((r) => {
+      if (!vivo) return;
+      if (r && r !== "indisponivel") setClient(r);
+      setRestaurando(false);
+    });
+    return () => { vivo = false; };
+  }, [restaurando]);
+
+  // Renovação deslizante: o token de acesso dura 30 min; renova a cada 20 min e ao voltar para a aba.
+  const logado = !!client && !adminMode;
+  useEffect(() => {
+    if (!logado) return;
+    let ultima = Date.now();
+    const renovar = async () => {
+      const r = await renovarSessaoPersistente();
+      if (r && r !== "indisponivel") { ultima = Date.now(); setClient(r); }
+    };
+    const timer = setInterval(() => { void renovar(); }, 20 * 60 * 1000);
+    const aoVoltar = () => { if (document.visibilityState === "visible" && Date.now() - ultima > 10 * 60 * 1000) void renovar(); };
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", aoVoltar); };
+  }, [logado]);
+
+  const entrar = useCallback((c: ClientInfo) => {
+    setClient(c);
+    void iniciarSessaoPersistente(c.token);
   }, []);
 
   const handleLogout = useCallback(() => {
+    void encerrarSessaoPersistente();
     setClient(null);
     setTab("inicio");
     setAdminMode(false);
@@ -186,9 +229,13 @@ export default function Area() {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, [tab]);
 
-  const preCadastro = usePreCadastro(client?.token ?? null, !!client && !adminMode);
+  // O token renova sozinho a cada 20 min; a conferência do pré-cadastro só roda ao entrar (não pisca a tela).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const tokenPreCadastro = useMemo(() => client?.token ?? null, [client?.id]);
+  const preCadastro = usePreCadastro(tokenPreCadastro, !!client && !adminMode);
 
-  if (!client) return <LoginScreen onSuccess={setClient} />;
+  if (restaurando) return <div className="min-h-screen flex items-center justify-center text-sm font-semibold">Carregando…</div>;
+  if (!client) return <LoginScreen onSuccess={entrar} />;
 
   if (preCadastro.situacao === "carregando") {
     return <div className="min-h-screen flex items-center justify-center text-sm font-semibold">Carregando…</div>;
@@ -286,6 +333,13 @@ export default function Area() {
           <div className="space-y-6">
             <MeusMedicamentos token={client.token} somenteLeitura={adminMode} />
             <PaxCareCofre token={client.token} />
+          </div>
+        )}
+        {tab === "premium" && <RecursosPremiumCliente onAbrirPlano={() => setTab("conta")} />}
+        {tab === "conta" && (
+          <div className="space-y-6">
+            <PaxCarePlanosPaciente token={client.token} />
+            <ExcluirContaPaxCare token={client.token} somenteLeitura={adminMode} aoExcluir={handleLogout} />
           </div>
         )}
         {tab === "boloes" && (
@@ -924,9 +978,12 @@ function useApi<T>(client: ClientInfo, path: string, refreshKey: number = 0) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const chaveAnterior = useRef("");
   useEffect(() => {
     let alive = true;
-    setLoading(true); setError("");
+    // Só o token mudou (renovação automática): atualiza em silêncio, sem piscar a tela.
+    if (chaveAnterior.current !== `${path}|${refreshKey}`) { setLoading(true); setError(""); }
+    chaveAnterior.current = `${path}|${refreshKey}`;
     fetch(`${API_BASE}/api/area-paciente/${path}`, {
       headers: { Authorization: `Bearer ${client.token}` },
     })

@@ -88,6 +88,8 @@ import {
   Ticket,
   Table2,
   Award,
+  Pill,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -102,7 +104,7 @@ interface LayoutProps {
 }
 
 type NavLeaf = { name: string; href: string; icon: typeof LayoutDashboard; external?: boolean };
-type NavGroup = { name: string; icon: typeof LayoutDashboard; children: NavLeaf[] };
+type NavGroup = { name: string; icon: typeof LayoutDashboard; children: NavLeaf[]; moduloBloqueado?: string };
 type NavEntry = NavLeaf | NavGroup;
 
 function isGroup(e: NavEntry): e is NavGroup {
@@ -132,6 +134,7 @@ const navigation: NavEntry[] = [
       { name: "Cockpit da Consulta", href: "/cockpit", icon: Stethoscope },
       { name: "Pit Stop", href: "/pit-stop", icon: Flag },
       { name: "Curadoria Clínica", href: "/pedidos-medicos", icon: FileText },
+      { name: "Medicações & Adesão", href: "/medicacoes-adesao", icon: Pill },
       { name: "Cockpit da Anamnese", href: "/cockpit-anamnese", icon: Brain },
       { name: "Cartório", href: "/cartorio", icon: Stamp },
       { name: "Craniotomia", href: "/craniotomia", icon: BrainCircuit },
@@ -335,7 +338,8 @@ function filtrarNavegacao(
     if (isGroup(item)) {
       const modulo = GRUPO_MODULO[item.name] ?? null;
       // Grupo sem módulo = universal; com módulo = mostrar só se ativo
-      if (modulo !== null && !modulosAtivos.has(modulo)) return acc;
+      // Módulo não contratado: o grupo continua visível, com cadeado dourado que abre a tela de ativação.
+      if (modulo !== null && !modulosAtivos.has(modulo)) { acc.push({ ...item, moduloBloqueado: modulo }); return acc; }
       acc.push(item);
     } else {
       acc.push(item); // Folhas (Dashboard, etc.) sempre visíveis
@@ -563,6 +567,7 @@ export function Layout({ children }: LayoutProps) {
   const itensBuscaveis: ItemBusca[] = [];
   for (const e of navFiltrada) {
     for (const l of isGroup(e) ? e.children : [e]) {
+      if (isGroup(e) && e.moduloBloqueado) continue;
       if (itemVisivel(l.href) && !bloqueadoSim(l.href)) itensBuscaveis.push({ name: l.name, href: l.href, group: isGroup(e) ? e.name : "Menu", icon: l.icon, external: l.external });
     }
   }
@@ -668,6 +673,19 @@ export function Layout({ children }: LayoutProps) {
           <nav className={`flex-1 px-2.5 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${isCockpit ? "min-h-0" : ""}`}>
             {navFiltrada.map((item) => {
               const Icon = item.icon;
+
+              if (isGroup(item) && item.moduloBloqueado) {
+                const alvo = `/ativar-modulo/${item.moduloBloqueado}`;
+                return (
+                  <Link key={item.name} href={alvo} onClick={() => setSidebarOpen(false)}>
+                    <div title={`${item.name} — módulo não ativo. Toque para ver como ativar.`} data-testid={`modulo-bloqueado-${item.moduloBloqueado}`}
+                      className="mt-1 flex items-center gap-2 px-3 py-2 rounded-[5px] border border-sidebar-border/60 text-sidebar-foreground/60 hover:bg-sidebar-accent/50 cursor-pointer">
+                      <Lock className="w-4 h-4 shrink-0" style={{ color: "#C9A227" }} />
+                      {!compactMenu && <span className="text-[10px] font-semibold uppercase tracking-[0.14em]">{item.name}</span>}
+                    </div>
+                  </Link>
+                );
+              }
 
               if (isGroup(item)) {
                 const SectionIcon = item.icon;

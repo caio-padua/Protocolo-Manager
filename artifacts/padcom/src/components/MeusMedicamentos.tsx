@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Pill, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { BlocoAdesao, useAdesao } from "./AdesaoMedicacao";
 
 // MEUS MEDICAMENTOS & ROTINA (PaxCare, /area). Tudo vem de rotas token-bound
 // (/area-paciente/medicacoes*); o paciente nunca informa o próprio id.
@@ -43,7 +44,7 @@ type Propria = {
   refeicao: Refeicao | null; observacao: string | null; periodos: Periodo[]; motivoRecusa: string | null;
 };
 type Clinica = { empresaId: number; nome: string; cidade: string | null; estado: string | null; consentido: boolean };
-type Dados = { prescritas: Prescrita[]; proprias: Propria[]; clinicas: Clinica[]; consentimento: { versao: string; texto: string; hash: string } };
+type Dados = { lembretePendente?: boolean; prescritas: Prescrita[]; proprias: Propria[]; clinicas: Clinica[]; consentimento: { versao: string; texto: string; hash: string } };
 
 const ESTADO_TEXTO: Record<Estado, string> = {
   nao_validada: "Aguardando conferência da clínica",
@@ -87,6 +88,7 @@ const VAZIO = { nome: "", doseValor: "", doseUnidade: "mg", refeicao: "" as Refe
 
 export default function MeusMedicamentos({ token, somenteLeitura = false }: { token: string; somenteLeitura?: boolean }) {
   const auth = { Authorization: `Bearer ${token}` };
+  const adesao = useAdesao(token);
   const [dados, setDados] = useState<Dados | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [msg, setMsg] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
@@ -106,6 +108,9 @@ export default function MeusMedicamentos({ token, somenteLeitura = false }: { to
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
   useEffect(() => { void carregar(); }, [carregar]);
+  // Mudou a lista de medicamentos (editar/pausar/excluir): os horários de hoje e a adesão acompanham.
+  const { recarregar: recarregarAdesao } = adesao;
+  useEffect(() => { if (dados) void recarregarAdesao(); }, [dados, recarregarAdesao]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   async function chamar(metodo: string, caminho: string, corpo?: unknown): Promise<Response> {
@@ -204,6 +209,11 @@ export default function MeusMedicamentos({ token, somenteLeitura = false }: { to
 
       <div role="status" aria-live="polite" className="min-h-[44px]">
         {msg && <div className={`concave-3d rounded-lg px-4 py-3 text-sm ${msg.tipo === "erro" ? "text-red-600" : "text-primary"}`}>{msg.texto}</div>}
+        {dados.lembretePendente && (
+          <div className="concave-3d rounded-lg px-4 py-3 text-sm text-red-600 mt-2">
+            Seus lembretes ainda não refletem a última alteração. O sistema tentará de novo ao abrir esta tela; sua alteração foi salva.
+          </div>
+        )}
       </div>
 
       <section className="panel-3d rounded-xl p-4 space-y-3" aria-label="Prescritos pela clínica">
@@ -216,6 +226,7 @@ export default function MeusMedicamentos({ token, somenteLeitura = false }: { to
             {p.periodos.length > 0 && <p className="text-[10px] uppercase tracking-widest text-accent">{p.periodos.join(" · ")}</p>}
           </div>
         ))}
+        <BlocoAdesao origem="prescrita" adesao={adesao} somenteLeitura={somenteLeitura} />
       </section>
 
       <section className="panel-3d rounded-xl p-4 space-y-3" aria-label="Cadastrados por mim">
@@ -256,6 +267,7 @@ export default function MeusMedicamentos({ token, somenteLeitura = false }: { to
             )}
           </div>
         ))}
+        <BlocoAdesao origem="propria" adesao={adesao} somenteLeitura={somenteLeitura} />
       </section>
 
       {!somenteLeitura && (

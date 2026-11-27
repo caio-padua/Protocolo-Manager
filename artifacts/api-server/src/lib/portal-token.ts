@@ -194,3 +194,21 @@ export function verifyFeedToken(token: string): number | null {
     return null;
   }
 }
+
+// Confirmação de EXCLUIR CONTA: emitida só depois de reautenticar (senha ou nascimento), vale 10 minutos
+// e só serve para esta ação (escopo "exclusao"); não abre nenhuma outra rota.
+const EXCLUSAO_TTL_MS = 10 * 60 * 1000;
+export function createExclusaoToken(clientId: number): string {
+  const payload = `exclusao:${clientId}:${Date.now() + EXCLUSAO_TTL_MS}`;
+  const sig = createHmac("sha256", TOKEN_SECRET).update(payload).digest("hex");
+  return Buffer.from(`${payload}:${sig}`).toString("base64url");
+}
+export function verifyExclusaoToken(token: string): number | null {
+  try {
+    const parts = Buffer.from(token, "base64url").toString().split(":");
+    if (parts.length !== 4 || parts[0] !== "exclusao") return null;
+    const expected = createHmac("sha256", TOKEN_SECRET).update(parts.slice(0, 3).join(":")).digest("hex");
+    if (parts[3] !== expected || Date.now() > Number(parts[2])) return null;
+    return Number(parts[1]);
+  } catch { return null; }
+}

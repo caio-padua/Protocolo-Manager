@@ -108,7 +108,7 @@ export default function CockpitViews({
       <div className="cc-workspace-bar">
         <div>
           <span>ESPAÇO DE TRABALHO</span>
-          <h2>Um cliente. Doze ferramentas.</h2>
+          <h2>Um cliente. Treze ferramentas.</h2>
         </div>
         <div className="cc-modes" role="group" aria-label="Modo de visualização do Cockpit">
           <button type="button" data-active={modo === "abas"} aria-pressed={modo === "abas"} onClick={() => onModo("abas")}>

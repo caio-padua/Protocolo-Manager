@@ -201,3 +201,4 @@
 - [Autorização por papel x clínica no servidor](autorizacao-papeis-servidor.md) — guard global lê professional_papeis_empresa; matriz em lib/papeis-acesso.ts; 158 testes antigos já falhavam sem ele.
 - [Cabine de Comando do CEO](cabine-comando-ceo.md) — /ceo/cabine; organograma calculado da regra real; docs em docs/permissoes; documentos arquivados, não apagados.
 - [Transmutação visual do CEO](cabine-comando-ceo.md) — seletor só visual (lib/transmutacao.ts, flag HOMOLOGACAO_PERMISSOES); usa o mapa real do servidor; e2e com token do CEO.
+- [Área do Cliente: token e exclusão de conta](area-cliente-apple-exclusao-token.md) — token só em cabeçalho; exclusão lógica preserva prontuário; cadeados premium em preparação.

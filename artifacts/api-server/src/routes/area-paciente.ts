@@ -2,6 +2,7 @@ import { Router, type IRouter, Request, Response } from "express";
 import { eq, and, gte, lte, asc, desc, sql } from "drizzle-orm";
 import {
   db,
+  pool,
   clientsTable,
   protocolsTable,
   protocolItemsTable,
@@ -19,6 +20,8 @@ import { verifyPortalToken, createPortalToken } from "../lib/portal-token";
 import { dosePrescritaParaDocumento, nomeSubstanciaNoProtocolo } from "../lib/protocol-dose-presentation";
 import { isAppPasswordValid, PASSWORD_POLICY_MESSAGE } from "@workspace/password-policy";
 import { verifyPassword, hashPassword } from "../lib/patient-auth.js";
+import { revogarSessoesDoCliente } from "../lib/area-paciente-sessao.js";
+import { contaExcluida } from "../lib/area-paciente-conta.js";
 import { computeResourceSlots, bookSession, rescheduleSession } from "../lib/agenda-booking";
 import { refreshAfterReschedule } from "../lib/session-google-sync";
 import { enviarMensagemPaxter } from "../lib/messaging/index.js";
@@ -37,16 +40,12 @@ import { lerEstadoPreCadastro, pendentesDe, CAMPOS_PRE_CADASTRO } from "../lib/p
 
 const router: IRouter = Router();
 
-// Le o token de Authorization: Bearer <token> ou de ?token= (necessario para
-// links de download abertos em nova aba, onde nao se envia header). Retorna o
-// clientId ou null.
+// Le o token SOMENTE de Authorization: Bearer <token> (Apple App Store 3.7/4.6:
+// credencial nunca viaja na URL). Retorna o clientId ou null.
 function getClientId(req: Request): number | null {
   const auth = req.headers.authorization;
-  let token: string | undefined;
-  if (auth && auth.startsWith("Bearer ")) token = auth.slice(7);
-  if (!token && typeof req.query.token === "string") token = req.query.token;
-  if (!token) return null;
-  return verifyPortalToken(token);
+  if (!auth || !auth.startsWith("Bearer ")) return null;
+  return verifyPortalToken(auth.slice(7));
 }
 
 function unauthorized(res: Response) {
@@ -153,6 +152,7 @@ router.post("/area-paciente/login", async (req: Request, res: Response): Promise
 
     const client = await findClientByCpf(cpf);
     if (!client) { badCredentials(res); return; }
+    if (await contaExcluida(pool, client.id)) { badCredentials(res); return; }
     if (!client.passwordHash) { semSenhaCadastrada(res); return; }
     if (!verifyPassword(password, client.passwordHash)) { badCredentials(res, "senha"); return; }
 
@@ -207,6 +207,8 @@ router.post("/area-paciente/trocar-senha", async (req: Request, res: Response): 
         passwordSetTokenExpiresAt: null,
       })
       .where(eq(clientsTable.id, client.id));
+    // Senha nova invalida os celulares que já estavam com sessão persistente.
+    await revogarSessoesDoCliente(pool, client.id).catch((err) => req.log.error({ err: String(err) }, "Sessões persistentes não revogadas"));
 
     res.json({
       id: client.id,
@@ -255,6 +257,8 @@ router.post("/area-paciente/definir-senha", async (req: Request, res: Response):
         passwordSetTokenExpiresAt: null,
       })
       .where(eq(clientsTable.id, client.id));
+    // Senha nova invalida os celulares que já estavam com sessão persistente.
+    await revogarSessoesDoCliente(pool, client.id).catch((err) => req.log.error({ err: String(err) }, "Sessões persistentes não revogadas"));
 
     res.json({
       id: client.id,

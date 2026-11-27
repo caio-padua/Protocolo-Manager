@@ -68,6 +68,8 @@ import CadastroTextos from "@/pages/cadastros/textos";
 import CadastroAuditoria from "@/pages/cadastros/auditoria";
 import CentralErros from "@/pages/cadastros/central-erros";
 import PedidosMedicosPage from "@/pages/pedidos-medicos";
+import MedicacoesFilaPage from "@/pages/medicacoes-fila";
+import AtivarModuloPage from "@/pages/ativar-modulo";
 import PaxCarePlanosPage from "@/pages/paxcare-planos";
 import CentralBoloesPage from "@/pages/boloes";
 import ConfigEmpresa from "@/pages/configuracoes/empresa";
@@ -292,6 +294,8 @@ function Router() {
             <Route path="/cockpit-anamnese" component={CockpitAnamnese} />
             <Route path="/radar-clinico" component={RadarClinico} />
             <Route path="/paxcare-planos"><CollaboratorGate><PaxCarePlanosPage /></CollaboratorGate></Route>
+            <Route path="/ativar-modulo/:modulo"><CollaboratorGate><AtivarModuloPage /></CollaboratorGate></Route>
+            <Route path="/medicacoes-adesao"><CollaboratorGate><MedicacoesFilaPage /></CollaboratorGate></Route>
             <Route path="/pedidos-medicos"><CollaboratorGate><PedidosMedicosPage /></CollaboratorGate></Route>
             <Route path="/boloes"><CollaboratorGate><CentralBoloesPage /></CollaboratorGate></Route>
             <Route path="/cartorio" component={Cartorio} />

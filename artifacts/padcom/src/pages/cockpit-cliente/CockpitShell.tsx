@@ -28,7 +28,7 @@ const API = import.meta.env.VITE_API_URL || "/api";
 let proximaInstancia = 0;
 
 const ABAS_VALIDAS: AbaId[] = [
-  "prescricao","injetaveis","implantes","exames","evolucao",
+  "prescricao","medicacoes","injetaveis","implantes","exames","evolucao",
   "anamnese","documentos","protocolos","dieta-treino","financeiro","cadastro",
   "telegram",
 ];

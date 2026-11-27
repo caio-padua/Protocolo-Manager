@@ -8,6 +8,9 @@ import {
   registrarConsentimento, registrarMedicacao, removerMedicacaoDoPaciente, revogarConsentimento,
   temVinculoAtivo, textoDeConsentimentoVigente, UNIDADES_DOSE,
 } from "../lib/cliente-medicacoes.js";
+import { calcularAdesao, horariosDoDia, registrarTomada } from "../lib/cliente-medicacao-adesao.js";
+import { recalcularLembreteDoCliente, recalculoPendente, tentarRecuperarRecalculo } from "../lib/lembrete-medicacoes-recalculo.js";
+import { brtISODate } from "../lib/brt.js";
 
 // ===========================================================================
 // MEUS MEDICAMENTOS (Área do Cliente / PaxCare). O clientId vem SEMPRE do token do paciente
@@ -44,6 +47,8 @@ const MSG: Record<string, string> = {
   medicacao_ja_cadastrada: "Você já cadastrou este medicamento.",
   limite_de_medicacoes: "Limite de medicamentos cadastrados atingido.",
   medicacao_nao_encontrada: "Medicamento não encontrado.",
+  status_invalido: "Escolha Tomei ou Esqueci.",
+  horario_nao_encontrado: "Esse horário não está na sua rotina.",
   texto_de_consentimento_desatualizado: "O texto de autorização mudou. Leia de novo e confirme.",
 };
 function responderErro(req: Request, res: Response, err: unknown, rotulo: string): void {
@@ -76,22 +81,22 @@ router.get("/area-paciente/medicacoes", exigeLeitura, async (req, res): Promise<
       pool.query(`SELECT periodos FROM lembretes_prescricao WHERE cliente_id=$1`, [clientId]),
       clinicasParaConsentimento(pool, clientId),
     ]);
-    // Prescritas pela clínica = fórmulas do lembrete da prescrição emitida. Medicações do próprio paciente
-    // que foram validadas e entraram no mesmo lembrete NÃO aparecem aqui (ficam só em "Cadastrados por mim").
-    const minhas = new Set(proprias.map((m) => nomeChave(m.nome)));
+    // Prescritas pela clínica = fórmulas do lembrete da prescrição emitida. Nome igual ao de uma medicação
+    // cadastrada pelo paciente NÃO esconde nem substitui a prescrição: as duas listas ficam separadas por origem.
     const porNome = new Map<string, { nome: string; dose: string | null; observacao: string | null; periodos: string[] }>();
     for (const per of ((lembrete.rows[0]?.periodos ?? []) as PeriodoLembrete[])) {
       if (per.tipo !== "tomar") continue;
       for (const f of per.formulas ?? []) {
         const k = nomeChave(f.nome);
-        if (minhas.has(k)) continue;
         const atual = porNome.get(k) ?? { nome: f.nome, dose: f.dose ?? null, observacao: f.observacaoRefeicao ?? f.posologia ?? null, periodos: [] };
         if (!atual.periodos.includes(per.nome)) atual.periodos.push(per.nome);
         porNome.set(k, atual);
       }
     }
     for (const r of registradas) if (!porNome.has(nomeChave(r.nome))) porNome.set(nomeChave(r.nome), { ...r, periodos: r.periodos.map(String) });
+    await tentarRecuperarRecalculo(clientId);
     res.json({
+      lembretePendente: await recalculoPendente(clientId),
       prescritas: [...porNome.values()],
       proprias,
       clinicas,
@@ -120,20 +125,32 @@ router.patch("/area-paciente/medicacoes/:id", exigeEscrita, async (req, res): Pr
   const body = (req.body ?? {}) as Record<string, unknown>;
   // Pausar/retomar é ação à parte e não mexe na validação.
   if (id && Object.keys(body).length === 1 && typeof body.pausada === "boolean") {
-    try { res.json(await pausarMedicacaoDoPaciente(pool, cid(req), id, body.pausada)); }
+    try {
+      const r = await pausarMedicacaoDoPaciente(pool, cid(req), id, body.pausada);
+      const lembreteRecalculado = await recalcularLembreteDoCliente(cid(req), body.pausada ? "paciente_pausou" : "paciente_retomou");
+      res.json({ ...r, lembreteRecalculado });
+    }
     catch (err) { responderErro(req, res, err, "area medicacoes pausar"); }
     return;
   }
   const p = edicaoSchema.safeParse(body);
   if (!id || !p.success) { res.status(400).json({ error: "Dados inválidos." }); return; }
-  try { res.json(await editarMedicacaoDoPaciente(pool, cid(req), id, p.data)); }
+  try {
+    const r = await editarMedicacaoDoPaciente(pool, cid(req), id, p.data);
+    const lembreteRecalculado = await recalcularLembreteDoCliente(cid(req), "paciente_editou");
+    res.json({ ...r, lembreteRecalculado });
+  }
   catch (err) { responderErro(req, res, err, "area medicacoes editar"); }
 });
 
 router.delete("/area-paciente/medicacoes/:id", exigeEscrita, async (req, res): Promise<void> => {
   const id = idParam(req.params.id);
   if (!id) { res.status(400).json({ error: "Medicamento inválido." }); return; }
-  try { await removerMedicacaoDoPaciente(pool, cid(req), id); res.json({ ok: true }); }
+  try {
+    await removerMedicacaoDoPaciente(pool, cid(req), id);
+    const lembreteRecalculado = await recalcularLembreteDoCliente(cid(req), "paciente_excluiu");
+    res.json({ ok: true, lembreteRecalculado });
+  }
   catch (err) { responderErro(req, res, err, "area medicacoes excluir"); }
 });
 
@@ -157,8 +174,33 @@ router.delete("/area-paciente/medicacoes/consentimentos/:empresaId", exigeEscrit
   try {
     const ok = await revogarConsentimento(pool, { clientId: cid(req), empresaId });
     if (!ok) { res.status(404).json({ error: "Não há autorização ativa para esta clínica." }); return; }
-    res.json({ ok: true });
+    const lembreteRecalculado = await recalcularLembreteDoCliente(cid(req), "paciente_revogou_consentimento");
+    res.json({ ok: true, lembreteRecalculado });
   } catch (err) { responderErro(req, res, err, "area medicacoes revogar"); }
+});
+
+const tomadaSchema = z.object({
+  origem: z.enum(["prescrita", "propria"]),
+  nome: z.string().trim().min(1).max(200),
+  sigla: z.string().trim().min(2).max(3),
+  status: z.enum(["tomei", "esqueci"]),
+}).strict();
+
+// Horários-chave de hoje + adesão 7/15/30 dias, separados por origem. A data é SEMPRE a de Brasília no servidor.
+router.get("/area-paciente/medicacoes/adesao", exigeLeitura, async (req, res): Promise<void> => {
+  try {
+    const hoje = brtISODate();
+    res.json({ hoje: await horariosDoDia(pool, cid(req), hoje), adesao: await calcularAdesao(pool, cid(req), hoje), data: hoje });
+  } catch (err) { responderErro(req, res, err, "area medicacoes adesao"); }
+});
+
+router.post("/area-paciente/medicacoes/tomadas", exigeEscrita, async (req, res): Promise<void> => {
+  const p = tomadaSchema.safeParse(req.body);
+  if (!p.success) { res.status(400).json({ error: "Escolha o medicamento, o horário e Tomei ou Esqueci." }); return; }
+  try {
+    await registrarTomada(pool, { clientId: cid(req), hoje: brtISODate(), ...p.data });
+    res.json({ ok: true });
+  } catch (err) { responderErro(req, res, err, "area medicacoes tomada"); }
 });
 
 export default router;

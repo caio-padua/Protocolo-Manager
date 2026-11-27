@@ -8,6 +8,7 @@ export const RESUMO_ABA: Record<string, string> = {
   "/central-telegram": "Conversas dos clientes com o bot da clínica",
   "/agenda/motor": "Horários, locais e repetições",
   "/clients": "Cadastro e busca de clientes",
+  "/medicacoes-adesao": "Conferir medicações cadastradas pelos clientes",
   "/cockpit": "Atendimento do cliente em consulta",
   "/pedidos-medicos": "Avaliação médica dos pedidos",
   "/boloes": "Recibos oficiais de bolões: receber, conferir e liberar",

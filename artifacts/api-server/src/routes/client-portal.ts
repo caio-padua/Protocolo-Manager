@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
-import { db } from "@workspace/db";
+import { db, pool as poolConta } from "@workspace/db";
+import { contaExcluida } from "../lib/area-paciente-conta.js";
 import { clientsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import multer from "multer";
@@ -107,6 +108,11 @@ router.post("/client-portal/identify", async (req: Request, res: Response) => {
     }
 
     const client = clients[0];
+
+    if (await contaExcluida(poolConta, client.id)) {
+      res.status(401).json({ error: "CPF errado." });
+      return;
+    }
 
     if (!client.birthDate) {
       res.status(401).json({ error: "Data de nascimento errada." });

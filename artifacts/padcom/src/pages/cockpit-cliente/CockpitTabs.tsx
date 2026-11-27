@@ -8,12 +8,12 @@ import { useRef, useEffect, useState, useCallback, type KeyboardEvent } from "re
 import {
   FlaskConical, Syringe, Gem, ClipboardList, TrendingUp,
   FileText, ClipboardCheck, Activity, DollarSign, User, Utensils, MessageCircle,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Pill,
 } from "lucide-react";
 
 export type AbaId =
   | "telegram"
-  | "prescricao" | "injetaveis" | "implantes" | "exames" | "evolucao"
+  | "prescricao" | "medicacoes" | "injetaveis" | "implantes" | "exames" | "evolucao"
   | "documentos" | "anamnese" | "protocolos" | "dieta-treino" | "financeiro" | "cadastro";
 
 interface TabDef {
@@ -24,6 +24,7 @@ interface TabDef {
 
 const ABAS: TabDef[] = [
   { id: "prescricao",   rotulo: "Prescrição",      Icon: FlaskConical   },
+  { id: "medicacoes",   rotulo: "Adesão & Medicações em Uso", Icon: Pill },
   { id: "injetaveis",   rotulo: "Injetáveis",       Icon: Syringe        },
   { id: "implantes",    rotulo: "Implantes",        Icon: Gem            },
   { id: "exames",       rotulo: "Exames",           Icon: ClipboardList  },

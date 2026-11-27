@@ -17,6 +17,8 @@ vi.mock("@workspace/db", () => ({
   db: {},
 }));
 
+vi.mock("../lib/lembrete-medicacoes-recalculo", () => ({ recalcularLembreteDoCliente: async () => true }));
+
 import router from "../routes/area-paciente-medicacoes";
 import { createPortalToken } from "../lib/portal-token";
 import { criarTabelasMedicacoes, registrarMedicacao, textoDeConsentimentoVigente } from "../lib/cliente-medicacoes";

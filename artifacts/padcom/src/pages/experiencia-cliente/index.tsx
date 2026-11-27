@@ -38,13 +38,19 @@ export default function ExperienciaCliente() {
         return;
       }
       const data = await res.json() as { id: number; name: string; cpf: string | null; token: string };
-      const params = new URLSearchParams({
-        preview_id: String(data.id),
-        preview_name: encodeURIComponent(data.name),
-        preview_token: data.token,
-      });
-      // Abre a Área do Cliente em nova aba, já logado como o cliente selecionado
-      window.open(`${API_BASE}/area?${params.toString()}`, "_blank");
+      // Apple 3.7/4.6: o token NUNCA vai na URL. A nova aba pede os dados por mensagem entre janelas
+      // (mesma origem) e recebe o token só na memória.
+      const aba = window.open(`${API_BASE}/area?previa=1`, "_blank");
+      if (!aba) { setError("O navegador bloqueou a nova aba. Libere pop-ups e tente de novo."); return; }
+      const origem = window.location.origin;
+      const aoMensagem = (ev: MessageEvent) => {
+        if (ev.origin !== origem || ev.source !== aba) return;
+        if ((ev.data as { tipo?: string } | null)?.tipo !== "paxter-previa-pronta") return;
+        window.removeEventListener("message", aoMensagem);
+        aba.postMessage({ tipo: "paxter-previa-dados", id: data.id, name: data.name, token: data.token }, origem);
+      };
+      window.addEventListener("message", aoMensagem);
+      window.setTimeout(() => window.removeEventListener("message", aoMensagem), 60_000);
     } catch {
       setError("Erro de conexão. Tente novamente.");
     } finally {
