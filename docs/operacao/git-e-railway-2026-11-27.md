@@ -76,3 +76,22 @@ Ordem proposta (cada passo só com ordem escrita do Dr. Caio):
 | C5 | Primeiro deploy do api-server e conferência de `/api/healthz` e `/api/brt` | Médio |
 | C6 | Cadastrar paxmed.com.br e paxcare.com.br e apontar o DNS | Alto |
 | C7 | Alinhar o Lovable às rotas do Manager (login do paciente, consentimento no contato, adesão do médico) | Médio; é trabalho no Lovable |
+
+## C2. Diagnóstico dos deploys pulados (leitura, 27/11/2026)
+
+| Fato verificado | Valor |
+|---|---|
+| Ramificação ligada ao api-server | `main` do repositório Protocolo-Manager |
+| Últimos 50 deploys do api-server | 33 SKIPPED e 17 FAILED; o mais antigo é de 13/08/2026 |
+| Última construção real | FAILED em 12/09/2026, etapa HEALTHCHECK ("Healthcheck failure"); o diagnóstico automático veio vazio |
+| Último commit da main | 03/11/2026 ("Update generated mockup components"), que mexe só em mockup-sandbox |
+| Padrões vigiados (api-server) | `artifacts/api-server/**`, `lib/**`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `package.json`, `nixpacks.toml` e o `railway.toml` |
+| Construtor no painel | RAILPACK (o `railway.toml` do repositório diz nixpacks) |
+| Comando de início no painel | `pnpm --filter @workspace/api-server start` (o `railway.toml` diz `node ... dist/index.mjs`) |
+| Caminho de saúde na última falha | vazio (o `railway.toml` diz `/api/healthz`) |
+
+Leitura:
+1. Os "pulados" recentes são coerentes com commits que não tocam os padrões vigiados. Isso não explica as falhas anteriores.
+2. Há divergência entre o painel do Railway e o `railway.toml` do repositório (construtor, comando de início e caminho de saúde). A última construção real caiu no teste de saúde. Provável causa, ainda NÃO confirmada: o servidor não passou no teste de saúde por causa dessa divergência ou de variável ausente. Os logs da construção não foram lidos.
+3. Como a última construção real falhou e as seguintes foram puladas, não há versão ativa; daí o 404 "Application not found".
+4. Quando a homologação entrar na `main`, o primeiro deploy vai construir (ela toca `artifacts/api-server`). Antes disso, decidir qual configuração vale (painel ou arquivo) e conferir as variáveis, senão repetirá a falha de saúde.
