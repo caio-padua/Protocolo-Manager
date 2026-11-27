@@ -311,50 +311,86 @@ describe("recálculo que falha fica visível e se recupera", () => {
   });
 });
 
-describe("sessão persistente", () => {
-  it("iniciar exige token de acesso válido do paciente", async () => {
-    expect((await request(app).post("/api/area-paciente/sessao/iniciar")).status).toBe(401);
+describe("sessão persistente (token de renovação em cookie protegido)", () => {
+  const CSRF = { "X-Paxcare-Csrf": "1" };
+  const S = "/api/area-paciente/sessao";
+  const cookieDe = (r: { headers: Record<string, any> }): string => {
+    const c = ([] as string[]).concat(r.headers["set-cookie"] ?? []).find((x) => x.startsWith("paxcare_rt=")) ?? "";
+    return decodeURIComponent(c.split(";")[0].slice("paxcare_rt=".length));
+  };
+  const iniciar = (cid: number) => request(app).post(`${S}/iniciar`).set("Authorization", tok(cid)).set(CSRF);
+  const renovar = (rt: string) => request(app).post(`${S}/renovar`).set(CSRF).set("Cookie", `paxcare_rt=${encodeURIComponent(rt)}`);
+
+  it("iniciar exige token de acesso válido do paciente e cabeçalho anti-falsificação", async () => {
+    expect((await request(app).post(`${S}/iniciar`).set(CSRF)).status).toBe(401);
     const previa = `Bearer ${createPortalToken(1, { preview: true })}`;
-    expect((await request(app).post("/api/area-paciente/sessao/iniciar").set("Authorization", previa)).status).toBe(401);
+    expect((await request(app).post(`${S}/iniciar`).set("Authorization", previa).set(CSRF)).status).toBe(401);
+    expect((await request(app).post(`${S}/iniciar`).set("Authorization", tok(1))).status).toBe(403); // sem cabeçalho
   });
-  it("renova com rotação, guarda só hash e sem CPF no corpo da sessão", async () => {
-    const ini = await request(app).post("/api/area-paciente/sessao/iniciar").set("Authorization", tok(1));
+  it("cookie: HttpOnly, SameSite=Strict, Path restrito, 90 dias; o token NUNCA vai no corpo", async () => {
+    const ini = await iniciar(1);
     expect(ini.status).toBe(201);
-    const t1 = ini.body.refreshToken as string;
+    expect(JSON.stringify(ini.body)).not.toMatch(/refresh/i);
+    const raw = ([] as string[]).concat(ini.headers["set-cookie"]).find((x) => x.startsWith("paxcare_rt="))!;
+    expect(raw).toMatch(/HttpOnly/);
+    expect(raw).toMatch(/SameSite=Strict/);
+    expect(raw).toMatch(/Path=\/api\/area-paciente\/sessao/);
+    expect(raw).toMatch(/Max-Age=7776000/);
     const salvo = (await pool.query("SELECT token_hash FROM area_paciente_sessoes")).rows.map((x) => x.token_hash);
-    expect(salvo).not.toContain(t1);
-    const r1 = await request(app).post("/api/area-paciente/sessao/renovar").send({ refreshToken: t1 });
+    expect(salvo).not.toContain(cookieDe(ini));
+  });
+  it("renova com rotação pelo cookie; o antigo (trocado) dá 401", async () => {
+    const t1 = cookieDe(await iniciar(1));
+    const r1 = await renovar(t1);
     expect(r1.status).toBe(200);
     expect(r1.body.id).toBe(1);
-    expect(r1.body.token).toBeTruthy();
-    expect(r1.body.refreshToken).not.toBe(t1);
-    // o token de acesso novo funciona nas rotas do paciente
+    expect(JSON.stringify(r1.body)).not.toMatch(/refresh/i);
+    const t2 = cookieDe(r1);
+    expect(t2).toBeTruthy();
+    expect(t2).not.toBe(t1);
     expect((await request(app).get("/api/area-paciente/medicacoes/adesao").set("Authorization", `Bearer ${r1.body.token}`)).status).toBe(200);
-    // o antigo (já trocado) dentro da tolerância de 30 s: 401, sem derrubar a família
-    expect((await request(app).post("/api/area-paciente/sessao/renovar").send({ refreshToken: t1 })).status).toBe(401);
-    expect((await request(app).post("/api/area-paciente/sessao/renovar").send({ refreshToken: r1.body.refreshToken })).status).toBe(200);
+    expect((await renovar(t1)).status).toBe(401);
+    expect((await renovar(t2)).status).toBe(200);
+  });
+  it("CSRF: sem cabeçalho personalizado ou com Origin de outro site, a renovação é recusada (403) e o token não gira", async () => {
+    const t = cookieDe(await iniciar(1));
+    expect((await request(app).post(`${S}/renovar`).set("Cookie", `paxcare_rt=${encodeURIComponent(t)}`)).status).toBe(403);
+    expect((await renovar(t).set("Origin", "https://site-malicioso.example")).status).toBe(403);
+    expect((await renovar(t).set("Origin", "http://127.0.0.1")).status).toBe(403); // host diferente do da requisição
+    expect((await renovar(t)).status).toBe(200); // o token continuava válido: nenhuma tentativa acima o consumiu
+  });
+  it("migração: token antigo (corpo) ainda renova uma vez e passa a viver só no cookie", async () => {
+    const t = cookieDe(await iniciar(1));
+    const r = await request(app).post(`${S}/renovar`).set(CSRF).send({ refreshToken: t });
+    expect(r.status).toBe(200);
+    expect(cookieDe(r)).toBeTruthy();
+    expect(JSON.stringify(r.body)).not.toMatch(/refresh/i);
   });
   it("reuso tardio de token trocado revoga a família inteira", async () => {
-    const t1 = (await request(app).post("/api/area-paciente/sessao/iniciar").set("Authorization", tok(1))).body.refreshToken as string;
-    const r1 = await request(app).post("/api/area-paciente/sessao/renovar").send({ refreshToken: t1 });
+    const t1 = cookieDe(await iniciar(1));
+    const r1 = await renovar(t1);
     await pool.query("UPDATE area_paciente_sessoes SET substituido_em = now() - interval '5 minutes' WHERE substituido_em IS NOT NULL");
-    expect((await request(app).post("/api/area-paciente/sessao/renovar").send({ refreshToken: t1 })).status).toBe(401);
-    expect((await request(app).post("/api/area-paciente/sessao/renovar").send({ refreshToken: r1.body.refreshToken })).status).toBe(401);
+    expect((await renovar(t1)).status).toBe(401);
+    expect((await renovar(cookieDe(r1))).status).toBe(401);
   });
-  it("expirado, teto de 90 dias, desconhecido e lixo: 401/400; sair revoga", async () => {
-    expect((await request(app).post("/api/area-paciente/sessao/renovar").send({ refreshToken: "x".repeat(40) })).status).toBe(401);
-    expect((await request(app).post("/api/area-paciente/sessao/renovar").send({ refreshToken: "curto" })).status).toBe(400);
-    const t = (await request(app).post("/api/area-paciente/sessao/iniciar").set("Authorization", tok(1))).body.refreshToken as string;
+  it("sem cookie, curto, desconhecido, expirado (teto de 90 dias): 401; sair revoga e limpa o cookie", async () => {
+    expect((await request(app).post(`${S}/renovar`).set(CSRF)).status).toBe(401);
+    expect((await renovar("curto")).status).toBe(401);
+    expect((await renovar("x".repeat(40))).status).toBe(401);
+    const t = cookieDe(await iniciar(1));
     await pool.query("UPDATE area_paciente_sessoes SET familia_inicio = now() - interval '91 days' WHERE substituido_em IS NULL AND revogado_em IS NULL");
-    expect((await request(app).post("/api/area-paciente/sessao/renovar").send({ refreshToken: t })).status).toBe(401);
-    const t2 = (await request(app).post("/api/area-paciente/sessao/iniciar").set("Authorization", tok(1))).body.refreshToken as string;
-    expect((await request(app).post("/api/area-paciente/sessao/encerrar").send({ refreshToken: t2 })).status).toBe(200);
-    expect((await request(app).post("/api/area-paciente/sessao/renovar").send({ refreshToken: t2 })).status).toBe(401);
+    expect((await renovar(t)).status).toBe(401);
+    const t2 = cookieDe(await iniciar(1));
+    const sai = await request(app).post(`${S}/encerrar`).set(CSRF).set("Cookie", `paxcare_rt=${encodeURIComponent(t2)}`);
+    expect(sai.status).toBe(200);
+    expect(([] as string[]).concat(sai.headers["set-cookie"]).join(";")).toMatch(/paxcare_rt=;.*Max-Age=0/);
+    expect((await renovar(t2)).status).toBe(401);
+    expect((await request(app).post(`${S}/encerrar`)).status).toBe(403);
   });
   it("renovação respeita o teto: nova validade nunca passa de 90 dias desde o login", async () => {
-    const t = (await request(app).post("/api/area-paciente/sessao/iniciar").set("Authorization", tok(2))).body.refreshToken as string;
+    const t = cookieDe(await iniciar(2));
     await pool.query("UPDATE area_paciente_sessoes SET familia_inicio = now() - interval '80 days' WHERE client_id=2 AND substituido_em IS NULL AND revogado_em IS NULL");
-    const r = await request(app).post("/api/area-paciente/sessao/renovar").send({ refreshToken: t });
+    const r = await renovar(t);
     expect(r.status).toBe(200);
     const q = await pool.query("SELECT (expira_em <= familia_inicio + interval '90 days' + interval '1 second') ok FROM area_paciente_sessoes WHERE client_id=2 AND substituido_em IS NULL AND revogado_em IS NULL");
     expect(q.rows[0].ok).toBe(true);

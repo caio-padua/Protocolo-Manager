@@ -109,7 +109,7 @@ export default function ConsultaReceituario() {
       setLoading(false);
       return;
     }
-    fetch(`/api/receituario/consulta?token=${encodeURIComponent(token)}`)
+    fetch(`/api/receituario/consulta`, { headers: { "X-Link-Token": token } })
       .then(r => r.ok ? r.json() as Promise<ConsultaData> : Promise.reject(r.status))
       .then(d  => { setData(d); setLoading(false); })
       .catch(() => {

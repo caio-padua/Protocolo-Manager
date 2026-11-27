@@ -11,7 +11,7 @@ import { revogarSessoesDoCliente } from "./area-paciente-sessao.js";
 // ===========================================================================
 
 export const AVISO_EXCLUSAO = {
-  versao: "2026-11-26",
+  versao: "2026-11-27",
   removidos: [
     "O seu acesso ao aplicativo (login, senha e sessões em todos os aparelhos).",
     "Os arquivos e anotações do seu cofre de saúde.",
@@ -23,6 +23,12 @@ export const AVISO_EXCLUSAO = {
     "Registros financeiros e fiscais de serviços já prestados.",
     "Registros de segurança e auditoria (por exemplo, quando e por quem a conta foi encerrada).",
   ],
+  compartilhados: [
+    "O que você já autorizou uma clínica a ver deixa de ser compartilhado agora. Cópias que a clínica já guardou em seu próprio prontuário continuam com ela.",
+    "Se um familiar ou outra pessoa recebeu algo seu por um vínculo, o vínculo é revogado, mas o que ela já viu ou baixou não pode ser recolhido pelo aplicativo.",
+  ],
+  cobrancaExterna: "Cancelar a assinatura aqui encerra o registro interno do aplicativo. Não cancela cobrança em operadora de pagamento nem cartão: se houver cobrança recorrente externa, ela precisa ser cancelada separadamente com a clínica.",
+  prazosLegais: "Os prazos de guarda dos registros mantidos são definidos pela clínica e pela legislação aplicável; este aviso não informa prazo e não substitui orientação jurídica.",
   observacao: "A exclusão não pode ser desfeita pelo aplicativo. Para pedir acesso aos registros mantidos, fale com a clínica.",
 } as const;
 

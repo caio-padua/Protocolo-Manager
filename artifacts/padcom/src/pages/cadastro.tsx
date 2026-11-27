@@ -234,7 +234,8 @@ export default function Cadastro() {
     (async () => {
       try {
         const res = await fetch(
-          `${API_BASE}/api/client-registration/info?token=${encodeURIComponent(token)}`,
+          `${API_BASE}/api/client-registration/info`,
+          { headers: { "X-Link-Token": token } },
         );
         if (!res.ok) {
           setInvalid(true);

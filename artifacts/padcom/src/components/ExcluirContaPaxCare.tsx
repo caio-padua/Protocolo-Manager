@@ -4,7 +4,7 @@ import { Trash2 } from "lucide-react";
 // "Excluir minha conta" (Apple App Store). Lei do lugar fixo: campos e botão sempre no mesmo lugar;
 // o botão só habilita com a palavra EXCLUIR; a mensagem de erro tem slot reservado.
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-type Aviso = { removidos: string[]; mantidos: string[]; observacao: string };
+type Aviso = { removidos: string[]; mantidos: string[]; compartilhados?: string[]; cobrancaExterna?: string; prazosLegais?: string; observacao: string };
 
 export default function ExcluirContaPaxCare({ token, somenteLeitura, aoExcluir }: { token: string; somenteLeitura: boolean; aoExcluir: () => void }) {
   const [aviso, setAviso] = useState<Aviso | null>(null);
@@ -27,7 +27,7 @@ export default function ExcluirContaPaxCare({ token, somenteLeitura, aoExcluir }
       // Passo 1: reautenticar (senha; quem não tem senha informa a data de nascimento).
       const ped = await fetch(`${API_BASE}/api/area-paciente/conta/pedido-exclusao`, {
         method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify(senha.includes("/") || /^\d{8}$/.test(senha) ? { dataNascimento: senha } : { senha }),
+        body: JSON.stringify(/^\d{8}$/.test(senha) ? { codigoClinica: senha, senha } : { senha }),
       });
       const pj = await ped.json().catch(() => ({})) as { error?: string; confirmacaoToken?: string };
       if (!ped.ok || !pj.confirmacaoToken) throw new Error(pj.error ?? "Não foi possível confirmar sua identidade.");
@@ -52,10 +52,14 @@ export default function ExcluirContaPaxCare({ token, somenteLeitura, aoExcluir }
           <ul className="list-disc pl-4 space-y-1">{aviso.removidos.map((t) => <li key={t}>{t}</li>)}</ul>
           <p className="font-black uppercase tracking-widest text-[10px]">O que a lei obriga a clínica a manter</p>
           <ul className="list-disc pl-4 space-y-1">{aviso.mantidos.map((t) => <li key={t}>{t}</li>)}</ul>
+          {aviso.compartilhados && <><p className="font-black uppercase tracking-widest text-[10px]">O que já foi compartilhado</p>
+          <ul className="list-disc pl-4 space-y-1">{aviso.compartilhados.map((t) => <li key={t}>{t}</li>)}</ul></>}
+          {aviso.cobrancaExterna && <p><strong>Cobrança:</strong> {aviso.cobrancaExterna}</p>}
+          {aviso.prazosLegais && <p className="text-muted-foreground">{aviso.prazosLegais}</p>}
           <p className="text-muted-foreground">{aviso.observacao}</p>
         </div>
       ) : <p className="text-xs text-muted-foreground" role="status">Carregando aviso…</p>}
-      <label className="block text-[10px] font-black uppercase tracking-widest text-primary">Sua senha (ou data de nascimento, se não tem senha)
+      <label className="block text-[10px] font-black uppercase tracking-widest text-primary">Sua senha (sem senha: código de 8 números entregue pela clínica)
         <input type="password" autoComplete="current-password" value={senha} onChange={(e) => setSenha(e.target.value)}
           className="concave-3d mt-1 w-full rounded-md px-3 min-h-[44px] text-sm normal-case tracking-normal font-normal" />
       </label>

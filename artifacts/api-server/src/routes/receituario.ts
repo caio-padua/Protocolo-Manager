@@ -15,6 +15,7 @@
  * GET  /api/receituario/alertas              — slots próximos (Cockpit)
  */
 import { Router } from "express";
+import { lerTokenDeLink, protegerRespostaLink, auditarAcessoLink, excedeuLimiteLink } from "../lib/link-acesso.js";
 import { z } from "zod";
 import { SignVisualPrescriptionBody } from "@workspace/api-zod";
 import {
@@ -49,8 +50,11 @@ router.use(moduleGuard("protocolos"));
 // GET /api/receituario/consulta?token=12C9AA79
 // Usada pela página /consulta-receituario (QR code da receita aponta para ela)
 router.get("/receituario/consulta", async (req, res): Promise<void> => {
-  const { token } = req.query;
-  if (!token || typeof token !== "string") {
+  protegerRespostaLink(res);
+  const { token: tokenLido, via } = lerTokenDeLink(req);
+  const token = tokenLido || undefined;
+  if (excedeuLimiteLink(req, "receituario")) { res.status(429).json({ error: "Muitas tentativas. Aguarde um minuto." }); return; }
+  if (!token) {
     res.status(400).json({ error: "Parâmetro token obrigatório" });
     return;
   }
@@ -65,6 +69,7 @@ router.get("/receituario/consulta", async (req, res): Promise<void> => {
     const row = (rows as unknown as { rows: Record<string, unknown>[] }).rows?.[0]
       ?? (Array.isArray(rows) ? rows[0] : null);
 
+    await auditarAcessoLink(req, "receituario", via, row ? "aceito" : "recusado");
     if (!row) {
       res.status(404).json({ error: "Documento não encontrado" });
       return;

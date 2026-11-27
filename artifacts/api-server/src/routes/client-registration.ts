@@ -8,6 +8,7 @@ import {
   createRegistrationToken,
   verifyRegistrationToken,
 } from "../lib/portal-token.js";
+import { lerTokenDeLink, protegerRespostaLink, auditarAcessoLink } from "../lib/link-acesso.js";
 import { ObjectStorageService } from "../lib/objectStorage.js";
 import { enviarMensagemPaxter, type PaxterDoc } from "../lib/messaging/index.js";
 import { ai } from "@workspace/integrations-gemini-ai";
@@ -167,8 +168,10 @@ router.post("/client-registration/send-link/:id", async (req: Request, res: Resp
  * devolve dado após validar o token (posse do link) — anti-IDOR.
  */
 router.get("/client-registration/info", async (req: Request, res: Response): Promise<void> => {
-  const token = String(req.query.token || "");
+  protegerRespostaLink(res);
+  const { token, via } = lerTokenDeLink(req);
   const clientId = verifyRegistrationToken(token);
+  await auditarAcessoLink(req, "cadastro", via, clientId ? "aceito" : "recusado", clientId);
   if (!clientId) {
     res.status(401).json({ error: "Link inválido ou expirado" });
     return;
@@ -223,8 +226,10 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     if (!(await runUploadCadastro(req, res))) return;
     const body = (req.body as Record<string, unknown>) || {};
-    const token = String(body.token || req.query.token || "");
+    protegerRespostaLink(res);
+    const { token, via } = lerTokenDeLink(req);
     const clientId = verifyRegistrationToken(token);
+    await auditarAcessoLink(req, "cadastro", via, clientId ? "aceito" : "recusado", clientId);
     if (!clientId) {
       res.status(401).json({ error: "Link inválido ou expirado" });
       return;
@@ -376,8 +381,10 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     if (!(await runUpload(req, res))) return;
     const body = (req.body as Record<string, unknown>) || {};
-    const token = String(body.token || req.query.token || "");
+    protegerRespostaLink(res);
+    const { token, via } = lerTokenDeLink(req);
     const clientId = verifyRegistrationToken(token);
+    await auditarAcessoLink(req, "cadastro", via, clientId ? "aceito" : "recusado", clientId);
     if (!clientId) {
       res.status(401).json({ error: "Link inválido ou expirado" });
       return;

@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
+import { protegerRespostaLink, auditarAcessoLink, excedeuLimiteLink } from "../lib/link-acesso.js";
 import { randomBytes } from "node:crypto";
 import { db, examRequestPdfsTable, professionalsTable } from "@workspace/db";
 import { ObjectStorageService } from "../lib/objectStorage";
@@ -368,6 +369,8 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
 // Servido por token aleatorio (nao por id sequencial) para evitar enumeracao
 // de documentos clinicos de outros pacientes (IDOR).
 router.get("/exam-requests/file/:token", async (req, res): Promise<void> => {
+  protegerRespostaLink(res);
+  if (excedeuLimiteLink(req, "exame")) { res.status(429).json({ error: "Muitas tentativas. Aguarde um minuto." }); return; }
   const token = String(req.params.token ?? "");
   if (!/^[a-f0-9]{48}$/.test(token)) {
     res.status(400).json({ error: "token inválido" });
@@ -377,6 +380,7 @@ router.get("/exam-requests/file/:token", async (req, res): Promise<void> => {
     .select()
     .from(examRequestPdfsTable)
     .where(eq(examRequestPdfsTable.token, token));
+  await auditarAcessoLink(req, "exame", "url", row && row.pdfData ? "aceito" : "recusado");
   if (!row || !row.pdfData) {
     res.status(404).json({ error: "PDF não encontrado" });
     return;

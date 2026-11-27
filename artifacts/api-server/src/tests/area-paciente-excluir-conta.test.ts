@@ -16,6 +16,15 @@ vi.mock("@workspace/db", () => ({ pool: { query: (...a: unknown[]) => h.pool.que
 
 vi.mock("../lib/pre-cadastro", async (orig) => ({ ...(await orig<object>()), lerEstadoPreCadastro: async () => ({ completo: true, pendentes: [] }) }));
 
+vi.mock("../routes/collaborator", () => ({
+  requireCollaborator: (req: any, res: any, next: any) => {
+    if (!req.headers["x-prof"]) { res.status(401).json({ error: "login" }); return; }
+    req.tenantContext = { authenticated: true, isPlatformOwner: false, perfilPlataforma: "medico", empresaId: Number(req.headers["x-empresa"]), userId: 7 };
+    next();
+  },
+}));
+vi.mock("../middleware/tenantContext", () => ({ resolveEmpresaId: (req: any) => req.tenantContext.empresaId }));
+
 import contaRouter from "../routes/area-paciente-conta";
 import pacienteRouter from "../routes/area-paciente";
 import sessaoRouter from "../routes/area-paciente-sessao";
@@ -38,6 +47,7 @@ app.use("/api", contaRouter);
 app.use("/api", pacienteRouter);
 app.use("/api", sessaoRouter);
 
+const colab = (empresa: number) => ({ "x-prof": "7", "x-empresa": String(empresa) });
 const tok = (id: number) => `Bearer ${createPortalToken(id)}`;
 
 beforeAll(async () => {
@@ -131,12 +141,33 @@ describe("Excluir minha conta", () => {
     expect((await request(app).get("/api/area-paciente/ras/1/pdf").set("Authorization", tok(1))).status).toBe(401);
     expect((await request(app).get("/api/area-paciente/conta/aviso-exclusao").set("Authorization", tok(2))).status).toBe(200);
   });
-  it("sem senha cadastrada, reautentica pela data de nascimento (nos dois formatos)", async () => {
+  it("sem senha: data de nascimento NÃO prova; só o código emitido pela clínica, uma vez, com limite de erros", async () => {
     await pool.query(`INSERT INTO clients (name, cpf, empresa_id, birth_date) VALUES ('Sint 3','33333333333',1,'1980-05-17')`);
     const t3 = tok(3);
-    expect((await request(app).post("/api/area-paciente/conta/pedido-exclusao").set("Authorization", t3).send({ dataNascimento: "01/01/1990" })).status).toBe(403);
-    expect((await request(app).post("/api/area-paciente/conta/pedido-exclusao").set("Authorization", t3).send({})).status).toBe(403);
-    expect((await request(app).post("/api/area-paciente/conta/pedido-exclusao").set("Authorization", t3).send({ dataNascimento: "17/05/1980" })).status).toBe(200);
+    const ped = (b: object) => request(app).post("/api/area-paciente/conta/pedido-exclusao").set("Authorization", t3).send(b);
+    expect((await ped({ dataNascimento: "17/05/1980" })).status).toBe(400); // campo nem existe mais
+    expect((await ped({})).status).toBe(403);
+    expect((await ped({ codigoClinica: "12345678" })).status).toBe(403); // sem código emitido
+    // clínica emite (colaborador da empresa 1)
+    const em = await request(app).post("/api/cockpit/3/codigo-exclusao-app").set(colab(1));
+    expect(em.status).toBe(200);
+    expect(em.body.codigo).toMatch(/^\d{8}$/);
+    expect((await pool.query("SELECT codigo_hash FROM area_paciente_exclusao_codigos")).rows.map((x) => x.codigo_hash)).not.toContain(em.body.codigo);
+    expect((await request(app).post("/api/cockpit/3/codigo-exclusao-app")).status).toBe(401); // sem login de colaborador
+    // outra clínica não emite para este cliente (404) e cliente com senha não recebe código (409)
+    expect((await request(app).post("/api/cockpit/3/codigo-exclusao-app").set(colab(2))).status).toBe(404);
+    expect((await request(app).post("/api/cockpit/2/codigo-exclusao-app").set(colab(1))).status).toBe(409);
+    // código errado conta erro; certo funciona UMA vez; reuso recusado
+    expect((await ped({ codigoClinica: "00000000" })).status).toBe(403);
+    expect((await ped({ codigoClinica: em.body.codigo })).status).toBe(200);
+    expect((await ped({ codigoClinica: em.body.codigo })).status).toBe(403);
+    // código de outro cliente não serve (cada código é do seu cliente)
+    const em2 = await request(app).post("/api/cockpit/3/codigo-exclusao-app").set(colab(1));
+    const t2 = await request(app).post("/api/area-paciente/conta/pedido-exclusao").set("Authorization", tok(2)).send({ codigoClinica: em2.body.codigo });
+    expect(t2.status).toBe(403);
+    // 5 erros bloqueiam até o código certo
+    for (let i = 0; i < 5; i++) await ped({ codigoClinica: "11111111" });
+    expect((await ped({ codigoClinica: em2.body.codigo })).status).toBe(403);
   });
   it("repetir a exclusão não quebra (idempotente na camada de dados)", async () => {
     const { excluirContaDoApp } = await import("../lib/area-paciente-conta");
