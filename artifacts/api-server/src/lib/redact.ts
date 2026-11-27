@@ -31,7 +31,7 @@ export function redigirTexto(texto: string): string {
   // Credenciais em segmentos da URL não têm um nome de campo sensível.
   // Apenas logs: a rede de respostas precisa preservar links protegidos válidos.
   t = t.replace(
-    /(\/api\/(?:evolution\/webhook\/\d+|clinical-documents\/share)\/)[^/?#\s"'<>]+/gi,
+    /(\/api\/(?:evolution\/webhook\/\d+|clinical-documents\/share|exam-requests\/file)\/)[^/?#\s"'<>]+/gi,
     `$1${MASCARA}`,
   );
   // access_token=..., token: "...", ?key=...

@@ -5,6 +5,8 @@ import { db, examRequestPdfsTable, professionalsTable } from "@workspace/db";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { eq } from "drizzle-orm";
 import { pool } from "@workspace/db";
+import { statusLegado } from "../lib/exam-link-politica";
+import { carregarPoliticaLegado } from "../lib/exam-link-politica-db";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { criarTokenExame, decidirAcessoExame, ehTokenLegado, ehTokenNovo, emissaoLinkNovoLigada, tokenParaEnvio, verificarTokenExame } from "../lib/exam-link";
@@ -412,6 +414,12 @@ async function servirPdfDeExame(req: Request, res: import("express").Response, t
     await auditarAcessoLink(req, "exame", via + ":legado", row && row.pdfData && !revogadoEm ? "aceito" : "recusado", row?.clientId ?? null);
     if (row && revogadoEm) { res.status(410).json({ error: "Link cancelado pela clínica." }); return; }
     if (!row || !row.pdfData) { res.status(404).json({ error: "PDF não encontrado" }); return; }
+    // Transição: só vence se a política tiver sido ATIVADA explicitamente (prazo conta da ativação, não da emissão).
+    if (statusLegado(await carregarPoliticaLegado()).estado === "expirado") {
+      await auditarAcessoLink(req, "exame", via + ":legado:expirado_politica", "recusado", row.clientId);
+      res.status(410).json({ error: "Este link antigo venceu. Entre no aplicativo do cliente para obter um novo acesso." });
+      return;
+    }
   }
   const buf = Buffer.from(row.pdfData, "base64");
   res.setHeader("Content-Type", "application/pdf");

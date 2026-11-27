@@ -23,3 +23,25 @@ O link enviado por WhatsApp ou e-mail precisa levar o token na URL (não há com
 
 ## Decisão que depende do Dr. Caio
 Qual opção do passo 3 (A, B ou C) e qual validade padrão dos links novos (hoje 30 dias). Sem essa decisão, os legados continuam sem validade.
+
+## Atualização: política de transição preparada (desenvolvimento; NÃO ativada)
+Decisão delegada ao Dr. Caio: prazo de 90 dias contado da ATIVAÇÃO da política, não da emissão antiga.
+1. Sem registro de ativação, nenhum legado vence (estado atual de produção, inalterado).
+2. A ativação é explícita: `POST /api/exam-requests/politica-legado/ativar` com `{"confirmar":"ATIVAR_POLITICA_LEGADO"}`, só dono da plataforma. Grava data, prazo e autor em `app_settings` (chave `exame.link.legado.politica`). Só grava uma vez (segunda chamada: 409 e a data original é preservada). Consulta: `GET /api/exam-requests/politica-legado`.
+3. Documento sem data de criação: o relógio dele é o da ativação, então nada é presumido. Registro ilegível = sem política (não vence ninguém por engano).
+4. Sem endereço de contato: a reemissão nunca envia mensagem; o acesso novo só volta na resposta da sessão autenticada do próprio cliente.
+5. Paciente autenticado: `GET /api/area-paciente/exames/documentos` (só os seus, sem código nem PDF) e `POST /api/area-paciente/exames/documentos/:id/acesso` (gera link novo de 30 dias; documento de outro cliente = 404; documento revogado pela clínica = 403).
+6. Link vencido pela política responde 410 com orientação de entrar no aplicativo.
+7. Correção de log: o endereço `/api/exam-requests/file/<código>` não era mascarado nos logs; agora é.
+
+### Impacto e plano antes de qualquer implantação (isto não autoriza publicação)
+| Passo | Ação | Quem | Risco |
+|---|---|---|---|
+| 1 | Publicar o código com a política desligada | Dr. Caio autoriza | Nenhum: comportamento igual |
+| 2 | Consulta de leitura em produção: quantos documentos legados e quantos sem data | Agente, leitura | Nenhum |
+| 3 | Avisar a clínica e orientar clientes a usar o aplicativo para reabrir exames | Dr. Caio | Mensagem real exige autorização |
+| 4 | Ligar `EXAME_LINK_NOVO=1` em produção | Dr. Caio | Novos links passam a vencer em 30 dias |
+| 5 | Ativar a política (POST acima). Começa a contar 90 dias | Dr. Caio | Após 90 dias, links antigos viram 410 |
+| 6 | Antes do dia 90: reconferir contagem e decidir prorrogação | Dr. Caio | Prorrogar exige nova decisão e mudança de código |
+
+Limitação: a política grava a data, mas não há rota de prorrogação nem de desativação (de propósito, para a data ser auditável). Reverter exige intervenção direta no banco, com ordem escrita.
