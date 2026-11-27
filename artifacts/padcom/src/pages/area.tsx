@@ -29,6 +29,7 @@ const MinhaCategoriaCliente = lazy(() => import("@/components/MinhaCategoriaClie
 const FotosCorpoCliente = lazy(() => import("@/components/FotosCorpoCliente"));
 const PaxCareCofre = lazy(() => import("@/components/PaxCareCofre"));
 const MeuPulsoCliente = lazy(() => import("@/components/MeuPulsoCliente"));
+const MeusMedicamentos = lazy(() => import("@/components/MeusMedicamentos"));
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -281,7 +282,12 @@ export default function Area() {
           <ClubVipCliente token={client.token} onAbrirBoloes={() => { setBoloesOrigem("clubvip"); setTab("boloes"); }} onAbrirMeusJogos={() => setTab("meusjogos")} />
         )}
         {tab === "comunicacao" && <ComunicacaoTab client={client} />}
-        {tab === "paxcare" && <PaxCareCofre token={client.token} />}
+        {tab === "paxcare" && (
+          <div className="space-y-6">
+            <MeusMedicamentos token={client.token} somenteLeitura={adminMode} />
+            <PaxCareCofre token={client.token} />
+          </div>
+        )}
         {tab === "boloes" && (
           <div className="space-y-3">
             <button onClick={() => setTab(boloesOrigem)}
