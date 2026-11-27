@@ -11,6 +11,7 @@ vi.mock("../routes/collaborator", () => ({
   requireCollaborator: (req: any, _res: any, next: any) => { req.tenantContext = { isPlatformOwner: ctx.owner, empresaId: 1, professionalId: 7 }; next(); },
 }));
 vi.mock("../lib/objectStorage", () => ({ ObjectStorageService: class {} }));
+vi.mock("../lib/pre-cadastro", async (orig) => ({ ...(await orig<typeof import("../lib/pre-cadastro")>()), lerEstadoPreCadastro: async () => ({ completo: true, pendentes: [], valores: {} }) }));
 const pg = iniciarPgDescartavel();
 process.env.DATABASE_URL = pg.url;
 process.env.SESSION_SECRET = "x".repeat(32);
@@ -34,6 +35,7 @@ beforeAll(async () => {
   app.use((req: any, _r, n) => { req.log = { error() {}, warn() {}, info() {} }; n(); });
   app.use("/api", (await import("../routes/exam-requests")).default);
   app.use("/api", (await import("../routes/exam-links-gestao")).default);
+  app.use("/api", (await import("../routes/area-paciente")).default);
 }, 90_000);
 afterAll(async () => { try { await pool?.end(); } catch { /* */ } pg.parar(); });
 const H = (id: number) => ({ Authorization: `Bearer ${patientTok(id)}` });
@@ -113,6 +115,19 @@ describe("transição dos legados (90 dias contados da ativação)", () => {
   it("registro ilegível não vence ninguém", async () => {
     await pool.query(`UPDATE app_settings SET value='lixo' WHERE key='exame.link.legado.politica'`);
     expect((await abrir(LEG1)).status).toBe(200);
+  });
+});
+
+describe("lista do aplicativo do cliente (/area-paciente/exames)", () => {
+  it("devolve acesso novo de 1 dia (nunca o código legado) e o link abre; sobrevive à transição dos legados", async () => {
+    await pool.query(`UPDATE app_settings SET value = jsonb_build_object('ativadaEm', (now() - interval '91 days')::text, 'dias', 90, 'ativadaPor','t')::text WHERE key='exame.link.legado.politica'`);
+    const r = await request(app).get("/api/area-paciente/exames").set(H(1));
+    expect(r.status).toBe(200);
+    const toks: string[] = r.body.map((e: any) => e.token);
+    expect(toks.length).toBe(2);
+    for (const t of toks) { expect(t.startsWith("v1.")).toBe(true); expect([LEG1, LEG_SEM_DATA]).not.toContain(t); expect((await abrir(t)).status).toBe(200); }
+    expect((await abrir(LEG1)).status).toBe(410);
+    expect((await request(app).get("/api/area-paciente/exames")).status).toBe(401);
   });
 });
 

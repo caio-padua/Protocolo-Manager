@@ -38,6 +38,7 @@ import { lerEstadoPreCadastro, pendentesDe, CAMPOS_PRE_CADASTRO } from "../lib/p
 // Os GET /pdf NAO geram nem assinam documento aqui (ver bloco DOWNLOAD abaixo).
 // ===========================================================================
 
+import { criarTokenExame } from "../lib/exam-link";
 const router: IRouter = Router();
 
 // Le o token SOMENTE de Authorization: Bearer <token> (Apple App Store 3.7/4.6:
@@ -570,7 +571,9 @@ router.get("/area-paciente/exames", async (req: Request, res: Response): Promise
       .where(eq(examRequestPdfsTable.clientId, clientId))
       .orderBy(desc(examRequestPdfsTable.createdAt));
 
-    res.json(exams);
+    // Uso dentro do aplicativo autenticado: o acesso é um link novo de curta duração (1 dia), não o código legado;
+    // assim a transição dos links antigos nunca quebra o botão do próprio cliente.
+    res.json(exams.map((e) => ({ ...e, token: criarTokenExame({ pdfId: e.id, clientId, ttlDias: 1 }) })));
   } catch (err: any) {
     console.error("[AreaPaciente] exames:", err.message);
     res.status(500).json({ error: "Erro ao carregar exames" });
