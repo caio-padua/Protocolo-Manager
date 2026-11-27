@@ -167,6 +167,7 @@ const navigation: NavEntry[] = [
       { name: "PaxCare (Direto)", href: "/area", icon: Users },
       { name: "Planos PaxCare", href: "/paxcare-planos", icon: Award },
       { name: "Convites PAXMED", href: "/convites-paxmed", icon: UserPlus },
+      { name: "Convites a Médicos", href: "/paxcare-convites-medico", icon: Users },
     ],
   },
   // GRUPO VIP (gestão): programa por convite, independente da categoria Prata/Ouro/Platinum/Diamond.

@@ -125,3 +125,7 @@ Não existe: convite do médico pessoa física (tela `/medicos` do PAXCARE é pr
 ## 10. O que NÃO está concluído
 
 Nenhuma tela do Lovable foi comprovadamente ligada ao Manager em produção. Nada foi migrado do Supabase. Nenhum domínio foi apontado. Nada foi publicado.
+
+## Atualização 27/11/2026 — convite de médico pelo cliente e contato com consentimento
+
+Ver `specs/entrada-comercial-paxmed-paxcare.md` (matriz completa). Contratos novos: `POST/GET/DELETE /api/area-paciente/paxcare/convites-medico`, `GET/POST /api/collaborator/paxcare/convites/:token[/aceitar|/recusar]`, `GET /api/collaborator/paxcare/convites-aceitos[/:id/cofre]`, `GET /api/ceo/paxcare/convites-medico`. `POST /api/vitrine-contatos` aceita `consentimento` (booleano) e devolve `duplicado: true` em reenvio em 10 minutos.

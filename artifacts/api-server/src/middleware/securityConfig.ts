@@ -47,6 +47,8 @@ function buildAllowedOrigins(): string[] {
     "https://lovable.app",
     "https://paxmed.lovable.app",
     "https://padaxor.lovable.app",
+    // Prévia oficial do Lovable (endereço exato; nunca curinga).
+    "https://id-preview--eb745d14-e232-4648-83f2-896318deef79.lovable.app",
   ];
 
   // União sem duplicatas.

@@ -70,6 +70,7 @@ import CentralErros from "@/pages/cadastros/central-erros";
 import PedidosMedicosPage from "@/pages/pedidos-medicos";
 import MedicacoesFilaPage from "@/pages/medicacoes-fila";
 import ConvitesPaxmedPage from "@/pages/convites-paxmed";
+import PaxcareConvitesMedicoPage from "@/pages/paxcare-convites-medico";
 import AtivarModuloPage from "@/pages/ativar-modulo";
 import PaxCarePlanosPage from "@/pages/paxcare-planos";
 import CentralBoloesPage from "@/pages/boloes";
@@ -300,6 +301,7 @@ function Router() {
             <Route path="/paxcare-planos"><CollaboratorGate><PaxCarePlanosPage /></CollaboratorGate></Route>
             <Route path="/ativar-modulo/:modulo"><CollaboratorGate><AtivarModuloPage /></CollaboratorGate></Route>
             <Route path="/convites-paxmed"><CollaboratorGate><ConvitesPaxmedPage /></CollaboratorGate></Route>
+            <Route path="/paxcare-convites-medico"><CollaboratorGate><PaxcareConvitesMedicoPage /></CollaboratorGate></Route>
             <Route path="/medicacoes-adesao"><CollaboratorGate><MedicacoesFilaPage /></CollaboratorGate></Route>
             <Route path="/pedidos-medicos"><CollaboratorGate><PedidosMedicosPage /></CollaboratorGate></Route>
             <Route path="/boloes"><CollaboratorGate><CentralBoloesPage /></CollaboratorGate></Route>

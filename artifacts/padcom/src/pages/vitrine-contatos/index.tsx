@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 // Contatos "Quero contratar" vindos do site PAXMED. Marcar como contatado não envia mensagem a ninguém.
 const API = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api`;
 
-type Contato = { id: number; nome: string; email: string; telefone: string | null; clinica: string; especialidade: string; volume_protocolos: string | null; necessidade: string; source: string | null; contatado: boolean; contatado_em: string | null; criado_em: string };
+type Contato = { id: number; nome: string; email: string; telefone: string | null; clinica: string; especialidade: string; volume_protocolos: string | null; necessidade: string; source: string | null; consentimento: boolean | null; contatado: boolean; contatado_em: string | null; criado_em: string };
 const fmt = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
 export default function VitrineContatosPage() {
@@ -61,7 +61,7 @@ export default function VitrineContatosPage() {
       {itens && itens.length === 0 && <div className="concave-3d rounded-lg px-4 py-3 text-sm">Nenhum contato neste filtro.</div>}
       {itens?.map((c) => (
         <section key={c.id} className="panel-3d rounded-xl p-4 space-y-2" aria-label={`Contato ${c.id}`} data-testid={`contato-${c.id}`}>
-          <p className="text-[10px] uppercase tracking-widest text-accent flex items-center gap-1"><Mail className="w-3 h-3" />{fmt(c.criado_em)}{c.source ? ` · ${c.source}` : ""}</p>
+          <p className="text-[10px] uppercase tracking-widest text-accent flex items-center gap-1"><Mail className="w-3 h-3" />{fmt(c.criado_em)}{c.source ? ` · ${c.source}` : ""} · consentimento: {c.consentimento === true ? "sim" : c.consentimento === false ? "não" : "não informado"}</p>
           <p className="text-primary font-black text-base break-words">{c.nome}</p>
           <p className="text-xs text-muted-foreground break-words">{c.email}{c.telefone ? ` · ${c.telefone}` : ""} · {c.clinica} · {c.especialidade}{c.volume_protocolos ? ` · ${c.volume_protocolos}` : ""}</p>
           <p className="text-xs break-words">{c.necessidade}</p>
