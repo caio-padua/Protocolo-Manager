@@ -21,6 +21,7 @@ import { isAppPasswordValid, PASSWORD_POLICY_MESSAGE } from "@workspace/password
 const EvolucaoExamesPanel = lazy(() => import("@/pages/cockpit/panels/EvolucaoExamesPanel"));
 
 import PedidosMedicosCliente from "@/components/PedidosMedicosCliente";
+import { abrirPdfExame } from "@/lib/abrir-pdf-exame";
 import ExamesAvulsosCliente from "@/components/ExamesAvulsosCliente";
 const GrupoVipBoloes = lazy(() => import("@/components/GrupoVipConexao").then((m) => ({ default: m.GrupoVipBoloes })));
 const MeusBoloesCliente = lazy(() => import("@/components/MeusBoloesCliente"));
@@ -1799,10 +1800,9 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
       {e.length > 0 && (
         <CategorySection label="SOLICITAÇÕES DE EXAMES" count={e.length} defaultOpen={false}>
           {e.map((ex) => (
-            <a key={ex.id}
-              href={`${API_BASE}/api/exam-requests/file/${ex.token}`}
-              target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-muted transition-colors"
+            <button key={ex.id} type="button"
+              onClick={() => { abrirPdfExame(ex.token).catch((err: Error) => window.alert(err.message)); }}
+              className="flex w-full text-left items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-muted transition-colors"
             >
               <FlaskConical className="w-5 h-5 text-muted-foreground flex-shrink-0" />
               <div className="min-w-0 flex-1">
@@ -1810,7 +1810,7 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
                 <p className="text-muted-foreground text-xs">{ex.examCount} exame(s) · {brDate(ex.createdAt)}</p>
               </div>
               <Download className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            </a>
+            </button>
           ))}
         </CategorySection>
       )}

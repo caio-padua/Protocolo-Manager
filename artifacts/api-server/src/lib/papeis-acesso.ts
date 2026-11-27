@@ -27,7 +27,7 @@ export interface RegraAcesso {
 }
 
 /** Rotas públicas por desenho (token próprio ou assinatura de provedor) dentro de prefixos protegidos. */
-const ISENTAS = [/^\/asaas\/webhook(\/|$)/, /^\/exam-requests\/file\//];
+const ISENTAS = [/^\/asaas\/webhook(\/|$)/, /^\/exam-requests\/(file\/|arquivo$)/];
 
 /** Ordem importa: a primeira regra que casa decide. Caminhos sem o prefixo "/api". */
 export const REGRAS: RegraAcesso[] = [

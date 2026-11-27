@@ -19,7 +19,7 @@ vi.mock("../lib/pre-cadastro", async (orig) => ({ ...(await orig<object>()), ler
 vi.mock("../routes/collaborator", () => ({
   requireCollaborator: (req: any, res: any, next: any) => {
     if (!req.headers["x-prof"]) { res.status(401).json({ error: "login" }); return; }
-    req.tenantContext = { authenticated: true, isPlatformOwner: false, perfilPlataforma: "medico", empresaId: Number(req.headers["x-empresa"]), userId: 7 };
+    req.tenantContext = { authenticated: true, isPlatformOwner: false, perfilPlataforma: String(req.headers["x-perfil"] ?? "medico"), empresaId: Number(req.headers["x-empresa"]), userId: 7 };
     next();
   },
 }));
@@ -39,15 +39,16 @@ const PG_BIN = process.env.PG_BIN_DIR ?? "/nix/store/bgwr5i8jf8jpg75rr53rz3fqv5k
 let dir = "";
 let proc: ChildProcess | null = null;
 let pool: pg.Pool;
+const logs: string[] = [];
 const app = express();
 app.use(express.json());
-app.use((req, _res, next) => { (req as any).log = { error: () => {}, warn: () => {}, info: () => {} }; next(); });
+app.use((req, _res, next) => { (req as any).log = { error: (...a: unknown[]) => logs.push(JSON.stringify(a)), warn: (...a: unknown[]) => logs.push(JSON.stringify(a)), info: (...a: unknown[]) => logs.push(JSON.stringify(a)) }; next(); });
 app.use("/api/area-paciente", bloqueioContaExcluida({ query: (...a: unknown[]) => (h.pool as any).query(...a) } as any));
 app.use("/api", contaRouter);
 app.use("/api", pacienteRouter);
 app.use("/api", sessaoRouter);
 
-const colab = (empresa: number) => ({ "x-prof": "7", "x-empresa": String(empresa) });
+const colab = (empresa: number, perfil = "medico") => ({ "x-prof": "7", "x-empresa": String(empresa), "x-perfil": perfil });
 const tok = (id: number) => `Bearer ${createPortalToken(id)}`;
 
 beforeAll(async () => {
@@ -149,7 +150,7 @@ describe("Excluir minha conta", () => {
     expect((await ped({})).status).toBe(403);
     expect((await ped({ codigoClinica: "12345678" })).status).toBe(403); // sem código emitido
     // clínica emite (colaborador da empresa 1)
-    const em = await request(app).post("/api/cockpit/3/codigo-exclusao-app").set(colab(1));
+    let em = await request(app).post("/api/cockpit/3/codigo-exclusao-app").set(colab(1));
     expect(em.status).toBe(200);
     expect(em.body.codigo).toMatch(/^\d{8}$/);
     expect((await pool.query("SELECT codigo_hash FROM area_paciente_exclusao_codigos")).rows.map((x) => x.codigo_hash)).not.toContain(em.body.codigo);
@@ -157,14 +158,32 @@ describe("Excluir minha conta", () => {
     // outra clínica não emite para este cliente (404) e cliente com senha não recebe código (409)
     expect((await request(app).post("/api/cockpit/3/codigo-exclusao-app").set(colab(2))).status).toBe(404);
     expect((await request(app).post("/api/cockpit/2/codigo-exclusao-app").set(colab(1))).status).toBe(409);
+    // perfis: enfermagem e desconhecido são recusados (403, mesmo na clínica certa); recepção e admin emitem
+    expect((await request(app).post("/api/cockpit/3/codigo-exclusao-app").set(colab(1, "enfermeira"))).status).toBe(403);
+    expect((await request(app).post("/api/cockpit/3/codigo-exclusao-app").set(colab(1, "qualquer"))).status).toBe(403);
+    const emRecep = await request(app).post("/api/cockpit/3/codigo-exclusao-app").set(colab(1, "recepcionista"));
+    expect(emRecep.status).toBe(200);
+    expect((await request(app).post("/api/cockpit/3/codigo-exclusao-app").set(colab(1, "admin"))).status).toBe(200);
+    // o código anterior foi invalidado ao emitir outro (só o último vale)
+    expect((await ped({ codigoClinica: em.body.codigo })).status).toBe(403);
+    em = await request(app).post("/api/cockpit/3/codigo-exclusao-app").set(colab(1));
     // código errado conta erro; certo funciona UMA vez; reuso recusado
     expect((await ped({ codigoClinica: "00000000" })).status).toBe(403);
     expect((await ped({ codigoClinica: em.body.codigo })).status).toBe(200);
     expect((await ped({ codigoClinica: em.body.codigo })).status).toBe(403);
+    // expiração: código vencido (15 min) é recusado
+    await pool.query("UPDATE area_paciente_exclusao_codigos SET expira_em = now() - interval '1 minute' WHERE usado_em IS NULL");
+    expect((await ped({ codigoClinica: "00000000" })).status).toBe(403);
+    em = await request(app).post("/api/cockpit/3/codigo-exclusao-app").set(colab(1));
+    await pool.query("UPDATE area_paciente_exclusao_codigos SET expira_em = now() - interval '1 minute' WHERE usado_em IS NULL");
+    expect((await ped({ codigoClinica: em.body.codigo })).status).toBe(403);
+    em = await request(app).post("/api/cockpit/3/codigo-exclusao-app").set(colab(1));
     // código de outro cliente não serve (cada código é do seu cliente)
     const em2 = await request(app).post("/api/cockpit/3/codigo-exclusao-app").set(colab(1));
     const t2 = await request(app).post("/api/area-paciente/conta/pedido-exclusao").set("Authorization", tok(2)).send({ codigoClinica: em2.body.codigo });
     expect(t2.status).toBe(403);
+    expect(logs.join(" ")).not.toContain(em2.body.codigo); // o código nunca vai para o log
+    expect(logs.join(" ")).not.toContain(em.body.codigo);
     // 5 erros bloqueiam até o código certo
     for (let i = 0; i < 5; i++) await ped({ codigoClinica: "11111111" });
     expect((await ped({ codigoClinica: em2.body.codigo })).status).toBe(403);

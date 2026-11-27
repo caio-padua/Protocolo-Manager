@@ -53,10 +53,19 @@ async function consumirCodigoClinica(clientId: number, codigo: string | undefine
   return r.rowCount === 1;
 }
 
+// Quem pode emitir (fail-closed: perfil desconhecido NÃO emite). Quem entrega o código precisa conferir a identidade
+// do cliente presencialmente: dono da plataforma, administrador, médico e recepção. Enfermagem não emite.
+const PERFIS_EMISSORES = new Set(["platform_owner", "admin", "medico", "recepcionista"]);
+function podeEmitirCodigo(req: { tenantContext?: { authenticated?: boolean; isPlatformOwner?: boolean; perfilPlataforma?: string } }): boolean {
+  const t = req.tenantContext;
+  return !!t && t.authenticated === true && (t.isPlatformOwner === true || PERFIS_EMISSORES.has(String(t.perfilPlataforma)));
+}
+
 // Emissão pela clínica (colaborador autenticado; cliente precisa ser da empresa do contexto; senão 404).
 router.post("/cockpit/:clientId/codigo-exclusao-app", requireCollaborator, async (req, res): Promise<void> => {
   const clientId = Number(req.params.clientId);
   if (!Number.isSafeInteger(clientId) || clientId <= 0) { res.status(400).json({ error: "Cliente inválido." }); return; }
+  if (!podeEmitirCodigo(req)) { res.status(403).json({ error: "Seu perfil não pode emitir este código." }); return; }
   try {
     const empresaId = resolveEmpresaId(req);
     const c = (await pool.query(`SELECT password_hash AS "passwordHash" FROM clients WHERE id=$1 AND empresa_id=$2`, [clientId, empresaId])).rows[0] as { passwordHash: string | null } | undefined;

@@ -135,6 +135,43 @@ describe("adesão (cálculo puro)", () => {
   });
 });
 
+describe("adesão: suspenso, retomada, alteração de horário e virada de dia (cálculo puro)", () => {
+  const A = (nomeChave: string, sigla: string, situacao?: "ativo" | "suspenso" | "retirado") => ({ origem: "propria" as const, nomeChave, sigla, situacao });
+  const d = (n: number) => new Date(Date.UTC(2026, 10, 26 - n)).toISOString().slice(0, 10); // 26/11/2026 menos n dias
+  it("pausa: dias suspensos ficam FORA do denominador e aparecem como suspenso; retomada volta a contar", () => {
+    const agenda = new Map<string, ReturnType<typeof A>[]>();
+    agenda.set(d(3), [A("x", "IM")]);                 // ativo
+    agenda.set(d(2), [A("x", "IM", "suspenso")]);     // pausado
+    agenda.set(d(1), [A("x", "IM", "suspenso")]);     // pausado
+    agenda.set(d(0), [A("x", "IM")]);                 // retomado
+    const tomadas = [{ origem: "propria" as const, nomeChave: "x", sigla: "IM", data: d(3), status: "tomei" as const }];
+    const j = montarAdesao(d(0), [{ origem: "propria", nomeChave: "x", sigla: "IM" }], tomadas, agenda).propria.janelas[0];
+    expect(j).toMatchObject({ tomei: 1, esqueci: 0, esperado: 2, semRegistro: 1, suspenso: 2, diasSuspensos: 2, diasComHistorico: 4, diasSemHistorico: 3 });
+    expect(j.percentual).toBe(50);
+  });
+  it("alteração de horário: o horário antigo (retirado) não vira falta; o novo conta", () => {
+    const agenda = new Map([[d(0), [A("x", "IM", "retirado"), A("x", "NO")]]]);
+    const j = montarAdesao(d(0), [], [], agenda).propria.janelas[0];
+    expect(j).toMatchObject({ esperado: 1, retirado: 1, semRegistro: 1 });
+  });
+  it("tomada em horário que depois foi retirado/suspenso não conta como tomada (a situação é do dia)", () => {
+    const agenda = new Map([[d(0), [A("x", "IM", "suspenso")]]]);
+    const j = montarAdesao(d(0), [], [{ origem: "propria", nomeChave: "x", sigla: "IM", data: d(0), status: "tomei" }], agenda).propria.janelas[0];
+    expect(j).toMatchObject({ tomei: 0, esperado: 0, suspenso: 1 });
+    expect(j.percentual).toBeNull();
+  });
+  it("virada de dia: a janela de 7 dias termina em 'hoje' de Brasília e vira com ele", () => {
+    const h = [A("x", "IM")];
+    const ag = new Map([["2026-11-26", h], ["2026-11-27", h]]);
+    const antes = montarAdesao("2026-11-26", [], [], ag).propria;
+    const depois = montarAdesao("2026-11-27", [], [], ag).propria;
+    expect(antes.historico.at(-1)!.data).toBe("2026-11-26");
+    expect(depois.historico.at(-1)!.data).toBe("2026-11-27");
+    expect(antes.janelas[0].diasComHistorico).toBe(1);
+    expect(depois.janelas[0].diasComHistorico).toBe(2);
+  });
+});
+
 describe("Tomei/Esqueci (paciente)", () => {
   it("exige token do paciente; prévia do administrador não escreve", async () => {
     const corpo = { origem: "prescrita", nome: "Formula Clinica", sigla: "IM", status: "tomei" };
@@ -174,6 +211,59 @@ describe("Tomei/Esqueci (paciente)", () => {
     await request(app).patch(`/api/area-paciente/medicacoes/${id}`).set("Authorization", tok(1)).send({ observacao: "x" });
     await request(app).delete(`/api/area-paciente/medicacoes/${id}`).set("Authorization", tok(1));
     expect(h.recalc).toEqual(["paciente_pausou", "paciente_editou", "paciente_excluiu"]);
+  });
+});
+
+describe("adesão no banco: pausa, retomada, alteração de horário e nomes iguais (dados sintéticos)", () => {
+  const P = "/api/area-paciente/medicacoes";
+  const H = { Authorization: "" };
+  const adesao = async () => (await request(app).get(`${P}/adesao`).set("Authorization", tok(2))).body;
+  const linha = async (nome: string) => (await pool.query("SELECT periodo, situacao FROM cliente_medicacao_agenda_dia WHERE client_id=2 AND nome_chave=$1 ORDER BY periodo", [nome])).rows;
+  it("cria, pausa (suspenso, fora do denominador), retoma, e alteração de horário retira o antigo sem apagar", async () => {
+    H.Authorization = tok(2);
+    const c = await request(app).post(P).set(H).send({ nome: "Vitamina Teste", doseValor: 1, doseUnidade: "mg", periodos: ["manha"] });
+    expect(c.status).toBe(201);
+    const id = c.body.id ?? c.body.medicacao?.id;
+    expect(id).toBeTruthy();
+    let a = await adesao();
+    expect(a.adesao.propria.janelas[0]).toMatchObject({ esperado: 1, suspenso: 0 });
+    // pausa: vira suspenso na hora (sem precisar abrir a tela), denominador volta a 0
+    expect((await request(app).patch(`${P}/${id}`).set(H).send({ pausada: true })).status).toBe(200);
+    expect(await linha("vitamina teste")).toEqual([{ periodo: "IM", situacao: "suspenso" }]);
+    a = await adesao();
+    expect(a.adesao.propria.janelas[0]).toMatchObject({ esperado: 0, suspenso: 1, diasSuspensos: 1 });
+    expect(a.adesao.propria.janelas[0].percentual).toBeNull();
+    // retomada no mesmo dia: volta a contar
+    expect((await request(app).patch(`${P}/${id}`).set(H).send({ pausada: false })).status).toBe(200);
+    expect(await linha("vitamina teste")).toEqual([{ periodo: "IM", situacao: "ativo" }]);
+    // responde Tomei; pausar depois NÃO apaga nem reclassifica o que foi respondido
+    expect((await request(app).post(`${P}/tomadas`).set(H).send({ origem: "propria", nome: "Vitamina Teste", sigla: "IM", status: "tomei" })).status).toBe(200);
+    await request(app).patch(`${P}/${id}`).set(H).send({ pausada: true });
+    expect(await linha("vitamina teste")).toEqual([{ periodo: "IM", situacao: "ativo" }]);
+    await request(app).patch(`${P}/${id}`).set(H).send({ pausada: false });
+    expect((await adesao()).adesao.propria.janelas[0]).toMatchObject({ tomei: 1, esperado: 1 });
+  });
+  it("alteração de horário sem resposta: o antigo vira retirado (não é falta) e o novo conta", async () => {
+    H.Authorization = tok(2);
+    const c = await request(app).post(P).set(H).send({ nome: "Magnesio Teste", doseValor: 2, doseUnidade: "mg", periodos: ["noite"] });
+    const id = c.body.id ?? c.body.medicacao?.id;
+    await adesao();
+    const ed = await request(app).patch(`${P}/${id}`).set(H).send({ nome: "Magnesio Teste", doseValor: 2, doseUnidade: "mg", periodos: ["ceia"] });
+    expect(ed.status).toBe(200);
+    expect(await linha("magnesio teste")).toEqual([{ periodo: "CE", situacao: "ativo" }, { periodo: "NO", situacao: "retirado" }]);
+    expect((await pool.query("SELECT count(*)::int n FROM cliente_medicacao_agenda_dia WHERE client_id=2 AND nome_chave='magnesio teste'")).rows[0].n).toBe(2); // nada apagado
+  });
+  it("mesmo nome da prescrição da clínica: continuam distintos e a prescrição é preservada", async () => {
+    H.Authorization = tok(2);
+    await pool.query(`INSERT INTO lembretes_prescricao (cliente_id, periodos) VALUES (2, $1)`, [JSON.stringify([
+      { sigla: "AL", nome: "Almoço", tipo: "tomar", formulas: [{ nome: "Zinco Teste", dose: "5 mg" }] }])]);
+    const c = await request(app).post(P).set(H).send({ nome: "Zinco Teste", doseValor: 9, doseUnidade: "mg", periodos: ["jejum"] });
+    expect(c.status).toBe(201);
+    const a = await adesao();
+    const doDia = a.hoje.filter((x: any) => x.nome === "Zinco Teste");
+    expect(doDia.map((x: any) => x.origem).sort()).toEqual(["prescrita", "propria"]);
+    expect(doDia.find((x: any) => x.origem === "prescrita").dose).toBe("5 mg");
+    expect((await pool.query("SELECT count(*)::int n FROM lembretes_prescricao WHERE cliente_id=2")).rows[0].n).toBe(1);
   });
 });
 
@@ -394,5 +484,18 @@ describe("sessão persistente (token de renovação em cookie protegido)", () =>
     expect(r.status).toBe(200);
     const q = await pool.query("SELECT (expira_em <= familia_inicio + interval '90 days' + interval '1 second') ok FROM area_paciente_sessoes WHERE client_id=2 AND substituido_em IS NULL AND revogado_em IS NULL");
     expect(q.rows[0].ok).toBe(true);
+  });
+  it("troca de senha (revogarSessoesDoCliente) derruba o cookie de todos os aparelhos; outro cliente segue", async () => {
+    const { revogarSessoesDoCliente } = await import("../lib/area-paciente-sessao");
+    const a = cookieDe(await iniciar(1)), b = cookieDe(await iniciar(1)), outro = cookieDe(await iniciar(2));
+    await revogarSessoesDoCliente(pool as any, 1);
+    expect((await renovar(a)).status).toBe(401);
+    expect((await renovar(b)).status).toBe(401);
+    expect((await renovar(outro)).status).toBe(200);
+  });
+  it("tentativas inválidas em excesso levam a 429 (freio por origem)", async () => {
+    let ultimo = 0;
+    for (let i = 0; i < 35; i++) ultimo = (await renovar("x".repeat(40))).status;
+    expect(ultimo).toBe(429);
   });
 });

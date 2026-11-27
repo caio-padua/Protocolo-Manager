@@ -1,6 +1,7 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
+import { abrirPdfExame } from "@/lib/abrir-pdf-exame";
 import { Download, Eye, FileSignature, Loader2, Pencil, RotateCcw, Send } from "lucide-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { BarraGrupo } from "@/components/ui/barra-grupo";
@@ -78,7 +79,7 @@ export function FilaPedidos() {
     window.open(url, "_blank", "noopener");
   }
 
-  const baixar = (token: string) => window.open(`${BASE}/api/exam-requests/file/${token}`, "_blank", "noopener");
+  const baixar = (token: string) => { abrirPdfExame(token).catch((e: Error) => setError(e.message)); };
 
   const dia = (i: Item) => new Date(i.createdAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
   const hora = (i: Item) => new Date(i.createdAt).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });

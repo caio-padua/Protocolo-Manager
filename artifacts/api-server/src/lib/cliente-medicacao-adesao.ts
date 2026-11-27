@@ -68,6 +68,9 @@ const DDL = [
      CONSTRAINT cliente_medicacao_agenda_dia_origem_ck CHECK (origem IN ('prescrita','propria'))
    )`,
   `ALTER TABLE cliente_medicacao_tomadas ADD COLUMN IF NOT EXISTS medicacao_id INTEGER`,
+  // Situação do horário no dia: ativo (conta no denominador), suspenso (medicação pausada) ou retirado (horário
+  // deixou de existir naquele dia por alteração). Linhas nunca são apagadas; só mudam de situação.
+  `ALTER TABLE cliente_medicacao_agenda_dia ADD COLUMN IF NOT EXISTS situacao TEXT NOT NULL DEFAULT 'ativo'`,
 ];
 
 /** Aditivo e idempotente (Regra de Ouro: nunca DROP). */
@@ -136,7 +139,7 @@ export async function registrarTomada(
   const doDia = await horariosDoDia(pool, p.clientId, p.hoje);
   const existe = doDia.some((h) => h.origem === p.origem && h.nomeChave === chave && h.sigla === p.sigla);
   if (!existe) throw new ErroMedicacao("horario_nao_encontrado", 404);
-  await registrarAgendaDoDia(pool, p.clientId, p.hoje, doDia); // o denominador do dia nasce junto do primeiro registro
+  await sincronizarAgendaDoDia(pool, p.clientId, p.hoje); // o denominador do dia nasce junto do primeiro registro
   await pool.query(
     `INSERT INTO cliente_medicacao_tomadas (client_id, origem, nome_chave, data, periodo, status)
      VALUES ($1,$2,$3,$4::date,$5,$6)
@@ -146,11 +149,14 @@ export async function registrarTomada(
   );
 }
 
-export interface DiaAdesao { data: string; tomei: number; esqueci: number; esperado: number; comHistorico: boolean }
+export type SituacaoHorario = "ativo" | "suspenso" | "retirado";
+export interface DiaAdesao { data: string; tomei: number; esqueci: number; esperado: number; comHistorico: boolean; suspenso: number; retirado: number }
 export interface JanelaAdesao {
   dias: number; tomei: number; esqueci: number; semRegistro: number; esperado: number; percentual: number | null;
   /** Dias da janela com instantâneo real dos horários; os demais ficam fora do cálculo (sem histórico). */
   diasComHistorico: number; diasSemHistorico: number;
+  /** Horários de medicação pausada / retirados da rotina no período: ficam FORA do denominador, mas visíveis. */
+  suspenso: number; retirado: number; diasSuspensos: number;
 }
 export interface AdesaoLista { esperadoPorDia: number; janelas: JanelaAdesao[]; historico: DiaAdesao[] }
 
@@ -169,6 +175,54 @@ export async function registrarAgendaDoDia(
   }
 }
 
+/**
+ * Sincroniza o instantâneo de HOJE com a rotina atual: retomada volta a "ativo"; pausa vira "suspenso" (se ainda sem
+ * resposta); horário alterado/removido vira "retirado" (se sem resposta). Respondido nunca muda de situação.
+ */
+export async function sincronizarAgendaDoDia(pool: Pick<Pool, "query">, clientId: number, hoje: string): Promise<HorarioDoDia[]> {
+  const horarios = await horariosDoDia(pool, clientId, hoje);
+  const ids = await pool.query(`SELECT id, nome_chave FROM cliente_medicacoes WHERE client_id=$1 AND origem='autodeclarada' AND removido_em IS NULL`, [clientId]);
+  const idsPorChave = new Map<string, number>(ids.rows.map((x) => [x.nome_chave as string, Number(x.id)]));
+  const ativos = new Set(horarios.map((h) => `${h.origem}|${h.nomeChave}|${h.sigla}`));
+  const pausadas = (await listarAutodeclaradasDoPaciente(pool, clientId))
+    .filter((m) => m.pausada && (m.estado === "nao_validada" || m.estado === "validada"));
+  const suspensos = new Set<string>();
+  for (const m of pausadas) for (const per of m.periodos) suspensos.add(`propria|${nomeChave(m.nome)}|${SIGLA_POR_PERIODO[per].sigla}`);
+  for (const h of horarios) {
+    await pool.query(
+      `INSERT INTO cliente_medicacao_agenda_dia (client_id, data, origem, nome_chave, periodo, medicacao_id)
+       VALUES ($1,$2::date,$3,$4,$5,$6)
+       ON CONFLICT (client_id, data, origem, nome_chave, periodo) DO UPDATE SET situacao='ativo' WHERE cliente_medicacao_agenda_dia.situacao <> 'ativo'`,
+      [clientId, hoje, h.origem, h.nomeChave, h.sigla, h.origem === "propria" ? (idsPorChave.get(h.nomeChave) ?? null) : null],
+    );
+  }
+  const jaRespondido = `EXISTS (SELECT 1 FROM cliente_medicacao_tomadas t WHERE t.client_id=a.client_id AND t.data=a.data
+                          AND t.origem=a.origem AND t.nome_chave=a.nome_chave AND t.periodo=a.periodo)`;
+  for (const k of suspensos) {
+    if (ativos.has(k)) continue;
+    const [origem, nome, sigla] = k.split("|");
+    await pool.query(
+      `INSERT INTO cliente_medicacao_agenda_dia AS a (client_id, data, origem, nome_chave, periodo, medicacao_id, situacao)
+       VALUES ($1,$2::date,$3,$4,$5,$6,'suspenso')
+       ON CONFLICT (client_id, data, origem, nome_chave, periodo) DO UPDATE SET situacao='suspenso'
+         WHERE a.situacao='ativo' AND NOT ${jaRespondido}`,
+      [clientId, hoje, origem, nome, sigla, idsPorChave.get(nome) ?? null],
+    );
+  }
+  const hojeRows = await pool.query(
+    `SELECT origem, nome_chave, periodo, situacao FROM cliente_medicacao_agenda_dia WHERE client_id=$1 AND data=$2::date`, [clientId, hoje]);
+  for (const x of hojeRows.rows) {
+    const k = `${x.origem}|${x.nome_chave}|${x.periodo}`;
+    if (x.situacao === "ativo" && !ativos.has(k) && !suspensos.has(k)) {
+      await pool.query(
+        `UPDATE cliente_medicacao_agenda_dia a SET situacao='retirado'
+          WHERE a.client_id=$1 AND a.data=$2::date AND a.origem=$3 AND a.nome_chave=$4 AND a.periodo=$5 AND a.situacao='ativo' AND NOT ${jaRespondido}`,
+        [clientId, hoje, x.origem, x.nome_chave, x.periodo]);
+    }
+  }
+  return horarios;
+}
+
 function somaDias(iso: string, n: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
@@ -183,7 +237,7 @@ export function montarAdesao(
   hoje: string,
   horarios: Pick<HorarioDoDia, "origem" | "nomeChave" | "sigla">[],
   tomadas: { origem: OrigemLista; nomeChave: string; sigla: string; data: string; status: "tomei" | "esqueci" }[],
-  agendaPorDia?: Map<string, { origem: OrigemLista; nomeChave: string; sigla: string }[]>,
+  agendaPorDia?: Map<string, { origem: OrigemLista; nomeChave: string; sigla: string; situacao?: SituacaoHorario }[]>,
 ): Record<OrigemLista, AdesaoLista> {
   // Sem histórico gravado (chamada pura antiga): só HOJE é conhecido, vindo dos horários de hoje.
   const agenda = agendaPorDia ?? new Map([[hoje, horarios.map((h) => ({ origem: h.origem, nomeChave: h.nomeChave, sigla: h.sigla }))]]);
@@ -194,10 +248,14 @@ export function montarAdesao(
     for (let i = 29; i >= 0; i--) {
       const data = somaDias(hoje, -i);
       const doDia = agenda.get(data);
-      const esperadosDia = doDia ? doDia.filter((h) => h.origem === origem) : [];
-      dias.set(data, { data, tomei: 0, esqueci: 0, esperado: esperadosDia.length, comHistorico: doDia !== undefined });
+      const doDiaOrigem = doDia ? doDia.filter((h) => h.origem === origem) : [];
+      const sit = (h: { situacao?: SituacaoHorario }) => h.situacao ?? "ativo";
+      dias.set(data, {
+        data, tomei: 0, esqueci: 0, esperado: doDiaOrigem.filter((h) => sit(h) === "ativo").length, comHistorico: doDia !== undefined,
+        suspenso: doDiaOrigem.filter((h) => sit(h) === "suspenso").length, retirado: doDiaOrigem.filter((h) => sit(h) === "retirado").length,
+      });
     }
-    const chavesDia = (data: string) => new Set((agenda.get(data) ?? []).filter((h) => h.origem === origem).map((h) => `${h.nomeChave}|${h.sigla}`));
+    const chavesDia = (data: string) => new Set((agenda.get(data) ?? []).filter((h) => h.origem === origem && (h.situacao ?? "ativo") === "ativo").map((h) => `${h.nomeChave}|${h.sigla}`));
     for (const t of tomadas) {
       if (t.origem !== origem) continue;
       const d = dias.get(t.data);
@@ -214,6 +272,8 @@ export function montarAdesao(
         dias: n, tomei, esqueci, esperado, semRegistro: Math.max(0, esperado - tomei - esqueci),
         percentual: esperado > 0 ? Math.round((tomei / esperado) * 1000) / 10 : null,
         diasComHistorico: comH.length, diasSemHistorico: n - comH.length,
+        suspenso: comH.reduce((s, d) => s + d.suspenso, 0), retirado: comH.reduce((s, d) => s + d.retirado, 0),
+        diasSuspensos: comH.filter((d) => d.esperado === 0 && d.suspenso > 0).length,
       };
     });
     out[origem] = { esperadoPorDia, janelas, historico };
@@ -222,23 +282,21 @@ export function montarAdesao(
 }
 
 export async function calcularAdesao(pool: Pick<Pool, "query">, clientId: number, hoje: string) {
-  const horarios = await horariosDoDia(pool, clientId, hoje);
-  const ids = await pool.query(`SELECT id, nome_chave FROM cliente_medicacoes WHERE client_id=$1 AND origem='autodeclarada' AND removido_em IS NULL`, [clientId]);
-  await registrarAgendaDoDia(pool, clientId, hoje, horarios, new Map(ids.rows.map((x) => [x.nome_chave as string, Number(x.id)])));
+  const horarios = await sincronizarAgendaDoDia(pool, clientId, hoje);
   const t = await pool.query(
     `SELECT origem, nome_chave, periodo, to_char(data,'YYYY-MM-DD') AS data, status
        FROM cliente_medicacao_tomadas WHERE client_id=$1 AND data > $2::date - 30 AND data <= $2::date`,
     [clientId, hoje],
   );
   const ag = await pool.query(
-    `SELECT origem, nome_chave, periodo, to_char(data,'YYYY-MM-DD') AS data
+    `SELECT origem, nome_chave, periodo, situacao, to_char(data,'YYYY-MM-DD') AS data
        FROM cliente_medicacao_agenda_dia WHERE client_id=$1 AND data > $2::date - 30 AND data <= $2::date`,
     [clientId, hoje],
   );
-  const agendaPorDia = new Map<string, { origem: OrigemLista; nomeChave: string; sigla: string }[]>();
+  const agendaPorDia = new Map<string, { origem: OrigemLista; nomeChave: string; sigla: string; situacao?: SituacaoHorario }[]>();
   for (const x of ag.rows) {
     const l = agendaPorDia.get(x.data) ?? [];
-    l.push({ origem: x.origem, nomeChave: x.nome_chave, sigla: x.periodo });
+    l.push({ origem: x.origem, nomeChave: x.nome_chave, sigla: x.periodo, situacao: x.situacao });
     agendaPorDia.set(x.data, l);
   }
   return montarAdesao(hoje, horarios, t.rows.map((x) => ({

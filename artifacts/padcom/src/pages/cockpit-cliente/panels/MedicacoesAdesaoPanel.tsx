@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, Pill, ShieldAlert, X, Pencil } from "lucide-react";
+import CodigoExclusaoAppCard from "./CodigoExclusaoAppCard";
 import { useToast } from "@/hooks/use-toast";
 
 // Cockpit > "Adesão & Medicações em Uso". Rotas /cockpit/:clientId/medicacoes (colaborador, isolado por empresa).
@@ -19,7 +20,7 @@ type Propria = {
   id: number; nome: string; estado: Estado; pausada: boolean; doseValor: number | null; doseUnidade: string | null;
   refeicao: string | null; observacao: string | null; periodos: Periodo[]; motivoRecusa: string | null;
 };
-type Janela = { dias: number; tomei: number; esqueci: number; semRegistro: number; esperado: number; percentual: number | null };
+type Janela = { dias: number; tomei: number; esqueci: number; semRegistro: number; esperado: number; percentual: number | null; diasSemHistorico?: number; suspenso?: number; retirado?: number };
 type AdesaoLista = { esperadoPorDia: number; janelas: Janela[]; historico: { data: string; tomei: number; esqueci: number; esperado: number }[] };
 type Dados = {
   podeDecidir: boolean; prescritas: Prescrita[];
@@ -38,11 +39,11 @@ function TabelaAdesao({ titulo, a }: { titulo: string; a: AdesaoLista | null }) 
     <div className="space-y-2" data-testid={`cockpit-adesao-${titulo}`}>
       <p className="text-primary font-black text-[10px] uppercase tracking-widest">Adesão — {titulo}</p>
       <table className="w-full text-xs">
-        <thead><tr className="text-left text-muted-foreground"><th className="py-1">Período</th><th>Adesão</th><th>Tomei</th><th>Esqueci</th><th>Sem registro</th></tr></thead>
+        <thead><tr className="text-left text-muted-foreground"><th className="py-1">Período</th><th>Adesão</th><th>Tomado / esperado</th><th>Não tomado</th><th>Sem resposta</th><th>Suspenso</th><th>Dias sem histórico</th></tr></thead>
         <tbody>
           {a.janelas.map((j) => (
             <tr key={j.dias} className="border-t border-border/40">
-              <td className="py-1 font-black text-primary">{j.dias} dias</td><td>{fmtPct(j.percentual)}</td><td>{j.tomei}</td><td>{j.esqueci}</td><td>{j.semRegistro}</td>
+              <td className="py-1 font-black text-primary">{j.dias} dias</td><td>{fmtPct(j.percentual)}</td><td>{j.tomei} / {j.esperado}</td><td>{j.esqueci}</td><td>{j.semRegistro}</td><td>{j.suspenso ?? 0}</td><td>{j.diasSemHistorico ?? 0}</td>
             </tr>
           ))}
         </tbody>
@@ -180,6 +181,7 @@ export default function MedicacoesAdesaoPanel({ clientId }: { clientId: number }
           <TabelaAdesao titulo="cadastrados pelo paciente" a={dados.adesao.propria} />
         </section>
       </div>
+      <CodigoExclusaoAppCard clientId={clientId} />
     </div>
   );
 }

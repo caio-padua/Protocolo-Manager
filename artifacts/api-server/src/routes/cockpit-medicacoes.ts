@@ -1,15 +1,23 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod/v4";
 import { pool } from "@workspace/db";
+import { logger } from "../lib/logger.js";
 import { requireCollaborator } from "./collaborator";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import {
   decidirMedicacao, editarMedicacaoDoPaciente, ErroMedicacao, listarAutodeclaradasDoPaciente, nomeChave,
   PERIODOS_MEDICACAO, REFEICOES, temConsentimentoAtivo, UNIDADES_DOSE,
 } from "../lib/cliente-medicacoes.js";
-import { calcularAdesao, prescritasDoLembrete } from "../lib/cliente-medicacao-adesao.js";
+import { calcularAdesao, prescritasDoLembrete, sincronizarAgendaDoDia } from "../lib/cliente-medicacao-adesao.js";
 import { recalcularLembreteDoCliente } from "../lib/lembrete-medicacoes-recalculo.js";
 import { brtISODate } from "../lib/brt.js";
+
+// Pausa, retomada, edição e decisão da clínica atualizam o instantâneo de HOJE já na hora (não só na próxima leitura).
+// Falha aqui nunca derruba a alteração do cliente: a leitura seguinte sincroniza de novo; a falha vai ao log.
+async function sincronizarAgendaSegura(clientId: number): Promise<void> {
+  try { await sincronizarAgendaDoDia(pool, clientId, brtISODate()); }
+  catch (err) { logger.error({ evento: "agenda_dia_sync_falhou", clientId, errorType: err instanceof Error ? err.constructor.name : typeof err }, "instantâneo do dia não sincronizado"); }
+}
 
 // ===========================================================================
 // Cockpit > "Adesão & Medicações em Uso". Autenticado (colaborador) e isolado por empresa: o cliente
@@ -132,6 +140,7 @@ router.post("/cockpit/:clientId/medicacoes/:id/decisao", requireCollaborator, as
       medicacaoId: id, profissionalId, empresaId: c.empresaId,
       decisao: p.data.decisao === "recusar" ? "recusar" : "validar", motivo: p.data.motivo,
     });
+    await sincronizarAgendaSegura(c.clientId);
     const lembreteRecalculado = await recalcularLembreteDoCliente(c.clientId, `clinica_${p.data.decisao}`);
     res.json({ estado, lembreteRecalculado });
   } catch (err) { erro(req, res, err, "cockpit medicacoes decidir"); }

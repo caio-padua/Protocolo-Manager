@@ -368,11 +368,11 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
 
 // Servido por token aleatorio (nao por id sequencial) para evitar enumeracao
 // de documentos clinicos de outros pacientes (IDOR).
-router.get("/exam-requests/file/:token", async (req, res): Promise<void> => {
+async function servirPdfDeExame(req: Request, res: import("express").Response, token: string, via: string): Promise<void> {
   protegerRespostaLink(res);
   if (excedeuLimiteLink(req, "exame")) { res.status(429).json({ error: "Muitas tentativas. Aguarde um minuto." }); return; }
-  const token = String(req.params.token ?? "");
   if (!/^[a-f0-9]{48}$/.test(token)) {
+    await auditarAcessoLink(req, "exame", via, "recusado");
     res.status(400).json({ error: "token inválido" });
     return;
   }
@@ -380,7 +380,7 @@ router.get("/exam-requests/file/:token", async (req, res): Promise<void> => {
     .select()
     .from(examRequestPdfsTable)
     .where(eq(examRequestPdfsTable.token, token));
-  await auditarAcessoLink(req, "exame", "url", row && row.pdfData ? "aceito" : "recusado");
+  await auditarAcessoLink(req, "exame", via, row && row.pdfData ? "aceito" : "recusado");
   if (!row || !row.pdfData) {
     res.status(404).json({ error: "PDF não encontrado" });
     return;
@@ -389,6 +389,17 @@ router.get("/exam-requests/file/:token", async (req, res): Promise<void> => {
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `inline; filename="${row.fileName}"`);
   res.send(buf);
+}
+
+// Caminho ANTIGO (links já enviados por WhatsApp/e-mail): continua valendo; o token fica no caminho da URL.
+router.get("/exam-requests/file/:token", async (req, res): Promise<void> => {
+  await servirPdfDeExame(req, res, String(req.params.token ?? ""), "url");
+});
+
+// Caminho NOVO para uso dentro do aplicativo: token só no cabeçalho X-Link-Token (nunca na URL).
+router.get("/exam-requests/arquivo", async (req, res): Promise<void> => {
+  const h = req.headers["x-link-token"];
+  await servirPdfDeExame(req, res, typeof h === "string" ? h.trim() : "", "cabecalho");
 });
 
 // GET /exam-requests/demo -> abre no navegador um PDF de AMOSTRA (dados fictícios)

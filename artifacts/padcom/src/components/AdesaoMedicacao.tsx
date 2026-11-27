@@ -9,8 +9,11 @@ const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 export type OrigemLista = "prescrita" | "propria";
 type Status = "tomei" | "esqueci" | null;
 export type HorarioDia = { origem: OrigemLista; nome: string; nomeChave: string; dose: string | null; sigla: string; periodoNome: string; status: Status };
-type Janela = { dias: number; tomei: number; esqueci: number; semRegistro: number; esperado: number; percentual: number | null };
-type Dia = { data: string; tomei: number; esqueci: number; esperado: number };
+type Janela = {
+  dias: number; tomei: number; esqueci: number; semRegistro: number; esperado: number; percentual: number | null;
+  diasComHistorico?: number; diasSemHistorico?: number; suspenso?: number; retirado?: number; diasSuspensos?: number;
+};
+type Dia = { data: string; tomei: number; esqueci: number; esperado: number; comHistorico?: boolean; suspenso?: number; retirado?: number };
 export type AdesaoLista = { esperadoPorDia: number; janelas: Janela[]; historico: Dia[] };
 export type DadosAdesao = { hoje: HorarioDia[]; adesao: { prescrita: AdesaoLista; propria: AdesaoLista }; data: string };
 
@@ -114,7 +117,12 @@ export function BlocoAdesao({ origem, adesao, somenteLeitura }: {
             <p className="text-primary font-black text-3xl mt-1" style={{ fontFamily: "'EB Garamond', serif" }}>{fmtPct(j.percentual)}</p>
           )}
           <p className="text-xs text-muted-foreground">
-            {j.tomei} tomada(s) · {j.esqueci} esquecida(s) · {j.semRegistro} sem registro, de {j.esperado} esperadas
+            {j.tomei} tomado(s) de {j.esperado} esperados · {j.esqueci} não tomado(s) · {j.semRegistro} sem resposta
+          </p>
+          <p className="text-xs text-muted-foreground" data-testid="constancia-lacunas">
+            {j.diasSemHistorico ?? 0} dia(s) sem histórico fora da conta (nada é estimado)
+            {(j.suspenso ?? 0) > 0 ? ` · ${j.suspenso} horário(s) suspenso(s) por pausa, fora da conta` : ""}
+            {(j.retirado ?? 0) > 0 ? ` · ${j.retirado} horário(s) trocado(s), fora da conta` : ""}
           </p>
           <p className="text-[10px] text-muted-foreground mt-1">Este índice mede só o seu registro de lembretes. Não é nota de risco, de saúde nem de longevidade.</p>
           <button type="button" aria-pressed={ocultarGamificacao} onClick={alternarGamificacao}
@@ -126,11 +134,15 @@ export function BlocoAdesao({ origem, adesao, somenteLeitura }: {
           {[...hist].reverse().map((d) => (
             <li key={d.data} className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">{fmtData(d.data)}</span>
-              <span className="text-primary">{d.tomei} tomei · {d.esqueci} esqueci · {Math.max(0, d.esperado - d.tomei - d.esqueci)} sem registro</span>
+              <span className="text-primary">
+                {d.comHistorico === false ? "sem histórico"
+                  : d.esperado === 0 && (d.suspenso ?? 0) > 0 ? "suspenso"
+                  : `${d.tomei} tomado · ${d.esqueci} não tomado · ${Math.max(0, d.esperado - d.tomei - d.esqueci)} sem resposta`}
+              </span>
             </li>
           ))}
         </ul>
-        <p className="text-[10px] text-muted-foreground">O cálculo usa os horários de hoje como referência. Sem registro não conta como tomado.</p>
+        <p className="text-[10px] text-muted-foreground">Cada dia usa os horários que valiam naquele dia. Sem resposta não conta como tomado. Dias anteriores ao primeiro registro ficam sem histórico.</p>
       </div>
     </div>
   );

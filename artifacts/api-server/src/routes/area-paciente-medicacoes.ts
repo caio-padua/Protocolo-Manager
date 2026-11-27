@@ -1,6 +1,7 @@
 import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
 import { z } from "zod/v4";
 import { pool } from "@workspace/db";
+import { logger } from "../lib/logger.js";
 import { verifyPatientToken, verifyPortalToken } from "../lib/portal-token";
 import {
   clinicasParaConsentimento, editarMedicacaoDoPaciente, ErroMedicacao, listarAutodeclaradasDoPaciente,
@@ -8,9 +9,16 @@ import {
   registrarConsentimento, registrarMedicacao, removerMedicacaoDoPaciente, revogarConsentimento,
   temVinculoAtivo, textoDeConsentimentoVigente, UNIDADES_DOSE,
 } from "../lib/cliente-medicacoes.js";
-import { calcularAdesao, horariosDoDia, registrarTomada } from "../lib/cliente-medicacao-adesao.js";
+import { calcularAdesao, horariosDoDia, registrarTomada, sincronizarAgendaDoDia } from "../lib/cliente-medicacao-adesao.js";
 import { recalcularLembreteDoCliente, recalculoPendente, tentarRecuperarRecalculo } from "../lib/lembrete-medicacoes-recalculo.js";
 import { brtISODate } from "../lib/brt.js";
+
+// Pausa, retomada, edição e decisão da clínica atualizam o instantâneo de HOJE já na hora (não só na próxima leitura).
+// Falha aqui nunca derruba a alteração do cliente: a leitura seguinte sincroniza de novo; a falha vai ao log.
+async function sincronizarAgendaSegura(clientId: number): Promise<void> {
+  try { await sincronizarAgendaDoDia(pool, clientId, brtISODate()); }
+  catch (err) { logger.error({ evento: "agenda_dia_sync_falhou", clientId, errorType: err instanceof Error ? err.constructor.name : typeof err }, "instantâneo do dia não sincronizado"); }
+}
 
 // ===========================================================================
 // MEUS MEDICAMENTOS (Área do Cliente / PaxCare). O clientId vem SEMPRE do token do paciente
@@ -127,7 +135,8 @@ router.patch("/area-paciente/medicacoes/:id", exigeEscrita, async (req, res): Pr
   if (id && Object.keys(body).length === 1 && typeof body.pausada === "boolean") {
     try {
       const r = await pausarMedicacaoDoPaciente(pool, cid(req), id, body.pausada);
-      const lembreteRecalculado = await recalcularLembreteDoCliente(cid(req), body.pausada ? "paciente_pausou" : "paciente_retomou");
+      await sincronizarAgendaSegura(cid(req));
+    const lembreteRecalculado = await recalcularLembreteDoCliente(cid(req), body.pausada ? "paciente_pausou" : "paciente_retomou");
       res.json({ ...r, lembreteRecalculado });
     }
     catch (err) { responderErro(req, res, err, "area medicacoes pausar"); }
@@ -137,6 +146,7 @@ router.patch("/area-paciente/medicacoes/:id", exigeEscrita, async (req, res): Pr
   if (!id || !p.success) { res.status(400).json({ error: "Dados inválidos." }); return; }
   try {
     const r = await editarMedicacaoDoPaciente(pool, cid(req), id, p.data);
+    await sincronizarAgendaSegura(cid(req));
     const lembreteRecalculado = await recalcularLembreteDoCliente(cid(req), "paciente_editou");
     res.json({ ...r, lembreteRecalculado });
   }
@@ -148,6 +158,7 @@ router.delete("/area-paciente/medicacoes/:id", exigeEscrita, async (req, res): P
   if (!id) { res.status(400).json({ error: "Medicamento inválido." }); return; }
   try {
     await removerMedicacaoDoPaciente(pool, cid(req), id);
+    await sincronizarAgendaSegura(cid(req));
     const lembreteRecalculado = await recalcularLembreteDoCliente(cid(req), "paciente_excluiu");
     res.json({ ok: true, lembreteRecalculado });
   }
@@ -174,6 +185,7 @@ router.delete("/area-paciente/medicacoes/consentimentos/:empresaId", exigeEscrit
   try {
     const ok = await revogarConsentimento(pool, { clientId: cid(req), empresaId });
     if (!ok) { res.status(404).json({ error: "Não há autorização ativa para esta clínica." }); return; }
+    await sincronizarAgendaSegura(cid(req));
     const lembreteRecalculado = await recalcularLembreteDoCliente(cid(req), "paciente_revogou_consentimento");
     res.json({ ok: true, lembreteRecalculado });
   } catch (err) { responderErro(req, res, err, "area medicacoes revogar"); }
