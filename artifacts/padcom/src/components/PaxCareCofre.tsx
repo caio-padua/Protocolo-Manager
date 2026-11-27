@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import PaxCarePlanosPaciente from "@/components/PaxCarePlanosPaciente";
+import PaxCareConviteMedico from "@/components/PaxCareConviteMedico";
 import { Loader2, ShieldCheck, Trash2, FileText, Building2 } from "lucide-react";
 
 // PAXCARE (experiência do paciente): cofre pessoal + clínicas vinculadas. Tudo vem de rotas
@@ -164,6 +165,8 @@ export default function PaxCareCofre({ token }: { token: string }) {
           <button disabled={!novaEmp || ocupado} onClick={() => void vincular()} className="btn-3d w-full min-h-[44px] text-xs font-black uppercase tracking-widest disabled:opacity-40">Vincular</button>
         </div>
       </section>
+
+      <PaxCareConviteMedico token={token} />
 
       <section className="panel-3d rounded-xl p-4 space-y-3" aria-label="Guardar no cofre">
         <h3 className="text-primary font-black text-xs uppercase tracking-widest flex items-center gap-2"><ShieldCheck className="w-4 h-4" />Guardar no cofre</h3>

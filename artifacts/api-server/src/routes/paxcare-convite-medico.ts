@@ -39,6 +39,8 @@ export async function garantirTabelasConviteMedico(): Promise<void> {
       encerrado_em TIMESTAMPTZ,
       CONSTRAINT paxcare_conv_med_status_ck CHECK (status IN ('pendente','aceito','recusado','revogado'))
     )`);
+  await db.execute(sql`ALTER TABLE paxcare_convites_medico ADD COLUMN IF NOT EXISTS consentimento_em TIMESTAMPTZ`);
+  await db.execute(sql`ALTER TABLE paxcare_convites_medico ADD COLUMN IF NOT EXISTS consentimento_hash TEXT`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_paxcare_conv_med_client ON paxcare_convites_medico (client_id, criado_em DESC)`);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS paxcare_convites_medico_hist (
@@ -50,6 +52,8 @@ export async function garantirTabelasConviteMedico(): Promise<void> {
     )`);
 }
 
+const TERMO_VERSAO = "2026-11-27.1";
+const TERMO_TEXTO = "Autorizo que o médico indicado por mim veja, somente para consulta, as categorias que marquei do meu cofre PaxCare, apenas pelo prazo escolhido. Posso retirar este acesso a qualquer momento e ele cessa imediatamente. Nenhuma mensagem é enviada por este aviso: eu mesmo entrego o link ao médico.";
 const hash = (t: string) => createHash("sha256").update(t).digest("hex");
 const norm = (s: string) => s.toLowerCase().trim();
 const digitos = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "").replace(/^0+/, "");
@@ -77,7 +81,12 @@ function exigePaciente(req: Request, res: Response, next: NextFunction): void {
 const cid = (req: Request) => (req as Request & { cliId?: number }).cliId!;
 
 // ------------------------------- CLIENTE -------------------------------------
+router.get("/area-paciente/paxcare/convites-medico/termo", exigePaciente, (_req, res): void => {
+  res.json({ versao: TERMO_VERSAO, texto: TERMO_TEXTO, hash: hash(TERMO_VERSAO + TERMO_TEXTO) });
+});
+
 const Novo = z.object({
+  consentimentoHash: z.string(),
   medicoNome: z.string().trim().min(3).max(120),
   medicoEmail: z.string().trim().max(255).regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/),
   conselho: z.string().trim().regex(/^\d{3,8}$/),
@@ -93,6 +102,7 @@ router.post("/area-paciente/paxcare/convites-medico", exigePaciente, async (req,
   const p = Novo.safeParse(req.body);
   if (!p.success) { res.status(400).json({ error: "Confira nome, e-mail, CRM, UF e o que compartilhar." }); return; }
   const d = p.data;
+  if (d.consentimentoHash !== hash(TERMO_VERSAO + TERMO_TEXTO)) { res.status(400).json({ error: "Leia e aceite o termo de compartilhamento." }); return; }
   try {
     await garantirTabelasConviteMedico();
     if (estourou(`cli:${cid(req)}`, 10, 60 * 60_000)) { res.status(429).json({ error: "Muitos convites seguidos. Tente mais tarde." }); return; }
@@ -103,9 +113,9 @@ router.post("/area-paciente/paxcare/convites-medico", exigePaciente, async (req,
     const token = randomBytes(32).toString("base64url");
     const row = (await db.execute(sql`
       INSERT INTO paxcare_convites_medico (client_id, token_hash, medico_nome, medico_email, medico_conselho, medico_uf, empresa_id,
-        comp_historico, comp_exames, comp_documentos, acesso_dias, expira_em)
+        comp_historico, comp_exames, comp_documentos, acesso_dias, expira_em, consentimento_em, consentimento_hash)
       VALUES (${cid(req)}, ${hash(token)}, ${d.medicoNome}, ${norm(d.medicoEmail)}, ${d.conselho}, ${d.uf.toUpperCase()}, ${d.empresaId ?? null},
-        ${d.compartilha.historico}, ${d.compartilha.exames}, ${d.compartilha.documentos}, ${d.acessoDias}, NOW() + make_interval(days => ${d.validadeDias}::int))
+        ${d.compartilha.historico}, ${d.compartilha.exames}, ${d.compartilha.documentos}, ${d.acessoDias}, NOW() + make_interval(days => ${d.validadeDias}::int), NOW(), ${d.consentimentoHash})
       RETURNING id, expira_em`)).rows[0] as { id: number; expira_em: string };
     await hist(row.id, "criou", `cliente:${cid(req)}`);
     res.setHeader("Cache-Control", "no-store");

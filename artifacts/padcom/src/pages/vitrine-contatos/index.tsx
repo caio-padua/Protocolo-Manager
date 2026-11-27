@@ -19,7 +19,7 @@ export default function VitrineContatosPage() {
   const carregar = useCallback(async () => {
     try {
       const r = await fetch(`${API}/vitrine-contatos${filtro ? `?contatado=${filtro}` : ""}`, { headers: collabAuthHeaders() });
-      if (!r.ok) throw new Error(r.status === 401 ? "Entre como colaborador para ver os contatos." : "Não foi possível carregar os contatos.");
+      if (!r.ok) throw new Error(r.status === 403 ? "Somente o titular da plataforma vê os contatos." : r.status === 401 ? "Entre como colaborador para ver os contatos." : "Não foi possível carregar os contatos.");
       const d = (await r.json()) as { contatos: Contato[] };
       setItens(d.contatos); setErro("");
     } catch (e) { setItens(null); setErro((e as Error).message); }

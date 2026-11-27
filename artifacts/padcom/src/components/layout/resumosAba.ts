@@ -9,6 +9,7 @@ export const RESUMO_ABA: Record<string, string> = {
   "/central-telegram": "Conversas dos clientes com o bot da clínica",
   "/agenda/motor": "Horários, locais e repetições",
   "/clients": "Cadastro e busca de clientes",
+  "/paxcare-convite": "Convites que pacientes fizeram a você e o que liberaram",
   "/paxcare-convites-medico": "Convites que clientes fizeram a médicos no PaxCare",
   "/convites-paxmed": "Pedidos de convite de médicos e clínicas ao PAXMED",
   "/medicacoes-adesao": "Conferir medicações cadastradas pelos clientes",

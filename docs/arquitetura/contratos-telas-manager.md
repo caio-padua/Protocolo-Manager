@@ -129,3 +129,18 @@ Nenhuma tela do Lovable foi comprovadamente ligada ao Manager em produção. Nad
 ## Atualização 27/11/2026 — convite de médico pelo cliente e contato com consentimento
 
 Ver `specs/entrada-comercial-paxmed-paxcare.md` (matriz completa). Contratos novos: `POST/GET/DELETE /api/area-paciente/paxcare/convites-medico`, `GET/POST /api/collaborator/paxcare/convites/:token[/aceitar|/recusar]`, `GET /api/collaborator/paxcare/convites-aceitos[/:id/cofre]`, `GET /api/ceo/paxcare/convites-medico`. `POST /api/vitrine-contatos` aceita `consentimento` (booleano) e devolve `duplicado: true` em reenvio em 10 minutos.
+
+## Contrato por formulário e login (27/11/2026) — Lovable x Manager
+
+| Tela Lovable | Chamada correta no Manager | Corpo | Resposta | Estado do Lovable |
+|---|---|---|---|---|
+| PAXMED, "Quero contratar" | `POST /api/vitrine-contatos` | nome, email, clinica, especialidade, necessidade, telefone?, volume_protocolos?, source?, utm?, `consentimento` (booleano) | `{ok:true}` ou `{ok:true,duplicado:true}`; 400 com mensagem; 429 por IP | Compatível, mas NÃO envia `consentimento`: fica "não informado". AJUSTE NO LOVABLE. |
+| PAXMED /convite, pedir convite | `POST /api/vitrine-convites` | nome, email, crm (3 a 8 dígitos), uf, especialidade, cidade, `consentimento: true`, clinica?, mensagem? | protocolo | Não verificado contra o site real |
+| PAXMED /convite, consultar | `POST /api/vitrine-convites/status` | protocolo, email | situação | Não verificado contra o site real |
+| Login do paciente | `POST /api/area-paciente/login` | cpf, senha | token curto + cliente | INCOMPATÍVEL: o Lovable chama `/api/patient/login` (não existe). AJUSTE NO LOVABLE. |
+| Login do profissional | `POST /api/collaborator/login` | conforme tela de login do Manager | token de colaborador | Não verificado |
+| PAXCARE /medicos, adesão do médico | `POST /api/vitrine-convites` | igual ao pedido de convite | protocolo | INCOMPATÍVEL: a adesão é uma prévia local, não chega ao banco. AJUSTE NO LOVABLE. |
+| Convidar médico (paciente) | Já é do Manager: aba PAXCARE em `/area` | token do paciente; termo servido por `GET .../convites-medico/termo` | link único | Não depende do Lovable |
+| Receber e aceitar convite (médico) | Já é do Manager: `/paxcare-convite/:token` | sessão de colaborador | aceitar ou recusar | Não depende do Lovable |
+
+Regras novas: o convite exige consentimento verificável (o servidor entrega o texto e o código do termo; o pedido só vale com o código igual; data e código ficam gravados). `GET/PATCH /api/vitrine-contatos` passou a ser só do titular da plataforma (antes qualquer colaborador lia os dados dos interessados). Observação aberta: `GET /api/vitrine-leads` ainda aceita qualquer colaborador; não alterei por estar fora do pedido.

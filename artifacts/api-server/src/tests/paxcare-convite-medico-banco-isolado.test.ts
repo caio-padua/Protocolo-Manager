@@ -39,13 +39,22 @@ beforeAll(async () => {
 afterAll(async () => { try { await pool?.end(); } catch { /* */ } pg.parar(); });
 
 const H = (id: number) => ({ Authorization: `Bearer ${tok(id)}` });
-const corpo = (extra: object = {}) => ({ medicoNome: "Dr Teste", medicoEmail: "DR@teste.com", conselho: "123456", uf: "sp", compartilha: { historico: true, exames: false, documentos: false }, ...extra });
+let TH = "";
+const corpo = (extra: object = {}) => ({ consentimentoHash: TH, medicoNome: "Dr Teste", medicoEmail: "DR@teste.com", conselho: "123456", uf: "sp", compartilha: { historico: true, exames: false, documentos: false }, ...extra });
 async function criar(cliente = 1, extra: object = {}) {
   const r = await request(app).post("/api/area-paciente/paxcare/convites-medico").set(H(cliente)).send(corpo(extra));
   return r;
 }
 
 describe("convite de médico", () => {
+  it("termo é servido e consentimento é obrigatório e gravado", async () => {
+    const t = await request(app).get("/api/area-paciente/paxcare/convites-medico/termo").set(H(1));
+    expect(t.status).toBe(200); TH = t.body.hash;
+    expect((await criar(1, { consentimentoHash: "errado" })).status).toBe(400);
+    const r = await criar(); expect(r.status).toBe(201);
+    const l = await pool.query(`SELECT consentimento_em IS NOT NULL AS em, consentimento_hash FROM paxcare_convites_medico WHERE id=$1`, [r.body.id]);
+    expect(l.rows[0]).toEqual({ em: true, consentimento_hash: TH });
+  });
   it("exige sessão do cliente e escopo mínimo", async () => {
     expect((await request(app).post("/api/area-paciente/paxcare/convites-medico").send(corpo())).status).toBe(401);
     expect((await criar(1, { compartilha: { historico: false, exames: false, documentos: false } })).status).toBe(400);
