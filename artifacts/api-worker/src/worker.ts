@@ -658,6 +658,39 @@ export function startWorkerJobs(
     { timezone: "America/Sao_Paulo" }
   );
 
+  // ─── Job 11: Fila persistente de PDFs de exame por IA — a cada 30 s ───────
+  // Só consome mensagens_fila (tipo pdf_exame): concorrência 2, prazo 120 s por item, trava por job.
+  // DESLIGADO por padrão: só roda com PADAXOR_FILA_PDF_ATIVA=true (nenhum fluxo atual enfileira ainda).
+  if (process.env.PADAXOR_FILA_PDF_ATIVA === "true") {
+    let filaPdfRodando = false;
+    const workerId = `api-worker-${process.pid}`;
+    cron.schedule(
+      "*/30 * * * * *",
+      async () => {
+        if (filaPdfRodando) return;
+        filaPdfRodando = true;
+        try {
+          const { pool } = await import("@workspace/db");
+          const { ensureFilaMensagens } = await import("../../api-server/src/lib/ensure-fila-mensagens.js" as string);
+          const { processarFilaPdfExames } = await import("../../api-server/src/lib/fila-pdf-exames.js" as string);
+          await ensureFilaMensagens();
+          const r = await processarFilaPdfExames(pool, workerId);
+          if (r.reservados > 0) {
+            logger.info({ ...r }, "Worker: fila de PDFs de exame processada");
+          }
+        } catch (err) {
+          logger.error(
+            { err: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200) },
+            "Worker: falha na fila de PDFs de exame"
+          );
+        } finally {
+          filaPdfRodando = false;
+        }
+      },
+      { timezone: "America/Sao_Paulo" }
+    );
+  }
+
   logger.info(
     "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, telegram-repasse-1min, drive-watcher-5min, slack-monitor-horário, telegram-webhook-guard, device-offer-limits-cleanup-3h, webhook-eventos-purge-mensal, device-verification-purge-315h, cert-expiry-08h, visit-confirmations-10min"
   );

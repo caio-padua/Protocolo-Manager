@@ -18,6 +18,8 @@ import { requireCollaborator } from "./collaborator";
 import { registrarErroSistema } from "../lib/system-error-log";
 import { PreviewPrescriptionBody, EmitPrescriptionBody } from "@workspace/api-zod";
 import { brtDisplayDate, brtISODate } from "../lib/brt";
+import { itensLembreteDeMedicacoes, mesclarItensSemDuplicar } from "../lib/cliente-medicacoes.js";
+import { pool as medicacoesPool } from "@workspace/db";
 import { nomeArquivoReceita } from "../lib/nome-arquivo-receita";
 import { planDesmembramento, type PrescriptionItemInput } from "../lib/desmembramento";
 import { consumeSncrNumber } from "../lib/sncr";
@@ -650,11 +652,14 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
   // Reminders and alerts are attempted only after the clinical documents commit.
   if (!approval && signatureStatus === "signed") {
     try {
-      await sincronizarLembretePrescricao(body.clientId, items.map(it => ({
+      const itensPrescricao = items.map(it => ({
         tipo: "formula" as const, nome: it.name,
         ativoPrincipal: it.ativos?.split("\n")[0]?.trim() ?? undefined,
         dose: it.dose ?? undefined, periodos: mapPeriodosTextoToCanonicos(it.periodo ?? ""),
-      })));
+      }));
+      // Medicações validadas do cliente (PaxCare) acompanham a prescrição; falha não bloqueia.
+      const extrasMedicacao = await itensLembreteDeMedicacoes(medicacoesPool, body.clientId, brtISODate()).catch(() => []);
+      await sincronizarLembretePrescricao(body.clientId, mesclarItensSemDuplicar(itensPrescricao, extrasMedicacao));
     } catch (err) {
       req.log.warn({ err }, "Conteúdo do lembrete não preparado; emissão clínica continua sem envios");
     }

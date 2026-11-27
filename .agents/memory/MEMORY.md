@@ -1,3 +1,4 @@
+- [Fila persistente + medicações do cliente](fila-persistente-e-medicacoes-cliente.md) — lease, idempotência, validação humana e consentimento por clínica.
 - [WhatsApp por Evolution](evolution-whatsapp-qr.md) — conta empresarial legada preservada; contas novas isoladas por clínica/chave e autoria não presumida.
 - [WhatsApp: segurança de entrada](whatsapp-seguranca-entrada.md) — prova de posse, vínculo único e preservação dos limites da homologação.
 - [Redes sociais cliente/profissional](redes-sociais-submenu.md) — aba própria; Instagram do cliente fica na coluna; demais na tabela redes_sociais.

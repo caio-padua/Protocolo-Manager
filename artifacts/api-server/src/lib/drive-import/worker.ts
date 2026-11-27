@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { db, examDocumentsTable } from "@workspace/db";
+import { db, examDocumentsTable, clientsTable } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
 import { driveListChildren, driveDownloadFile } from "../google-drive";
 import { extractPdfText } from "../exam-extraction/pdf-text";
@@ -186,7 +186,7 @@ export interface RunOptions {
   maxFiles?: number;
 }
 
-interface FileRef {
+export interface FileRef {
   id: string;
   name: string;
   path: string;
@@ -261,7 +261,19 @@ async function insertDoc(
   return doc?.id ?? null;
 }
 
-type Effect = "lab" | "imagem" | "dup" | "nao-exame" | "erro" | "quarentena";
+export type Effect = "lab" | "imagem" | "dup" | "nao-exame" | "erro" | "quarentena";
+
+/**
+ * Usado pela fila persistente (fila-pdf-exames): baixa o arquivo do Drive e ingere para o cliente
+ * JA resolvido. Não altera o fluxo de importação manual nem o vigia do Drive.
+ */
+export async function ingerirArquivoDriveParaCliente(clientId: number, file: FileRef): Promise<Effect> {
+  const [row] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
+  if (!row) throw new Error("cliente_nao_encontrado");
+  const client: ClientLite = { id: row.id, name: row.name, cpf: row.cpf, birthDate: row.birthDate, status: row.status };
+  const buffer = await driveDownloadFile(file.id);
+  return ingestFile(client, buffer, file);
+}
 
 /** Ingere 1 arquivo (PDF ou imagem) ja baixado para um cliente resolvido. */
 async function ingestFile(client: ClientLite, buffer: Buffer, file: FileRef): Promise<Effect> {

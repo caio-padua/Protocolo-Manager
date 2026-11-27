@@ -33,6 +33,8 @@ import { registrarLogMensagem } from "../lib/whatsapp";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
 import { sendTelegram } from "../lib/telegram";
 import { logger } from "../lib/logger";
+import { itensLembreteDeMedicacoes, mesclarItensSemDuplicar } from "../lib/cliente-medicacoes.js";
+import { brtISODate as brtHojeMedicacoes } from "../lib/brt";
 import { pausarParaHumano } from "../lib/atendimento-telegram-store";
 import { vinculoTelegramAtualUnico } from "../lib/telegram-vinculo-atual";
 import { inboxRouter } from "./telegram-inbox";
@@ -331,6 +333,16 @@ router.post("/cockpit/:clientId/emitir", requireCollaborator, async (req, res): 
     itensLembrete.push({ tipo: "injetavel", nome: inj.itemNome ?? inj.itemRef ?? "Injetavel" });
   for (const ex of presente.exames.slice(0, 10))
     itensLembrete.push({ tipo: "exame", nome: ex });
+
+  // Medicações validadas do cliente (PaxCare) entram no mesmo motor, sem duplicar a prescrição da clínica.
+  // Falha aqui (ex.: tabela ainda não criada) nunca impede a finalização.
+  try {
+    const extras = await itensLembreteDeMedicacoes(cockpitPool, clienteId, brtHojeMedicacoes());
+    const mesclados = mesclarItensSemDuplicar(itensLembrete, extras);
+    itensLembrete.splice(0, itensLembrete.length, ...mesclados);
+  } catch (e) {
+    logger.warn({ errorType: e instanceof Error ? e.constructor.name : typeof e }, "[cockpit] medicações do cliente não incluídas no lembrete");
+  }
 
   // Preparar o conteúdo não autoriza a agenda nem deve impedir a finalização.
   let lembretes = { formulas: 0, periodos: 0, horarios: [] as string[], ativo: false };

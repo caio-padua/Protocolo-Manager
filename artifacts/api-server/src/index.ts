@@ -38,6 +38,8 @@ import { ensureSubstanceBlendsSchema } from "./lib/ensure-substance-blends-schem
 import { ensureProtocolEmissoesTable } from "./routes/protocols.js";
 import { ensureEmailLogProtocolId } from "./lib/ensure-email-log-protocol-id";
 import { ensureVisitConfirmations } from "./lib/ensure-visit-confirmations";
+import { ensureFilaMensagens } from "./lib/ensure-fila-mensagens.js";
+import { ensureClienteMedicacoes } from "./lib/ensure-cliente-medicacoes.js";
 import { ensureClientRubricas } from "./lib/client-rubrica";
 import { ensureProfessionalClerkIdentitySchema } from "./lib/ensure-professional-clerk-identity-schema";
 import { ensureProfessionalEmpresasSchema } from "./lib/ensure-professional-empresas-schema";
@@ -272,6 +274,14 @@ if (Number.isNaN(port) || port <= 0) {
   } catch (e) {
     logger.error({ err: e }, "Falha ao garantir coluna email_log.protocol_id — abortando boot");
     process.exit(1);
+  }
+
+  try {
+    await ensureFilaMensagens();
+    await ensureClienteMedicacoes();
+  } catch (e) {
+    // Aditivo: sem as tabelas, fila e medicações externas ficam indisponíveis; o restante segue.
+    logger.error({ err: e }, "Falha ao garantir mensagens_fila / cliente_medicacoes");
   }
 
   try {
