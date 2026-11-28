@@ -22,6 +22,7 @@ Verificado em 28/11/2026. Aponta para documentos que já existem. Nada aqui subs
 | Conferência do catálogo | `scripts/catalogo-ecossistema.mjs` | `pnpm run check:catalogo` |
 | Testes da conferência (dados de exemplo isolados) | `scripts/tests/catalogo-ecossistema.test.mjs` | `pnpm run test:catalogo` |
 | Conferência das regras Paxter (já existia) | `scripts/paxter-governance.mjs` | `pnpm run check:paxter-governance` |
+| Espelho do CODIGO-PAXTER.md (`paxter-pack/`) | Estava defasado: idêntico à fonte de 30/10/2026; faltava só o Art. 83 e uma linha do histórico (08/11/2026). Sincronizado em 27/11/2026 pelo comando parcial `node scripts/paxter-governance.mjs --sync` | `pnpm run check:paxter-governance` (aprovada), `pnpm run test:paxter-governance` (16 de 16) |
 
 ## 3. Onde mora cada parte do código
 

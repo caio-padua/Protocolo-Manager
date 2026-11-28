@@ -78,7 +78,8 @@ Identificadores dos serviços de accomplished-reverence: [../RAILWAY-IDS.md](../
 | Entre os serviços: bibliotecas internas, `api-worker` e serviços com os mesmos nomes de accomplished-reverence | Risco de confundir ou duplicar serviços entre os dois projetos |
 | `api-worker` apenas preparado, nunca implantado | Ver seção 5 |
 | Banco | NÃO presumir que seja o mesmo banco de accomplished-reverence. Conferir antes de qualquer ação |
-| Teste histórico de saúde da API recebeu 403 | Causa NÃO determinada; não tratar como "API fora do ar" nem como "API protegida" sem investigar |
+| Teste histórico de saúde da API recebeu 403 | Causa encontrada e corrigida no código local (ver seção 5.1). Correção NÃO publicada |
+| Informado pelo Dr. Caio (não reverificado) | Em perceptive-creation restam somente as oito configurações pendentes do worker. Em accomplished-reverence há worker preparado, NÃO implantado, e URL da API preparada para revisão, sem conexão de banco configurada por nós. NÃO afirmar que só há dois serviços em produção nem que a API já serve todas as telas |
 
 Esta documentação não reverificou o Railway; ela guarda o que a auditoria apontou.
 
@@ -90,6 +91,16 @@ Esta documentação não reverificou o Railway; ela guarda o que a auditoria apo
 | Publicado no Replit | Só api-server; nenhum serviço de worker registrado |
 | Jobs dentro da API | Agenda Google (60 s), webhook guard do Telegram (5 min), recuperação do WhatsApp (30 s e 60 s), liberação automática de exames (60 s), limpeza de PDFs de dieta (24 h) |
 | Duplicação concreta | O webhook guard do Telegram está na API E no worker `full`. Dois workers no mesmo banco repetiriam farmácia, lembretes e repasse |
+
+### 5.1 Resolvido no código local (NÃO publicado)
+
+| Tema | Causa e correção | Prova (27/11/2026, banco descartável) |
+|---|---|---|
+| 403 na saúde | O contexto de clínica (`tenantContext.ts`) recusava `/api/healthz` e `/api/health` para sessão sem clínica ativa. Agora só esses dois caminhos saem antes da checagem, sem tocar o banco | `servidor-completo-saude.test.ts`: 10 de 10; rotas protegidas seguem 401/403 |
+| Tarefas duplicadas | `lib/exclusividade-tarefas.ts`: trava consultiva do PostgreSQL + carimbo da última execução em `app_settings`. Falha no controle = não executa. Vale para guard do Telegram, jobs da API e cron/temporizadores do worker | `exclusividade-tarefas-banco.test.ts`: 9 de 9; testes do worker 50 de 50 |
+| Isolamento entre clínicas A e B | Testes de agenda, exames e medicações | `servidor-completo-clinicas-ab-agenda-exames-medicacoes.test.ts`: 16 de 16 |
+
+Limite: a exclusividade só vale quando este código for publicado. Hoje, no Replit publicado, o worker não existe.
 
 PENDENTE antes de implantar o worker: conferir a lista de jobs do worker contra a da API, escolher onde o webhook guard fica e usar banco diferente do de desenvolvimento. Detalhe: relato de 28/11/2026 no chat do Dr. Caio; os arquivos são `artifacts/api-worker/src/worker.ts` e `artifacts/api-server/src/index.ts`.
 
@@ -152,11 +163,13 @@ As verificações automáticas reduzem erros; não garantem que não haja confli
 
 | Nº | Pendência | Dono |
 |---|---|---|
-| 1 | Descobrir a causa do 403 no teste histórico de saúde | Dr. Caio autoriza leitura; agente investiga |
+| 1 | Publicar a correção do 403 e da exclusividade de tarefas; depois repetir o teste de saúde no ambiente publicado | Dr. Caio |
 | 2 | Decidir o destino do pacote de 79 alterações de perceptive-creation | Dr. Caio |
 | 3 | Conferir worker x jobs da API e o webhook guard | agente (leitura), Dr. Caio (decisão) |
 | 4 | Publicar a versão nova para as vitrines por domínio funcionarem | Dr. Caio |
 | 5 | Inventariar os 15 projetos Lovable restantes | Dr. Caio autoriza |
 | 6 | Conferir as 3 colunas de banco faltantes antes de publicar | Dr. Caio |
+| 7 | Confirmar qual banco real a publicação usa hoje, a topologia de tarefas ativas e qual domínio recebe a API (não reverificado nesta sessão; último registro: `neondb`, 27/11/2026) | agente (leitura) após autorização |
+| 8 | Espelho do Paxter: sincronizado em 27/11/2026 por prova (ver índice). Conferir que o commit do espelho foi incluído no merge | Dr. Caio |
 
 RESUMO EM 1 LINHA: o Lovable desenha, o Manager manda, o Railway hospeda; tudo aqui está marcado como observado, pendente ou pretendido, e o plano nunca vale como implantado.

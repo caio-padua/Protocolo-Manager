@@ -580,12 +580,19 @@ Dados reais ficam restritos às jornadas expressamente autorizadas e supervision
 Nenhuma preferência anterior por dados reais autoriza testes agressivos em prontuários.
 Esta regra prevalece sobre a redação histórica do Art. 68.
 
+**Art. 83 — Ferramentas desativadas permanecem no menu.**
+Desativar o efeito de uma ferramenta não autoriza ocultar seu menu ou apagar sua
+tela e suas configurações. Ela permanece acessível e preservada para eventual
+reativação; a desconexão operacional deve ser verificada e informada com precisão.
+Esta diretriz foi esclarecida pelo responsável em 08/11/2026.
+
 ---
 
 ## HISTÓRICO DE PROMULGAÇÕES
 
 | Data | Artigos | Resumo da promulgação |
 |------|---------|-----------------------|
+| 08/11/2026 | Art. 83 | Ferramentas desativadas permanecem visíveis no menu e preservadas. |
 | 29/10/2026 | Arts. 75–82; harmonização dos Arts. 35, 38, 44, 61, 64, 68, 69 e vigência de 71–74 | Antecipar falhas, corrigir causas impeditivas, homologar por evidência, auditar impacto, preservar histórico e numeração, executar em sequência e testar com dados sintéticos isolados. O fluxo simultâneo fica histórico, sem autorização vigente. |
 | 01/08/2026 | Arts. 71–74 (Título XII) | Orquestração Multi-Agente: pipeline CEO→Dr.Replit+Dr.Code→Dr.Manus avalia→3 escrevem plano na planilha→detalham no Slack→executam→publicam resultado na planilha e no Slack→Dr.Code dá veredito→próxima tarefa. Protocolo START (S1–S8) e FINISH (F1–F4) com planilha e Slack integrados. Papel do Dr. Manus como árbitro cruzado (não executor). |
 | 31/07/2026 | Art. 70 (Título III) | Dual-canal telegramSkipped ≠ sucesso: ambosOk = slackOk AND telegramOk (sem contar skip); early return removido para step 4 sempre rodar; chatId TEST_FORCE_FAIL para testes sem API real. |

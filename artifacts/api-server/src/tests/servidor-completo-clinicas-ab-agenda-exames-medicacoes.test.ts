@@ -26,11 +26,15 @@ const recusado = (st: number) => [403, 404].includes(st);
 beforeAll(async () => {
   s = await subirServidorCompleto();
   await (await import("../lib/ensure-cliente-medicacoes.js")).ensureClienteMedicacoes();
+  await (await import("../lib/ensure-paxcare.js")).ensurePaxcareTables();
+  // Tabelas que o servidor real cria em tempo de execução (fora do drizzle); o banco descartável nasce sem elas.
+  await (await import("../lib/ensure-exam-identity-schema.js")).ensureExamIdentitySchema();
+  await s.pool.query(`CREATE TABLE IF NOT EXISTS drive_watcher_files (file_id TEXT PRIMARY KEY, folder_id TEXT NOT NULL, folder_type TEXT NOT NULL, original_name TEXT NOT NULL, renamed_to TEXT, client_id INTEGER, client_name_raw TEXT, status TEXT NOT NULL DEFAULT 'pendente', error_msg TEXT, exam_document_id INTEGER, processed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), copied_drive_id TEXT, copied_name TEXT)`);
   const { hashPassword } = await import("../lib/collaborator-auth.js");
   const { hashPassword: hashPac } = await import("../lib/patient-auth");
   await s.pool.query(`INSERT INTO empresas (id,nome,ativa,status,tipo) VALUES (5,'Clinica A Sintetica',true,'ATIVO','clinic'),(6,'Clinica B Sintetica',true,'ATIVO','clinic')`);
-  await s.pool.query(`INSERT INTO professionals (id,name,email,password_hash,registration_number,empresa_id) VALUES
-    (11,'Medica A','medica-a@teste.com',$1,'111111',5),(12,'Medico B','medico-b@teste.com',$1,'222222',6)`, [hashPassword(SENHA_C)]);
+  await s.pool.query(`INSERT INTO professionals (id,name,email,password_hash,registration_number,empresa_id,category) VALUES
+    (11,'Medica A','medica-a@teste.com',$1,'111111',5,'medico'),(12,'Medico B','medico-b@teste.com',$1,'222222',6,'medico')`, [hashPassword(SENHA_C)]);
   await s.pool.query(`INSERT INTO professional_papeis_empresa (professional_id,empresa_id,is_clinic_admin,is_doctor,is_nurse,is_reception) VALUES
     (11,5,true,true,true,true),(12,6,true,true,true,true)`);
   await s.pool.query(`INSERT INTO clients (id,name,cpf,password_hash,must_change_password,empresa_id) VALUES
@@ -42,8 +46,8 @@ beforeAll(async () => {
     (201,21,101,'2027-03-01','09:00',5,'sessao A'),(202,22,102,'2027-03-01','09:00',6,'sessao B')`);
   sessA = 201; sessB = 202; resA = 101; resB = 102;
   // Exames
-  await s.pool.query(`INSERT INTO exam_documents (id,client_id,hash,file_name,lab_name) VALUES (301,21,'hashA','exame-a.pdf','Lab A'),(302,22,'hashB','exame-b.pdf','Lab B')`);
-  await s.pool.query(`INSERT INTO exam_results (exam_document_id,client_id,analyte_name_raw,value_raw) VALUES (301,21,'GLICOSE','91'),(302,22,'GLICOSE','150')`);
+  await s.pool.query(`INSERT INTO exam_documents (id,client_id,hash,file_name,lab_name,empresa_id) VALUES (301,21,'hashA','exame-a.pdf','Lab A',5),(302,22,'hashB','exame-b.pdf','Lab B',6)`);
+  await s.pool.query(`INSERT INTO exam_results (exam_document_id,client_id,analyte_name_raw,value_raw,empresa_id) VALUES (301,21,'GLICOSE','91',5),(302,22,'GLICOSE','150',6)`);
   docA = 301; docB = 302;
   const login = async (email: string) => {
     const r = await req("post", "/api/collaborator/login", undefined, { identifier: email, password: SENHA_C });
