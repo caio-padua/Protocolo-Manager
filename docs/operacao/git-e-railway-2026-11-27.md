@@ -95,3 +95,17 @@ Leitura:
 2. Há divergência entre o painel do Railway e o `railway.toml` do repositório (construtor, comando de início e caminho de saúde). A última construção real caiu no teste de saúde. Provável causa, ainda NÃO confirmada: o servidor não passou no teste de saúde por causa dessa divergência ou de variável ausente. Os logs da construção não foram lidos.
 3. Como a última construção real falhou e as seguintes foram puladas, não há versão ativa; daí o 404 "Application not found".
 4. Quando a homologação entrar na `main`, o primeiro deploy vai construir (ela toca `artifacts/api-server`). Antes disso, decidir qual configuração vale (painel ou arquivo) e conferir as variáveis, senão repetirá a falha de saúde.
+
+## D. Banco de produção do Replit x migrações novas (somente leitura, 27/11/2026)
+
+Método: consulta de leitura ao banco de produção gerenciado pelo Replit (400 tabelas no esquema público). Comparei o catálogo (tabelas e colunas), não os dados. Esse é o banco do paxmed.com.br publicado no Replit; NÃO é o banco do Railway.
+
+| Verificação | Resultado |
+|---|---|
+| Tabelas criadas pelas 59 migrações novas | 73 de 73 já existem em produção |
+| Colunas adicionadas (122 lidas por texto) | 119 existem; 3 faltam |
+| Colunas que faltam | `device_contact_verifications.code_sent_at`, `substances.revisao_dose`, `procedimentos_clinicos.versao_edicao` |
+| Linhas em `unidade_religacao_auditoria` | 0 (a religação de unidade provavelmente nunca rodou, ou não teve alvo) |
+| Contagens de produção | 3.685 clientes, 299 sessões, 33 protocolos |
+
+Leitura: a produção já recebeu quase todo o esquema novo; só o código está antigo. As 3 colunas faltantes podem quebrar telas que as usam (confirmar antes de publicar). Limite: a leitura de colunas por texto pode errar em migrações com sintaxe incomum; efeitos de `UPDATE` não foram verificados.
