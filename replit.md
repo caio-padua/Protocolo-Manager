@@ -33,6 +33,7 @@ mora num arquivo durável apontado abaixo (e o Git guarda o histórico).
 | Loop de oito fases, antecipação e integridade | `.agents/skills/paxter-loop/SKILL.md` | Ao iniciar funcionalidade não-trivial |
 | Sistema de design (3D, tokens, padrões, controles) | `.agents/skills/skill-layout-paxter/SKILL.md` + `references/` | Antes de criar/redesenhar QUALQUER tela |
 | Armadilhas técnicas finas e lições | `.agents/memory/` (índice em `MEMORY.md`) | Antes de implementar; ao aprender algo |
+| Mapa visual do ecossistema (PAXMED, PAXCARE, Lovable, Manager, Railway), índice e catálogo de sites/botões/contratos | `README.md`, `docs/arquitetura/MAPA-DO-ECOSSISTEMA.md`, `docs/arquitetura/INDICE-DE-ARQUITETURA.md` | Para orientar-se no ecossistema; antes de mexer em sites, domínios ou Railway |
 | Funcionalidades e estrutura detalhada (telas, rotas, schemas, integrações Google, portal do cliente) | `docs/PADCOM-FUNCIONALIDADES.md` | Ao mexer numa funcionalidade existente |
 | Conceito Raiz — sistemas primos IHE x Manager (deduplicação `id_ihe`, dívidas técnicas Onda 1) | `docs/CONCEITO-RAIZ-PRIMOS.md` | Em qualquer onda de integração/transmutação |
 | Empresa x Local x Profissional x Agenda x Pit Stop (glossário, vínculos, regras aprovadas, proibições) | `docs/REFERENCIA-AGENDA-PROFISSIONAL-LOCAL.md` | Ao mexer em agenda, equipe de procedimento, local, lançador ou Pit Stop |
