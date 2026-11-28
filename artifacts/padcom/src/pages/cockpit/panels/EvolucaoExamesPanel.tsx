@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { BotaoTelaCheia } from "@/pages/cockpit-cliente/BotaoTelaCheia";
+import { GRAFICO } from "@/pages/cockpit-cliente/graficoPadrao";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Loader2,
   TrendingUp,
@@ -9,11 +11,14 @@ import {
   FlaskConical,
   X,
   Square,
+  SlidersHorizontal,
   SquareCheck,
   ChevronDown,
   ChevronRight,
   Check,
   FileUp,
+  FileText,
+  Info,
   Upload,
   CheckCircle,
 } from "lucide-react";
@@ -29,6 +34,7 @@ import {
 } from "recharts";
 import { BASE } from "../../comunicacao/_shared";
 import { ConsoleExamesTool } from "@/components/ConsoleExamesTool";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 
 // ===========================================================================
 // PAINEL: EVOLUCAO DE EXAMES (client-scoped) — motor de 5 FAIXAS do IHE.
@@ -49,13 +55,19 @@ import { ConsoleExamesTool } from "@/components/ConsoleExamesTool";
 // ===========================================================================
 
 const NAVY = "#16294a";
+// Texto que muda com o tema (azul-marinho no claro, quase branco no escuro).
+const INK = "var(--evo-ink)";
+// Botão único das ferramentas: mesma altura e largura (preenche a coluna da grade), texto centralizado
+// e com quebra de linha, independente da frase.
+const BOTAO_FERRAMENTA =
+  "flex h-10 w-full items-center justify-center rounded-[5px] px-2 text-center text-[10px] font-bold uppercase leading-tight tracking-wide";
 const MUTED = "#647c97";
 const GOLD = "#b8924d";
 // Pedido do CEO (24/07/2026): coluna congelada SEM "painel" cinza atrás.
-const NOME_BG = "#fbfaf4";
+const NOME_BG = "var(--evo-bg)"; // creme no claro, azul do painel no escuro (index.css)
 // O fundo continua existindo (senão as colunas rolando vazam por baixo),
 // mas na MESMA cor creme do painel — invisível a olho nu.
-const PIN_BG = "#fbfaf4";
+const PIN_BG = "var(--evo-bg)";
 
 // Larguras FIXAS: o cálculo do "grudar" das colunas fixadas depende disso.
 const NAME_W = 200; // coluna do nome (congelada à esquerda)
@@ -117,6 +129,20 @@ interface EvolucaoData {
   analytes: EvolucaoAnalyte[];
 }
 
+/** Valor do ponto no gráfico: vírgula decimal, até 2 casas, sem zeros sobrando. */
+function rotuloValorPonto(v: number): string {
+  return v.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+}
+
+/** Texto branco ou azul-marinho conforme a luminosidade da cor da faixa (legibilidade). */
+function textoSobre(cor: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(cor.trim());
+  if (!m) return "#ffffff";
+  const n = parseInt(m[1], 16);
+  const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum > 0.62 ? "#16294a" : "#ffffff";
+}
+
 function diaMes(iso: string | null): string {
   if (!iso) return "—";
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -153,16 +179,48 @@ const TEND = {
   estavel: { rotulo: "ESTÁVEL", cor: "text-amber-700", hex: "#c17a2b", led: "paxter-led-amber", Icon: Minus },
 } as const;
 
+/** Ícone "i" com explicação ao passar o mouse (ou focar/tocar). */
+function Dica({ texto, rotulo }: { texto: string; rotulo: string }) {
+  return (
+    <span className="group relative inline-flex">
+      <button type="button" aria-label={rotulo} className="flex h-4 w-4 items-center justify-center rounded-full text-[color:var(--evo-muted)] hover:text-[color:var(--evo-ink)] focus:text-[color:var(--evo-ink)] focus:outline-none">
+        <Info className="h-3.5 w-3.5" />
+      </button>
+      <span role="tooltip" className="evo-bevel pointer-events-none absolute left-5 top-1/2 z-[60] hidden w-64 -translate-y-1/2 rounded-[6px] px-3 py-2 text-left text-[10px] font-semibold normal-case leading-snug tracking-normal group-hover:block group-focus-within:block">
+        {texto}
+      </span>
+    </span>
+  );
+}
+
+/** Medidor de posição: cinco barras crescentes; a barra acesa é a faixa escolhida (nível 0 = todas acesas). */
+function MedidorFaixa({ nivel }: { nivel: number }) {
+  return (
+    <span className="flex h-4 items-end gap-[3px]" aria-hidden>
+      {[5, 8, 11, 14, 17].map((h, i) => {
+        const acesa = nivel === 0 || nivel === i + 1;
+        return (
+          <span
+            key={i}
+            className="w-[4px] rounded-[1px]"
+            style={{ height: h, background: acesa ? (nivel === 0 ? "currentColor" : "#d4a64f") : "currentColor", opacity: acesa ? 1 : 0.28 }}
+          />
+        );
+      })}
+    </span>
+  );
+}
+
 // SINALIZAR FAIXA: 5 posições fixas do MENOR valor ao MAIOR (espelha ZoneKey do
 // backend: below→t1→t2→t3→above). O filtro é por POSIÇÃO, nunca por nome — assim
 // os nomes custom de cada exame não poluem a planilha (eles vivem só no gráfico
 // individual). A célula acesa brilha na cor da própria faixa daquele exame.
 const FAIXAS_POSICAO = [
-  { key: "below", label: "1/5 Extremo Baixo" },
-  { key: "t1", label: "2/5 Baixo" },
-  { key: "t2", label: "3/5 Médio" },
-  { key: "t3", label: "4/5 Alto" },
-  { key: "above", label: "5/5 Extremo Alto" },
+  { key: "below", label: "Extremo baixo" },
+  { key: "t1", label: "Baixo" },
+  { key: "t2", label: "Médio" },
+  { key: "t3", label: "Alto" },
+  { key: "above", label: "Extremo alto" },
 ] as const;
 
 // ------------------------------------------------------------------ célula ---
@@ -243,7 +301,7 @@ function Cela({
       {/* número SEMPRE navy forte e nítido */}
       <span
         className={`whitespace-nowrap ${atual ? "text-[13px] font-black" : "text-[12px] font-bold"}`}
-        style={{ color: NAVY, paddingLeft: temZona ? 6 : 0 }}
+        style={{ color: INK, paddingLeft: temZona ? 6 : 0 }}
       >
         {exibirValor(cell.value)}
       </span>
@@ -291,6 +349,7 @@ function ColunaCabecalho({
   onFixar,
   sticky,
   left,
+  mostrarPreliminar,
 }: {
   c: EvolucaoColumn;
   ultima: boolean;
@@ -298,6 +357,7 @@ function ColunaCabecalho({
   onFixar: () => void;
   sticky: boolean;
   left: number;
+  mostrarPreliminar?: boolean;
 }) {
   // z:20 — ACIMA da cortina da zona congelada (z:10); senão o quadradinho,
   // a data e o laboratório da coluna fixada somem atrás da cortina.
@@ -332,12 +392,12 @@ function ColunaCabecalho({
       {/* Dia/mês e ano na MESMA fonte e mesmo design; alturas fixas garantem a
           linha horizontal imaginária igual em todas as colunas. */}
       <span
-        className={`flex h-[14px] items-center text-[12px] font-black leading-none ${ultima ? "text-[#16294a]" : "text-[#3a4a63]"}`}
+        className={`flex h-[14px] items-center text-[12px] font-black leading-none ${ultima ? "text-[color:var(--evo-ink)]" : "text-[color:var(--evo-soft)]"}`}
       >
         {diaMes(c.date)}
       </span>
       <span
-        className={`flex h-[14px] items-center text-[12px] font-black leading-none ${ultima ? "text-[#16294a]" : "text-[#3a4a63]"}`}
+        className={`flex h-[14px] items-center text-[12px] font-black leading-none ${ultima ? "text-[color:var(--evo-ink)]" : "text-[color:var(--evo-soft)]"}`}
       >
         {ano(c.date)}
       </span>
@@ -389,24 +449,51 @@ function ColunaCabecalho({
         )}
       </span>
 
-      <span className="mt-0.5 flex h-[11px] items-center text-[8px] font-medium leading-none text-[#8a97a9]">
+      <span className="mt-0.5 flex h-[11px] items-center text-[8px] font-medium leading-none text-[color:var(--evo-faint)]">
         {c.conferenteName ? (c.confLevel === "c2" ? "Conferido" : "Lançado") : "Aguardando"}
       </span>
+      {mostrarPreliminar && (c.confLevel === "ia" || c.confLevel === "c1") && (
+        <span
+          className="mt-0.5 flex h-[13px] items-center rounded-[3px] bg-amber-100 px-1 text-[7px] font-black leading-none text-amber-900"
+          title="PRELIMINAR — NÃO CONFERIDO PELO MÉDICO"
+        >
+          PRELIMINAR · {c.confLevel === "ia" ? "IA" : "C1"}
+        </span>
+      )}
     </div>
   );
 }
 
 // ----------------------------------------------------- cartão de gráfico ------
+// Mede em pixels o maior rótulo do eixo Y (fonte de 10 px do gráfico).
+const EIXO_Y_FOLGA = 8; // tickSize 2 + tickMargin 2 + 4 px de respiro (sem truncar)
+let _canvasMedida: CanvasRenderingContext2D | null | undefined;
+function medirRotuloEixo(rotulos: string[]): number {
+  if (_canvasMedida === undefined) {
+    _canvasMedida = typeof document !== "undefined" ? document.createElement("canvas").getContext("2d") : null;
+  }
+  const ctx = _canvasMedida;
+  let maior = 0;
+  for (const r of rotulos) {
+    const w = ctx
+      ? ((ctx.font = "10px Inter, system-ui, sans-serif"), ctx.measureText(r).width)
+      : r.length * 6.2;
+    if (w > maior) maior = w;
+  }
+  return Math.ceil(maior);
+}
 function CartaoGrafico({
   analyte,
   columns,
   ordem,
   onRemover,
+  exigirConferencia,
 }: {
   analyte: EvolucaoAnalyte;
   columns: EvolucaoColumn[];
   ordem: number;
   onRemover: () => void;
+  exigirConferencia?: boolean;
 }) {
   const data = useMemo(
     () =>
@@ -428,7 +515,11 @@ function CartaoGrafico({
 
   const zones = analyte.zones;
   const ultimo = data.length > 0 ? data[data.length - 1] : null;
-  const tend = analyte.trend ? TEND[analyte.trend] : TEND.estavel;
+  const tend = analyte.trend
+    ? TEND[analyte.trend]
+    : exigirConferencia
+      ? null
+      : TEND.estavel;
 
   // Domínio do eixo Y: engloba valores + limites finitos das zonas.
   const dominio = useMemo(() => {
@@ -485,15 +576,73 @@ function CartaoGrafico({
     };
   }, [data]);
 
-  // Rolagem interna: cada ponto ganha no MÍNIMO 64 pixels de largura — as
-  // datas nunca se espremem; se não couber, rola da esquerda para a direita.
-  const LARGURA_POR_PONTO = 64;
-  const larguraMinimaGrafico = Math.max(data.length * LARGURA_POR_PONTO, 320);
+  // Série desenhada = coletas reais + UM ponto-fantasma antes e UM depois.
+  // Os fantasmas dão margem (a linha nunca fica colada nas bordas, nem com
+  // 2 coletas) e mostram, em tracejado, onde o sistema poderia receber um
+  // novo valor. Não são dado clínico: não entram em estatística nem tooltip.
+  type PontoSerie = {
+    x: number;
+    data: string;
+    valor: number | null;
+    ext: number | null;
+    cor: string;
+    zona: string | null;
+    fantasma: boolean;
+  };
+  // Eixo X numérico: coletas em 0,1,2…; fantasmas a 1/3 de intervalo para fora
+  // (pedido do CEO: a margem pontilhada ocupa 1/3 do espaço entre coletas).
+  const MARGEM = 1 / 3;
+  const ultimoX = Math.max(data.length - 1, 0);
+  const serie = useMemo<PontoSerie[]>(() => {
+    if (!data.length) return [];
+    const primeiro = data[0];
+    const final = data[data.length - 1];
+    return [
+      { x: -MARGEM, data: "", valor: null, ext: primeiro.valor, cor: MUTED, zona: null, fantasma: true },
+      ...data.map((d, i) => ({
+        ...d,
+        x: i,
+        ext: i === 0 ? d.valor : i === data.length - 1 ? d.valor : null,
+        fantasma: false,
+      })),
+      { x: ultimoX + MARGEM, data: "", valor: null, ext: final.valor, cor: MUTED, zona: null, fantasma: true },
+    ];
+  }, [data, ultimoX]);
+
+  // Largura: cada intervalo entre coletas ganha 64 px (mínimo) + margens de 1/3.
+  // Poucas coletas = cabe na moldura inteira, rolagem travada; muitas = rola.
+  const LARGURA_POR_PONTO = GRAFICO.larguraPorPonto;
+  const larguraMinimaGrafico = Math.round((ultimoX + 2 * MARGEM) * LARGURA_POR_PONTO) + 56;
+  const rolagemRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = rolagemRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [serie.length]);
+  const fmtEixo = (v: number) =>
+    dominio.max - dominio.min >= 10 ? String(Math.round(v)) : v.toFixed(1).replace(".", ",");
+  // Faixa do eixo Y MEDIDA pelo maior rótulo possível (extremos do domínio e
+  // das faixas, com sinal e decimais) em vez de um valor fixo de 44 px.
+  const larguraEixoY = useMemo(() => {
+    const amostras = [dominio.min, dominio.max, ...data.map((d) => d.valor)].map(fmtEixo);
+    return medirRotuloEixo(amostras) + EIXO_Y_FOLGA;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dominio, data]);
 
   // Ponto sob o mouse (pedido do CEO 24/07/2026): NADA de janelinha em cima
   // do gráfico — o valor aparece na barra inferior, mudando conforme o mouse
   // passeia pela linha. Sem mouse = última coleta.
   const [ponteiro, setPonteiro] = useState<(typeof data)[number] | null>(null);
+
+  // Teclado (padrão do gráfico): setas esquerda/direita percorrem os pontos; Esc limpa. Mesmo efeito do mouse.
+  const aoTeclar = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") { setPonteiro(null); return; }
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    if (!data.length) return;
+    const i = ponteiro ? data.indexOf(ponteiro) : -1;
+    const alvo = i < 0 ? data.length - 1 : Math.min(data.length - 1, Math.max(0, i + (e.key === "ArrowLeft" ? -1 : 1)));
+    setPonteiro(data[alvo] ?? null);
+  };
   const pontoAtivo = ponteiro ?? ultimo;
   const corAtiva = pontoAtivo?.cor ?? MUTED;
   const rotuloAtivo = pontoAtivo?.zona ? ZONE_ROTULO[pontoAtivo.zona] ?? pontoAtivo.zona : "—";
@@ -509,11 +658,11 @@ function CartaoGrafico({
             {ordem}
           </span>
           <div>
-            <div className="text-[13px] font-bold leading-tight text-[#16294a]">{analyte.name}</div>
+            <div className="text-[13px] font-bold leading-tight text-[color:var(--evo-ink)]">{analyte.name}</div>
             <div className="flex items-center gap-2">
-              {analyte.unit && <span className="text-[10px] text-[#647c97]">{analyte.unit}</span>}
+              {analyte.unit && <span className="text-[10px] text-[color:var(--evo-muted)]">{analyte.unit}</span>}
               {analyte.refLow && analyte.refHigh && (
-                <span className="text-[10px] text-[#647c97]">
+                <span className="text-[10px] text-[color:var(--evo-muted)]">
                   ref {analyte.refLow}–{analyte.refHigh}
                 </span>
               )}
@@ -521,11 +670,12 @@ function CartaoGrafico({
           </div>
         </div>
         <div className="flex items-start gap-2">
+          <BotaoTelaCheia className="flex h-6 w-6 items-center justify-center rounded-[5px] text-[color:var(--evo-muted)]" />
           <button
             type="button"
             onClick={onRemover}
             title="Tirar este gráfico"
-            className="flex h-6 w-6 items-center justify-center rounded-[5px] text-[#647c97] hover:text-[#c0392b]"
+            className="flex h-6 w-6 items-center justify-center rounded-[5px] text-[color:var(--evo-muted)] hover:text-[#c0392b]"
             style={{ background: "rgba(22,41,74,0.06)" }}
           >
             <X className="h-3.5 w-3.5" />
@@ -534,23 +684,26 @@ function CartaoGrafico({
       </div>
 
       {data.length === 0 ? (
-        <div className="concave-3d px-3 py-8 text-center text-[12px] text-[#647c97]">
-          Sem valores numéricos para desenhar o gráfico deste exame.
+        <div className="concave-3d px-3 py-8 text-center text-[12px] text-[color:var(--evo-muted)]">
+          {exigirConferencia
+            ? "Nenhum resultado conferido com valor numérico para este gráfico."
+            : "Sem valores numéricos para desenhar o gráfico deste exame."}
         </div>
       ) : (
         <div className="screen-tv-3d p-2">
           {/* Tela do grafico em INSET BEVEL puro (pedido do CEO 25/07/2026:
               sem vidro, sem efeitos por cima). */}
           {/* Rolagem INTERNA esquerda→direita: as datas nunca se espremem */}
-          <div className="scroll-gold overflow-x-auto pb-1">
-            <div style={{ minWidth: larguraMinimaGrafico, width: "100%", height: 220 }}>
+          <div tabIndex={0} role="group" aria-label="Gráfico: use as setas esquerda e direita para percorrer os pontos" onKeyDown={aoTeclar} ref={rolagemRef} className="scroll-gold overflow-x-auto pb-1" style={{ overscrollBehaviorX: "contain" }}>
+            <div style={{ minWidth: larguraMinimaGrafico, width: "100%", height: GRAFICO.alturaPx }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-                data={data}
-                margin={{ top: 12, right: 16, left: 0, bottom: 4 }}
+                data={serie}
+                margin={{ top: 12, right: 12, left: 0, bottom: 4 }}
                 onMouseMove={(st) => {
                   const i = st?.activeTooltipIndex;
-                  setPonteiro(typeof i === "number" && data[i] ? data[i] : null);
+                  const pt = typeof i === "number" ? serie[i] : null;
+                  setPonteiro(pt && !pt.fantasma ? (data[i! - 1] ?? null) : null);
                 }}
                 onMouseLeave={() => setPonteiro(null)}
               >
@@ -562,13 +715,18 @@ function CartaoGrafico({
                     y1={z.low ?? dominio.min}
                     y2={z.high ?? dominio.max}
                     fill={z.color}
-                    fillOpacity={0.16}
+                    fillOpacity={GRAFICO.faixaPreenchimento}
                     stroke={z.color}
-                    strokeOpacity={0.22}
+                    strokeOpacity={GRAFICO.faixaContorno}
                   />
                 ))}
                 <XAxis
-                  dataKey="data"
+                  type="number"
+                  dataKey="x"
+                  domain={[-MARGEM, ultimoX + MARGEM]}
+                  ticks={data.map((_, i) => i)}
+                  tickFormatter={(i: number) => data[Math.round(i)]?.data ?? ""}
+                  interval={0}
                   tick={{ fill: MUTED, fontSize: 10 }}
                   tickLine={false}
                   axisLine={{ stroke: "rgba(22,41,74,0.15)" }}
@@ -577,7 +735,10 @@ function CartaoGrafico({
                   tick={{ fill: MUTED, fontSize: 10 }}
                   tickLine={false}
                   axisLine={{ stroke: "rgba(22,41,74,0.15)" }}
-                  width={44}
+                  width={larguraEixoY}
+                  tickSize={2}
+                  tickMargin={2}
+                  tickFormatter={fmtEixo}
                   domain={[dominio.min, dominio.max]}
                 />
                 {/* SEM janelinha em cima do gráfico (pedido do CEO): o Tooltip
@@ -587,27 +748,56 @@ function CartaoGrafico({
                   content={() => null}
                   cursor={{ stroke: "rgba(184,146,77,0.55)", strokeDasharray: "4 3" }}
                 />
+                {/* Extensão tracejada + ponto vazado nas pontas: "aqui poderia chegar um número" */}
+                <Line
+                  type="linear"
+                  dataKey="ext"
+                  stroke={NAVY}
+                  strokeOpacity={0.35}
+                  strokeWidth={GRAFICO.linhaFantasma}
+                  strokeDasharray="4 4"
+                  isAnimationActive={false}
+                  activeDot={false}
+                  dot={(props: { cx?: number; cy?: number; payload?: PontoSerie; index?: number }) => {
+                    const { cx, cy, payload, index } = props;
+                    if (cx == null || cy == null || !payload?.fantasma) return <g key={`f-${index}`} />;
+                    return (
+                      <rect key={`f-${index}`} x={cx - GRAFICO.fantasmaLado / 2} y={cy - GRAFICO.fantasmaLado / 2} width={GRAFICO.fantasmaLado} height={GRAFICO.fantasmaLado} fill="none" stroke={NAVY} strokeOpacity={0.45} strokeWidth={1} strokeDasharray="2 2" />
+                    );
+                  }}
+                />
                 <Line
                   type="linear"
                   dataKey="valor"
                   stroke={NAVY}
-                  strokeWidth={2.5}
-                  dot={false}
+                  strokeWidth={GRAFICO.linhaPrincipal}
+                  dot={(props: { cx?: number; cy?: number; payload?: PontoSerie; index?: number }) => {
+                    const { cx, cy, payload, index } = props;
+                    if (cx == null || cy == null || !payload || payload.fantasma || payload.valor == null) return <g key={`d-${index}`} />;
+                    const marcado = ponteiro != null && index != null && data[index - 1] === ponteiro;
+
+                    // Valor na interseção: etiqueta discreta com a cor da faixa do ponto.
+                    const txt = rotuloValorPonto(payload.valor);
+                    const w = txt.length * 5.8 + 10;
+                    const h = 15;
+                    const acima = cy - h - 8 >= 0;
+                    const ry = acima ? cy - h - 7 : cy + 7;
+                    return (
+                      <g key={`d-${index}`} pointerEvents="none">
+                        {marcado && <rect x={cx - GRAFICO.ativoLado / 2} y={cy - GRAFICO.ativoLado / 2} width={GRAFICO.ativoLado} height={GRAFICO.ativoLado} fill="none" stroke={GRAFICO.ativoCor} strokeWidth={GRAFICO.ativoContorno} />}
+                        <rect x={cx - w / 2} y={ry} width={w} height={h} fill={payload.cor} fillOpacity={0.95} stroke="#fff" strokeWidth={1} />
+                        <text x={cx} y={ry + h / 2 + 3.2} textAnchor="middle" fontSize={9.5} fontWeight={700} fill={textoSobre(payload.cor)}>
+                          {txt}
+                        </text>
+                        </g>
+                    );
+                  }}
                   activeDot={(props: { cx?: number; cy?: number }) => {
                     const { cx, cy } = props;
                     if (cx == null || cy == null) return <g />;
                     // QUADRADINHO dourado — só aparece sob o mouse.
                     return (
-                      <rect
-                        x={cx - 5}
-                        y={cy - 5}
-                        width={10}
-                        height={10}
-                        rx={2}
-                        fill={GOLD}
-                        stroke="#fff"
-                        strokeWidth={2}
-                      />
+                      <rect x={cx - GRAFICO.ativoLado / 2} y={cy - GRAFICO.ativoLado / 2} width={GRAFICO.ativoLado} height={GRAFICO.ativoLado} fill="none" stroke={GRAFICO.ativoCor} strokeWidth={GRAFICO.ativoContorno} />
                     );
                   }}
                 />
@@ -623,29 +813,29 @@ function CartaoGrafico({
       {stats && (
         <div className="mt-2 grid grid-cols-5 gap-1.5">
           <div className="screen-3d flex flex-col items-center px-1 py-1.5">
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Mínimo</span>
-            <span className="text-[12px] font-black leading-tight text-[#16294a]">{stats.fmt(stats.min.valor)}</span>
-            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">{stats.min.data === "—" ? "sem data" : stats.min.data}</span>
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">Mínimo</span>
+            <span className="text-[12px] font-black leading-tight text-[color:var(--evo-ink)]">{stats.fmt(stats.min.valor)}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[color:var(--evo-muted)]">{stats.min.data === "—" ? "sem data" : stats.min.data}</span>
           </div>
           <div className="screen-3d flex flex-col items-center px-1 py-1.5">
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Máximo</span>
-            <span className="text-[12px] font-black leading-tight text-[#16294a]">{stats.fmt(stats.max.valor)}</span>
-            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">{stats.max.data === "—" ? "sem data" : stats.max.data}</span>
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">Máximo</span>
+            <span className="text-[12px] font-black leading-tight text-[color:var(--evo-ink)]">{stats.fmt(stats.max.valor)}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[color:var(--evo-muted)]">{stats.max.data === "—" ? "sem data" : stats.max.data}</span>
           </div>
           <div className="screen-3d flex flex-col items-center px-1 py-1.5">
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Média</span>
-            <span className="text-[12px] font-black leading-tight text-[#16294a]">{stats.media}</span>
-            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">período todo</span>
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">Média</span>
+            <span className="text-[12px] font-black leading-tight text-[color:var(--evo-ink)]">{stats.media}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[color:var(--evo-muted)]">período todo</span>
           </div>
           <div className="screen-3d flex flex-col items-center px-1 py-1.5">
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Variação</span>
-            <span className="text-[12px] font-black leading-tight text-[#16294a]">{stats.variacao ?? "—"}</span>
-            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">desde {stats.desde}</span>
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">Variação</span>
+            <span className="text-[12px] font-black leading-tight text-[color:var(--evo-ink)]">{stats.variacao ?? "—"}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[color:var(--evo-muted)]">desde {stats.desde}</span>
           </div>
           <div className="screen-3d flex flex-col items-center px-1 py-1.5">
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Meta</span>
-            <span className="max-w-full truncate text-[12px] font-black leading-tight text-[#16294a]">{stats.deltaAnterior ?? "—"}</span>
-            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">{data.length} coletas</span>
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">Meta</span>
+            <span className="max-w-full truncate text-[12px] font-black leading-tight text-[color:var(--evo-ink)]">{stats.deltaAnterior ?? "—"}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[color:var(--evo-muted)]">{data.length} coletas</span>
           </div>
         </div>
       )}
@@ -663,23 +853,23 @@ function CartaoGrafico({
             shrink-0 no wrapper → os boxes nunca oscilam ao mudar de ponto. */}
         <div className="flex shrink-0 items-stretch gap-1.5">
           {/* VALOR — 82px fixos */}
-          <div className="concave-3d flex w-[82px] flex-col items-center justify-center py-1.5">
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">
+          <div data-testid="evo-valor-caixa" className="concave-3d flex w-[82px] flex-col items-center justify-center py-1.5">
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">
               {ponteiro ? "no ponto" : "última"}
             </span>
             <span className="flex items-baseline gap-0.5 tabular-nums">
-              <span className="text-[15px] font-black leading-tight text-[#16294a]">
-                {pontoAtivo?.valor ?? "—"}
+              <span data-testid="evo-valor" className="text-[15px] font-black leading-tight text-[color:var(--evo-ink)]">
+                {pontoAtivo ? String(pontoAtivo.valor).replace(".", ",") : "—"}
               </span>
               {analyte.unit && (
-                <span className="text-[9px] font-semibold text-[#16294a]">{analyte.unit}</span>
+                <span className="text-[9px] font-semibold text-[color:var(--evo-ink)]">{analyte.unit}</span>
               )}
             </span>
           </div>
           {/* DATA — 70px fixos; datas "DD/MM/AA" cabem com um pouco de ar */}
           <div className="concave-3d flex w-[70px] flex-col items-center justify-center py-1.5">
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">data</span>
-            <span className="text-[11px] font-bold leading-tight text-[#16294a]">
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">data</span>
+            <span data-testid="evo-data" className="text-[11px] font-bold leading-tight text-[color:var(--evo-ink)]">
               {pontoAtivo?.data || "—"}
             </span>
           </div>
@@ -697,9 +887,9 @@ function CartaoGrafico({
             className="bevel-3d flex w-[66px] shrink-0 flex-col items-center justify-center rounded-[5px] py-1.5"
             style={{ border: `2px solid #b0bec5` }}
           >
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">tendência</span>
-            <span className="text-[11px] font-black capitalize leading-tight text-[#16294a]">
-              {tend.rotulo}
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">tendência</span>
+            <span className="text-[11px] font-black capitalize leading-tight text-[color:var(--evo-ink)]">
+              {tend?.rotulo ?? "—"}
             </span>
           </div>
           {/* SITUAÇÃO — MAIS LARGA (80px), ÚLTIMA da direita, TODA EM
@@ -708,7 +898,7 @@ function CartaoGrafico({
             className="bevel-3d flex w-[80px] shrink-0 flex-col items-center justify-center rounded-[5px] py-1.5"
             style={{ border: `2px solid ${corAtiva}` }}
           >
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">situação</span>
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">situação</span>
             <span className="text-[11px] font-bold uppercase leading-tight" style={{ color: corAtiva }}>
               {rotuloAtivo}
             </span>
@@ -727,7 +917,7 @@ function Toggle({ ligado, onToggle, texto }: { ligado: boolean; onToggle: () => 
       type="button"
       onClick={onToggle}
       aria-pressed={ligado}
-      className="flex items-center gap-2 rounded-[5px] px-1 text-[11px] font-bold uppercase tracking-wide text-[#16294a]"
+      className="flex items-center gap-2 rounded-[5px] px-1 text-[11px] font-bold uppercase tracking-wide text-[color:var(--evo-ink)]"
     >
       {/* Interruptor RETANGULAR (padrão da skill de layout; era redondo) */}
       <span
@@ -754,27 +944,110 @@ const LAYOUTS: { id: LayoutMode; label: string }[] = [
   { id: "linha", label: "Abaixo da linha" },
 ];
 
+// Na Área do Cliente (coluna estreita) só entram as formas que alinham bem.
+const LAYOUTS_CLIENTE: LayoutMode[] = ["topo", "sanfona", "linha"];
+
 // ============================================================== PAINEL ========
-export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) {
+/**
+ * `portalToken` liga o MODO CLIENTE (Área do Cliente): os dados vêm de /api/area-paciente/exames/evolucao,
+ * identificados só pelo token do portal (o clientId não vai à rede), e as ferramentas da equipe
+ * (envio administrativo e cadastro de faixas) não aparecem. Sem a propriedade, o painel é o do cockpit.
+ */
+export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientId: number; portalToken?: string }) {
+  const modoCliente = Boolean(portalToken);
   const [data, setData] = useState<EvolucaoData | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(false);
   const [selecionados, setSelecionados] = useState<string[]>([]);
+  // Largura REAL visível da moldura da planilha (sem a barra de rolagem): o
+  // cartão "abaixo da linha" nunca pode ser mais largo que ela, senão a borda
+  // direita é recortada pelo overflow-x da moldura.
+  const roMolduraRef = useRef<ResizeObserver | null>(null);
+  const planilhaElRef = useRef<HTMLDivElement | null>(null);
+  const [larguraMoldura, setLarguraMoldura] = useState<number | null>(null);
+  const planilhaRef = useCallback((el: HTMLDivElement | null) => {
+    planilhaElRef.current = el;
+    roMolduraRef.current?.disconnect();
+    roMolduraRef.current = null;
+    if (!el) return;
+    const medir = () => setLarguraMoldura(el.clientWidth);
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    roMolduraRef.current = ro;
+  }, []);
   const [mostrarFaixas, setMostrarFaixas] = useState(true);
+  // Cabeçalho congelado da planilha: vive FORA da área de rolagem lateral (o overflow-x da
+  // moldura impede o "sticky" vertical), e acompanha o scroll lateral por sincronização.
+  const cabecalhoScrollRef = useRef<HTMLDivElement | null>(null);
+  const roConteudoRef = useRef<ResizeObserver | null>(null);
+  const [larguraConteudo, setLarguraConteudo] = useState<number | null>(null);
+  const conteudoRef = useCallback((el: HTMLDivElement | null) => {
+    roConteudoRef.current?.disconnect();
+    roConteudoRef.current = null;
+    if (!el) return;
+    const medir = () => setLarguraConteudo(el.offsetWidth);
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    roConteudoRef.current = ro;
+  }, []);
+  // Ferramentas (faixas + gráficos): sanfona; a escolha da pessoa é lembrada neste aparelho.
+  const CHAVE_FERRAMENTAS = "paxter.evolucao.ferramentasAbertas";
+  const [ferramentasAbertas, setFerramentasAbertas] = useState<boolean>(() => {
+    try { return window.localStorage.getItem(CHAVE_FERRAMENTAS) !== "0"; } catch { return true; }
+  });
+  const alternarFerramentas = () => setFerramentasAbertas((v) => {
+    const novo = !v;
+    try { window.localStorage.setItem(CHAVE_FERRAMENTAS, novo ? "1" : "0"); } catch { /* sem armazenamento: só não lembra */ }
+    return novo;
+  });
   // ── Upload admin de PDF ──────────────────────────────────────────────────
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; txt: string } | null>(null);
   const [zonaAcesa, setZonaAcesa] = useState<string | null>(null);
   const [fixadas, setFixadas] = useState<string[]>([]);
-  const [layout, setLayout] = useState<LayoutMode>("lado");
+  // Cliente (celular/área do cliente): gráfico no topo por padrão; equipe mantém o layout lateral.
+  const [layout, setLayout] = useState<LayoutMode>(modoCliente ? "topo" : "lado");
   const [colapsados, setColapsados] = useState<string[]>([]);
   const [mostrarDirecoes, setMostrarDirecoes] = useState(false);
+  // DEEx (SPEC 7): PDF interno da equipe. Só resultados conferidos; prévia interna só por escolha explícita.
+  const [deexBusy, setDeexBusy] = useState(false);
+  const [deexMsg, setDeexMsg] = useState<{ ok: boolean; txt: string; podePrevia?: "ultimas5" | "completo" } | null>(null);
+  // Arquivo emitido: fica disponível como ícone ao lado dos botões (clicar abre/baixa o PDF).
+  const [deexArquivo, setDeexArquivo] = useState<{ url: string; nome: string } | null>(null);
+  useEffect(() => () => { if (deexArquivo) URL.revokeObjectURL(deexArquivo.url); }, [deexArquivo]);
+  const baixarDeex = useCallback(async (modo: "ultimas5" | "completo", previa: boolean) => {
+    setDeexBusy(true); setDeexMsg(null); setDeexArquivo(null);
+    try {
+      const r = modoCliente
+        ? await fetch(`${BASE}/api/area-paciente/exames/evolucao/pdf?modo=${modo}`, { headers: { Authorization: `Bearer ${portalToken}` } })
+        : await fetch(`${BASE}/api/evolucao-exames/cliente/${clientId}/pdf?modo=${modo}${previa ? "&previa=1" : ""}`, { headers: collabAuthHeaders() });
+      if (r.ok) {
+        const url = URL.createObjectURL(await r.blob());
+        const nome = /filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") ?? "")?.[1] ?? "DEEx.pdf";
+        setDeexArquivo({ url, nome });
+        const drive = r.headers.get("X-Deex-Drive");
+        if (previa) setDeexMsg({ ok: true, txt: "PRÉVIA INTERNA: contém resultados sem conferência final. Não foi salva na pasta do paciente." });
+        else if (drive === "salvo") setDeexMsg({ ok: true, txt: "Salvo na pasta Exames do paciente." });
+        else if (!modoCliente) setDeexMsg({ ok: false, txt: "PDF gerado, mas não foi salvo na pasta Exames do paciente (Drive indisponível ou cadastro sem CPF/pasta da clínica)." });
+        else setDeexMsg(null);
+      } else {
+        const j = await r.json().catch(() => ({}));
+        setDeexMsg({ ok: false, txt: j.error ?? "Não foi possível gerar o DEEx.", podePrevia: !modoCliente && j.codigo === "EVOLUCAO_EXAMES_NAO_CONFERIDO" ? modo : undefined });
+      }
+    } catch { setDeexMsg({ ok: false, txt: "Falha de conexão ao gerar o DEEx." }); }
+    finally { setDeexBusy(false); }
+  }, [clientId, modoCliente, portalToken]);
 
   const carregar = useCallback((cid: number) => {
     setCarregando(true);
     setErro(false);
-    fetch(`${BASE}/api/exames-lab/evolucao/${cid}`)
+    const request = modoCliente
+      ? fetch(`${BASE}/api/area-paciente/exames/evolucao`, { headers: { Authorization: `Bearer ${portalToken}` } })
+      : fetch(`${BASE}/api/exames-lab/evolucao/${cid}`, { headers: collabAuthHeaders() });
+    request
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("evolucao"))))
       .then((d: EvolucaoData) => setData(d))
       .catch(() => {
@@ -782,7 +1055,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
         setErro(true);
       })
       .finally(() => setCarregando(false));
-  }, []);
+  }, [modoCliente, portalToken]);
 
   const handleAdminUpload = useCallback(async () => {
     if (!uploadFile || uploading) return;
@@ -792,7 +1065,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
       const fd = new FormData();
       fd.append("file", uploadFile);
       fd.append("clientId", String(clientId));
-      const r = await fetch(`${BASE}/api/exames-lab/ingest`, { method: "POST", body: fd });
+      const r = await fetch(`${BASE}/api/exames-lab/ingest`, { method: "POST", headers: collabAuthHeaders(), body: fd });
       const json = await r.json();
       if (r.ok) {
         setUploadMsg({ ok: true, txt: json.duplicate ? "Exame já existia (duplicata detectada)." : "Exame recebido! O motor Gemini vai processar em ~60-90 segundos." });
@@ -816,7 +1089,23 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
 
   const analytes = data?.analytes ?? [];
   const columnsRaw = data?.columns ?? [];
+  // Modo cliente: o gráfico já nasce aberto no topo. Escolhe o exame com mais pontos numéricos
+  // (empate: ordem alfabética da lista); só acontece uma vez por carga e nunca sobrescreve escolha da pessoa.
+  const abriuGraficoInicial = useRef(false);
+  useEffect(() => {
+    if (!modoCliente || !data || abriuGraficoInicial.current) return;
+    abriuGraficoInicial.current = true;
+    let melhor: { key: string; pontos: number } | null = null;
+    for (const a of data.analytes) {
+      const pontos = Object.values(a.cells).filter((c) => c && typeof c.valueNum === "number").length;
+      if (pontos > 0 && (!melhor || pontos > melhor.pontos)) melhor = { key: a.key, pontos };
+    }
+    if (melhor) setSelecionados([melhor.key]);
+  }, [data, modoCliente]);
   const ultimaColKey = columnsRaw.length > 0 ? columnsRaw[columnsRaw.length - 1].key : null;
+  const temPreliminares = modoCliente && columnsRaw.some((c) => c.confLevel === "ia" || c.confLevel === "c1");
+  // Preliminares entram no gráfico e nas faixas; o selo PRELIMINAR da coluna avisa que não foi conferido.
+  const columnsGraficos = columnsRaw;
 
   // Colunas fixadas vão primeiro (grudadas); as demais rolam.
   const orderedColumns = useMemo(() => {
@@ -864,7 +1153,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
 
   if (carregando) {
     return (
-      <div className="flex items-center gap-2 py-6 text-sm text-[#647c97]">
+      <div className="flex items-center gap-2 py-6 text-sm text-[color:var(--evo-muted)]">
         <Loader2 className="h-4 w-4 animate-spin" /> Carregando evolução…
       </div>
     );
@@ -878,7 +1167,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
         <button
           type="button"
           onClick={() => carregar(clientId)}
-          className="btn-3d-soft rounded px-2 py-1 text-xs font-semibold uppercase text-[#16294a]"
+          className="btn-3d-soft rounded px-2 py-1 text-xs font-semibold uppercase text-[color:var(--evo-ink)]"
         >
           Tentar novamente
         </button>
@@ -886,14 +1175,14 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
     );
   }
   // ── Widget de upload admin (reutilizado no estado vazio e no topo do painel) ──
-  const uploadWidget = (
+  const uploadWidget = modoCliente ? null : (
     <div className="bevel-3d flex flex-col gap-3 rounded-md p-4">
       <div className="flex items-center gap-2">
         <FileUp className="h-4 w-4 text-[#45B8CC]" />
-        <span className="text-xs font-bold uppercase tracking-wide text-[#16294a]">Enviar PDF de Exame</span>
+        <span className="text-xs font-bold uppercase tracking-wide text-[color:var(--evo-ink)]">Enviar PDF de Exame</span>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <label className="btn-3d-soft cursor-pointer rounded px-3 py-1.5 text-xs font-semibold text-[#16294a]">
+        <label className="btn-3d-soft cursor-pointer rounded px-3 py-1.5 text-xs font-semibold text-[color:var(--evo-ink)]">
           {uploadFile ? uploadFile.name.slice(0, 40) : "Selecionar PDF…"}
           <input
             type="file"
@@ -912,7 +1201,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
           {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Upload className="inline h-3 w-3 mr-1" />Enviar</>}
         </button>
         {uploadFile && !uploading && (
-          <button type="button" onClick={() => { setUploadFile(null); setUploadMsg(null); }} className="text-xs text-[#647c97] hover:text-red-500">
+          <button type="button" onClick={() => { setUploadFile(null); setUploadMsg(null); }} className="text-xs text-[color:var(--evo-muted)] hover:text-red-500">
             <X className="h-3 w-3" />
           </button>
         )}
@@ -929,7 +1218,11 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
   if (columnsRaw.length === 0 || analytes.length === 0) {
     return (
       <div className="flex flex-col gap-4 py-4">
-        <p className="text-sm text-[#647c97]">Nenhum exame para este cliente ainda.</p>
+        <p className="text-sm text-[color:var(--evo-muted)]">
+          {modoCliente
+            ? "Ainda não há resultados visíveis nesta evolução. Acompanhe o andamento de cada envio na aba Upload Exames."
+            : "Nenhum exame para este cliente ainda."}
+        </p>
         {uploadWidget}
       </div>
     );
@@ -939,8 +1232,8 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
   const graficos =
     selecionados.length === 0 ? (
       <div className="concave-3d flex flex-col items-center gap-2 px-4 py-10 text-center">
-        <MousePointerClick className="h-6 w-6 text-[#647c97]" />
-        <span className="text-[12px] text-[#647c97]">
+        <MousePointerClick className="h-6 w-6 text-[color:var(--evo-muted)]" />
+        <span className="text-[12px] text-[color:var(--evo-muted)]">
           Clique num exame na planilha para abrir o gráfico aqui. Você pode empilhar vários.
         </span>
       </div>
@@ -958,15 +1251,21 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
                 onClick={() => colapsar(key)}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left"
               >
-                {aberto ? <ChevronDown className="h-4 w-4 text-[#647c97]" /> : <ChevronRight className="h-4 w-4 text-[#647c97]" />}
-                <span className="text-[13px] font-bold text-[#16294a]">{a.name}</span>
-                <span className="ml-auto text-[10px] font-semibold uppercase text-[#647c97]">
+                {aberto ? <ChevronDown className="h-4 w-4 text-[color:var(--evo-muted)]" /> : <ChevronRight className="h-4 w-4 text-[color:var(--evo-muted)]" />}
+                <span className="text-[13px] font-bold text-[color:var(--evo-ink)]">{a.name}</span>
+                <span className="ml-auto text-[10px] font-semibold uppercase text-[color:var(--evo-muted)]">
                   {aberto ? "fechar" : "abrir"}
                 </span>
               </button>
               {aberto && (
                 <div className="px-2 pb-2">
-                  <CartaoGrafico analyte={a} columns={columnsRaw} ordem={i + 1} onRemover={() => alternar(key)} />
+                  <CartaoGrafico
+                    analyte={a}
+                    columns={columnsGraficos}
+                    ordem={i + 1}
+                    onRemover={() => alternar(key)}
+                    exigirConferencia={false}
+                  />
                 </div>
               )}
             </div>
@@ -977,8 +1276,8 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
       // TOPO / FIXO usam grade; LADO empilha em coluna (via wrapper).
       <div
         className={
-          layout === "lado"
-            ? "flex flex-col gap-3"
+          layout === "lado" || modoCliente
+            ? "flex flex-col gap-3" // Área do Cliente: coluna estreita (max-w-lg), um gráfico por linha, largura cheia
             : "grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
         }
       >
@@ -986,7 +1285,14 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
           const a = analytePorKey.get(key);
           if (!a) return null;
           return (
-            <CartaoGrafico key={key} analyte={a} columns={columnsRaw} ordem={i + 1} onRemover={() => alternar(key)} />
+          <CartaoGrafico
+            key={key}
+            analyte={a}
+            columns={columnsGraficos}
+            ordem={i + 1}
+            onRemover={() => alternar(key)}
+            exigirConferencia={false}
+          />
           );
         })}
       </div>
@@ -994,14 +1300,14 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
 
   const cabecalhoGraficos = (
     <div className="mb-2 flex items-center justify-between">
-      <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+      <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-ink)]">
         Gráficos abertos ({selecionados.length})
       </span>
       {selecionados.length > 0 && (
         <button
           type="button"
           onClick={() => setSelecionados([])}
-          className="text-[10px] font-bold uppercase tracking-wide text-[#647c97] hover:text-[#c0392b]"
+          className="text-[10px] font-bold uppercase tracking-wide text-[color:var(--evo-muted)] hover:text-[#c0392b]"
         >
           Limpar
         </button>
@@ -1011,133 +1317,227 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
 
   // ----------------------------- planilha -----------------------------
   const planilha = (
-    <section className="panel-3d min-w-0 p-4">
-      <div className="mb-3 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+    <section className="panel-3d relative isolate z-0 min-w-0 p-4">
+      <div className="mb-3 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-ink)]">
         <FlaskConical className="h-4 w-4" style={{ color: "#9a7b32" }} /> Exames — Evolução
       </div>
-
-      {/* CONTROLES — rodada 8 final (pedido do CEO 25/07/2026): cada categoria
-          é um PAINEL com título na linha de cima e botões embaixo, na horizontal.
-          Os três painéis ficam EMPILHADOS verticalmente (um abaixo do outro). */}
-      <div className="mb-3 flex flex-col gap-2 border-b border-[#16294a]/10 pb-3">
-
-        {/* PAINEL 1 — FAIXAS DE EXAMES */}
-        <div className="concave-3d rounded-[6px] px-3 py-2">
-          <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
-            Faixas de Exames
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={() => setZonaAcesa(null)}
-              className={`h-[28px] min-w-[72px] rounded-[5px] px-2 text-[10px] font-bold uppercase tracking-wide ${zonaAcesa === null ? "btn-3d" : "btn-3d-soft"}`}
-              style={zonaAcesa === null ? { background: NAVY, color: "#fff" } : { color: NAVY }}
-            >
-              Todas
-            </button>
-            {FAIXAS_POSICAO.map((f) => {
-              const ativo = zonaAcesa === f.key;
-              return (
-                <button
-                  key={f.key}
-                  type="button"
-                  onClick={() => setZonaAcesa(ativo ? null : f.key)}
-                  className={`h-[28px] min-w-[112px] rounded-[5px] px-2 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
-                  style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
-                >
-                  {f.label}
-                </button>
-              );
-            })}
-          </div>
+      {temPreliminares && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="mb-3 rounded-[5px] border border-amber-300 bg-amber-50 px-3 py-2 text-[10px] font-bold leading-relaxed text-amber-950"
+        >
+          PRELIMINAR — NÃO CONFERIDO PELO MÉDICO. IA significa extração automática; C1 significa primeira etapa de conferência.
+          Faixas, cores e tendência nesses valores são indicativas até a conferência médica.
         </div>
+      )}
 
-        {/* PAINEL 2 — GRÁFICOS */}
-        <div className="concave-3d rounded-[6px] px-3 py-2">
-          <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
-            Gráficos
+      {/* FERRAMENTAS — sanfona: faixas e gráficos. Todos os botões têm o MESMO tamanho (grade de colunas
+          iguais, a mesma nos dois painéis, para alinharem na vertical) no celular e no computador. */}
+      <div className="mb-3" data-testid="evolucao-ferramentas">
+        {/* TRAVE: retângulo de ponta a ponta; título à esquerda, estado atual no meio, botão no extremo direito */}
+        <button
+          type="button"
+          onClick={alternarFerramentas}
+          aria-expanded={ferramentasAbertas}
+          aria-controls="evolucao-ferramentas-corpo"
+          title={ferramentasAbertas ? "Recolher" : "Abrir"}
+          className="evo-trave group flex w-full items-center gap-2 px-3 py-2 text-left"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-[#b8924d]" aria-hidden />
+          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-ink)]">Ferramentas da planilha</span>
+          <span className="ml-auto flex min-w-0 items-center gap-1.5 overflow-hidden">
+            <span className="evo-chip truncate">{zonaAcesa === null ? "Todas" : (FAIXAS_POSICAO.find((f) => f.key === zonaAcesa)?.label ?? "—")}</span>
+            <span className="evo-chip truncate">{LAYOUTS.find((l) => l.id === layout)?.label ?? "—"}</span>
+          </span>
+          <span className="evo-bevel flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[color:var(--evo-ink)]" aria-hidden>
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${ferramentasAbertas ? "rotate-180" : ""}`} />
+          </span>
+        </button>
+
+        {ferramentasAbertas && (
+          <div id="evolucao-ferramentas-corpo" className="evo-corpo mt-1.5 flex flex-col gap-2 p-2">
+            <div>
+              <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-muted)]">
+                Faixas de Exames
+                <Dica rotulo="O que são as faixas" texto="Acende na planilha os resultados que estão naquela posição da referência de cada exame: de extremo baixo (primeira barra) a extremo alto (última barra). Clique de novo para desligar." />
+              </div>
+              <div data-testid="evolucao-faixas" className="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+                {[{ key: null as string | null, label: "Todas", nivel: 0 }, ...FAIXAS_POSICAO.map((f, i) => ({ key: f.key as string | null, label: f.label, nivel: i + 1 }))].map((f) => {
+                  const ativo = zonaAcesa === f.key;
+                  return (
+                    <button
+                      key={f.key ?? "todas"}
+                      type="button"
+                      onClick={() => setZonaAcesa(f.key === null || ativo ? null : f.key)}
+                      aria-pressed={ativo}
+                      className={`evo-bevel flex h-14 w-full flex-col items-center justify-center gap-1.5 rounded-[5px] px-1 text-center text-[9px] font-bold uppercase leading-tight tracking-wide ${ativo ? "evo-bevel-ativo" : ""}`}
+                    >
+                      <MedidorFaixa nivel={f.nivel} />
+                      <span>{f.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-muted)]">Gráficos</div>
+              <div data-testid="evolucao-graficos" className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
+                {LAYOUTS.filter((l) => !modoCliente || LAYOUTS_CLIENTE.includes(l.id)).map((l) => {
+                  const ativo = layout === l.id;
+                  return (
+                    <button
+                      key={l.id}
+                      type="button"
+                      onClick={() => setLayout(l.id)}
+                      aria-pressed={ativo}
+                      className={`${BOTAO_FERRAMENTA} evo-bevel ${ativo ? "evo-bevel-ativo" : ""}`}
+                    >
+                      {l.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div data-testid="deex-painel">
+              <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-muted)]">
+                {modoCliente ? "DEEx" : "DEEx e Envio"}
+                <Dica rotulo="O que é o DEEx" texto="DEEx · Descritivo de Evolução de Exames. PDF com os resultados lado a lado, por data de coleta. Ao gerar, uma cópia vai para a pasta Exames do paciente." />
+              </div>
+              {/* Uma só linha: DEEx à esquerda, envio de PDF no extremo direito (a equipe). */}
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("ultimas5", false)} data-testid="deex-ultimas5" title="DEEx: PDF com as 5 coletas mais recentes"
+                    className={`${BOTAO_FERRAMENTA} evo-bevel !w-24 disabled:opacity-50`}>DEEx · 5 coletas</button>
+                  <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("completo", false)} data-testid="deex-completo" title="DEEx: PDF com todo o histórico de coletas"
+                    className={`${BOTAO_FERRAMENTA} evo-bevel !w-24 disabled:opacity-50`}>DEEx · Completo</button>
+                  {deexBusy && <Loader2 className="h-4 w-4 animate-spin text-[color:var(--evo-muted)]" />}
+                  {deexArquivo && (
+                    <a href={deexArquivo.url} download={deexArquivo.nome} target="_blank" rel="noopener" data-testid="deex-arquivo"
+                      title={deexArquivo.nome} aria-label={`Abrir ${deexArquivo.nome}`}
+                      className={`${BOTAO_FERRAMENTA} evo-bevel evo-bevel-ativo !w-10 px-0`}>
+                      <FileText className="h-4 w-4 shrink-0" />
+                    </a>
+                  )}
+                </div>
+                {!modoCliente && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <label className={`${BOTAO_FERRAMENTA} evo-bevel !w-24 cursor-pointer`}>
+                      <FileUp className="mr-1 h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate" title={uploadFile?.name}>{uploadFile ? uploadFile.name : "Selecionar"}</span>
+                      <input type="file" accept="application/pdf" className="sr-only"
+                        onChange={(e) => { setUploadFile(e.target.files?.[0] ?? null); setUploadMsg(null); }} />
+                    </label>
+                    <button type="button" onClick={handleAdminUpload} disabled={!uploadFile || uploading}
+                      className={`${BOTAO_FERRAMENTA} evo-bevel evo-bevel-ativo !w-24 disabled:opacity-40`}>
+                      {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Upload className="mr-1 h-3.5 w-3.5" />Enviar</>}
+                    </button>
+                  </div>
+                )}
+              </div>
+              {deexMsg && (
+                <p role={deexMsg.ok ? "status" : "alert"} className={`mt-2 text-xs ${deexMsg.ok ? "text-green-700" : "text-red-700"}`}>
+                  {deexMsg.txt}
+                  {deexMsg.podePrevia && (
+                    <button type="button" className="ml-2 underline font-bold" onClick={() => void baixarDeex(deexMsg.podePrevia!, true)}>Gerar como prévia interna</button>
+                  )}
+                </p>
+              )}
+              {!modoCliente && uploadMsg && (
+                <p className={`mt-2 flex items-center gap-1.5 text-xs ${uploadMsg.ok ? "text-emerald-700" : "text-red-600"}`}>
+                  {uploadMsg.ok ? <CheckCircle className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+                  {uploadMsg.txt}
+                </p>
+              )}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {LAYOUTS.map((l) => {
-              const ativo = layout === l.id;
-              return (
-                <button
-                  key={l.id}
-                  type="button"
-                  onClick={() => setLayout(l.id)}
-                  className={`h-[28px] min-w-[112px] rounded-[5px] px-2 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
-                  style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
-                >
-                  {l.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-
+        )}
       </div>
 
-      {/* INSTRUÇÕES em relevo CÔNCAVO (inset bevel — pedido do CEO 24/07/2026) */}
-      <div className="concave-3d mb-3 flex flex-wrap items-center gap-4 rounded-[6px] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#647c97]">
-        <span className="flex items-center gap-1">
-          <MousePointerClick className="h-3.5 w-3.5" /> Clique no exame para abrir o gráfico
-        </span>
-        <span className="flex items-center gap-1">
-          <Square className="h-3.5 w-3.5" /> Quadradinho no cabeçalho fixa a coluna
-        </span>
+      {/* CABEÇALHO CONGELADO: datas, laboratórios e o toggle da faixinha ficam presos logo abaixo da
+          faixa superior da página enquanto a planilha rola para baixo. Fica FORA da moldura de rolagem
+          lateral (o overflow-x dela quebraria o sticky vertical) e acompanha o scroll lateral dela. */}
+      <div
+        className="sticky z-[40] -mx-1 px-1 pt-1"
+        style={{
+          top: "var(--paxter-topbar-h, 0px)",
+          background: PIN_BG,
+          boxShadow: "0 8px 8px -8px rgba(22,41,74,0.35)",
+        }}
+        data-testid="evolucao-cabecalho-congelado"
+      >
+        <div
+          ref={cabecalhoScrollRef}
+          className="overflow-x-auto"
+          style={{ scrollbarWidth: "none" }}
+          onScroll={(e) => {
+            // Rolagem lateral nos dois sentidos (arrastar o cabeçalho também move a planilha).
+            const corpo = planilhaElRef.current;
+            if (corpo && corpo.scrollLeft !== e.currentTarget.scrollLeft) corpo.scrollLeft = e.currentTarget.scrollLeft;
+          }}
+        >
+          <div style={{ minWidth: larguraConteudo ?? undefined, width: "max-content" }}>
+              <div className="flex items-start gap-2 pb-2 pr-2">
+                {/* cortina da zona congelada no cabeçalho */}
+                <CortinaZona extra={8} />
+                {/* Painel bevel-3d do toggle — sticky, z-[25] pinta acima das
+                    células de dados (z:20) e dos cabeçalhos de coluna (z:3). */}
+                <div
+                  className="sticky left-0 z-[25] flex shrink-0 self-stretch"
+                  style={{ width: NAME_W, background: NOME_BG, boxShadow: `${GAP}px 0 0 0 ${NOME_BG}` }}
+                >
+                  {/* Pedido do CEO (25/07/2026): painel UP-BEVEL de altura CHEIA
+                      (mesma altura do cabeçalho das colunas), cobrindo o fundo
+                      liso; o toggle fica no ponto MÉDIO deste painel. */}
+                  <div className="evo-bevel mx-1 flex w-full items-center justify-center self-stretch rounded-[6px] px-2">
+                    <Toggle
+                      ligado={mostrarFaixas}
+                      onToggle={() => setMostrarFaixas((v) => !v)}
+                      texto="Faixinha de cor"
+                    />
+                  </div>
+                </div>
+                {orderedColumns.list.map((c, idx) => {
+                  const isPinned = idx < orderedColumns.pinCols.length;
+                  return (
+                    <ColunaCabecalho
+                      key={c.key}
+                      c={c}
+                      ultima={c.key === ultimaColKey}
+                      fixada={fixadas.includes(c.key)}
+                      onFixar={() => fixar(c.key)}
+                      sticky={isPinned}
+                      left={isPinned ? stickyLeft(idx) : 0}
+                      mostrarPreliminar={modoCliente}
+                    />
+                  );
+                })}
+                <div className="flex w-[92px] shrink-0 items-end justify-center text-[10px] font-bold uppercase tracking-wide text-[color:var(--evo-muted)]">
+                  Tendência
+                </div>
+              </div>
+          </div>
+        </div>
       </div>
 
       {/* planilha com rolagem lateral; nome + colunas fixadas grudam à esquerda */}
-      <div className="overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
-        <div className="min-w-max">
-          {/* cabeçalho — z-[30] + relative: garante que o header row pinta
-              acima de TODAS as linhas de dados (panel-3d-sub com GPU layer
-              que vem depois no DOM). */}
-          <div className="relative z-[30] flex items-start gap-2 pb-2">
-            {/* cortina da zona congelada no cabeçalho */}
-            <CortinaZona extra={8} />
-            {/* Painel bevel-3d do toggle — sticky, z-[25] pinta acima das
-                células de dados (z:20) e dos cabeçalhos de coluna (z:3). */}
-            <div
-              className="sticky left-0 z-[25] flex shrink-0 self-stretch"
-              style={{ width: NAME_W, background: NOME_BG, boxShadow: `${GAP}px 0 0 0 ${NOME_BG}` }}
-            >
-              {/* Pedido do CEO (25/07/2026): painel UP-BEVEL de altura CHEIA
-                  (mesma altura do cabeçalho das colunas), cobrindo o fundo
-                  liso; o toggle fica no ponto MÉDIO deste painel. */}
-              <div className="bevel-3d mx-1 flex w-full items-center justify-center self-stretch rounded-[6px] px-2">
-                <Toggle
-                  ligado={mostrarFaixas}
-                  onToggle={() => setMostrarFaixas((v) => !v)}
-                  texto="Faixinha de cor"
-                />
-              </div>
-            </div>
-            {orderedColumns.list.map((c, idx) => {
-              const isPinned = idx < orderedColumns.pinCols.length;
-              return (
-                <ColunaCabecalho
-                  key={c.key}
-                  c={c}
-                  ultima={c.key === ultimaColKey}
-                  fixada={fixadas.includes(c.key)}
-                  onFixar={() => fixar(c.key)}
-                  sticky={isPinned}
-                  left={isPinned ? stickyLeft(idx) : 0}
-                />
-              );
-            })}
-            <div className="flex w-[92px] shrink-0 items-end justify-center text-[10px] font-bold uppercase tracking-wide text-[#647c97]">
-              Tendência
-            </div>
-          </div>
+      <div
+        ref={planilhaRef}
+        data-testid="evolucao-planilha-corpo"
+        className="overflow-x-auto pb-1"
+        style={{ scrollbarWidth: "thin" }}
+        onScroll={(e) => {
+          const topo = cabecalhoScrollRef.current;
+          if (topo && topo.scrollLeft !== e.currentTarget.scrollLeft) topo.scrollLeft = e.currentTarget.scrollLeft;
+        }}
+      >
+        <div ref={conteudoRef} className="min-w-max">
 
           {/* linhas */}
           <div className="space-y-2">
             {analytes.map((a) => {
               const selecionada = selecionados.includes(a.key);
-              const tend = a.trend ? TEND[a.trend] : TEND.estavel;
+              const tend = a.trend ? TEND[a.trend] : modoCliente ? null : TEND.estavel;
               return (
                 <div key={a.key}>
                 <div
@@ -1170,9 +1570,9 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
                             style={{ background: GOLD, boxShadow: `0 0 6px 1px ${GOLD}` }}
                           />
                         )}
-                        <span className="text-[12px] font-bold leading-tight text-[#16294a]">{a.name}</span>
+                        <span className="text-[12px] font-bold leading-tight text-[color:var(--evo-ink)]">{a.name}</span>
                       </div>
-                      <div className="text-[9px] uppercase tracking-wide text-[#647c97]">
+                      <div className="text-[9px] uppercase tracking-wide text-[color:var(--evo-muted)]">
                         {[a.unit, a.refLow && a.refHigh ? `ref ${a.refLow}–${a.refHigh}` : null]
                           .filter(Boolean)
                           .join(" · ") || "—"}
@@ -1182,7 +1582,8 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
                   {/* valores por data */}
                   {orderedColumns.list.map((c, idx) => {
                     const isPinned = idx < orderedColumns.pinCols.length;
-                    const cell = a.cells[c.key];
+                    const originalCell = a.cells[c.key];
+                    const cell = originalCell;
                     const acesa = zonaAcesa !== null && cell?.zone?.key === zonaAcesa;
                     return (
                       <Cela
@@ -1198,9 +1599,15 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
                   })}
                   {/* tendência */}
                   <div className="bevel-3d flex w-[92px] shrink-0 items-center justify-center gap-1 py-1.5">
-                    <span className={`paxter-led ${tend.led} paxter-led-on`} />
-                    <tend.Icon className={`h-3.5 w-3.5 ${tend.cor}`} />
-                    <span className={`text-[9px] font-bold uppercase tracking-wide ${tend.cor}`}>{tend.rotulo}</span>
+                    {tend ? (
+                      <>
+                        <span className={`paxter-led ${tend.led} paxter-led-on`} />
+                        <tend.Icon className={`h-3.5 w-3.5 ${tend.cor}`} />
+                        <span className={`text-[9px] font-bold uppercase tracking-wide ${tend.cor}`}>{tend.rotulo}</span>
+                      </>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-[color:var(--evo-muted)]">—</span>
+                    )}
                   </div>
                 </div>
                 {/* LAYOUT "Abaixo da linha": o gráfico abre logo embaixo da linha
@@ -1208,12 +1615,17 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
                     sticky à esquerda para o gráfico ficar visível mesmo com a
                     planilha rolada para o lado. */}
                 {layout === "linha" && selecionada && (
-                  <div className="sticky left-0 py-2" style={{ width: "max(320px, min(760px, calc(100vw - 340px)))" }}>
+                  <div
+                    className="sticky left-0 box-border py-2 px-[3px]"
+                    style={{ width: larguraMoldura == null ? "calc(100vw - 44px)" : Math.min(larguraMoldura, 766) }}
+                    data-evolucao-cartao
+                  >
                     <CartaoGrafico
                       analyte={a}
-                      columns={columnsRaw}
+                      columns={columnsGraficos}
                       ordem={selecionados.indexOf(a.key) + 1}
                       onRemover={() => alternar(a.key)}
+                      exigirConferencia={false}
                     />
                   </div>
                 )}
@@ -1224,10 +1636,10 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
         </div>
       </div>
 
-      <p className="mt-4 text-[11px] italic text-[#647c97]">
-        Cinco faixas oficiais do IHE por exame: o número fica sempre nítido em azul; a cor da faixa aparece na
-        listinha lateral e no fundo do gráfico. Fixe colunas pelo alfinete para comparar datas distantes; escolha
-        onde os gráficos aparecem no seletor "Gráficos". No fim da tela você edita as faixas de cada exame.
+      <p className="mt-4 text-[11px] italic text-[color:var(--evo-muted)]">
+        {modoCliente
+          ? "Resultados marcados PRELIMINAR ainda não foram conferidos pelo médico; faixas, cores e tendência neles são indicativas até a conferência."
+          : "Cinco faixas oficiais do IHE por exame: o número fica sempre nítido em azul; a cor da faixa aparece na listinha lateral e no fundo do gráfico. Fixe colunas pelo alfinete para comparar datas distantes; escolha onde os gráficos aparecem no seletor Gráficos. No fim da tela você edita as faixas de cada exame."}
       </p>
     </section>
   );
@@ -1235,7 +1647,6 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
   // ----------------------------- montagem por layout -----------------------------
   return (
     <div>
-      <div className="mb-4">{uploadWidget}</div>
       {layout === "topo" && selecionados.length > 0 && (
         <section className="panel-3d mb-5 p-4">
           {cabecalhoGraficos}
@@ -1267,12 +1678,12 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
         </section>
       )}
 
-      {/* ferramenta ÚNICA de faixas (mesma do menu Cadastros): direção + cortes */}
-      <div className="mt-5">
+      {/* ferramenta ÚNICA de faixas (mesma do menu Cadastros): direção + cortes — só equipe */}
+      {!modoCliente && <div className="mt-5">
         <button
           type="button"
           onClick={() => setMostrarDirecoes((v) => !v)}
-          className="btn-3d-soft flex items-center gap-2 rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#16294a]"
+          className="btn-3d-soft flex items-center gap-2 rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[color:var(--evo-ink)]"
         >
           {mostrarDirecoes ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           Cadastro de Faixas de TODOS os exames
@@ -1282,7 +1693,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
             <ConsoleExamesTool titulo="Faixas dos Exames (catálogo completo)" />
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

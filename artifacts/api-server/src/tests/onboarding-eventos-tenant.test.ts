@@ -101,7 +101,7 @@ describe("GET /onboarding/stats — contexto do CEO", () => {
     const response = await request(statsApp(empresaId))
       .get("/api/onboarding/stats?empresa_id=999&empresaId=999&tenantSlug=outra").expect(200);
     expect(response.body).toMatchObject({ ok: true, total: 0, pacientesUnicos: 0 });
-    expect(queries()).toHaveLength(5);
+    expect(queries()).toHaveLength(4);
     for (const query of queries()) {
       expect(query.sql).toContain("empresa_id =");
       expect(query.params).toEqual([empresaId]);

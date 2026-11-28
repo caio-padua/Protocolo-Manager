@@ -66,7 +66,7 @@ beforeAll(async () => {
   mockExec().mockResolvedValueOnce(qr([])); // CREATE TABLE auditoria
   mockTx().mockImplementationOnce(async (callback) => {
     const txExec = vi.fn().mockResolvedValueOnce(qr([])); // SELECT retorna 0 linhas
-    return callback({ execute: txExec });
+    return callback({ execute: txExec } as never);
   });
   await resetarPenalidade(CPF_VALIDO);
 

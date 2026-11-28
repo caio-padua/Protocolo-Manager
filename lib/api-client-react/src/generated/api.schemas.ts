@@ -5,6 +5,645 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+export interface AssinaturasFallbackConfirmacao {
+  confirmar: boolean;
+}
+
+export interface AssinaturasFallbackSaude {
+  /** @minimum 0 */
+  aguardandoReenvioReal: number;
+  /** @minimum 0 */
+  bloqueados: number;
+}
+
+export type AssinaturasFallbackResultado = AssinaturasFallbackSaude & {
+  reenviados: number;
+  falhas: number;
+};
+
+export type TelegramInboxMessageDirecao =
+  (typeof TelegramInboxMessageDirecao)[keyof typeof TelegramInboxMessageDirecao];
+
+export const TelegramInboxMessageDirecao = {
+  entrada: "entrada",
+  saida: "saida",
+} as const;
+
+export type TelegramInboxMessageAtendimentoEstado =
+  (typeof TelegramInboxMessageAtendimentoEstado)[keyof typeof TelegramInboxMessageAtendimentoEstado];
+
+export const TelegramInboxMessageAtendimentoEstado = {
+  pendente: "pendente",
+  processando: "processando",
+  concluido: "concluido",
+  falhou: "falhou",
+  esgotado: "esgotado",
+  incerto: "incerto",
+} as const;
+
+export interface TelegramInboxMessageAtendimento {
+  estado: TelegramInboxMessageAtendimentoEstado;
+  /** @nullable */
+  desfecho: string | null;
+  orientacaoAprovada: boolean;
+}
+
+export interface TelegramInboxMessage {
+  /** @minimum 1 */
+  id: number;
+  texto: string;
+  recebidaEm: string;
+  lida: boolean;
+  direcao: TelegramInboxMessageDirecao;
+  atendimento?: TelegramInboxMessageAtendimento;
+}
+
+export interface TelegramInboxResponse {
+  mensagens: TelegramInboxMessage[];
+  /** @minimum 0 */
+  naoLidas: number;
+  temMais: boolean;
+}
+
+export type EvolutionHomologacaoConfigModelos = {
+  selecao: string;
+  interprete: string;
+  conferente: string;
+  aprendizagem: string;
+};
+
+export interface EvolutionHomologacaoConfig {
+  /** @minimum 1 */
+  empresaId: number;
+  modelos: EvolutionHomologacaoConfigModelos;
+  textoTeste: string;
+  motorAtivo: boolean;
+  nomeAssistente: string;
+}
+
+export interface EvolutionHomologacaoConfigSaved {
+  ok: boolean;
+}
+
+export interface EvolutionIsolatedTestInput {
+  /**
+   * @minLength 8
+   * @maxLength 20
+   */
+  numero: string;
+  /**
+   * @minLength 1
+   * @maxLength 4000
+   */
+  texto: string;
+  /** @maxLength 60 */
+  contexto?: string;
+  confirmo: boolean;
+}
+
+export interface EvolutionIsolatedTestPart {
+  /** @minimum 1 */
+  parte: number;
+  /** @minimum 1 */
+  de: number;
+  /** @minimum 0 */
+  caracteres: number;
+  http: number;
+  ok?: boolean;
+  id?: number;
+  status?: string;
+  /** @nullable */
+  erro?: string | null;
+}
+
+export interface EvolutionIsolatedTestResult {
+  ok?: boolean;
+  /** @minimum 1 */
+  partesTotal?: number;
+  partes: EvolutionIsolatedTestPart[];
+  [key: string]: unknown;
+}
+
+export type EvolutionHomologacaoConfigUpdateModelos = {
+  /** @maxLength 100 */
+  selecao: string;
+  /** @maxLength 100 */
+  interprete: string;
+  /** @maxLength 100 */
+  conferente: string;
+  /** @maxLength 100 */
+  aprendizagem: string;
+};
+
+export interface EvolutionHomologacaoConfigUpdate {
+  modelos: EvolutionHomologacaoConfigUpdateModelos;
+  /** @maxLength 4000 */
+  textoTeste: string;
+  /** @maxLength 80 */
+  nomeAssistente: string;
+  motorAtivo: boolean;
+}
+
+export interface EvolutionHomologacaoClient {
+  /** @minimum 1 */
+  id: number;
+  nome: string;
+  /** @nullable */
+  telefone: string | null;
+  /** @nullable */
+  telefoneMascarado: string | null;
+  vinculoExplicito: boolean;
+}
+
+export interface EvolutionHomologacaoClients {
+  clientes: EvolutionHomologacaoClient[];
+}
+
+export interface EvolutionHomologacaoLinkUpdate {
+  /** @minimum 1 */
+  clienteId: number;
+  /**
+   * @minLength 8
+   * @maxLength 20
+   */
+  telefone?: string;
+  /** @pattern ^\d{4}$ */
+  telefoneFinal?: string;
+  confirmo: boolean;
+}
+
+export interface EvolutionHomologacaoLinkResult {
+  ok: boolean;
+  telefoneMascarado: string;
+}
+
+export interface EvolutionHomologacaoPlanInput {
+  /** @minimum 1 */
+  clienteId: number;
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  pergunta: string;
+}
+
+export type EvolutionHomologacaoPlanResultMotor = {
+  decisao: string;
+  interpretadorChamado: boolean;
+  conferidorChamado: boolean;
+  modeloSelecionado: boolean;
+};
+
+export interface EvolutionHomologacaoPlanResult {
+  simulacao: boolean;
+  mensagemDeEntradaRegistrada: boolean;
+  /** @nullable */
+  resposta: string | null;
+  desfecho: string;
+  caminhoResolucao: string;
+  /** @minimum 1 */
+  orientacaoId?: number;
+  motor: EvolutionHomologacaoPlanResultMotor;
+  efeitosExecutados: string[];
+}
+
+export interface EvolutionHomologacaoSendInput {
+  /** @minimum 1 */
+  clienteId: number;
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  pergunta: string;
+  /** @maxLength 60 */
+  contexto?: string;
+  confirmo: boolean;
+}
+
+export type EvolutionHomologacaoSendResultRespostaGeradaPor =
+  (typeof EvolutionHomologacaoSendResultRespostaGeradaPor)[keyof typeof EvolutionHomologacaoSendResultRespostaGeradaPor];
+
+export const EvolutionHomologacaoSendResultRespostaGeradaPor = {
+  motor_PAXMED: "motor PAXMED",
+} as const;
+
+export interface EvolutionHomologacaoSendResult {
+  simulacao: boolean;
+  perguntaRegistradaComoEntrada: boolean;
+  respostaGeradaPor: EvolutionHomologacaoSendResultRespostaGeradaPor;
+  desfecho: string;
+  caminhoResolucao: string;
+  inferenciaIA: boolean;
+  [key: string]: unknown;
+}
+
+export type TelegramClientAtendimentoStatusModoGlobal =
+  (typeof TelegramClientAtendimentoStatusModoGlobal)[keyof typeof TelegramClientAtendimentoStatusModoGlobal];
+
+export const TelegramClientAtendimentoStatusModoGlobal = {
+  desligado: "desligado",
+  lista: "lista",
+  ligado: "ligado",
+} as const;
+
+/**
+ * @nullable
+ */
+export type TelegramClientAtendimentoStatusCreditoMotivo =
+  | (typeof TelegramClientAtendimentoStatusCreditoMotivo)[keyof typeof TelegramClientAtendimentoStatusCreditoMotivo]
+  | null;
+
+export const TelegramClientAtendimentoStatusCreditoMotivo = {
+  sem_saldo: "sem_saldo",
+} as const;
+
+export interface TelegramClientAtendimentoStatus {
+  /** @minimum 1 */
+  clienteId: number;
+  vinculado: boolean;
+  vinculoUnico: boolean;
+  modoGlobal: TelegramClientAtendimentoStatusModoGlobal;
+  botConfigurado: boolean;
+  canalAtivo: boolean;
+  autorizadoIndividualmente: boolean;
+  modoPermiteResposta: boolean;
+  pausadoParaEquipe: boolean;
+  creditoDisponivel: boolean;
+  /** @nullable */
+  creditoMotivo: TelegramClientAtendimentoStatusCreditoMotivo;
+  respostaAutomaticaAtiva: boolean;
+  podeAlterarAutorizacaoIndividual: boolean;
+}
+
+export interface TelegramClientAtendimentoUpdate {
+  autorizado: boolean;
+}
+
+export interface TelegramClientAtendimentoUpdated {
+  ok: boolean;
+  autorizado: boolean;
+}
+
+export interface CreditoRecargaInput {
+  /**
+   * @minimum 1
+   * @maximum 9007199254740991
+   */
+  valorCentavos: number;
+}
+
+export type CreditoRecargaSolicitadaStatus =
+  (typeof CreditoRecargaSolicitadaStatus)[keyof typeof CreditoRecargaSolicitadaStatus];
+
+export const CreditoRecargaSolicitadaStatus = {
+  solicitada: "solicitada",
+} as const;
+
+export type CreditoRecargaSolicitadaAmbiente =
+  (typeof CreditoRecargaSolicitadaAmbiente)[keyof typeof CreditoRecargaSolicitadaAmbiente];
+
+export const CreditoRecargaSolicitadaAmbiente = {
+  teste: "teste",
+  real: "real",
+} as const;
+
+export interface CreditoRecargaSolicitada {
+  id: number;
+  status: CreditoRecargaSolicitadaStatus;
+  creditado: boolean;
+  ambiente: CreditoRecargaSolicitadaAmbiente;
+}
+
+export type MensageriaCreditoAmbiente =
+  (typeof MensageriaCreditoAmbiente)[keyof typeof MensageriaCreditoAmbiente];
+
+export const MensageriaCreditoAmbiente = {
+  teste: "teste",
+  real: "real",
+} as const;
+
+export type MensageriaCreditoExtratoItem = { [key: string]: unknown };
+
+export type MensageriaCreditoRecargasItem = { [key: string]: unknown };
+
+export type MensageriaCreditoTarifasItem = { [key: string]: unknown };
+
+export interface MensageriaCredito {
+  ambiente: MensageriaCreditoAmbiente;
+  /** @minimum 0 */
+  saldoCentavos: number;
+  /** @minimum 0 */
+  mensagensAguardandoRetomada?: number;
+  extrato: MensageriaCreditoExtratoItem[];
+  recargas: MensageriaCreditoRecargasItem[];
+  tarifas: MensageriaCreditoTarifasItem[];
+  [key: string]: unknown;
+}
+
+export type CatalogoClinicaResumoAmbienteCredito =
+  (typeof CatalogoClinicaResumoAmbienteCredito)[keyof typeof CatalogoClinicaResumoAmbienteCredito];
+
+export const CatalogoClinicaResumoAmbienteCredito = {
+  teste: "teste",
+  real: "real",
+} as const;
+
+/**
+ * @nullable
+ */
+export type CatalogoClinicaResumoContrato = { [key: string]: unknown } | null;
+
+export type CatalogoClinicaResumoExtratoItem = { [key: string]: unknown };
+
+export type CatalogoClinicaResumoRecargasItem = { [key: string]: unknown };
+
+export type CatalogoClinicaResumoTarifasItem = { [key: string]: unknown };
+
+export interface CatalogoClinicaResumo {
+  ambienteCredito: CatalogoClinicaResumoAmbienteCredito;
+  /** @minimum 0 */
+  saldoCentavos: number;
+  /** @minimum 0 */
+  mensagensAguardandoRetomada?: number;
+  /** @nullable */
+  contrato: CatalogoClinicaResumoContrato;
+  extrato: CatalogoClinicaResumoExtratoItem[];
+  recargas: CatalogoClinicaResumoRecargasItem[];
+  tarifas: CatalogoClinicaResumoTarifasItem[];
+}
+
+export interface FornecedorEntrada {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  nome: string;
+  /** @maxLength 500 */
+  razaoSocial: string | null;
+  /** @maxLength 500 */
+  cnpj: string | null;
+  /** @maxLength 500 */
+  endereco: string | null;
+  /** @maxLength 500 */
+  telefone: string | null;
+  /** @maxLength 500 */
+  email: string | null;
+  /** @maxLength 500 */
+  site: string | null;
+  /** @maxLength 500 */
+  instagram: string | null;
+  fabricante: boolean | null;
+  fornecedor: boolean | null;
+  /** @maxLength 500 */
+  fonte: string | null;
+  ativo: boolean;
+}
+
+export type FornecedorAtualizacao = FornecedorEntrada & {
+  /** @minimum 1 */
+  versao: number;
+};
+
+export type Fornecedor = FornecedorEntrada & {
+  id: number;
+  empresaId: number;
+  versao: number;
+  criadoEm: string;
+  atualizadoEm: string;
+};
+
+export interface ProcedimentoFontesCampos {
+  /** @minimum 1 */
+  nome?: number;
+  /** @minimum 1 */
+  dose?: number;
+  /** @minimum 1 */
+  duracaoMinutos?: number;
+}
+
+export type ProcedimentoEntradaProfissionaisNecessariosItem = {
+  /** @minimum 1 */
+  areaId: number;
+  /** @minimum 1 */
+  localId: number;
+  /**
+   * @minItems 1
+   * @maxItems 30
+   */
+  professionalIds: number[];
+};
+
+export interface ProcedimentoEntrada {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  nome: string;
+  /** Classificação histórica, preservada sem atribuição automática. */
+  tipo?: "consulta" | "enfermagem" | "medico" | null;
+  dose: string | null;
+  fontesCampos?: ProcedimentoFontesCampos;
+  /** Confirma explicitamente a dose atual quando ela é vinculada. */
+  confirmarDoseAtual?: boolean;
+  /**
+   * Versão lida ao abrir o procedimento para edição.
+   * @pattern ^(0|[1-9][0-9]{0,18})$
+   */
+  versaoEdicao?: string;
+  /** @maxItems 20 */
+  profissionaisNecessarios: ProcedimentoEntradaProfissionaisNecessariosItem[];
+  descricao: string | null;
+  duracaoMinutos: number | null;
+  ativo: boolean;
+  /** @maxItems 100 */
+  produtoIds: number[];
+}
+
+export type Procedimento = ProcedimentoEntrada & {
+  dosePendenteRevisao?: boolean;
+  camposOrigemIndisponivel?: string[];
+  id: number;
+  empresaId: number;
+};
+
+export interface ListaProcedimentos {
+  empresaId: number;
+  empresaNome: string;
+  /** Confirma que o servidor e o banco preservam a duração em segundos inteiros. */
+  duracaoSegundosHabilitada?: boolean;
+  /** Confirma o contrato de profissionais necessários e dose separados. */
+  profissionaisNecessariosHabilitado?: boolean;
+  /** Confirma suporte a campos vinculados ao catálogo. */
+  vinculosCamposHabilitados?: boolean;
+  /** Confirma proteção contra edição simultânea. */
+  versaoEdicaoHabilitada?: boolean;
+  procedimentos: Procedimento[];
+}
+
+export interface Paxmed2bEmpresa {
+  nomeCabecalho: string;
+  rodapeLinha1: string;
+  rodapeLinha2: string;
+  rodapeLinha3: string;
+  simboloExemplo?: boolean;
+  dadosExemplo?: boolean;
+  versao: number;
+}
+
+export interface Paxmed2bEmpresaResposta {
+  identidade: Paxmed2bEmpresa | null;
+}
+
+export interface Paxmed2bEmpresaEntrada {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  nomeCabecalho: string;
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  rodapeLinha1: string;
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  rodapeLinha2: string;
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  rodapeLinha3: string;
+  /** @minimum 0 */
+  versao: number;
+  uploadId?: string;
+}
+
+export interface Paxmed2bClinica {
+  id: number;
+  nome: string;
+}
+
+export interface Paxmed2bClinicas {
+  clinicas: Paxmed2bClinica[];
+}
+
+export interface Paxmed2bIdentidade {
+  nome: string;
+  enderecoLinha1: string;
+  enderecoLinha2: string;
+  versao: number;
+}
+
+export interface Paxmed2bIdentidadeResposta {
+  identidade: Paxmed2bIdentidade | null;
+}
+
+export interface Paxmed2bIdentidadeEntrada {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  nome: string;
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  enderecoLinha1: string;
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  enderecoLinha2: string;
+  /** @minimum 0 */
+  versao: number;
+  uploadId?: string;
+}
+
+export interface Paxmed2bUpload {
+  uploadId: string;
+  uploadUrl: string;
+}
+
+export type ClinicalDemonstrationKind =
+  (typeof ClinicalDemonstrationKind)[keyof typeof ClinicalDemonstrationKind];
+
+export const ClinicalDemonstrationKind = {
+  prescricao: "prescricao",
+  exames: "exames",
+} as const;
+
+export interface ClinicalDemonstration {
+  id: string;
+  kind: ClinicalDemonstrationKind;
+  createdAt: string;
+}
+
+export type ClinicalDemonstrationInputKind =
+  (typeof ClinicalDemonstrationInputKind)[keyof typeof ClinicalDemonstrationInputKind];
+
+export const ClinicalDemonstrationInputKind = {
+  prescricao: "prescricao",
+  exames: "exames",
+} as const;
+
+export interface PrescriptionItemInput {
+  name: string;
+  ativos?: string | null;
+  posologia?: string | null;
+  dose?: string | null;
+  via?: string | null;
+  frequencia?: string | null;
+  periodo?: string | null;
+  observacao?: string | null;
+  category?: string | null;
+  internalColor?: string | null;
+  isControlled?: boolean | null;
+  anvisaType?: string | null;
+  pharmacyId?: number | null;
+}
+
+export type ExamRequestEmitItemTipo =
+  (typeof ExamRequestEmitItemTipo)[keyof typeof ExamRequestEmitItemTipo];
+
+export const ExamRequestEmitItemTipo = {
+  SANGUE: "SANGUE",
+  IMAGEM: "IMAGEM",
+  OUTROS: "OUTROS",
+} as const;
+
+export interface ExamRequestEmitItem {
+  /** @minLength 1 */
+  nomeExame: string;
+  /** @nullable */
+  codigoExame?: string | null;
+  /** @nullable */
+  grupoPrincipal?: string | null;
+  /** @nullable */
+  preparo?: string | null;
+  tipo: ExamRequestEmitItemTipo;
+}
+
+export interface ClinicalDemonstrationInput {
+  kind: ClinicalDemonstrationInputKind;
+  /**
+   * @minItems 1
+   * @maxItems 50
+   */
+  prescriptionItems?: PrescriptionItemInput[];
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  examItems?: ExamRequestEmitItem[];
+  /**
+   * @maxLength 2000
+   * @nullable
+   */
+  observacao?: string | null;
+}
+
 export type EmpresaCodigoSemanticoInputVinculo =
   (typeof EmpresaCodigoSemanticoInputVinculo)[keyof typeof EmpresaCodigoSemanticoInputVinculo];
 
@@ -185,12 +824,205 @@ export interface ExamRequestPendingOperation {
   results: ExamDocumentChannelResult[];
 }
 
+export type ExamRequestTelegramFollowupState =
+  (typeof ExamRequestTelegramFollowupState)[keyof typeof ExamRequestTelegramFollowupState];
+
+export const ExamRequestTelegramFollowupState = {
+  awaiting_dispatch: "awaiting_dispatch",
+  receipt_pending: "receipt_pending",
+  receipt_sending: "receipt_sending",
+  receipt_waiting: "receipt_waiting",
+  booking_pending: "booking_pending",
+  booking_sending: "booking_sending",
+  booking_waiting: "booking_waiting",
+  completed: "completed",
+  closed: "closed",
+  cancelled: "cancelled",
+  needs_review: "needs_review",
+} as const;
+
+/**
+ * @nullable
+ */
+export type ExamRequestTelegramFollowupReceiptAnswer =
+  | (typeof ExamRequestTelegramFollowupReceiptAnswer)[keyof typeof ExamRequestTelegramFollowupReceiptAnswer]
+  | null;
+
+export const ExamRequestTelegramFollowupReceiptAnswer = {
+  received: "received",
+  not_received: "not_received",
+  help: "help",
+  ambiguous: "ambiguous",
+} as const;
+
+/**
+ * @nullable
+ */
+export type ExamRequestTelegramFollowupBookingAnswer =
+  | (typeof ExamRequestTelegramFollowupBookingAnswer)[keyof typeof ExamRequestTelegramFollowupBookingAnswer]
+  | null;
+
+export const ExamRequestTelegramFollowupBookingAnswer = {
+  booked: "booked",
+  not_booked: "not_booked",
+  help: "help",
+  ambiguous: "ambiguous",
+} as const;
+
+export type ExamRequestTelegramFollowupReceiptDeliveryState =
+  (typeof ExamRequestTelegramFollowupReceiptDeliveryState)[keyof typeof ExamRequestTelegramFollowupReceiptDeliveryState];
+
+export const ExamRequestTelegramFollowupReceiptDeliveryState = {
+  not_sent: "not_sent",
+  sending: "sending",
+  accepted: "accepted",
+  simulated: "simulated",
+  failed: "failed",
+  unknown: "unknown",
+} as const;
+
+export type ExamRequestTelegramFollowupBookingDeliveryState =
+  (typeof ExamRequestTelegramFollowupBookingDeliveryState)[keyof typeof ExamRequestTelegramFollowupBookingDeliveryState];
+
+export const ExamRequestTelegramFollowupBookingDeliveryState = {
+  not_sent: "not_sent",
+  sending: "sending",
+  accepted: "accepted",
+  simulated: "simulated",
+  failed: "failed",
+  unknown: "unknown",
+} as const;
+
+export type ExamRequestTelegramFollowupReceiptAckState =
+  (typeof ExamRequestTelegramFollowupReceiptAckState)[keyof typeof ExamRequestTelegramFollowupReceiptAckState];
+
+export const ExamRequestTelegramFollowupReceiptAckState = {
+  not_sent: "not_sent",
+  sending: "sending",
+  accepted: "accepted",
+  simulated: "simulated",
+  failed: "failed",
+  unknown: "unknown",
+} as const;
+
+export type ExamRequestTelegramFollowupBookingAckState =
+  (typeof ExamRequestTelegramFollowupBookingAckState)[keyof typeof ExamRequestTelegramFollowupBookingAckState];
+
+export const ExamRequestTelegramFollowupBookingAckState = {
+  not_sent: "not_sent",
+  sending: "sending",
+  accepted: "accepted",
+  simulated: "simulated",
+  failed: "failed",
+  unknown: "unknown",
+} as const;
+
+export type ExamRequestTelegramFollowupTeamAlertState =
+  (typeof ExamRequestTelegramFollowupTeamAlertState)[keyof typeof ExamRequestTelegramFollowupTeamAlertState];
+
+export const ExamRequestTelegramFollowupTeamAlertState = {
+  not_needed: "not_needed",
+  sending: "sending",
+  accepted: "accepted",
+  simulated: "simulated",
+  failed: "failed",
+  unknown: "unknown",
+} as const;
+
+export interface ExamRequestTelegramFollowup {
+  id: number;
+  state: ExamRequestTelegramFollowupState;
+  /**
+   * @minimum 1
+   * @maximum 72
+   */
+  intervalHours: number;
+  /** @nullable */
+  providerAcceptedAt: string | null;
+  /** @nullable */
+  receiptDueAt: string | null;
+  /** @nullable */
+  bookingDueAt: string | null;
+  /** @nullable */
+  receiptSentAt: string | null;
+  /** @nullable */
+  bookingSentAt: string | null;
+  /** @nullable */
+  receiptAnswer: ExamRequestTelegramFollowupReceiptAnswer;
+  /** @nullable */
+  bookingAnswer: ExamRequestTelegramFollowupBookingAnswer;
+  receiptDeliveryState: ExamRequestTelegramFollowupReceiptDeliveryState;
+  bookingDeliveryState: ExamRequestTelegramFollowupBookingDeliveryState;
+  receiptAckState: ExamRequestTelegramFollowupReceiptAckState;
+  bookingAckState: ExamRequestTelegramFollowupBookingAckState;
+  teamAlertState: ExamRequestTelegramFollowupTeamAlertState;
+  /** @nullable */
+  closeReason: string | null;
+  requiresReview: boolean;
+  createdAt: string;
+  /** @nullable */
+  closedAt: string | null;
+}
+
 export interface ExamRequestHistory {
   documents: ExamRequestHistoryDocument[];
   /** @nullable */
   nextOffset: number | null;
   dispatches: ExamRequestDispatchRecord[];
   pendingOperations: ExamRequestPendingOperation[];
+  followups: ExamRequestTelegramFollowup[];
+}
+
+export type ExamRequestFollowupCloseInputReason =
+  (typeof ExamRequestFollowupCloseInputReason)[keyof typeof ExamRequestFollowupCloseInputReason];
+
+export const ExamRequestFollowupCloseInputReason = {
+  pedido_cancelado: "pedido_cancelado",
+  cliente_resolveu: "cliente_resolveu",
+  encerrado_pela_equipe: "encerrado_pela_equipe",
+} as const;
+
+export interface ExamRequestFollowupCloseInput {
+  reason: ExamRequestFollowupCloseInputReason;
+}
+
+export interface TelegramExamFollowupClinicConfig {
+  /** @minimum 1 */
+  empresaId: number;
+  nome: string;
+  /**
+   * @minimum 1
+   * @maximum 72
+   * @nullable
+   */
+  intervalHours: number | null;
+}
+
+export interface TelegramExamFollowupConfigList {
+  clinicas: TelegramExamFollowupClinicConfig[];
+}
+
+export interface TelegramExamFollowupConfigUpdate {
+  /** @minimum 1 */
+  empresaId: number;
+  /**
+   * @minimum 1
+   * @maximum 72
+   * @nullable
+   */
+  intervalHours: number | null;
+}
+
+export interface TelegramExamFollowupConfigSaved {
+  ok: boolean;
+  /** @minimum 1 */
+  empresaId: number;
+  /**
+   * @minimum 1
+   * @maximum 72
+   * @nullable
+   */
+  intervalHours: number | null;
 }
 
 export type ExamDocumentDispatchInputChannelsItem =
@@ -370,12 +1202,29 @@ export interface ESignatureUpdate {
   token?: string | null;
 }
 
+export type CertificateStatusState =
+  (typeof CertificateStatusState)[keyof typeof CertificateStatusState];
+
+export const CertificateStatusState = {
+  valid: "valid",
+  expired: "expired",
+  not_yet_valid: "not_yet_valid",
+  missing: "missing",
+  invalid: "invalid",
+  owner_mismatch: "owner_mismatch",
+  unavailable: "unavailable",
+} as const;
+
 export interface CertificateStatus {
   isSet: boolean;
   hasPassword: boolean;
   fileName?: string | null;
   cpf?: string | null;
   updatedAt?: string | null;
+  state?: CertificateStatusState;
+  professionalType?: string | null;
+  validFrom?: string | null;
+  validTo?: string | null;
 }
 
 export type ReconciliationItemMatch =
@@ -614,38 +1463,96 @@ export interface SimpleOk {
   ok: boolean;
 }
 
+export interface AgendaExternalAddress {
+  cep: string;
+  logradouro: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+  numero: string;
+  complemento?: string | null;
+}
+
+export type AgendaResourceExternalAddressStatus =
+  | (typeof AgendaResourceExternalAddressStatus)[keyof typeof AgendaResourceExternalAddressStatus]
+  | null;
+
+export const AgendaResourceExternalAddressStatus = {
+  confirmado: "confirmado",
+  pendente: "pendente",
+} as const;
+
+export type AgendaResourceCategoryStatus =
+  (typeof AgendaResourceCategoryStatus)[keyof typeof AgendaResourceCategoryStatus];
+
+export const AgendaResourceCategoryStatus = {
+  confirmada: "confirmada",
+  pendente: "pendente",
+} as const;
+
+export type AgendaResourceSharing =
+  (typeof AgendaResourceSharing)[keyof typeof AgendaResourceSharing];
+
+export const AgendaResourceSharing = {
+  individual: "individual",
+  compartilhada: "compartilhada",
+} as const;
+
 export interface AgendaResource {
   id: number;
   name: string;
+  /** Apelido que o dono da clínica quer ver no botão da agenda. O nome completo (name) não muda e continua sendo a referência do Google. */
+  displayName?: string | null;
   kind: string;
   modality: string;
   color: string;
   slotMinutes: number;
   professionalId?: number | null;
   locationId?: number | null;
+  empresaId?: number | null;
+  canManage?: boolean;
+  /** Nome do profissional titular da agenda (nulo em agenda compartilhada). */
+  professionalName?: string | null;
+  /** Nome do local cadastrado da agenda. Agenda e local são cadastros distintos. */
+  locationName?: string | null;
+  externalAddress?: AgendaExternalAddress | null;
+  externalAddressText?: string | null;
+  /** Endereço atual da sede, só quando a agenda é presencial (local) e o local é a sede da empresa. */
+  locationAddressText?: string | null;
+  externalAddressStatus?: AgendaResourceExternalAddressStatus;
+  mapsUrl?: string | null;
+  wazeUrl?: string | null;
+  categoryId?: number | null;
+  categoryName?: string | null;
+  categoryStatus?: AgendaResourceCategoryStatus;
+  sharing?: AgendaResourceSharing;
   active: boolean;
   sortOrder: number;
 }
 
 export interface CreateAgendaResourceBody {
   name: string;
-  kind: string;
+  displayName?: string | null;
+  categoryId: number;
   modality: string;
   color?: string;
   slotMinutes?: number;
   professionalId?: number | null;
   locationId?: number | null;
+  externalAddress?: AgendaExternalAddress;
   sortOrder?: number;
 }
 
 export interface UpdateAgendaResourceBody {
   name?: string;
-  kind?: string;
+  displayName?: string | null;
+  categoryId?: number;
   modality?: string;
   color?: string;
   slotMinutes?: number;
   professionalId?: number | null;
   locationId?: number | null;
+  externalAddress?: AgendaExternalAddress;
   active?: boolean;
   sortOrder?: number;
 }
@@ -656,16 +1563,39 @@ export interface AgendaWindow {
   weekday: number;
   startTime: string;
   endTime: string;
+  /**
+   * Padrão de repetição: 1 toda semana; 2, 3, 4, 6 ou 8 a cada N semanas (exige anchorDate); 101 a 104 = 1ª a 4ª ocorrência do dia no mês; 105 = última do mês.
+   * @minimum 1
+   * @maximum 105
+   */
+  repeatWeeks?: number;
+  anchorDate?: string | null;
 }
 
 export interface AgendaWindowInput {
   weekday: number;
   startTime: string;
   endTime: string;
+  /**
+   * Padrão de repetição: 1 toda semana; 2, 3, 4, 6 ou 8 a cada N semanas (exige anchorDate); 101 a 104 = 1ª a 4ª ocorrência do dia no mês; 105 = última do mês.
+   * @minimum 1
+   * @maximum 105
+   */
+  repeatWeeks?: number;
+  anchorDate?: string | null;
 }
 
 export interface ReplaceAgendaWindowsBody {
   windows: AgendaWindowInput[];
+  expectedWindows?: AgendaWindowInput[];
+}
+
+export interface AgendaOcupacao {
+  resourceId: number;
+  /** Planned slots in the period */
+  capacidade: number;
+  /** Slots covered by system appointments inside the windows */
+  ocupadas: number;
 }
 
 export interface AgendaException {
@@ -695,13 +1625,25 @@ export interface AgendaSettings {
   id: number;
   blockMinutes: number;
   triggerPercent: number;
+  /** Antecedência em HORAS da marcação padrão (paciente, protocolo, Pit Stop, concierge). Não vale para o encaixe interno. */
   minLeadHours: number;
+  /**
+   * Antecedência em MINUTOS do encaixe rápido interno (equipe autorizada). Padrão sugerido 5.
+   * @minimum 0
+   * @maximum 1440
+   */
+  internalLeadMinutes: number;
 }
 
 export interface UpdateAgendaSettingsBody {
   blockMinutes?: number;
   triggerPercent?: number;
   minLeadHours?: number;
+  /**
+   * @minimum 0
+   * @maximum 1440
+   */
+  internalLeadMinutes?: number;
 }
 
 export interface AgendaSubBlock {
@@ -718,6 +1660,167 @@ export interface AgendaSlot {
   state: string;
   reason?: string | null;
   subBlockIndex: number;
+}
+
+export interface AgendaProposedWindow {
+  /**
+   * @minimum 0
+   * @maximum 6
+   */
+  weekday: number;
+  /** @pattern ^([01]\d|2[0-3]):[0-5]\d$ */
+  startTime: string;
+  /** @pattern ^([01]\d|2[0-3]):[0-5]\d$ */
+  endTime: string;
+  /**
+   * Padrão de repetição: 1 toda semana; 2, 3, 4, 6 ou 8 a cada N semanas (exige anchorDate); 101 a 104 = 1ª a 4ª ocorrência do dia no mês; 105 = última do mês.
+   * @minimum 1
+   * @maximum 105
+   */
+  repeatWeeks?: number;
+  anchorDate?: string | null;
+}
+
+export interface AgendaWindowChangeInput {
+  /** @minimum 1 */
+  resourceId: number;
+  /**
+   * @minLength 8
+   * @maxLength 500
+   */
+  reason: string;
+  /** @maxItems 100 */
+  windows: AgendaProposedWindow[];
+  /** @maxItems 100 */
+  expectedWindows?: AgendaProposedWindow[];
+}
+
+export type AgendaChangeDecisionInputDecision =
+  (typeof AgendaChangeDecisionInputDecision)[keyof typeof AgendaChangeDecisionInputDecision];
+
+export const AgendaChangeDecisionInputDecision = {
+  aprovar: "aprovar",
+  recusar: "recusar",
+} as const;
+
+export interface AgendaChangeDecisionInput {
+  decision: AgendaChangeDecisionInputDecision;
+}
+
+export interface AgendaPersonalOwnerInput {
+  /** @minimum 1 */
+  locationId: number;
+  /**
+   * @minimum 1
+   * @nullable
+   */
+  professionalId: number | null;
+}
+
+export interface AgendaReadSettingsInput {
+  /** @minimum 1 */
+  locationId: number;
+  enabled: boolean;
+}
+
+export interface AgendaIntegrationCalendar {
+  id: number;
+  name: string;
+  color: string;
+  /** @nullable */
+  role: string | null;
+  /** @nullable */
+  enabled: boolean | null;
+  /** @nullable */
+  lastSuccess: string | null;
+  /** @nullable */
+  lastAttempt: string | null;
+  /** @nullable */
+  error: string | null;
+  /** @nullable */
+  personalOwnerId: number | null;
+  canManage: boolean;
+}
+
+export interface AgendaIntegrationResource {
+  id: number;
+  name: string;
+  /**
+   * Agenda sem local fisico (Home Care, Outro local) tem locationId nulo.
+   * @nullable
+   */
+  locationId: number | null;
+}
+
+export interface AgendaIntegrationProfessional {
+  id: number;
+  name: string;
+  categoryId?: number | null;
+}
+
+export interface AgendaIntegrationState {
+  agendas: AgendaIntegrationCalendar[];
+  professionals: AgendaIntegrationProfessional[];
+  resources: AgendaIntegrationResource[];
+  globalSettingsOwnerOnly: boolean;
+  canManageGlobalSettings: boolean;
+  companyId: number;
+  /** @nullable */
+  companyName?: string | null;
+}
+
+export interface AgendaChangeRequest {
+  id: number;
+  resourceId: number;
+  resource: string;
+  reason: string;
+  state: string;
+  windows: AgendaProposedWindow[];
+  createdAt: string;
+  locationId: number;
+  requestedBy: number;
+  canDecide: boolean;
+}
+
+export interface AgendaChangeRequestList {
+  requests: AgendaChangeRequest[];
+}
+
+export interface GoogleAgendaCommitmentDescription {
+  /** @nullable */
+  descricao: string | null;
+}
+
+export interface GoogleAgendaCommitment {
+  id: string;
+  titulo: string;
+  inicio: string;
+  fim: string;
+  data: string;
+  horario: string;
+  diaInteiro: boolean;
+  agenda: string;
+  /** Chave numérica da origem. Positivo = id do local; negativo = menos o id de uma agenda sem local (Home Care, Outro local). */
+  agendaId: number;
+  /** Id da agenda de atendimento (Agenda Configuração) dona do calendário; nulo quando é um calendário só do Google (Geral, Pessoal, Feriados). */
+  agendaRecursoId?: number | null;
+  cor: string;
+  recorrente: boolean;
+}
+
+export interface GoogleAgendaOption {
+  /** Mesma chave de agendaId dos compromissos (positivo = local; negativo = agenda sem local). */
+  id: number;
+  agendaRecursoId?: number | null;
+  papel?: string | null;
+  nome: string;
+  cor: string;
+}
+
+export interface GoogleAgendaCommitments {
+  desde: string;
+  eventos: GoogleAgendaCommitment[];
+  agendas: GoogleAgendaOption[];
 }
 
 export interface AgendaSlotsResponse {
@@ -740,9 +1843,97 @@ export interface BookAgendaSessionBody {
   simulate?: boolean;
 }
 
+export interface AgendaEncaixePolitica {
+  canal: string;
+  autorizado: boolean;
+  motivo?: string | null;
+  codigo?: string | null;
+  antecedenciaMinutos: number;
+  antecedenciaConfigurada: boolean;
+  antecedenciaSugeridaMinutos: number;
+}
+
+export type AgendaEncaixeSlotState =
+  (typeof AgendaEncaixeSlotState)[keyof typeof AgendaEncaixeSlotState];
+
+export const AgendaEncaixeSlotState = {
+  aberto: "aberto",
+  bloqueado: "bloqueado",
+  ocupado: "ocupado",
+} as const;
+
+export type AgendaEncaixeSlotReason =
+  | (typeof AgendaEncaixeSlotReason)[keyof typeof AgendaEncaixeSlotReason]
+  | null;
+
+export const AgendaEncaixeSlotReason = {
+  ocupado: "ocupado",
+  passado: "passado",
+  antecedencia: "antecedencia",
+  compromisso: "compromisso",
+  integracao: "integracao",
+  profissional: "profissional",
+  cliente: "cliente",
+  intervalo: "intervalo",
+} as const;
+
+export interface AgendaEncaixeSlot {
+  time: string;
+  state: AgendaEncaixeSlotState;
+  reason?: AgendaEncaixeSlotReason;
+  message?: string | null;
+}
+
+export type AgendaEncaixeAlternativasProximoDia = {
+  date: string;
+  time: string;
+} | null;
+
+export interface AgendaEncaixeAlternativas {
+  mesmoDia: string[];
+  proximoDia?: AgendaEncaixeAlternativasProximoDia;
+}
+
+export type AgendaEncaixeDisponibilidadeIntegracao = {
+  atualizada: boolean;
+  mensagem?: string | null;
+};
+
+export interface AgendaEncaixeDisponibilidade {
+  canal: string;
+  resourceId: number;
+  date: string;
+  agora: string;
+  antecedenciaMinutos: number;
+  motivoDia?: string | null;
+  integracao: AgendaEncaixeDisponibilidadeIntegracao;
+  clienteVerificado: boolean;
+  durationMinutes: number;
+  slotMinutes: number;
+  slots: AgendaEncaixeSlot[];
+  alternativas: AgendaEncaixeAlternativas;
+}
+
+export interface AgendaEncaixeBody {
+  resourceId: number;
+  clientId: number;
+  /** YYYY-MM-DD */
+  date: string;
+  /** HH:mm */
+  time: string;
+  /**
+   * @minimum 5
+   * @maximum 480
+   */
+  durationMinutes: number;
+  syncGoogle?: boolean;
+}
+
 export interface AgendaBookedSession {
   id: number;
-  protocolId: number;
+  /** Nulo na consulta avulsa (sem protocolo). */
+  protocolId: number | null;
+  durationMinutes?: number | null;
   clientId: number;
   resourceId?: number | null;
   scheduledDate: string;
@@ -752,6 +1943,38 @@ export interface AgendaBookedSession {
   serviceType?: string;
   weekNumber?: number;
   googleEventId?: string | null;
+}
+
+export interface AgendaEncaixeResposta {
+  canal: string;
+  duplicada: boolean;
+  session: AgendaBookedSession;
+  googleEventId?: string | null;
+  googleSyncWarning?: string;
+}
+
+export interface AgendaEncaixeRecusa {
+  error: string;
+  codigo?: string | null;
+  alternativas?: AgendaEncaixeAlternativas | null;
+}
+
+export interface BookAvulsaBody {
+  resourceId: number;
+  clientId: number;
+  /** YYYY-MM-DD */
+  date: string;
+  /** HH:mm, início de um período da agenda */
+  time: string;
+  /**
+   * @minimum 5
+   * @maximum 480
+   */
+  durationMinutes?: number;
+  serviceType?: string;
+  unit?: string;
+  syncGoogle?: boolean;
+  simulate?: boolean;
 }
 
 export interface BookAgendaSessionResponse {
@@ -940,12 +2163,100 @@ export interface SimulacaoResultado {
   alarmes: SimulacaoSinalAlarme[];
 }
 
+export interface ClientVisitPreferenceTime {
+  /**
+   * @minimum 0
+   * @maximum 6
+   */
+  weekday: number;
+  /** @pattern ^([01]\d|2[0-3]):[0-5]\d$ */
+  time: string;
+}
+
+export interface ClientVisitPreferenceCategory {
+  /** @maxItems 7 */
+  weekdays: number[];
+  /** @maxItems 504 */
+  times: ClientVisitPreferenceTime[];
+  /**
+   * Ordem explícita de pares dia e horário; ausência não indica ordem.
+   * @maxItems 504
+   */
+  priority?: ClientVisitPreferenceTime[];
+}
+
+export interface ClientVisitPreferences {
+  medical: ClientVisitPreferenceCategory;
+  nursing: ClientVisitPreferenceCategory;
+}
+
+export type ClientVisitPreferenceOptionsCategoryDaysItem = {
+  weekday: number;
+  times: string[];
+};
+
+export interface ClientVisitPreferenceOptionsCategory {
+  days: ClientVisitPreferenceOptionsCategoryDaysItem[];
+  mismatchedResources: string[];
+}
+
+export interface ClientVisitPreferenceOptions {
+  medical: ClientVisitPreferenceOptionsCategory;
+  nursing: ClientVisitPreferenceOptionsCategory;
+}
+
+export interface ClientAgendaLocation {
+  id: number;
+  name: string;
+}
+
+export interface ClientAgendaOption {
+  id: number;
+  name: string;
+  kind: string;
+  locationId: number;
+}
+
+export interface ClientAgendaOptions {
+  locais: ClientAgendaLocation[];
+  agendas: ClientAgendaOption[];
+  enfermagemPadraoId: number | null;
+  medicoPadraoId: number | null;
+}
+
+export interface ClientOriginClinic {
+  id: number;
+  nome: string;
+  nick?: string | null;
+  razaoSocial?: string | null;
+  cnpj?: string | null;
+}
+
 export type ClientStatus = (typeof ClientStatus)[keyof typeof ClientStatus];
 
 export const ClientStatus = {
   active: "active",
   inactive: "inactive",
   pending: "pending",
+} as const;
+
+export type ClientClassificacao =
+  (typeof ClientClassificacao)[keyof typeof ClientClassificacao];
+
+export const ClientClassificacao = {
+  A: "A",
+  B: "B",
+  C: "C",
+  D: "D",
+} as const;
+
+export type ClientPlano = (typeof ClientPlano)[keyof typeof ClientPlano];
+
+export const ClientPlano = {
+  prata: "prata",
+  ouro: "ouro",
+  platinum: "platinum",
+  diamond: "diamond",
 } as const;
 
 export interface Client {
@@ -961,8 +2272,16 @@ export interface Client {
   comoConheceu?: string | null;
   status: ClientStatus;
   locationId?: number | null;
+  clinicaOrigemEmpresaId?: number | null;
+  agendaEnfermagemPadraoId?: number | null;
+  agendaMedicoPadraoId?: number | null;
   photoUrl?: string | null;
+  classificacao?: ClientClassificacao;
+  plano?: ClientPlano;
   preferredAgendaResourceIds?: number[] | null;
+  visitPreferences?: ClientVisitPreferences;
+  /** @minimum 0 */
+  visitPreferencesRevision?: number;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -977,6 +2296,26 @@ export const CreateClientBodyStatus = {
   pending: "pending",
 } as const;
 
+export type CreateClientBodyClassificacao =
+  (typeof CreateClientBodyClassificacao)[keyof typeof CreateClientBodyClassificacao];
+
+export const CreateClientBodyClassificacao = {
+  A: "A",
+  B: "B",
+  C: "C",
+  D: "D",
+} as const;
+
+export type CreateClientBodyPlano =
+  (typeof CreateClientBodyPlano)[keyof typeof CreateClientBodyPlano];
+
+export const CreateClientBodyPlano = {
+  prata: "prata",
+  ouro: "ouro",
+  platinum: "platinum",
+  diamond: "diamond",
+} as const;
+
 export interface CreateClientBody {
   name: string;
   cpf: string;
@@ -989,14 +2328,27 @@ export interface CreateClientBody {
   comoConheceu?: string | null;
   status: CreateClientBodyStatus;
   locationId?: number | null;
+  clinicaOrigemEmpresaId?: number | null;
+  clinicaOrigemEsperada?: number | null;
+  agendaEnfermagemPadraoId?: number | null;
+  agendaMedicoPadraoId?: number | null;
+  agendaEnfermagemEsperada?: number | null;
+  agendaMedicoEsperada?: number | null;
   photoUrl?: string | null;
+  classificacao?: CreateClientBodyClassificacao;
+  plano?: CreateClientBodyPlano;
   preferredAgendaResourceIds?: number[] | null;
+  visitPreferences?: ClientVisitPreferences;
+  /** @minimum 0 */
+  visitPreferencesRevision?: number;
   notes?: string | null;
 }
 
 export type SubstanceBodySystemEffects = { [key: string]: number } | null;
 
 export type SubstanceCategoryMeters = { [key: string]: number } | null;
+
+export type SubstancePosologiaEstruturada = { [key: string]: unknown } | null;
 
 export interface SubstanceBlendComponent {
   id: number;
@@ -1025,6 +2377,9 @@ export interface Substance {
   stockUnit?: string | null;
   pricePerUnit?: number;
   procedureType?: string;
+  viaUso?: string | null;
+  frequenciaBase?: string | null;
+  doctorParticipation?: boolean | null;
   durationMinutes?: number;
   description?: string | null;
   mainFunction?: string | null;
@@ -1046,6 +2401,18 @@ export interface Substance {
   contraindications?: string | null;
   scientificEvidence?: string | null;
   categoryType?: string | null;
+  codigoPadcom?: string | null;
+  subCategoria?: string | null;
+  disponivel?: boolean | null;
+  tags?: string[] | null;
+  blocoId?: string | null;
+  grau?: string | null;
+  areaSemantica?: string | null;
+  exigeValidacaoHumana?: boolean | null;
+  unidadeId?: number | null;
+  posologiaEstruturada?: SubstancePosologiaEstruturada;
+  concentrationMg?: string | null;
+  volumeAmpola?: string | null;
   composicao?: string | null;
   posologia?: string | null;
   isBlend?: boolean;
@@ -1077,6 +2444,7 @@ export interface CreateSubstanceBody {
   stockUnit?: string | null;
   pricePerUnit?: number;
   procedureType?: string;
+  doctorParticipation?: boolean | null;
   durationMinutes?: number;
   description?: string | null;
   mainFunction?: string | null;
@@ -1127,6 +2495,14 @@ export const ProtocolStatus = {
   cancelled: "cancelled",
 } as const;
 
+export type ProtocolSchedulingMode =
+  (typeof ProtocolSchedulingMode)[keyof typeof ProtocolSchedulingMode];
+
+export const ProtocolSchedulingMode = {
+  weekly: "weekly",
+  exact: "exact",
+} as const;
+
 export type ProtocolServiceType =
   (typeof ProtocolServiceType)[keyof typeof ProtocolServiceType];
 
@@ -1134,6 +2510,78 @@ export const ProtocolServiceType = {
   clinic: "clinic",
   homecare: "homecare",
 } as const;
+
+export type ProtocolSubstanceSnapshotBodySystemEffects = {
+  [key: string]: number;
+} | null;
+
+export type ProtocolSubstanceSnapshotCategoryMeters = {
+  [key: string]: number;
+} | null;
+
+export type ProtocolSubstanceSnapshotPosologiaEstruturada = {
+  [key: string]: unknown;
+} | null;
+
+/**
+ * Fotografia dos dados do cadastro usados ao criar este item; não inclui estoque.
+ */
+export interface ProtocolSubstanceSnapshot {
+  id: number;
+  name: string;
+  category: string;
+  color: string;
+  defaultDose?: string | null;
+  unit?: string | null;
+  maxSessionsPerWeek?: number | null;
+  intervalDays?: number | null;
+  notes?: string | null;
+  pricePerUnit: number;
+  procedureType: string;
+  viaUso?: string | null;
+  frequenciaBase?: string | null;
+  doctorParticipation?: boolean | null;
+  durationMinutes: number;
+  description?: string | null;
+  mainFunction?: string | null;
+  perceivedEffects?: string | null;
+  timeToEffect?: string | null;
+  starRating?: number;
+  bodySystemEffects?: ProtocolSubstanceSnapshotBodySystemEffects;
+  categoryMeters?: ProtocolSubstanceSnapshotCategoryMeters;
+  longevityBenefit?: string | null;
+  qualityOfLifeImpact?: string | null;
+  sleepBenefit?: string | null;
+  energyBenefit?: string | null;
+  libidoBenefit?: string | null;
+  physicalPerformance?: string | null;
+  muscleStrength?: string | null;
+  mentalClarity?: string | null;
+  skinHairNails?: string | null;
+  immuneSupport?: string | null;
+  contraindications?: string | null;
+  scientificEvidence?: string | null;
+  categoryType?: string | null;
+  codigoPadcom?: string | null;
+  subCategoria?: string | null;
+  disponivel?: boolean | null;
+  tags?: string[] | null;
+  blocoId?: string | null;
+  grau?: string | null;
+  composicao?: string | null;
+  posologia?: string | null;
+  areaSemantica?: string | null;
+  exigeValidacaoHumana?: boolean | null;
+  unidadeId?: number | null;
+  posologiaEstruturada?: ProtocolSubstanceSnapshotPosologiaEstruturada;
+  concentrationMg?: string | null;
+  volumeAmpola?: string | null;
+  isBlend: boolean;
+  presentationQuantity?: number | null;
+  presentationUnit?: string | null;
+  ampouleVolumeMl?: number | null;
+  components: SubstanceBlendComponent[];
+}
 
 export interface ProtocolItem {
   id: number;
@@ -1148,6 +2596,7 @@ export interface ProtocolItem {
   intervalDays: number;
   startDate: string;
   frequency: string;
+  catalogSnapshot?: ProtocolSubstanceSnapshot | null;
 }
 
 export type SessionStatus = (typeof SessionStatus)[keyof typeof SessionStatus];
@@ -1187,6 +2636,21 @@ export const SubstanceApplicationAvailability = {
   prox: "prox",
 } as const;
 
+/**
+ * Estado derivado dos registros reais da aplicação.
+ */
+export type SubstanceApplicationDisplayState =
+  (typeof SubstanceApplicationDisplayState)[keyof typeof SubstanceApplicationDisplayState];
+
+export const SubstanceApplicationDisplayState = {
+  disp: "disp",
+  prox: "prox",
+  applied: "applied",
+  notPerformed: "notPerformed",
+  unavailable: "unavailable",
+  review: "review",
+} as const;
+
 export interface SubstanceApplication {
   id: number;
   substanceId: number;
@@ -1197,7 +2661,11 @@ export interface SubstanceApplication {
   totalSessions: number;
   status: SubstanceApplicationStatus;
   availability: SubstanceApplicationAvailability;
+  /** Estado derivado dos registros reais da aplicação. */
+  displayState?: SubstanceApplicationDisplayState;
   appliedAt?: string | null;
+  confirmedBy?: number | null;
+  confirmedAt?: string | null;
   notes?: string | null;
 }
 
@@ -1213,6 +2681,13 @@ export interface Session {
   professionalId?: number | null;
   professionalName?: string | null;
   unit?: string | null;
+  /** Agenda (recurso) onde a sessão está marcada; nulo quando a sessão não tem agenda ligada. */
+  resourceId?: number | null;
+  agendaNome?: string | null;
+  /** Cor da agenda (a mesma do cadastro e do Google), usada na linha do tempo. */
+  agendaCor?: string | null;
+  /** Duração gravada na sessão ou, na falta dela, a regra do .ics pelas aplicações do dia. */
+  durationMinutes?: number | null;
   serviceType: SessionServiceType;
   weekNumber: number;
   notes?: string | null;
@@ -1228,6 +2703,9 @@ export interface Protocol {
   title: string;
   status: ProtocolStatus;
   startDate: string;
+  /** Horário local salvo para a validação das sessões. */
+  scheduledTime?: string;
+  schedulingMode?: ProtocolSchedulingMode;
   endDate?: string | null;
   professionalId?: number | null;
   professionalName?: string | null;
@@ -1255,6 +2733,14 @@ export const CreateProtocolBodyStatus = {
   cancelled: "cancelled",
 } as const;
 
+export type CreateProtocolBodySchedulingMode =
+  (typeof CreateProtocolBodySchedulingMode)[keyof typeof CreateProtocolBodySchedulingMode];
+
+export const CreateProtocolBodySchedulingMode = {
+  weekly: "weekly",
+  exact: "exact",
+} as const;
+
 export type CreateProtocolBodyServiceType =
   (typeof CreateProtocolBodyServiceType)[keyof typeof CreateProtocolBodyServiceType];
 
@@ -1264,11 +2750,17 @@ export const CreateProtocolBodyServiceType = {
 } as const;
 
 export interface CreateProtocolItemBody {
+  /** @minimum 1 */
   substanceId: number;
+  /** @minLength 1 */
   dose: string;
+  /** @minimum 1 */
   totalSessions: number;
+  /** @minimum 1 */
   intervalDays: number;
   frequency: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  startDate?: string;
 }
 
 export interface CreateProtocolBody {
@@ -1276,11 +2768,15 @@ export interface CreateProtocolBody {
   title: string;
   status: CreateProtocolBodyStatus;
   startDate: string;
+  /** @pattern ^(?:[01][0-9]|2[0-3]):[0-5][0-9]$ */
+  scheduledTime?: string;
+  schedulingMode?: CreateProtocolBodySchedulingMode;
   professionalId?: number | null;
   unit?: string | null;
   serviceType: CreateProtocolBodyServiceType;
   totalValue: number;
   notes?: string | null;
+  /** @minItems 1 */
   items: CreateProtocolItemBody[];
 }
 
@@ -1316,6 +2812,125 @@ export interface UpdateProtocolBody {
   linhaVenda?: string | null;
 }
 
+export interface ProtocolSchedulingPreviewInput {
+  /**
+   * @minimum 1
+   * @nullable
+   */
+  nursingResourceId?: number | null;
+}
+
+export interface ProtocolSchedulingConfirmInput {
+  /**
+   * @minimum 1
+   * @nullable
+   */
+  nursingResourceId?: number | null;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  fingerprint: string;
+}
+
+export interface ProtocolSchedulingApplication {
+  substanceId: number;
+  substanceName: string;
+  dose: string;
+  sessionNumber: number;
+  totalSessions: number;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  nominalDate: string;
+  shiftDays: number;
+}
+
+export interface ProtocolSchedulingVisit {
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+  /** @pattern ^(?:[01][0-9]|2[0-3]):[0-5][0-9]$ */
+  time: string;
+  /**
+   * @minimum 0
+   * @maximum 6
+   */
+  weekday: number;
+  nursingPeriods: number;
+  reservedMinutes: number;
+  applications: ProtocolSchedulingApplication[];
+}
+
+export interface ProtocolSchedulingDiagnostics {
+  datesRead: number;
+  nursingDatesWithoutSchedule: string[];
+  nursingDatesWithException: string[];
+  integrationPendingDates: string[];
+  nursingDatesWithoutOpenSlot: string[];
+  doctorDatesWithoutSchedule: string[];
+  doctorDatesWithException: string[];
+  doctorIntegrationPendingDates: string[];
+  doctorDatesWithoutOpenSlot: string[];
+}
+
+export interface ProtocolSchedulingPreview {
+  protocolId: number;
+  nursingResourceId: number;
+  nursingResourceName: string;
+  nursingLocationId: number;
+  nursingLocationName: string;
+  visits: ProtocolSchedulingVisit[];
+  visitCount: number;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  firstDate: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  lastDate: string;
+  requiresRoutineConfirmation: boolean;
+  searchWasPruned: boolean;
+  matchesClientPreference: boolean;
+  fingerprint: string;
+  snapshot: string;
+  recoverySessionCount?: number;
+  diagnostics: ProtocolSchedulingDiagnostics;
+}
+
+export interface ProtocolGoogleReadinessWarning {
+  code: string;
+  message: string;
+}
+
+export interface ProtocolSchedulingPreviewEnvelope {
+  preview: ProtocolSchedulingPreview;
+  googleWarning: ProtocolGoogleReadinessWarning | null;
+}
+
+export type ProtocolSchedulingConfirmEnvelopeProtocolStatus =
+  (typeof ProtocolSchedulingConfirmEnvelopeProtocolStatus)[keyof typeof ProtocolSchedulingConfirmEnvelopeProtocolStatus];
+
+export const ProtocolSchedulingConfirmEnvelopeProtocolStatus = {
+  validated: "validated",
+} as const;
+
+export interface ReservedProtocolApplication {
+  substanceId: number;
+  sessionNumber: number;
+}
+
+export interface ReservedProtocolVisit {
+  sessionId: number;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+  /** @pattern ^(?:[01][0-9]|2[0-3]):[0-5][0-9]$ */
+  time: string;
+  nursingPeriods: number;
+  reservedMinutes: number;
+  applications: ReservedProtocolApplication[];
+}
+
+export interface ProtocolSchedulingConfirmEnvelope {
+  protocolStatus: ProtocolSchedulingConfirmEnvelopeProtocolStatus;
+  preview: ProtocolSchedulingPreview;
+  reserved: ReservedProtocolVisit[];
+}
+
 export type CreateSessionBodyStatus =
   (typeof CreateSessionBodyStatus)[keyof typeof CreateSessionBodyStatus];
 
@@ -1337,6 +2952,8 @@ export const CreateSessionBodyServiceType = {
 } as const;
 
 export interface CreateSessionBody {
+  /** @minimum 1 */
+  resourceId?: number;
   protocolId: number;
   clientId: number;
   scheduledDate: string;
@@ -1555,6 +3172,7 @@ export interface CreateProfessionalBody {
   role?: string | null;
   professionalType?: string | null;
   areaId?: number | null;
+  workAreaIds?: number[];
   specialtyId?: number | null;
   registrationCouncil?: string | null;
   registrationNumber?: string | null;
@@ -1581,6 +3199,7 @@ export interface UpdateProfessionalBody {
   role?: string | null;
   professionalType?: string | null;
   areaId?: number | null;
+  workAreaIds?: number[];
   specialtyId?: number | null;
   registrationCouncil?: string | null;
   registrationNumber?: string | null;
@@ -1617,6 +3236,37 @@ export interface CreateClientServiceAddressBody {
   cidade: string;
   estado?: string;
   isDefault?: boolean;
+}
+
+export type ProfessionalCategoryInputProfessionalType =
+  (typeof ProfessionalCategoryInputProfessionalType)[keyof typeof ProfessionalCategoryInputProfessionalType];
+
+export const ProfessionalCategoryInputProfessionalType = {
+  medico: "medico",
+  nao_medico: "nao_medico",
+} as const;
+
+export interface ProfessionalCategoryInput {
+  /**
+   * @minLength 2
+   * @maxLength 100
+   */
+  name: string;
+  professionalType: ProfessionalCategoryInputProfessionalType;
+}
+
+export interface ProfessionalWorkAreaInput {
+  /**
+   * @minLength 2
+   * @maxLength 100
+   */
+  name: string;
+}
+
+export interface ProfessionalWorkArea {
+  id: number;
+  name: string;
+  requiredForCategories?: string[];
 }
 
 export interface ProfessionalArea {
@@ -1930,22 +3580,6 @@ export interface ClinicalDeliveryResult {
   target: ClinicalDeliveryTarget;
 }
 
-export interface PrescriptionItemInput {
-  name: string;
-  ativos?: string | null;
-  posologia?: string | null;
-  dose?: string | null;
-  via?: string | null;
-  frequencia?: string | null;
-  periodo?: string | null;
-  observacao?: string | null;
-  category?: string | null;
-  internalColor?: string | null;
-  isControlled?: boolean | null;
-  anvisaType?: string | null;
-  pharmacyId?: number | null;
-}
-
 export interface PreviewBody {
   items: PrescriptionItemInput[];
 }
@@ -1962,7 +3596,16 @@ export interface RecipePlan {
   items: PrescriptionItemInput[];
 }
 
+export type EmitBodySignatureMode =
+  (typeof EmitBodySignatureMode)[keyof typeof EmitBodySignatureMode];
+
+export const EmitBodySignatureMode = {
+  signed: "signed",
+  unsigned_expired: "unsigned_expired",
+} as const;
+
 export interface EmitBody {
+  signatureMode?: EmitBodySignatureMode;
   /** @minimum 1 */
   approvalRequestId?: number;
   clientId?: number | null;
@@ -1978,27 +3621,6 @@ export interface EmitBody {
   cid?: string | null;
   message?: string | null;
   items: PrescriptionItemInput[];
-}
-
-export type ExamRequestEmitItemTipo =
-  (typeof ExamRequestEmitItemTipo)[keyof typeof ExamRequestEmitItemTipo];
-
-export const ExamRequestEmitItemTipo = {
-  SANGUE: "SANGUE",
-  IMAGEM: "IMAGEM",
-  OUTROS: "OUTROS",
-} as const;
-
-export interface ExamRequestEmitItem {
-  /** @minLength 1 */
-  nomeExame: string;
-  /** @nullable */
-  codigoExame?: string | null;
-  /** @nullable */
-  grupoPrincipal?: string | null;
-  /** @nullable */
-  preparo?: string | null;
-  tipo: ExamRequestEmitItemTipo;
 }
 
 export interface ExamRequestEmitBody {
@@ -2164,12 +3786,33 @@ export interface PharmacyDispatch {
   whatsappLink?: string | null;
 }
 
+export type EmitResultSignatureStatus =
+  (typeof EmitResultSignatureStatus)[keyof typeof EmitResultSignatureStatus];
+
+export const EmitResultSignatureStatus = {
+  signed: "signed",
+  unsigned_expired: "unsigned_expired",
+  legacy_unknown: "legacy_unknown",
+} as const;
+
 export interface EmitResult {
   prescriptionId: number;
+  signatureStatus: EmitResultSignatureStatus;
+  certificateValidTo: string | null;
+  warning?: string;
   recipes: EmittedRecipe[];
   sncrAlerts: SncrAlert[];
   pharmacyDispatches: PharmacyDispatch[];
 }
+
+export type PrescriptionSignatureStatus =
+  (typeof PrescriptionSignatureStatus)[keyof typeof PrescriptionSignatureStatus];
+
+export const PrescriptionSignatureStatus = {
+  signed: "signed",
+  unsigned_expired: "unsigned_expired",
+  legacy_unknown: "legacy_unknown",
+} as const;
 
 export interface Prescription {
   id: number;
@@ -2178,9 +3821,20 @@ export interface Prescription {
   clientCpf?: string | null;
   professionalName?: string | null;
   status: string;
+  signatureStatus?: PrescriptionSignatureStatus;
+  certificateValidTo?: string | null;
   createdAt: string;
   emittedAt?: string | null;
 }
+
+export type PrescriptionDetailSignatureStatus =
+  (typeof PrescriptionDetailSignatureStatus)[keyof typeof PrescriptionDetailSignatureStatus];
+
+export const PrescriptionDetailSignatureStatus = {
+  signed: "signed",
+  unsigned_expired: "unsigned_expired",
+  legacy_unknown: "legacy_unknown",
+} as const;
 
 export interface PrescriptionDetail {
   id: number;
@@ -2188,6 +3842,8 @@ export interface PrescriptionDetail {
   clientCpf?: string | null;
   professionalName?: string | null;
   status: string;
+  signatureStatus?: PrescriptionDetailSignatureStatus;
+  certificateValidTo?: string | null;
   createdAt: string;
   emittedAt?: string | null;
   recipes: EmittedRecipe[];
@@ -2632,6 +4288,300 @@ export interface BudgetSeedResult {
   settingsCreated: boolean;
 }
 
+export type SinapseCategoria =
+  (typeof SinapseCategoria)[keyof typeof SinapseCategoria];
+
+export const SinapseCategoria = {
+  EXAME: "EXAME",
+  PRESCRICAO: "PRESCRICAO",
+  INJETAVEL_IM: "INJETAVEL_IM",
+  INJETAVEL_SC: "INJETAVEL_SC",
+  INJETAVEL_EV: "INJETAVEL_EV",
+  IMPLANTE: "IMPLANTE",
+} as const;
+
+export interface SinapseQuestion {
+  perguntaId: string;
+  pergunta: string;
+  /** @nullable */
+  bloco: string | null;
+  eSinalAlarme: boolean;
+}
+
+export type SinapseDestinationTipo =
+  (typeof SinapseDestinationTipo)[keyof typeof SinapseDestinationTipo];
+
+export const SinapseDestinationTipo = {
+  exame: "exame",
+  bloco_exames: "bloco_exames",
+  formula: "formula",
+  injetavel: "injetavel",
+  implante: "implante",
+} as const;
+
+export interface SinapseDestination {
+  tipo: SinapseDestinationTipo;
+  id: number;
+  nome: string;
+  /** @nullable */
+  detalhe?: string | null;
+  incompleto?: boolean;
+}
+
+export type SinapseLinkDestinoTipo =
+  (typeof SinapseLinkDestinoTipo)[keyof typeof SinapseLinkDestinoTipo];
+
+export const SinapseLinkDestinoTipo = {
+  exame: "exame",
+  bloco_exames: "bloco_exames",
+  formula: "formula",
+  injetavel: "injetavel",
+  implante: "implante",
+} as const;
+
+export interface SinapseLink {
+  id: number;
+  perguntaId: string;
+  categoria: SinapseCategoria;
+  destinoTipo: SinapseLinkDestinoTipo;
+  destinoId: number;
+  /** @nullable */
+  cloneDe: number | null;
+}
+
+export type SinapseProposalDestinoTipo =
+  (typeof SinapseProposalDestinoTipo)[keyof typeof SinapseProposalDestinoTipo];
+
+export const SinapseProposalDestinoTipo = {
+  exame: "exame",
+  bloco_exames: "bloco_exames",
+  formula: "formula",
+  injetavel: "injetavel",
+  implante: "implante",
+} as const;
+
+export type SinapseProposalStatus =
+  (typeof SinapseProposalStatus)[keyof typeof SinapseProposalStatus];
+
+export const SinapseProposalStatus = {
+  PENDENTE: "PENDENTE",
+  APROVADA: "APROVADA",
+  RECUSADA: "RECUSADA",
+} as const;
+
+export interface SinapseProposal {
+  id: number;
+  perguntaId: string;
+  categoria: SinapseCategoria;
+  destinoTipo: SinapseProposalDestinoTipo;
+  destinoId: number;
+  eixo: string;
+  justificativa: string;
+  status: SinapseProposalStatus;
+}
+
+export type SinapseClinicalPanelDestinos = {
+  EXAME: SinapseDestination[];
+  PRESCRICAO: SinapseDestination[];
+  INJETAVEL_IM: SinapseDestination[];
+  INJETAVEL_SC: SinapseDestination[];
+  INJETAVEL_EV: SinapseDestination[];
+  IMPLANTE: SinapseDestination[];
+};
+
+export interface SinapseClinicalPanel {
+  perguntas: SinapseQuestion[];
+  destinos: SinapseClinicalPanelDestinos;
+  injetaveisSemVia: number;
+  sinapses: SinapseLink[];
+  propostas: SinapseProposal[];
+}
+
+export interface SinapseProposalGenerationInput {
+  [key: string]: unknown;
+}
+
+export type SinapseProposalGenerationResultPorCategoria = {
+  EXAME: number;
+  PRESCRICAO: number;
+  INJETAVEL_IM: number;
+  INJETAVEL_SC: number;
+  INJETAVEL_EV: number;
+  IMPLANTE: number;
+};
+
+export type SinapseProposalGenerationResultDestinosElegiveisPorCategoria = {
+  EXAME: number;
+  PRESCRICAO: number;
+  INJETAVEL_IM: number;
+  INJETAVEL_SC: number;
+  INJETAVEL_EV: number;
+  IMPLANTE: number;
+};
+
+export type SinapseProposalGenerationResultDestinosCobertosPorCategoria = {
+  EXAME: number;
+  PRESCRICAO: number;
+  INJETAVEL_IM: number;
+  INJETAVEL_SC: number;
+  INJETAVEL_EV: number;
+  IMPLANTE: number;
+};
+
+export type SinapseProposalGenerationResultDestinosSemLigacaoPorCategoria = {
+  EXAME: number;
+  PRESCRICAO: number;
+  INJETAVEL_IM: number;
+  INJETAVEL_SC: number;
+  INJETAVEL_EV: number;
+  IMPLANTE: number;
+};
+
+export type SinapseProposalGenerationResultInelegiveis = {
+  blocosDeExamesVazios: number;
+  injetaveisSemVia: number;
+};
+
+export type SinapseProposalGenerationResultPerguntasIgnoradasItem = {
+  perguntaId: string;
+  motivo: string;
+};
+
+export interface SinapseProposalGenerationResult {
+  inseridas: number;
+  propostasEncontradas: number;
+  porCategoria: SinapseProposalGenerationResultPorCategoria;
+  destinosElegiveisPorCategoria: SinapseProposalGenerationResultDestinosElegiveisPorCategoria;
+  destinosCobertosPorCategoria: SinapseProposalGenerationResultDestinosCobertosPorCategoria;
+  destinosSemLigacaoPorCategoria: SinapseProposalGenerationResultDestinosSemLigacaoPorCategoria;
+  inelegiveis: SinapseProposalGenerationResultInelegiveis;
+  codigosAusentes: string[];
+  perguntasIgnoradas: SinapseProposalGenerationResultPerguntasIgnoradasItem[];
+}
+
+export type SinapseProposalUpdateDestinoTipo =
+  (typeof SinapseProposalUpdateDestinoTipo)[keyof typeof SinapseProposalUpdateDestinoTipo];
+
+export const SinapseProposalUpdateDestinoTipo = {
+  exame: "exame",
+  bloco_exames: "bloco_exames",
+  formula: "formula",
+  injetavel: "injetavel",
+  implante: "implante",
+} as const;
+
+export interface SinapseProposalUpdate {
+  categoria: SinapseCategoria;
+  destinoTipo: SinapseProposalUpdateDestinoTipo;
+  /** @minimum 1 */
+  destinoId: number;
+}
+
+export type SinapseProposalStatusResultStatus =
+  (typeof SinapseProposalStatusResultStatus)[keyof typeof SinapseProposalStatusResultStatus];
+
+export const SinapseProposalStatusResultStatus = {
+  APROVADA: "APROVADA",
+  RECUSADA: "RECUSADA",
+} as const;
+
+export interface SinapseProposalStatusResult {
+  id: number;
+  status: SinapseProposalStatusResultStatus;
+}
+
+export type GetClientTelegramInboxParams = {
+  quantidade?: GetClientTelegramInboxQuantidade;
+  direcao?: GetClientTelegramInboxDirecao;
+  /**
+   * @minimum 1
+   */
+  pagina?: number;
+};
+
+export type GetClientTelegramInboxQuantidade =
+  (typeof GetClientTelegramInboxQuantidade)[keyof typeof GetClientTelegramInboxQuantidade];
+
+export const GetClientTelegramInboxQuantidade = {
+  NUMBER_20: 20,
+  NUMBER_50: 50,
+  NUMBER_100: 100,
+} as const;
+
+export type GetClientTelegramInboxDirecao =
+  (typeof GetClientTelegramInboxDirecao)[keyof typeof GetClientTelegramInboxDirecao];
+
+export const GetClientTelegramInboxDirecao = {
+  todas: "todas",
+  entrada: "entrada",
+  saida: "saida",
+} as const;
+
+export type ListProcedimentoOpcoesProfissionais200LocaisItem = {
+  id: number;
+  name: string;
+};
+
+export type ListProcedimentoOpcoesProfissionais200AreasItem = {
+  id: number;
+  name: string;
+};
+
+export type ListProcedimentoOpcoesProfissionais200ProfissionaisItemAgendasItemOrigem =
+  (typeof ListProcedimentoOpcoesProfissionais200ProfissionaisItemAgendasItemOrigem)[keyof typeof ListProcedimentoOpcoesProfissionais200ProfissionaisItemAgendasItemOrigem];
+
+export const ListProcedimentoOpcoesProfissionais200ProfissionaisItemAgendasItemOrigem =
+  {
+    Sistema: "Sistema",
+    Google: "Google",
+  } as const;
+
+export type ListProcedimentoOpcoesProfissionais200ProfissionaisItemAgendasItem =
+  {
+    nome: string;
+    origem: ListProcedimentoOpcoesProfissionais200ProfissionaisItemAgendasItemOrigem;
+  };
+
+export type ListProcedimentoOpcoesProfissionais200ProfissionaisItem = {
+  id: number;
+  nome: string;
+  areaId: number;
+  localId: number;
+  agendas: ListProcedimentoOpcoesProfissionais200ProfissionaisItemAgendasItem[];
+};
+
+export type ListProcedimentoOpcoesProfissionais200 = {
+  locais: ListProcedimentoOpcoesProfissionais200LocaisItem[];
+  areas: ListProcedimentoOpcoesProfissionais200AreasItem[];
+  profissionais: ListProcedimentoOpcoesProfissionais200ProfissionaisItem[];
+};
+
+export type ListClinicalDemonstrationsParams = {
+  kind: ListClinicalDemonstrationsKind;
+};
+
+export type ListClinicalDemonstrationsKind =
+  (typeof ListClinicalDemonstrationsKind)[keyof typeof ListClinicalDemonstrationsKind];
+
+export const ListClinicalDemonstrationsKind = {
+  prescricao: "prescricao",
+  exames: "exames",
+} as const;
+
+export type CreateClinicalDemonstrationParams = {
+  /**
+   * Prova optativa do Modelo 2B, disponível somente em desenvolvimento.
+   */
+  modelo?: CreateClinicalDemonstrationModelo;
+};
+
+export type CreateClinicalDemonstrationModelo =
+  (typeof CreateClinicalDemonstrationModelo)[keyof typeof CreateClinicalDemonstrationModelo];
+
+export const CreateClinicalDemonstrationModelo = {
+  "paxmed-2b": "paxmed-2b",
+} as const;
+
 export type UpdatePersonalExamSetBody =
   | PersonalExamSetWrite
   | {
@@ -2657,6 +4607,18 @@ export type ListClientsParams = {
   status?: string;
 };
 
+export type ListClientOriginClinics200 = {
+  empresaAtualId: number;
+  clinicas: ClientOriginClinic[];
+};
+
+export type ListClientAgendaOptionsParams = {
+  /**
+   * @minimum 1
+   */
+  clinicaId: number;
+};
+
 export type UpdateSubstanceBlendComponentsBody = {
   isBlend?: boolean;
   components: SubstanceBlendComponentInput[];
@@ -2666,6 +4628,23 @@ export type ListProtocolsParams = {
   clientId?: number;
   status?: string;
 };
+
+export type ValidateProtocolParams = {
+  /**
+   * Horário local da clínica para as novas sessões; não altera sessões existentes.
+   * @pattern ^(?:[01][0-9]|2[0-3]):[0-5][0-9]$
+   */
+  scheduledTime?: string;
+  skipOnboardingEmail?: ValidateProtocolSkipOnboardingEmail;
+};
+
+export type ValidateProtocolSkipOnboardingEmail =
+  (typeof ValidateProtocolSkipOnboardingEmail)[keyof typeof ValidateProtocolSkipOnboardingEmail];
+
+export const ValidateProtocolSkipOnboardingEmail = {
+  true: "true",
+  false: "false",
+} as const;
 
 export type GenerateProtocolICS200 = {
   icsContent: string;
@@ -2683,6 +4662,8 @@ export type ListSessionsParams = {
 
 export type ConfirmSubstanceApplicationBody = {
   substanceId: number;
+  /** Identificador da ocorrência específica, obrigatório quando há mais de uma aplicação da mesma substância na sessão. */
+  applicationId?: number;
   confirmed: boolean;
   notes?: string;
 };
@@ -2778,6 +4759,32 @@ export type ListBudgetsParams = {
   status?: string;
 };
 
+export type GetAgendaOcupacaoParams = {
+  /**
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  de: string;
+  /**
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  ate: string;
+};
+
+export type GetGoogleAgendaCommitmentsParams = {
+  /**
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  de: string;
+  /**
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  ate: string;
+};
+
+export type GetGoogleAgendaCommitmentDescriptionParams = {
+  inicio: string;
+};
+
 export type GetAgendaSlotsParams = {
   resourceId: number;
   date: string;
@@ -2785,6 +4792,20 @@ export type GetAgendaSlotsParams = {
    * CSV de horarios HH:mm ja ocupados (apenas para a Prova Viva demonstrar a cadeia; a ocupacao real chega na marcacao, F2.3)
    */
   occupied?: string;
+};
+
+export type GetAgendaEncaixeDisponibilidadeParams = {
+  resourceId: number;
+  /**
+   * YYYY-MM-DD
+   */
+  date: string;
+  /**
+   * @minimum 5
+   * @maximum 480
+   */
+  durationMinutes: number;
+  clientId?: number;
 };
 
 export type GetReconciliationParams = {

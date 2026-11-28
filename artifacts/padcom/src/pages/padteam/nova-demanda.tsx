@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useLocation } from "wouter";
 import { ArrowLeft, Send, Bot, User2 } from "lucide-react";
 import { Link } from "wouter";
@@ -50,7 +51,7 @@ export default function NovaDemanda() {
   useEffect(() => {
     Promise.all([
       apiFetch("/padteam/members").then(setMembers).catch(() => {}),
-      apiFetch("/clients?limit=200").then((r: unknown) => {
+      apiFetch("/clients?limit=200", { headers: collabAuthHeaders() }).then((r: unknown) => {
         const arr = Array.isArray(r) ? r : (r as Record<string, unknown>).clients ?? (r as Record<string, unknown>).data ?? [];
         setClients(arr as Client[]);
       }).catch(() => {}),

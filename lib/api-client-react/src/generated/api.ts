@@ -17,11 +17,22 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AgendaChangeDecisionInput,
+  AgendaChangeRequestList,
+  AgendaEncaixeBody,
+  AgendaEncaixeDisponibilidade,
+  AgendaEncaixePolitica,
+  AgendaEncaixeResposta,
   AgendaException,
+  AgendaIntegrationState,
+  AgendaOcupacao,
+  AgendaPersonalOwnerInput,
+  AgendaReadSettingsInput,
   AgendaResource,
   AgendaSettings,
   AgendaSlotsResponse,
   AgendaWindow,
+  AgendaWindowChangeInput,
   Alert,
   AmarracaoSintomaInput,
   AnamneseAmarracaoSintoma,
@@ -43,9 +54,13 @@ import type {
   AnamneseSessionInput,
   AnamneseSessionState,
   AnamneseSintoma,
+  AssinaturasFallbackConfirmacao,
+  AssinaturasFallbackResultado,
+  AssinaturasFallbackSaude,
   BatchResult,
   BookAgendaSessionBody,
   BookAgendaSessionResponse,
+  BookAvulsaBody,
   Budget,
   BudgetCalcInput,
   BudgetCalcResult,
@@ -58,10 +73,13 @@ import type {
   BudgetSettingsUpdate,
   BudgetUpdate,
   CatalogOption,
+  CatalogoClinicaResumo,
   CertificateStatus,
   ClearAgendaSimulationsBody,
   ClearAgendaSimulationsResponse,
   Client,
+  ClientAgendaOptions,
+  ClientVisitPreferenceOptions,
   ClinicalAccessLocation,
   ClinicalAccessUpdate,
   ClinicalAdministrationUpdate,
@@ -72,6 +90,8 @@ import type {
   ClinicalDeliveryContext,
   ClinicalDeliveryInput,
   ClinicalDeliveryResult,
+  ClinicalDemonstration,
+  ClinicalDemonstrationInput,
   ClinicalProfessionalAccess,
   ClinicsSettings,
   CompanySettings,
@@ -82,6 +102,7 @@ import type {
   CreateAgendaResourceBody,
   CreateCatalogOptionBody,
   CreateClientBody,
+  CreateClinicalDemonstrationParams,
   CreateConciergeChargeBody,
   CreatePaymentBody,
   CreatePharmacyBody,
@@ -94,6 +115,8 @@ import type {
   CreateSncrRangeBody,
   CreateStockItemBody,
   CreateSubstanceBody,
+  CreditoRecargaInput,
+  CreditoRecargaSolicitada,
   DashboardSummary,
   DeleteAnamnesePergunta200,
   DeleteResult,
@@ -105,26 +128,53 @@ import type {
   EmpresaCodigoSemanticoInput,
   EmpresaCodigoSemanticoLista,
   ErrorResponse,
+  EvolutionHomologacaoClients,
+  EvolutionHomologacaoConfig,
+  EvolutionHomologacaoConfigSaved,
+  EvolutionHomologacaoConfigUpdate,
+  EvolutionHomologacaoLinkResult,
+  EvolutionHomologacaoLinkUpdate,
+  EvolutionHomologacaoPlanInput,
+  EvolutionHomologacaoPlanResult,
+  EvolutionHomologacaoSendInput,
+  EvolutionHomologacaoSendResult,
+  EvolutionIsolatedTestInput,
+  EvolutionIsolatedTestResult,
   ExamDocumentDispatchInput,
   ExamDocumentDispatchResult,
   ExamRequestEmitBody,
+  ExamRequestFollowupCloseInput,
   ExamRequestHistory,
   FinancialGoal,
   FinancialGoalInput,
   FinancialGoalsSummary,
+  Fornecedor,
+  FornecedorAtualizacao,
+  FornecedorEntrada,
   GenerateProtocolICS200,
+  GetAgendaEncaixeDisponibilidadeParams,
+  GetAgendaOcupacaoParams,
   GetAgendaSlotsParams,
+  GetClientTelegramInboxParams,
   GetConciergeOfferParams,
   GetExamRequestHistoryParams,
   GetFinancialGoalsSummaryParams,
+  GetGoogleAgendaCommitmentDescriptionParams,
+  GetGoogleAgendaCommitmentsParams,
   GetReconciliationParams,
+  GoogleAgendaCommitmentDescription,
+  GoogleAgendaCommitments,
   HealthStatus,
   ListAnamnesePerguntasParams,
   ListBudgetsParams,
   ListCatalogOptionsParams,
+  ListClientAgendaOptionsParams,
+  ListClientOriginClinics200,
   ListClientsParams,
+  ListClinicalDemonstrationsParams,
   ListFinancialGoalsParams,
   ListPaymentsParams,
+  ListProcedimentoOpcoesProfissionais200,
   ListProfessionalAreasParams,
   ListProfessionalSpecialtiesParams,
   ListProtocolsParams,
@@ -133,8 +183,16 @@ import type {
   ListSchedulingRequestsParams,
   ListSessionsParams,
   ListSiteContentParams,
+  ListaProcedimentos,
   LocationCodigoSemantico,
   LocationCodigoSemanticoLista,
+  MensageriaCredito,
+  Paxmed2bClinicas,
+  Paxmed2bEmpresaEntrada,
+  Paxmed2bEmpresaResposta,
+  Paxmed2bIdentidadeEntrada,
+  Paxmed2bIdentidadeResposta,
+  Paxmed2bUpload,
   Payment,
   PaymentGatewaySettings,
   PaymentGatewayUpdate,
@@ -144,10 +202,19 @@ import type {
   Prescription,
   PrescriptionDetail,
   PreviewBody,
+  Procedimento,
+  ProcedimentoEntrada,
   Professional,
   ProfessionalArea,
+  ProfessionalCategoryInput,
   ProfessionalSpecialty,
+  ProfessionalWorkArea,
+  ProfessionalWorkAreaInput,
   Protocol,
+  ProtocolSchedulingConfirmEnvelope,
+  ProtocolSchedulingConfirmInput,
+  ProtocolSchedulingPreviewEnvelope,
+  ProtocolSchedulingPreviewInput,
   ProtocolStats,
   Ras,
   RecipePlan,
@@ -164,12 +231,25 @@ import type {
   SimpleOk,
   SimulacaoInput,
   SimulacaoResultado,
+  SinapseClinicalPanel,
+  SinapseProposal,
+  SinapseProposalGenerationInput,
+  SinapseProposalGenerationResult,
+  SinapseProposalStatusResult,
+  SinapseProposalUpdate,
   SiteContent,
   SncrQuota,
   SncrRange,
   StockItem,
   Substance,
   SubstanceBlendComponent,
+  TelegramClientAtendimentoStatus,
+  TelegramClientAtendimentoUpdate,
+  TelegramClientAtendimentoUpdated,
+  TelegramExamFollowupConfigList,
+  TelegramExamFollowupConfigSaved,
+  TelegramExamFollowupConfigUpdate,
+  TelegramInboxResponse,
   UpdateAgendaResourceBody,
   UpdateAgendaSettingsBody,
   UpdatePersonalExamSetBody,
@@ -179,6 +259,7 @@ import type {
   UpdateSessionBody,
   UpdateSiteContentBody,
   UpdateSubstanceBlendComponentsBody,
+  ValidateProtocolParams,
   VisualPrescriptionInput,
 } from "./api.schemas";
 
@@ -190,6 +271,2547 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * @summary Contagem de cadernos aguardando envio real, exclusiva do CEO
+ */
+export const getGetAssinaturasFallbackSaudeUrl = () => {
+  return `/api/assinaturas/fallback/saude`;
+};
+
+export const getAssinaturasFallbackSaude = async (
+  options?: RequestInit,
+): Promise<AssinaturasFallbackSaude> => {
+  return customFetch<AssinaturasFallbackSaude>(
+    getGetAssinaturasFallbackSaudeUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetAssinaturasFallbackSaudeQueryKey = () => {
+  return [`/api/assinaturas/fallback/saude`] as const;
+};
+
+export const getGetAssinaturasFallbackSaudeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAssinaturasFallbackSaude>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAssinaturasFallbackSaude>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAssinaturasFallbackSaudeQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAssinaturasFallbackSaude>>
+  > = ({ signal }) =>
+    getAssinaturasFallbackSaude({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAssinaturasFallbackSaude>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAssinaturasFallbackSaudeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAssinaturasFallbackSaude>>
+>;
+export type GetAssinaturasFallbackSaudeQueryError = ErrorType<void>;
+
+/**
+ * @summary Contagem de cadernos aguardando envio real, exclusiva do CEO
+ */
+
+export function useGetAssinaturasFallbackSaude<
+  TData = Awaited<ReturnType<typeof getAssinaturasFallbackSaude>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAssinaturasFallbackSaude>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAssinaturasFallbackSaudeQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Reenvia até dez cadernos ao ZapSign real
+ */
+export const getReenviarAssinaturasFallbackUrl = () => {
+  return `/api/assinaturas/fallback/reenviar`;
+};
+
+export const reenviarAssinaturasFallback = async (
+  assinaturasFallbackConfirmacao: AssinaturasFallbackConfirmacao,
+  options?: RequestInit,
+): Promise<AssinaturasFallbackResultado> => {
+  return customFetch<AssinaturasFallbackResultado>(
+    getReenviarAssinaturasFallbackUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(assinaturasFallbackConfirmacao),
+    },
+  );
+};
+
+export const getReenviarAssinaturasFallbackMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reenviarAssinaturasFallback>>,
+    TError,
+    { data: BodyType<AssinaturasFallbackConfirmacao> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reenviarAssinaturasFallback>>,
+  TError,
+  { data: BodyType<AssinaturasFallbackConfirmacao> },
+  TContext
+> => {
+  const mutationKey = ["reenviarAssinaturasFallback"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reenviarAssinaturasFallback>>,
+    { data: BodyType<AssinaturasFallbackConfirmacao> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return reenviarAssinaturasFallback(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReenviarAssinaturasFallbackMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reenviarAssinaturasFallback>>
+>;
+export type ReenviarAssinaturasFallbackMutationBody =
+  BodyType<AssinaturasFallbackConfirmacao>;
+export type ReenviarAssinaturasFallbackMutationError = ErrorType<void>;
+
+/**
+ * @summary Reenvia até dez cadernos ao ZapSign real
+ */
+export const useReenviarAssinaturasFallback = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reenviarAssinaturasFallback>>,
+    TError,
+    { data: BodyType<AssinaturasFallbackConfirmacao> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reenviarAssinaturasFallback>>,
+  TError,
+  { data: BodyType<AssinaturasFallbackConfirmacao> },
+  TContext
+> => {
+  return useMutation(getReenviarAssinaturasFallbackMutationOptions(options));
+};
+
+export const getGetClientTelegramInboxUrl = (
+  clientId: number,
+  params?: GetClientTelegramInboxParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/cockpit/${clientId}/telegram-inbox?${stringifiedParams}`
+    : `/api/cockpit/${clientId}/telegram-inbox`;
+};
+
+export const getClientTelegramInbox = async (
+  clientId: number,
+  params?: GetClientTelegramInboxParams,
+  options?: RequestInit,
+): Promise<TelegramInboxResponse> => {
+  return customFetch<TelegramInboxResponse>(
+    getGetClientTelegramInboxUrl(clientId, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetClientTelegramInboxQueryKey = (
+  clientId: number,
+  params?: GetClientTelegramInboxParams,
+) => {
+  return [
+    `/api/cockpit/${clientId}/telegram-inbox`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetClientTelegramInboxQueryOptions = <
+  TData = Awaited<ReturnType<typeof getClientTelegramInbox>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  params?: GetClientTelegramInboxParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getClientTelegramInbox>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetClientTelegramInboxQueryKey(clientId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getClientTelegramInbox>>
+  > = ({ signal }) =>
+    getClientTelegramInbox(clientId, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!clientId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getClientTelegramInbox>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetClientTelegramInboxQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getClientTelegramInbox>>
+>;
+export type GetClientTelegramInboxQueryError = ErrorType<void>;
+
+export function useGetClientTelegramInbox<
+  TData = Awaited<ReturnType<typeof getClientTelegramInbox>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  params?: GetClientTelegramInboxParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getClientTelegramInbox>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetClientTelegramInboxQueryOptions(
+    clientId,
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getGetClientTelegramAtendimentoUrl = (clientId: number) => {
+  return `/api/cockpit/${clientId}/telegram-inbox/atendimento`;
+};
+
+export const getClientTelegramAtendimento = async (
+  clientId: number,
+  options?: RequestInit,
+): Promise<TelegramClientAtendimentoStatus> => {
+  return customFetch<TelegramClientAtendimentoStatus>(
+    getGetClientTelegramAtendimentoUrl(clientId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetClientTelegramAtendimentoQueryKey = (clientId: number) => {
+  return [`/api/cockpit/${clientId}/telegram-inbox/atendimento`] as const;
+};
+
+export const getGetClientTelegramAtendimentoQueryOptions = <
+  TData = Awaited<ReturnType<typeof getClientTelegramAtendimento>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getClientTelegramAtendimento>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetClientTelegramAtendimentoQueryKey(clientId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getClientTelegramAtendimento>>
+  > = ({ signal }) =>
+    getClientTelegramAtendimento(clientId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!clientId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getClientTelegramAtendimento>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetClientTelegramAtendimentoQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getClientTelegramAtendimento>>
+>;
+export type GetClientTelegramAtendimentoQueryError = ErrorType<void>;
+
+export function useGetClientTelegramAtendimento<
+  TData = Awaited<ReturnType<typeof getClientTelegramAtendimento>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getClientTelegramAtendimento>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetClientTelegramAtendimentoQueryOptions(
+    clientId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getUpdateClientTelegramAtendimentoUrl = (clientId: number) => {
+  return `/api/cockpit/${clientId}/telegram-inbox/atendimento`;
+};
+
+export const updateClientTelegramAtendimento = async (
+  clientId: number,
+  telegramClientAtendimentoUpdate: TelegramClientAtendimentoUpdate,
+  options?: RequestInit,
+): Promise<TelegramClientAtendimentoUpdated> => {
+  return customFetch<TelegramClientAtendimentoUpdated>(
+    getUpdateClientTelegramAtendimentoUrl(clientId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(telegramClientAtendimentoUpdate),
+    },
+  );
+};
+
+export const getUpdateClientTelegramAtendimentoMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateClientTelegramAtendimento>>,
+    TError,
+    { clientId: number; data: BodyType<TelegramClientAtendimentoUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateClientTelegramAtendimento>>,
+  TError,
+  { clientId: number; data: BodyType<TelegramClientAtendimentoUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateClientTelegramAtendimento"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateClientTelegramAtendimento>>,
+    { clientId: number; data: BodyType<TelegramClientAtendimentoUpdate> }
+  > = (props) => {
+    const { clientId, data } = props ?? {};
+
+    return updateClientTelegramAtendimento(clientId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateClientTelegramAtendimentoMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateClientTelegramAtendimento>>
+>;
+export type UpdateClientTelegramAtendimentoMutationBody =
+  BodyType<TelegramClientAtendimentoUpdate>;
+export type UpdateClientTelegramAtendimentoMutationError = ErrorType<void>;
+
+export const useUpdateClientTelegramAtendimento = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateClientTelegramAtendimento>>,
+    TError,
+    { clientId: number; data: BodyType<TelegramClientAtendimentoUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateClientTelegramAtendimento>>,
+  TError,
+  { clientId: number; data: BodyType<TelegramClientAtendimentoUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateClientTelegramAtendimentoMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Listar o intervalo de acompanhamento de exames por clínica
+ */
+export const getListTelegramExamFollowupConfigUrl = () => {
+  return `/api/telegram-inbox/exam-followups/config`;
+};
+
+export const listTelegramExamFollowupConfig = async (
+  options?: RequestInit,
+): Promise<TelegramExamFollowupConfigList> => {
+  return customFetch<TelegramExamFollowupConfigList>(
+    getListTelegramExamFollowupConfigUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListTelegramExamFollowupConfigQueryKey = () => {
+  return [`/api/telegram-inbox/exam-followups/config`] as const;
+};
+
+export const getListTelegramExamFollowupConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTelegramExamFollowupConfig>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listTelegramExamFollowupConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListTelegramExamFollowupConfigQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listTelegramExamFollowupConfig>>
+  > = ({ signal }) =>
+    listTelegramExamFollowupConfig({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listTelegramExamFollowupConfig>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListTelegramExamFollowupConfigQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTelegramExamFollowupConfig>>
+>;
+export type ListTelegramExamFollowupConfigQueryError = ErrorType<void>;
+
+/**
+ * @summary Listar o intervalo de acompanhamento de exames por clínica
+ */
+
+export function useListTelegramExamFollowupConfig<
+  TData = Awaited<ReturnType<typeof listTelegramExamFollowupConfig>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listTelegramExamFollowupConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListTelegramExamFollowupConfigQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Configurar ou desativar o acompanhamento de exames
+ */
+export const getUpdateTelegramExamFollowupConfigUrl = () => {
+  return `/api/telegram-inbox/exam-followups/config`;
+};
+
+export const updateTelegramExamFollowupConfig = async (
+  telegramExamFollowupConfigUpdate: TelegramExamFollowupConfigUpdate,
+  options?: RequestInit,
+): Promise<TelegramExamFollowupConfigSaved> => {
+  return customFetch<TelegramExamFollowupConfigSaved>(
+    getUpdateTelegramExamFollowupConfigUrl(),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(telegramExamFollowupConfigUpdate),
+    },
+  );
+};
+
+export const getUpdateTelegramExamFollowupConfigMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTelegramExamFollowupConfig>>,
+    TError,
+    { data: BodyType<TelegramExamFollowupConfigUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateTelegramExamFollowupConfig>>,
+  TError,
+  { data: BodyType<TelegramExamFollowupConfigUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateTelegramExamFollowupConfig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateTelegramExamFollowupConfig>>,
+    { data: BodyType<TelegramExamFollowupConfigUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateTelegramExamFollowupConfig(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateTelegramExamFollowupConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateTelegramExamFollowupConfig>>
+>;
+export type UpdateTelegramExamFollowupConfigMutationBody =
+  BodyType<TelegramExamFollowupConfigUpdate>;
+export type UpdateTelegramExamFollowupConfigMutationError = ErrorType<void>;
+
+/**
+ * @summary Configurar ou desativar o acompanhamento de exames
+ */
+export const useUpdateTelegramExamFollowupConfig = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTelegramExamFollowupConfig>>,
+    TError,
+    { data: BodyType<TelegramExamFollowupConfigUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateTelegramExamFollowupConfig>>,
+  TError,
+  { data: BodyType<TelegramExamFollowupConfigUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateTelegramExamFollowupConfigMutationOptions(options),
+  );
+};
+
+export const getGetMensageriaCreditoUrl = () => {
+  return `/api/mensageria/credito`;
+};
+
+export const getMensageriaCredito = async (
+  options?: RequestInit,
+): Promise<MensageriaCredito> => {
+  return customFetch<MensageriaCredito>(getGetMensageriaCreditoUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMensageriaCreditoQueryKey = () => {
+  return [`/api/mensageria/credito`] as const;
+};
+
+export const getGetMensageriaCreditoQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMensageriaCredito>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMensageriaCredito>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMensageriaCreditoQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMensageriaCredito>>
+  > = ({ signal }) => getMensageriaCredito({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMensageriaCredito>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMensageriaCreditoQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMensageriaCredito>>
+>;
+export type GetMensageriaCreditoQueryError = ErrorType<void>;
+
+export function useGetMensageriaCredito<
+  TData = Awaited<ReturnType<typeof getMensageriaCredito>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMensageriaCredito>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMensageriaCreditoQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getSolicitarMensageriaRecargaUrl = () => {
+  return `/api/mensageria/credito/recargas`;
+};
+
+export const solicitarMensageriaRecarga = async (
+  creditoRecargaInput: CreditoRecargaInput,
+  options?: RequestInit,
+): Promise<CreditoRecargaSolicitada> => {
+  return customFetch<CreditoRecargaSolicitada>(
+    getSolicitarMensageriaRecargaUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(creditoRecargaInput),
+    },
+  );
+};
+
+export const getSolicitarMensageriaRecargaMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof solicitarMensageriaRecarga>>,
+    TError,
+    { data: BodyType<CreditoRecargaInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof solicitarMensageriaRecarga>>,
+  TError,
+  { data: BodyType<CreditoRecargaInput> },
+  TContext
+> => {
+  const mutationKey = ["solicitarMensageriaRecarga"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof solicitarMensageriaRecarga>>,
+    { data: BodyType<CreditoRecargaInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return solicitarMensageriaRecarga(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SolicitarMensageriaRecargaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof solicitarMensageriaRecarga>>
+>;
+export type SolicitarMensageriaRecargaMutationBody =
+  BodyType<CreditoRecargaInput>;
+export type SolicitarMensageriaRecargaMutationError = ErrorType<void>;
+
+export const useSolicitarMensageriaRecarga = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof solicitarMensageriaRecarga>>,
+    TError,
+    { data: BodyType<CreditoRecargaInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof solicitarMensageriaRecarga>>,
+  TError,
+  { data: BodyType<CreditoRecargaInput> },
+  TContext
+> => {
+  return useMutation(getSolicitarMensageriaRecargaMutationOptions(options));
+};
+
+export const getGetCatalogoClinicaUrl = () => {
+  return `/api/catalogo/minha-clinica`;
+};
+
+export const getCatalogoClinica = async (
+  options?: RequestInit,
+): Promise<CatalogoClinicaResumo> => {
+  return customFetch<CatalogoClinicaResumo>(getGetCatalogoClinicaUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCatalogoClinicaQueryKey = () => {
+  return [`/api/catalogo/minha-clinica`] as const;
+};
+
+export const getGetCatalogoClinicaQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCatalogoClinica>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCatalogoClinica>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCatalogoClinicaQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCatalogoClinica>>
+  > = ({ signal }) => getCatalogoClinica({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCatalogoClinica>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCatalogoClinicaQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCatalogoClinica>>
+>;
+export type GetCatalogoClinicaQueryError = ErrorType<void>;
+
+export function useGetCatalogoClinica<
+  TData = Awaited<ReturnType<typeof getCatalogoClinica>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCatalogoClinica>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCatalogoClinicaQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getListFornecedoresUrl = () => {
+  return `/api/fornecedores`;
+};
+
+export const listFornecedores = async (
+  options?: RequestInit,
+): Promise<Fornecedor[]> => {
+  return customFetch<Fornecedor[]>(getListFornecedoresUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListFornecedoresQueryKey = () => {
+  return [`/api/fornecedores`] as const;
+};
+
+export const getListFornecedoresQueryOptions = <
+  TData = Awaited<ReturnType<typeof listFornecedores>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listFornecedores>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListFornecedoresQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listFornecedores>>
+  > = ({ signal }) => listFornecedores({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listFornecedores>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListFornecedoresQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listFornecedores>>
+>;
+export type ListFornecedoresQueryError = ErrorType<void>;
+
+export function useListFornecedores<
+  TData = Awaited<ReturnType<typeof listFornecedores>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listFornecedores>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListFornecedoresQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getCreateFornecedorUrl = () => {
+  return `/api/fornecedores`;
+};
+
+export const createFornecedor = async (
+  fornecedorEntrada: FornecedorEntrada,
+  options?: RequestInit,
+): Promise<Fornecedor> => {
+  return customFetch<Fornecedor>(getCreateFornecedorUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(fornecedorEntrada),
+  });
+};
+
+export const getCreateFornecedorMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFornecedor>>,
+    TError,
+    { data: BodyType<FornecedorEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createFornecedor>>,
+  TError,
+  { data: BodyType<FornecedorEntrada> },
+  TContext
+> => {
+  const mutationKey = ["createFornecedor"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createFornecedor>>,
+    { data: BodyType<FornecedorEntrada> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createFornecedor(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateFornecedorMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createFornecedor>>
+>;
+export type CreateFornecedorMutationBody = BodyType<FornecedorEntrada>;
+export type CreateFornecedorMutationError = ErrorType<void>;
+
+export const useCreateFornecedor = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFornecedor>>,
+    TError,
+    { data: BodyType<FornecedorEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createFornecedor>>,
+  TError,
+  { data: BodyType<FornecedorEntrada> },
+  TContext
+> => {
+  return useMutation(getCreateFornecedorMutationOptions(options));
+};
+
+export const getUpdateFornecedorUrl = (id: number) => {
+  return `/api/fornecedores/${id}`;
+};
+
+export const updateFornecedor = async (
+  id: number,
+  fornecedorAtualizacao: FornecedorAtualizacao,
+  options?: RequestInit,
+): Promise<Fornecedor> => {
+  return customFetch<Fornecedor>(getUpdateFornecedorUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(fornecedorAtualizacao),
+  });
+};
+
+export const getUpdateFornecedorMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFornecedor>>,
+    TError,
+    { id: number; data: BodyType<FornecedorAtualizacao> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateFornecedor>>,
+  TError,
+  { id: number; data: BodyType<FornecedorAtualizacao> },
+  TContext
+> => {
+  const mutationKey = ["updateFornecedor"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateFornecedor>>,
+    { id: number; data: BodyType<FornecedorAtualizacao> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateFornecedor(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateFornecedorMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateFornecedor>>
+>;
+export type UpdateFornecedorMutationBody = BodyType<FornecedorAtualizacao>;
+export type UpdateFornecedorMutationError = ErrorType<void>;
+
+export const useUpdateFornecedor = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFornecedor>>,
+    TError,
+    { id: number; data: BodyType<FornecedorAtualizacao> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateFornecedor>>,
+  TError,
+  { id: number; data: BodyType<FornecedorAtualizacao> },
+  TContext
+> => {
+  return useMutation(getUpdateFornecedorMutationOptions(options));
+};
+
+export const getListProcedimentoOpcoesProfissionaisUrl = () => {
+  return `/api/procedimentos/opcoes-profissionais`;
+};
+
+export const listProcedimentoOpcoesProfissionais = async (
+  options?: RequestInit,
+): Promise<ListProcedimentoOpcoesProfissionais200> => {
+  return customFetch<ListProcedimentoOpcoesProfissionais200>(
+    getListProcedimentoOpcoesProfissionaisUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListProcedimentoOpcoesProfissionaisQueryKey = () => {
+  return [`/api/procedimentos/opcoes-profissionais`] as const;
+};
+
+export const getListProcedimentoOpcoesProfissionaisQueryOptions = <
+  TData = Awaited<ReturnType<typeof listProcedimentoOpcoesProfissionais>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listProcedimentoOpcoesProfissionais>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListProcedimentoOpcoesProfissionaisQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listProcedimentoOpcoesProfissionais>>
+  > = ({ signal }) =>
+    listProcedimentoOpcoesProfissionais({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listProcedimentoOpcoesProfissionais>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListProcedimentoOpcoesProfissionaisQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listProcedimentoOpcoesProfissionais>>
+>;
+export type ListProcedimentoOpcoesProfissionaisQueryError = ErrorType<void>;
+
+export function useListProcedimentoOpcoesProfissionais<
+  TData = Awaited<ReturnType<typeof listProcedimentoOpcoesProfissionais>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listProcedimentoOpcoesProfissionais>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions =
+    getListProcedimentoOpcoesProfissionaisQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getListProcedimentosUrl = () => {
+  return `/api/procedimentos`;
+};
+
+export const listProcedimentos = async (
+  options?: RequestInit,
+): Promise<ListaProcedimentos> => {
+  return customFetch<ListaProcedimentos>(getListProcedimentosUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListProcedimentosQueryKey = () => {
+  return [`/api/procedimentos`] as const;
+};
+
+export const getListProcedimentosQueryOptions = <
+  TData = Awaited<ReturnType<typeof listProcedimentos>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listProcedimentos>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListProcedimentosQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listProcedimentos>>
+  > = ({ signal }) => listProcedimentos({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listProcedimentos>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListProcedimentosQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listProcedimentos>>
+>;
+export type ListProcedimentosQueryError = ErrorType<void>;
+
+export function useListProcedimentos<
+  TData = Awaited<ReturnType<typeof listProcedimentos>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listProcedimentos>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListProcedimentosQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getCreateProcedimentoUrl = () => {
+  return `/api/procedimentos`;
+};
+
+export const createProcedimento = async (
+  procedimentoEntrada: ProcedimentoEntrada,
+  options?: RequestInit,
+): Promise<Procedimento> => {
+  return customFetch<Procedimento>(getCreateProcedimentoUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(procedimentoEntrada),
+  });
+};
+
+export const getCreateProcedimentoMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProcedimento>>,
+    TError,
+    { data: BodyType<ProcedimentoEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createProcedimento>>,
+  TError,
+  { data: BodyType<ProcedimentoEntrada> },
+  TContext
+> => {
+  const mutationKey = ["createProcedimento"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createProcedimento>>,
+    { data: BodyType<ProcedimentoEntrada> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createProcedimento(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateProcedimentoMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createProcedimento>>
+>;
+export type CreateProcedimentoMutationBody = BodyType<ProcedimentoEntrada>;
+export type CreateProcedimentoMutationError = ErrorType<void>;
+
+export const useCreateProcedimento = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProcedimento>>,
+    TError,
+    { data: BodyType<ProcedimentoEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createProcedimento>>,
+  TError,
+  { data: BodyType<ProcedimentoEntrada> },
+  TContext
+> => {
+  return useMutation(getCreateProcedimentoMutationOptions(options));
+};
+
+export const getUpdateProcedimentoUrl = (id: number) => {
+  return `/api/procedimentos/${id}`;
+};
+
+export const updateProcedimento = async (
+  id: number,
+  procedimentoEntrada: ProcedimentoEntrada,
+  options?: RequestInit,
+): Promise<Procedimento> => {
+  return customFetch<Procedimento>(getUpdateProcedimentoUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(procedimentoEntrada),
+  });
+};
+
+export const getUpdateProcedimentoMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateProcedimento>>,
+    TError,
+    { id: number; data: BodyType<ProcedimentoEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateProcedimento>>,
+  TError,
+  { id: number; data: BodyType<ProcedimentoEntrada> },
+  TContext
+> => {
+  const mutationKey = ["updateProcedimento"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateProcedimento>>,
+    { id: number; data: BodyType<ProcedimentoEntrada> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateProcedimento(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateProcedimentoMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateProcedimento>>
+>;
+export type UpdateProcedimentoMutationBody = BodyType<ProcedimentoEntrada>;
+export type UpdateProcedimentoMutationError = ErrorType<void>;
+
+export const useUpdateProcedimento = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateProcedimento>>,
+    TError,
+    { id: number; data: BodyType<ProcedimentoEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateProcedimento>>,
+  TError,
+  { id: number; data: BodyType<ProcedimentoEntrada> },
+  TContext
+> => {
+  return useMutation(getUpdateProcedimentoMutationOptions(options));
+};
+
+export const getGetPaxmed2bEmpresaUrl = (empresaId: number) => {
+  return `/api/paxmed-2b/empresas/${empresaId}`;
+};
+
+export const getPaxmed2bEmpresa = async (
+  empresaId: number,
+  options?: RequestInit,
+): Promise<Paxmed2bEmpresaResposta> => {
+  return customFetch<Paxmed2bEmpresaResposta>(
+    getGetPaxmed2bEmpresaUrl(empresaId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetPaxmed2bEmpresaQueryKey = (empresaId: number) => {
+  return [`/api/paxmed-2b/empresas/${empresaId}`] as const;
+};
+
+export const getGetPaxmed2bEmpresaQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPaxmed2bEmpresa>>,
+  TError = ErrorType<void>,
+>(
+  empresaId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPaxmed2bEmpresa>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPaxmed2bEmpresaQueryKey(empresaId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPaxmed2bEmpresa>>
+  > = ({ signal }) =>
+    getPaxmed2bEmpresa(empresaId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!empresaId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPaxmed2bEmpresa>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPaxmed2bEmpresaQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPaxmed2bEmpresa>>
+>;
+export type GetPaxmed2bEmpresaQueryError = ErrorType<void>;
+
+export function useGetPaxmed2bEmpresa<
+  TData = Awaited<ReturnType<typeof getPaxmed2bEmpresa>>,
+  TError = ErrorType<void>,
+>(
+  empresaId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPaxmed2bEmpresa>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPaxmed2bEmpresaQueryOptions(empresaId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getSavePaxmed2bEmpresaUrl = (empresaId: number) => {
+  return `/api/paxmed-2b/empresas/${empresaId}`;
+};
+
+export const savePaxmed2bEmpresa = async (
+  empresaId: number,
+  paxmed2bEmpresaEntrada: Paxmed2bEmpresaEntrada,
+  options?: RequestInit,
+): Promise<Paxmed2bEmpresaResposta> => {
+  return customFetch<Paxmed2bEmpresaResposta>(
+    getSavePaxmed2bEmpresaUrl(empresaId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(paxmed2bEmpresaEntrada),
+    },
+  );
+};
+
+export const getSavePaxmed2bEmpresaMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof savePaxmed2bEmpresa>>,
+    TError,
+    { empresaId: number; data: BodyType<Paxmed2bEmpresaEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof savePaxmed2bEmpresa>>,
+  TError,
+  { empresaId: number; data: BodyType<Paxmed2bEmpresaEntrada> },
+  TContext
+> => {
+  const mutationKey = ["savePaxmed2bEmpresa"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof savePaxmed2bEmpresa>>,
+    { empresaId: number; data: BodyType<Paxmed2bEmpresaEntrada> }
+  > = (props) => {
+    const { empresaId, data } = props ?? {};
+
+    return savePaxmed2bEmpresa(empresaId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SavePaxmed2bEmpresaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof savePaxmed2bEmpresa>>
+>;
+export type SavePaxmed2bEmpresaMutationBody = BodyType<Paxmed2bEmpresaEntrada>;
+export type SavePaxmed2bEmpresaMutationError = ErrorType<void>;
+
+export const useSavePaxmed2bEmpresa = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof savePaxmed2bEmpresa>>,
+    TError,
+    { empresaId: number; data: BodyType<Paxmed2bEmpresaEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof savePaxmed2bEmpresa>>,
+  TError,
+  { empresaId: number; data: BodyType<Paxmed2bEmpresaEntrada> },
+  TContext
+> => {
+  return useMutation(getSavePaxmed2bEmpresaMutationOptions(options));
+};
+
+export const getRequestPaxmed2bEmpresaSimboloUploadUrl = (
+  empresaId: number,
+) => {
+  return `/api/paxmed-2b/empresas/${empresaId}/simbolo/upload`;
+};
+
+export const requestPaxmed2bEmpresaSimboloUpload = async (
+  empresaId: number,
+  options?: RequestInit,
+): Promise<Paxmed2bUpload> => {
+  return customFetch<Paxmed2bUpload>(
+    getRequestPaxmed2bEmpresaSimboloUploadUrl(empresaId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getRequestPaxmed2bEmpresaSimboloUploadMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestPaxmed2bEmpresaSimboloUpload>>,
+    TError,
+    { empresaId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestPaxmed2bEmpresaSimboloUpload>>,
+  TError,
+  { empresaId: number },
+  TContext
+> => {
+  const mutationKey = ["requestPaxmed2bEmpresaSimboloUpload"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestPaxmed2bEmpresaSimboloUpload>>,
+    { empresaId: number }
+  > = (props) => {
+    const { empresaId } = props ?? {};
+
+    return requestPaxmed2bEmpresaSimboloUpload(empresaId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestPaxmed2bEmpresaSimboloUploadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestPaxmed2bEmpresaSimboloUpload>>
+>;
+
+export type RequestPaxmed2bEmpresaSimboloUploadMutationError = ErrorType<void>;
+
+export const useRequestPaxmed2bEmpresaSimboloUpload = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestPaxmed2bEmpresaSimboloUpload>>,
+    TError,
+    { empresaId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestPaxmed2bEmpresaSimboloUpload>>,
+  TError,
+  { empresaId: number },
+  TContext
+> => {
+  return useMutation(
+    getRequestPaxmed2bEmpresaSimboloUploadMutationOptions(options),
+  );
+};
+
+export const getGetPaxmed2bEmpresaSimboloUrl = (empresaId: number) => {
+  return `/api/paxmed-2b/empresas/${empresaId}/simbolo`;
+};
+
+export const getPaxmed2bEmpresaSimbolo = async (
+  empresaId: number,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getGetPaxmed2bEmpresaSimboloUrl(empresaId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPaxmed2bEmpresaSimboloQueryKey = (empresaId: number) => {
+  return [`/api/paxmed-2b/empresas/${empresaId}/simbolo`] as const;
+};
+
+export const getGetPaxmed2bEmpresaSimboloQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPaxmed2bEmpresaSimbolo>>,
+  TError = ErrorType<void>,
+>(
+  empresaId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPaxmed2bEmpresaSimbolo>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPaxmed2bEmpresaSimboloQueryKey(empresaId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPaxmed2bEmpresaSimbolo>>
+  > = ({ signal }) =>
+    getPaxmed2bEmpresaSimbolo(empresaId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!empresaId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPaxmed2bEmpresaSimbolo>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPaxmed2bEmpresaSimboloQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPaxmed2bEmpresaSimbolo>>
+>;
+export type GetPaxmed2bEmpresaSimboloQueryError = ErrorType<void>;
+
+export function useGetPaxmed2bEmpresaSimbolo<
+  TData = Awaited<ReturnType<typeof getPaxmed2bEmpresaSimbolo>>,
+  TError = ErrorType<void>,
+>(
+  empresaId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPaxmed2bEmpresaSimbolo>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPaxmed2bEmpresaSimboloQueryOptions(
+    empresaId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getPreviewPaxmed2bEmpresaUrl = (empresaId: number) => {
+  return `/api/paxmed-2b/empresas/${empresaId}/pre-visualizacao`;
+};
+
+export const previewPaxmed2bEmpresa = async (
+  empresaId: number,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getPreviewPaxmed2bEmpresaUrl(empresaId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getPreviewPaxmed2bEmpresaQueryKey = (empresaId: number) => {
+  return [`/api/paxmed-2b/empresas/${empresaId}/pre-visualizacao`] as const;
+};
+
+export const getPreviewPaxmed2bEmpresaQueryOptions = <
+  TData = Awaited<ReturnType<typeof previewPaxmed2bEmpresa>>,
+  TError = ErrorType<void>,
+>(
+  empresaId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof previewPaxmed2bEmpresa>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getPreviewPaxmed2bEmpresaQueryKey(empresaId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof previewPaxmed2bEmpresa>>
+  > = ({ signal }) =>
+    previewPaxmed2bEmpresa(empresaId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!empresaId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof previewPaxmed2bEmpresa>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type PreviewPaxmed2bEmpresaQueryResult = NonNullable<
+  Awaited<ReturnType<typeof previewPaxmed2bEmpresa>>
+>;
+export type PreviewPaxmed2bEmpresaQueryError = ErrorType<void>;
+
+export function usePreviewPaxmed2bEmpresa<
+  TData = Awaited<ReturnType<typeof previewPaxmed2bEmpresa>>,
+  TError = ErrorType<void>,
+>(
+  empresaId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof previewPaxmed2bEmpresa>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getPreviewPaxmed2bEmpresaQueryOptions(
+    empresaId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getListPaxmed2bClinicasUrl = () => {
+  return `/api/paxmed-2b/clinicas`;
+};
+
+export const listPaxmed2bClinicas = async (
+  options?: RequestInit,
+): Promise<Paxmed2bClinicas> => {
+  return customFetch<Paxmed2bClinicas>(getListPaxmed2bClinicasUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListPaxmed2bClinicasQueryKey = () => {
+  return [`/api/paxmed-2b/clinicas`] as const;
+};
+
+export const getListPaxmed2bClinicasQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPaxmed2bClinicas>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listPaxmed2bClinicas>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListPaxmed2bClinicasQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPaxmed2bClinicas>>
+  > = ({ signal }) => listPaxmed2bClinicas({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPaxmed2bClinicas>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListPaxmed2bClinicasQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPaxmed2bClinicas>>
+>;
+export type ListPaxmed2bClinicasQueryError = ErrorType<void>;
+
+export function useListPaxmed2bClinicas<
+  TData = Awaited<ReturnType<typeof listPaxmed2bClinicas>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listPaxmed2bClinicas>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListPaxmed2bClinicasQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getGetPaxmed2bIdentidadeUrl = (locationId: number) => {
+  return `/api/paxmed-2b/clinicas/${locationId}`;
+};
+
+export const getPaxmed2bIdentidade = async (
+  locationId: number,
+  options?: RequestInit,
+): Promise<Paxmed2bIdentidadeResposta> => {
+  return customFetch<Paxmed2bIdentidadeResposta>(
+    getGetPaxmed2bIdentidadeUrl(locationId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetPaxmed2bIdentidadeQueryKey = (locationId: number) => {
+  return [`/api/paxmed-2b/clinicas/${locationId}`] as const;
+};
+
+export const getGetPaxmed2bIdentidadeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPaxmed2bIdentidade>>,
+  TError = ErrorType<void>,
+>(
+  locationId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPaxmed2bIdentidade>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPaxmed2bIdentidadeQueryKey(locationId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPaxmed2bIdentidade>>
+  > = ({ signal }) =>
+    getPaxmed2bIdentidade(locationId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!locationId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPaxmed2bIdentidade>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPaxmed2bIdentidadeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPaxmed2bIdentidade>>
+>;
+export type GetPaxmed2bIdentidadeQueryError = ErrorType<void>;
+
+export function useGetPaxmed2bIdentidade<
+  TData = Awaited<ReturnType<typeof getPaxmed2bIdentidade>>,
+  TError = ErrorType<void>,
+>(
+  locationId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPaxmed2bIdentidade>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPaxmed2bIdentidadeQueryOptions(
+    locationId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getSavePaxmed2bIdentidadeUrl = (locationId: number) => {
+  return `/api/paxmed-2b/clinicas/${locationId}`;
+};
+
+export const savePaxmed2bIdentidade = async (
+  locationId: number,
+  paxmed2bIdentidadeEntrada: Paxmed2bIdentidadeEntrada,
+  options?: RequestInit,
+): Promise<Paxmed2bIdentidadeResposta> => {
+  return customFetch<Paxmed2bIdentidadeResposta>(
+    getSavePaxmed2bIdentidadeUrl(locationId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(paxmed2bIdentidadeEntrada),
+    },
+  );
+};
+
+export const getSavePaxmed2bIdentidadeMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof savePaxmed2bIdentidade>>,
+    TError,
+    { locationId: number; data: BodyType<Paxmed2bIdentidadeEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof savePaxmed2bIdentidade>>,
+  TError,
+  { locationId: number; data: BodyType<Paxmed2bIdentidadeEntrada> },
+  TContext
+> => {
+  const mutationKey = ["savePaxmed2bIdentidade"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof savePaxmed2bIdentidade>>,
+    { locationId: number; data: BodyType<Paxmed2bIdentidadeEntrada> }
+  > = (props) => {
+    const { locationId, data } = props ?? {};
+
+    return savePaxmed2bIdentidade(locationId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SavePaxmed2bIdentidadeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof savePaxmed2bIdentidade>>
+>;
+export type SavePaxmed2bIdentidadeMutationBody =
+  BodyType<Paxmed2bIdentidadeEntrada>;
+export type SavePaxmed2bIdentidadeMutationError = ErrorType<void>;
+
+export const useSavePaxmed2bIdentidade = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof savePaxmed2bIdentidade>>,
+    TError,
+    { locationId: number; data: BodyType<Paxmed2bIdentidadeEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof savePaxmed2bIdentidade>>,
+  TError,
+  { locationId: number; data: BodyType<Paxmed2bIdentidadeEntrada> },
+  TContext
+> => {
+  return useMutation(getSavePaxmed2bIdentidadeMutationOptions(options));
+};
+
+export const getRequestPaxmed2bSimboloUploadUrl = (locationId: number) => {
+  return `/api/paxmed-2b/clinicas/${locationId}/simbolo/upload`;
+};
+
+export const requestPaxmed2bSimboloUpload = async (
+  locationId: number,
+  options?: RequestInit,
+): Promise<Paxmed2bUpload> => {
+  return customFetch<Paxmed2bUpload>(
+    getRequestPaxmed2bSimboloUploadUrl(locationId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getRequestPaxmed2bSimboloUploadMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestPaxmed2bSimboloUpload>>,
+    TError,
+    { locationId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestPaxmed2bSimboloUpload>>,
+  TError,
+  { locationId: number },
+  TContext
+> => {
+  const mutationKey = ["requestPaxmed2bSimboloUpload"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestPaxmed2bSimboloUpload>>,
+    { locationId: number }
+  > = (props) => {
+    const { locationId } = props ?? {};
+
+    return requestPaxmed2bSimboloUpload(locationId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestPaxmed2bSimboloUploadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestPaxmed2bSimboloUpload>>
+>;
+
+export type RequestPaxmed2bSimboloUploadMutationError = ErrorType<void>;
+
+export const useRequestPaxmed2bSimboloUpload = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestPaxmed2bSimboloUpload>>,
+    TError,
+    { locationId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestPaxmed2bSimboloUpload>>,
+  TError,
+  { locationId: number },
+  TContext
+> => {
+  return useMutation(getRequestPaxmed2bSimboloUploadMutationOptions(options));
+};
+
+export const getGetPaxmed2bSimboloUrl = (locationId: number) => {
+  return `/api/paxmed-2b/clinicas/${locationId}/simbolo`;
+};
+
+export const getPaxmed2bSimbolo = async (
+  locationId: number,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getGetPaxmed2bSimboloUrl(locationId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPaxmed2bSimboloQueryKey = (locationId: number) => {
+  return [`/api/paxmed-2b/clinicas/${locationId}/simbolo`] as const;
+};
+
+export const getGetPaxmed2bSimboloQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPaxmed2bSimbolo>>,
+  TError = ErrorType<void>,
+>(
+  locationId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPaxmed2bSimbolo>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPaxmed2bSimboloQueryKey(locationId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPaxmed2bSimbolo>>
+  > = ({ signal }) =>
+    getPaxmed2bSimbolo(locationId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!locationId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPaxmed2bSimbolo>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPaxmed2bSimboloQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPaxmed2bSimbolo>>
+>;
+export type GetPaxmed2bSimboloQueryError = ErrorType<void>;
+
+export function useGetPaxmed2bSimbolo<
+  TData = Awaited<ReturnType<typeof getPaxmed2bSimbolo>>,
+  TError = ErrorType<void>,
+>(
+  locationId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPaxmed2bSimbolo>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPaxmed2bSimboloQueryOptions(locationId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getListClinicalDemonstrationsUrl = (
+  clientId: number,
+  params: ListClinicalDemonstrationsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/clinical-demonstrations/${clientId}?${stringifiedParams}`
+    : `/api/clinical-demonstrations/${clientId}`;
+};
+
+export const listClinicalDemonstrations = async (
+  clientId: number,
+  params: ListClinicalDemonstrationsParams,
+  options?: RequestInit,
+): Promise<ClinicalDemonstration[]> => {
+  return customFetch<ClinicalDemonstration[]>(
+    getListClinicalDemonstrationsUrl(clientId, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListClinicalDemonstrationsQueryKey = (
+  clientId: number,
+  params?: ListClinicalDemonstrationsParams,
+) => {
+  return [
+    `/api/clinical-demonstrations/${clientId}`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getListClinicalDemonstrationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listClinicalDemonstrations>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  params: ListClinicalDemonstrationsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listClinicalDemonstrations>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListClinicalDemonstrationsQueryKey(clientId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listClinicalDemonstrations>>
+  > = ({ signal }) =>
+    listClinicalDemonstrations(clientId, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!clientId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listClinicalDemonstrations>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListClinicalDemonstrationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listClinicalDemonstrations>>
+>;
+export type ListClinicalDemonstrationsQueryError = ErrorType<void>;
+
+export function useListClinicalDemonstrations<
+  TData = Awaited<ReturnType<typeof listClinicalDemonstrations>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  params: ListClinicalDemonstrationsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listClinicalDemonstrations>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListClinicalDemonstrationsQueryOptions(
+    clientId,
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getCreateClinicalDemonstrationUrl = (
+  clientId: number,
+  params?: CreateClinicalDemonstrationParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/clinical-demonstrations/${clientId}?${stringifiedParams}`
+    : `/api/clinical-demonstrations/${clientId}`;
+};
+
+export const createClinicalDemonstration = async (
+  clientId: number,
+  clinicalDemonstrationInput: ClinicalDemonstrationInput,
+  params?: CreateClinicalDemonstrationParams,
+  options?: RequestInit,
+): Promise<ClinicalDemonstration> => {
+  return customFetch<ClinicalDemonstration>(
+    getCreateClinicalDemonstrationUrl(clientId, params),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(clinicalDemonstrationInput),
+    },
+  );
+};
+
+export const getCreateClinicalDemonstrationMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createClinicalDemonstration>>,
+    TError,
+    {
+      clientId: number;
+      data: BodyType<ClinicalDemonstrationInput>;
+      params?: CreateClinicalDemonstrationParams;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createClinicalDemonstration>>,
+  TError,
+  {
+    clientId: number;
+    data: BodyType<ClinicalDemonstrationInput>;
+    params?: CreateClinicalDemonstrationParams;
+  },
+  TContext
+> => {
+  const mutationKey = ["createClinicalDemonstration"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createClinicalDemonstration>>,
+    {
+      clientId: number;
+      data: BodyType<ClinicalDemonstrationInput>;
+      params?: CreateClinicalDemonstrationParams;
+    }
+  > = (props) => {
+    const { clientId, data, params } = props ?? {};
+
+    return createClinicalDemonstration(clientId, data, params, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateClinicalDemonstrationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createClinicalDemonstration>>
+>;
+export type CreateClinicalDemonstrationMutationBody =
+  BodyType<ClinicalDemonstrationInput>;
+export type CreateClinicalDemonstrationMutationError = ErrorType<void>;
+
+export const useCreateClinicalDemonstration = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createClinicalDemonstration>>,
+    TError,
+    {
+      clientId: number;
+      data: BodyType<ClinicalDemonstrationInput>;
+      params?: CreateClinicalDemonstrationParams;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createClinicalDemonstration>>,
+  TError,
+  {
+    clientId: number;
+    data: BodyType<ClinicalDemonstrationInput>;
+    params?: CreateClinicalDemonstrationParams;
+  },
+  TContext
+> => {
+  return useMutation(getCreateClinicalDemonstrationMutationOptions(options));
+};
+
+export const getGetClinicalDemonstrationUrl = (
+  clientId: number,
+  id: string,
+) => {
+  return `/api/clinical-demonstrations/${clientId}/${id}`;
+};
+
+export const getClinicalDemonstration = async (
+  clientId: number,
+  id: string,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getGetClinicalDemonstrationUrl(clientId, id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetClinicalDemonstrationQueryKey = (
+  clientId: number,
+  id: string,
+) => {
+  return [`/api/clinical-demonstrations/${clientId}/${id}`] as const;
+};
+
+export const getGetClinicalDemonstrationQueryOptions = <
+  TData = Awaited<ReturnType<typeof getClinicalDemonstration>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getClinicalDemonstration>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetClinicalDemonstrationQueryKey(clientId, id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getClinicalDemonstration>>
+  > = ({ signal }) =>
+    getClinicalDemonstration(clientId, id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!(clientId && id),
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getClinicalDemonstration>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetClinicalDemonstrationQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getClinicalDemonstration>>
+>;
+export type GetClinicalDemonstrationQueryError = ErrorType<void>;
+
+export function useGetClinicalDemonstration<
+  TData = Awaited<ReturnType<typeof getClinicalDemonstration>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getClinicalDemonstration>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetClinicalDemonstrationQueryOptions(
+    clientId,
+    id,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Personal exam selections scoped to the authenticated doctor and authorized client clinic
@@ -602,6 +3224,128 @@ export function useGetExamRequestHistory<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Encerrar um acompanhamento de exames sem alterar o pedido original
+ */
+export const getCloseExamRequestTelegramFollowupUrl = (
+  clientId: number,
+  followupId: number,
+) => {
+  return `/api/exam-requests/${clientId}/followups/${followupId}/close`;
+};
+
+export const closeExamRequestTelegramFollowup = async (
+  clientId: number,
+  followupId: number,
+  examRequestFollowupCloseInput: ExamRequestFollowupCloseInput,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(
+    getCloseExamRequestTelegramFollowupUrl(clientId, followupId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(examRequestFollowupCloseInput),
+    },
+  );
+};
+
+export const getCloseExamRequestTelegramFollowupMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof closeExamRequestTelegramFollowup>>,
+    TError,
+    {
+      clientId: number;
+      followupId: number;
+      data: BodyType<ExamRequestFollowupCloseInput>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof closeExamRequestTelegramFollowup>>,
+  TError,
+  {
+    clientId: number;
+    followupId: number;
+    data: BodyType<ExamRequestFollowupCloseInput>;
+  },
+  TContext
+> => {
+  const mutationKey = ["closeExamRequestTelegramFollowup"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof closeExamRequestTelegramFollowup>>,
+    {
+      clientId: number;
+      followupId: number;
+      data: BodyType<ExamRequestFollowupCloseInput>;
+    }
+  > = (props) => {
+    const { clientId, followupId, data } = props ?? {};
+
+    return closeExamRequestTelegramFollowup(
+      clientId,
+      followupId,
+      data,
+      requestOptions,
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CloseExamRequestTelegramFollowupMutationResult = NonNullable<
+  Awaited<ReturnType<typeof closeExamRequestTelegramFollowup>>
+>;
+export type CloseExamRequestTelegramFollowupMutationBody =
+  BodyType<ExamRequestFollowupCloseInput>;
+export type CloseExamRequestTelegramFollowupMutationError = ErrorType<void>;
+
+/**
+ * @summary Encerrar um acompanhamento de exames sem alterar o pedido original
+ */
+export const useCloseExamRequestTelegramFollowup = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof closeExamRequestTelegramFollowup>>,
+    TError,
+    {
+      clientId: number;
+      followupId: number;
+      data: BodyType<ExamRequestFollowupCloseInput>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof closeExamRequestTelegramFollowup>>,
+  TError,
+  {
+    clientId: number;
+    followupId: number;
+    data: BodyType<ExamRequestFollowupCloseInput>;
+  },
+  TContext
+> => {
+  return useMutation(
+    getCloseExamRequestTelegramFollowupMutationOptions(options),
+  );
+};
 
 /**
  * @summary Confirmar envio dos documentos existentes sem gerar novamente
@@ -2213,6 +4957,254 @@ export const useCreateClient = <
   return useMutation(getCreateClientMutationOptions(options));
 };
 
+export const getListClientOriginClinicsUrl = () => {
+  return `/api/clients/clinicas-origem`;
+};
+
+export const listClientOriginClinics = async (
+  options?: RequestInit,
+): Promise<ListClientOriginClinics200> => {
+  return customFetch<ListClientOriginClinics200>(
+    getListClientOriginClinicsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListClientOriginClinicsQueryKey = () => {
+  return [`/api/clients/clinicas-origem`] as const;
+};
+
+export const getListClientOriginClinicsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listClientOriginClinics>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listClientOriginClinics>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListClientOriginClinicsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listClientOriginClinics>>
+  > = ({ signal }) => listClientOriginClinics({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listClientOriginClinics>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListClientOriginClinicsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listClientOriginClinics>>
+>;
+export type ListClientOriginClinicsQueryError = ErrorType<void>;
+
+export function useListClientOriginClinics<
+  TData = Awaited<ReturnType<typeof listClientOriginClinics>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listClientOriginClinics>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListClientOriginClinicsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getListClientAgendaOptionsUrl = (
+  params: ListClientAgendaOptionsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/clients/agenda-opcoes?${stringifiedParams}`
+    : `/api/clients/agenda-opcoes`;
+};
+
+export const listClientAgendaOptions = async (
+  params: ListClientAgendaOptionsParams,
+  options?: RequestInit,
+): Promise<ClientAgendaOptions> => {
+  return customFetch<ClientAgendaOptions>(
+    getListClientAgendaOptionsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListClientAgendaOptionsQueryKey = (
+  params?: ListClientAgendaOptionsParams,
+) => {
+  return [`/api/clients/agenda-opcoes`, ...(params ? [params] : [])] as const;
+};
+
+export const getListClientAgendaOptionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listClientAgendaOptions>>,
+  TError = ErrorType<void>,
+>(
+  params: ListClientAgendaOptionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listClientAgendaOptions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListClientAgendaOptionsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listClientAgendaOptions>>
+  > = ({ signal }) =>
+    listClientAgendaOptions(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listClientAgendaOptions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListClientAgendaOptionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listClientAgendaOptions>>
+>;
+export type ListClientAgendaOptionsQueryError = ErrorType<void>;
+
+export function useListClientAgendaOptions<
+  TData = Awaited<ReturnType<typeof listClientAgendaOptions>>,
+  TError = ErrorType<void>,
+>(
+  params: ListClientAgendaOptionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listClientAgendaOptions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListClientAgendaOptionsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Referências de dias e horários por tipo de atendimento
+ */
+export const getGetClientVisitPreferenceOptionsUrl = () => {
+  return `/api/clients/visit-preference-options`;
+};
+
+export const getClientVisitPreferenceOptions = async (
+  options?: RequestInit,
+): Promise<ClientVisitPreferenceOptions> => {
+  return customFetch<ClientVisitPreferenceOptions>(
+    getGetClientVisitPreferenceOptionsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetClientVisitPreferenceOptionsQueryKey = () => {
+  return [`/api/clients/visit-preference-options`] as const;
+};
+
+export const getGetClientVisitPreferenceOptionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getClientVisitPreferenceOptions>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getClientVisitPreferenceOptions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetClientVisitPreferenceOptionsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getClientVisitPreferenceOptions>>
+  > = ({ signal }) =>
+    getClientVisitPreferenceOptions({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getClientVisitPreferenceOptions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetClientVisitPreferenceOptionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getClientVisitPreferenceOptions>>
+>;
+export type GetClientVisitPreferenceOptionsQueryError = ErrorType<void>;
+
+/**
+ * @summary Referências de dias e horários por tipo de atendimento
+ */
+
+export function useGetClientVisitPreferenceOptions<
+  TData = Awaited<ReturnType<typeof getClientVisitPreferenceOptions>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getClientVisitPreferenceOptions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetClientVisitPreferenceOptionsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
 /**
  * @summary Get client by ID
  */
@@ -3173,35 +6165,51 @@ export const useUpdateProtocol = <
 /**
  * @summary Validate and generate sessions for a protocol
  */
-export const getValidateProtocolUrl = (id: number) => {
-  return `/api/protocols/${id}/validate`;
+export const getValidateProtocolUrl = (
+  id: number,
+  params?: ValidateProtocolParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/protocols/${id}/validate?${stringifiedParams}`
+    : `/api/protocols/${id}/validate`;
 };
 
 export const validateProtocol = async (
   id: number,
+  params?: ValidateProtocolParams,
   options?: RequestInit,
 ): Promise<Protocol> => {
-  return customFetch<Protocol>(getValidateProtocolUrl(id), {
+  return customFetch<Protocol>(getValidateProtocolUrl(id, params), {
     ...options,
     method: "POST",
   });
 };
 
 export const getValidateProtocolMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof validateProtocol>>,
     TError,
-    { id: number },
+    { id: number; params?: ValidateProtocolParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof validateProtocol>>,
   TError,
-  { id: number },
+  { id: number; params?: ValidateProtocolParams },
   TContext
 > => {
   const mutationKey = ["validateProtocol"];
@@ -3215,11 +6223,11 @@ export const getValidateProtocolMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof validateProtocol>>,
-    { id: number }
+    { id: number; params?: ValidateProtocolParams }
   > = (props) => {
-    const { id } = props ?? {};
+    const { id, params } = props ?? {};
 
-    return validateProtocol(id, requestOptions);
+    return validateProtocol(id, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -3229,29 +6237,393 @@ export type ValidateProtocolMutationResult = NonNullable<
   Awaited<ReturnType<typeof validateProtocol>>
 >;
 
-export type ValidateProtocolMutationError = ErrorType<unknown>;
+export type ValidateProtocolMutationError = ErrorType<void>;
 
 /**
  * @summary Validate and generate sessions for a protocol
  */
 export const useValidateProtocol = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof validateProtocol>>,
     TError,
-    { id: number },
+    { id: number; params?: ValidateProtocolParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof validateProtocol>>,
   TError,
-  { id: number },
+  { id: number; params?: ValidateProtocolParams },
   TContext
 > => {
   return useMutation(getValidateProtocolMutationOptions(options));
+};
+
+/**
+ * @summary Calcular prévia de agenda de protocolo
+ */
+export const getPreviewProtocolSchedulingUrl = (id: number) => {
+  return `/api/protocols/${id}/scheduling/preview`;
+};
+
+export const previewProtocolScheduling = async (
+  id: number,
+  protocolSchedulingPreviewInput: ProtocolSchedulingPreviewInput,
+  options?: RequestInit,
+): Promise<ProtocolSchedulingPreviewEnvelope> => {
+  return customFetch<ProtocolSchedulingPreviewEnvelope>(
+    getPreviewProtocolSchedulingUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(protocolSchedulingPreviewInput),
+    },
+  );
+};
+
+export const getPreviewProtocolSchedulingMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewProtocolScheduling>>,
+    TError,
+    { id: number; data: BodyType<ProtocolSchedulingPreviewInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof previewProtocolScheduling>>,
+  TError,
+  { id: number; data: BodyType<ProtocolSchedulingPreviewInput> },
+  TContext
+> => {
+  const mutationKey = ["previewProtocolScheduling"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof previewProtocolScheduling>>,
+    { id: number; data: BodyType<ProtocolSchedulingPreviewInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return previewProtocolScheduling(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PreviewProtocolSchedulingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof previewProtocolScheduling>>
+>;
+export type PreviewProtocolSchedulingMutationBody =
+  BodyType<ProtocolSchedulingPreviewInput>;
+export type PreviewProtocolSchedulingMutationError = ErrorType<void>;
+
+/**
+ * @summary Calcular prévia de agenda de protocolo
+ */
+export const usePreviewProtocolScheduling = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewProtocolScheduling>>,
+    TError,
+    { id: number; data: BodyType<ProtocolSchedulingPreviewInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof previewProtocolScheduling>>,
+  TError,
+  { id: number; data: BodyType<ProtocolSchedulingPreviewInput> },
+  TContext
+> => {
+  return useMutation(getPreviewProtocolSchedulingMutationOptions(options));
+};
+
+/**
+ * @summary Confirmar e reservar protocolo
+ */
+export const getConfirmProtocolSchedulingUrl = (id: number) => {
+  return `/api/protocols/${id}/scheduling/confirm`;
+};
+
+export const confirmProtocolScheduling = async (
+  id: number,
+  protocolSchedulingConfirmInput: ProtocolSchedulingConfirmInput,
+  options?: RequestInit,
+): Promise<ProtocolSchedulingConfirmEnvelope> => {
+  return customFetch<ProtocolSchedulingConfirmEnvelope>(
+    getConfirmProtocolSchedulingUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(protocolSchedulingConfirmInput),
+    },
+  );
+};
+
+export const getConfirmProtocolSchedulingMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmProtocolScheduling>>,
+    TError,
+    { id: number; data: BodyType<ProtocolSchedulingConfirmInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof confirmProtocolScheduling>>,
+  TError,
+  { id: number; data: BodyType<ProtocolSchedulingConfirmInput> },
+  TContext
+> => {
+  const mutationKey = ["confirmProtocolScheduling"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof confirmProtocolScheduling>>,
+    { id: number; data: BodyType<ProtocolSchedulingConfirmInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return confirmProtocolScheduling(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConfirmProtocolSchedulingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof confirmProtocolScheduling>>
+>;
+export type ConfirmProtocolSchedulingMutationBody =
+  BodyType<ProtocolSchedulingConfirmInput>;
+export type ConfirmProtocolSchedulingMutationError = ErrorType<void>;
+
+/**
+ * @summary Confirmar e reservar protocolo
+ */
+export const useConfirmProtocolScheduling = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmProtocolScheduling>>,
+    TError,
+    { id: number; data: BodyType<ProtocolSchedulingConfirmInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof confirmProtocolScheduling>>,
+  TError,
+  { id: number; data: BodyType<ProtocolSchedulingConfirmInput> },
+  TContext
+> => {
+  return useMutation(getConfirmProtocolSchedulingMutationOptions(options));
+};
+
+/**
+ * @summary Conferir recuperação de sessões antigas
+ */
+export const getPreviewProtocolRecoveryUrl = (id: number) => {
+  return `/api/protocols/${id}/recovery/preview`;
+};
+
+export const previewProtocolRecovery = async (
+  id: number,
+  protocolSchedulingPreviewInput: ProtocolSchedulingPreviewInput,
+  options?: RequestInit,
+): Promise<ProtocolSchedulingPreviewEnvelope> => {
+  return customFetch<ProtocolSchedulingPreviewEnvelope>(
+    getPreviewProtocolRecoveryUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(protocolSchedulingPreviewInput),
+    },
+  );
+};
+
+export const getPreviewProtocolRecoveryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewProtocolRecovery>>,
+    TError,
+    { id: number; data: BodyType<ProtocolSchedulingPreviewInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof previewProtocolRecovery>>,
+  TError,
+  { id: number; data: BodyType<ProtocolSchedulingPreviewInput> },
+  TContext
+> => {
+  const mutationKey = ["previewProtocolRecovery"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof previewProtocolRecovery>>,
+    { id: number; data: BodyType<ProtocolSchedulingPreviewInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return previewProtocolRecovery(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PreviewProtocolRecoveryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof previewProtocolRecovery>>
+>;
+export type PreviewProtocolRecoveryMutationBody =
+  BodyType<ProtocolSchedulingPreviewInput>;
+export type PreviewProtocolRecoveryMutationError = ErrorType<void>;
+
+/**
+ * @summary Conferir recuperação de sessões antigas
+ */
+export const usePreviewProtocolRecovery = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewProtocolRecovery>>,
+    TError,
+    { id: number; data: BodyType<ProtocolSchedulingPreviewInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof previewProtocolRecovery>>,
+  TError,
+  { id: number; data: BodyType<ProtocolSchedulingPreviewInput> },
+  TContext
+> => {
+  return useMutation(getPreviewProtocolRecoveryMutationOptions(options));
+};
+
+/**
+ * @summary Confirmar recuperação sem recriar sessões ou aplicações
+ */
+export const getConfirmProtocolRecoveryUrl = (id: number) => {
+  return `/api/protocols/${id}/recovery/confirm`;
+};
+
+export const confirmProtocolRecovery = async (
+  id: number,
+  protocolSchedulingConfirmInput: ProtocolSchedulingConfirmInput,
+  options?: RequestInit,
+): Promise<ProtocolSchedulingConfirmEnvelope> => {
+  return customFetch<ProtocolSchedulingConfirmEnvelope>(
+    getConfirmProtocolRecoveryUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(protocolSchedulingConfirmInput),
+    },
+  );
+};
+
+export const getConfirmProtocolRecoveryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmProtocolRecovery>>,
+    TError,
+    { id: number; data: BodyType<ProtocolSchedulingConfirmInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof confirmProtocolRecovery>>,
+  TError,
+  { id: number; data: BodyType<ProtocolSchedulingConfirmInput> },
+  TContext
+> => {
+  const mutationKey = ["confirmProtocolRecovery"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof confirmProtocolRecovery>>,
+    { id: number; data: BodyType<ProtocolSchedulingConfirmInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return confirmProtocolRecovery(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConfirmProtocolRecoveryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof confirmProtocolRecovery>>
+>;
+export type ConfirmProtocolRecoveryMutationBody =
+  BodyType<ProtocolSchedulingConfirmInput>;
+export type ConfirmProtocolRecoveryMutationError = ErrorType<void>;
+
+/**
+ * @summary Confirmar recuperação sem recriar sessões ou aplicações
+ */
+export const useConfirmProtocolRecovery = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmProtocolRecovery>>,
+    TError,
+    { id: number; data: BodyType<ProtocolSchedulingConfirmInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof confirmProtocolRecovery>>,
+  TError,
+  { id: number; data: BodyType<ProtocolSchedulingConfirmInput> },
+  TContext
+> => {
+  return useMutation(getConfirmProtocolRecoveryMutationOptions(options));
 };
 
 /**
@@ -4874,6 +8246,348 @@ export function useListProfessionalAreas<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getListProfessionalAreasQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Cadastrar categoria profissional no catálogo compartilhado
+ */
+export const getCreateProfessionalAreaUrl = () => {
+  return `/api/professional-areas`;
+};
+
+export const createProfessionalArea = async (
+  professionalCategoryInput: ProfessionalCategoryInput,
+  options?: RequestInit,
+): Promise<ProfessionalArea> => {
+  return customFetch<ProfessionalArea>(getCreateProfessionalAreaUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(professionalCategoryInput),
+  });
+};
+
+export const getCreateProfessionalAreaMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProfessionalArea>>,
+    TError,
+    { data: BodyType<ProfessionalCategoryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createProfessionalArea>>,
+  TError,
+  { data: BodyType<ProfessionalCategoryInput> },
+  TContext
+> => {
+  const mutationKey = ["createProfessionalArea"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createProfessionalArea>>,
+    { data: BodyType<ProfessionalCategoryInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createProfessionalArea(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateProfessionalAreaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createProfessionalArea>>
+>;
+export type CreateProfessionalAreaMutationBody =
+  BodyType<ProfessionalCategoryInput>;
+export type CreateProfessionalAreaMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Cadastrar categoria profissional no catálogo compartilhado
+ */
+export const useCreateProfessionalArea = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProfessionalArea>>,
+    TError,
+    { data: BodyType<ProfessionalCategoryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createProfessionalArea>>,
+  TError,
+  { data: BodyType<ProfessionalCategoryInput> },
+  TContext
+> => {
+  return useMutation(getCreateProfessionalAreaMutationOptions(options));
+};
+
+/**
+ * @summary Listar áreas de atuação
+ */
+export const getListProfessionalWorkAreasUrl = () => {
+  return `/api/professional-work-areas`;
+};
+
+export const listProfessionalWorkAreas = async (
+  options?: RequestInit,
+): Promise<ProfessionalWorkArea[]> => {
+  return customFetch<ProfessionalWorkArea[]>(
+    getListProfessionalWorkAreasUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListProfessionalWorkAreasQueryKey = () => {
+  return [`/api/professional-work-areas`] as const;
+};
+
+export const getListProfessionalWorkAreasQueryOptions = <
+  TData = Awaited<ReturnType<typeof listProfessionalWorkAreas>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listProfessionalWorkAreas>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListProfessionalWorkAreasQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listProfessionalWorkAreas>>
+  > = ({ signal }) => listProfessionalWorkAreas({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listProfessionalWorkAreas>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListProfessionalWorkAreasQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listProfessionalWorkAreas>>
+>;
+export type ListProfessionalWorkAreasQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Listar áreas de atuação
+ */
+
+export function useListProfessionalWorkAreas<
+  TData = Awaited<ReturnType<typeof listProfessionalWorkAreas>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listProfessionalWorkAreas>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListProfessionalWorkAreasQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Cadastrar área de atuação
+ */
+export const getCreateProfessionalWorkAreaUrl = () => {
+  return `/api/professional-work-areas`;
+};
+
+export const createProfessionalWorkArea = async (
+  professionalWorkAreaInput: ProfessionalWorkAreaInput,
+  options?: RequestInit,
+): Promise<ProfessionalWorkArea> => {
+  return customFetch<ProfessionalWorkArea>(getCreateProfessionalWorkAreaUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(professionalWorkAreaInput),
+  });
+};
+
+export const getCreateProfessionalWorkAreaMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProfessionalWorkArea>>,
+    TError,
+    { data: BodyType<ProfessionalWorkAreaInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createProfessionalWorkArea>>,
+  TError,
+  { data: BodyType<ProfessionalWorkAreaInput> },
+  TContext
+> => {
+  const mutationKey = ["createProfessionalWorkArea"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createProfessionalWorkArea>>,
+    { data: BodyType<ProfessionalWorkAreaInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createProfessionalWorkArea(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateProfessionalWorkAreaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createProfessionalWorkArea>>
+>;
+export type CreateProfessionalWorkAreaMutationBody =
+  BodyType<ProfessionalWorkAreaInput>;
+export type CreateProfessionalWorkAreaMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Cadastrar área de atuação
+ */
+export const useCreateProfessionalWorkArea = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProfessionalWorkArea>>,
+    TError,
+    { data: BodyType<ProfessionalWorkAreaInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createProfessionalWorkArea>>,
+  TError,
+  { data: BodyType<ProfessionalWorkAreaInput> },
+  TContext
+> => {
+  return useMutation(getCreateProfessionalWorkAreaMutationOptions(options));
+};
+
+/**
+ * @summary Listar áreas do profissional na clínica da sessão
+ */
+export const getGetProfessionalWorkAreasUrl = (id: number) => {
+  return `/api/professionals/${id}/work-areas`;
+};
+
+export const getProfessionalWorkAreas = async (
+  id: number,
+  options?: RequestInit,
+): Promise<number[]> => {
+  return customFetch<number[]>(getGetProfessionalWorkAreasUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetProfessionalWorkAreasQueryKey = (id: number) => {
+  return [`/api/professionals/${id}/work-areas`] as const;
+};
+
+export const getGetProfessionalWorkAreasQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProfessionalWorkAreas>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProfessionalWorkAreas>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetProfessionalWorkAreasQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getProfessionalWorkAreas>>
+  > = ({ signal }) =>
+    getProfessionalWorkAreas(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProfessionalWorkAreas>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetProfessionalWorkAreasQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProfessionalWorkAreas>>
+>;
+export type GetProfessionalWorkAreasQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Listar áreas do profissional na clínica da sessão
+ */
+
+export function useGetProfessionalWorkAreas<
+  TData = Awaited<ReturnType<typeof getProfessionalWorkAreas>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProfessionalWorkAreas>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetProfessionalWorkAreasQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -10374,6 +14088,103 @@ export const useReplaceAgendaWindows = <
 };
 
 /**
+ * @summary Occupancy per agenda in a period (occupied slots / planned slots)
+ */
+export const getGetAgendaOcupacaoUrl = (params: GetAgendaOcupacaoParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/agenda/ocupacao?${stringifiedParams}`
+    : `/api/agenda/ocupacao`;
+};
+
+export const getAgendaOcupacao = async (
+  params: GetAgendaOcupacaoParams,
+  options?: RequestInit,
+): Promise<AgendaOcupacao[]> => {
+  return customFetch<AgendaOcupacao[]>(getGetAgendaOcupacaoUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAgendaOcupacaoQueryKey = (
+  params?: GetAgendaOcupacaoParams,
+) => {
+  return [`/api/agenda/ocupacao`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetAgendaOcupacaoQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAgendaOcupacao>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetAgendaOcupacaoParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAgendaOcupacao>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAgendaOcupacaoQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAgendaOcupacao>>
+  > = ({ signal }) => getAgendaOcupacao(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAgendaOcupacao>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAgendaOcupacaoQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAgendaOcupacao>>
+>;
+export type GetAgendaOcupacaoQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Occupancy per agenda in a period (occupied slots / planned slots)
+ */
+
+export function useGetAgendaOcupacao<
+  TData = Awaited<ReturnType<typeof getAgendaOcupacao>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetAgendaOcupacaoParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAgendaOcupacao>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAgendaOcupacaoQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary List agenda exceptions (holidays/blocks)
  */
 export const getListAgendaExceptionsUrl = () => {
@@ -10781,6 +14592,779 @@ export const useUpdateAgendaSettings = <
   return useMutation(getUpdateAgendaSettingsMutationOptions(options));
 };
 
+export const getGetAgendaIntegrationUrl = () => {
+  return `/api/agenda/integration`;
+};
+
+export const getAgendaIntegration = async (
+  options?: RequestInit,
+): Promise<AgendaIntegrationState> => {
+  return customFetch<AgendaIntegrationState>(getGetAgendaIntegrationUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAgendaIntegrationQueryKey = () => {
+  return [`/api/agenda/integration`] as const;
+};
+
+export const getGetAgendaIntegrationQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAgendaIntegration>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAgendaIntegration>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAgendaIntegrationQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAgendaIntegration>>
+  > = ({ signal }) => getAgendaIntegration({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAgendaIntegration>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAgendaIntegrationQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAgendaIntegration>>
+>;
+export type GetAgendaIntegrationQueryError = ErrorType<unknown>;
+
+export function useGetAgendaIntegration<
+  TData = Awaited<ReturnType<typeof getAgendaIntegration>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAgendaIntegration>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAgendaIntegrationQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getRefreshAgendaIntegrationUrl = () => {
+  return `/api/agenda/integration/refresh`;
+};
+
+export const refreshAgendaIntegration = async (
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getRefreshAgendaIntegrationUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRefreshAgendaIntegrationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshAgendaIntegration>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refreshAgendaIntegration>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["refreshAgendaIntegration"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refreshAgendaIntegration>>,
+    void
+  > = () => {
+    return refreshAgendaIntegration(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefreshAgendaIntegrationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refreshAgendaIntegration>>
+>;
+
+export type RefreshAgendaIntegrationMutationError = ErrorType<unknown>;
+
+export const useRefreshAgendaIntegration = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshAgendaIntegration>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof refreshAgendaIntegration>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getRefreshAgendaIntegrationMutationOptions(options));
+};
+
+export const getUpdateAgendaReadSettingsUrl = () => {
+  return `/api/agenda/integration/read-settings`;
+};
+
+export const updateAgendaReadSettings = async (
+  agendaReadSettingsInput: AgendaReadSettingsInput,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getUpdateAgendaReadSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(agendaReadSettingsInput),
+  });
+};
+
+export const getUpdateAgendaReadSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAgendaReadSettings>>,
+    TError,
+    { data: BodyType<AgendaReadSettingsInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAgendaReadSettings>>,
+  TError,
+  { data: BodyType<AgendaReadSettingsInput> },
+  TContext
+> => {
+  const mutationKey = ["updateAgendaReadSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAgendaReadSettings>>,
+    { data: BodyType<AgendaReadSettingsInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateAgendaReadSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateAgendaReadSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAgendaReadSettings>>
+>;
+export type UpdateAgendaReadSettingsMutationBody =
+  BodyType<AgendaReadSettingsInput>;
+export type UpdateAgendaReadSettingsMutationError = ErrorType<unknown>;
+
+export const useUpdateAgendaReadSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAgendaReadSettings>>,
+    TError,
+    { data: BodyType<AgendaReadSettingsInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateAgendaReadSettings>>,
+  TError,
+  { data: BodyType<AgendaReadSettingsInput> },
+  TContext
+> => {
+  return useMutation(getUpdateAgendaReadSettingsMutationOptions(options));
+};
+
+export const getUpdateAgendaPersonalOwnerUrl = () => {
+  return `/api/agenda/integration/personal-owner`;
+};
+
+export const updateAgendaPersonalOwner = async (
+  agendaPersonalOwnerInput: AgendaPersonalOwnerInput,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getUpdateAgendaPersonalOwnerUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(agendaPersonalOwnerInput),
+  });
+};
+
+export const getUpdateAgendaPersonalOwnerMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAgendaPersonalOwner>>,
+    TError,
+    { data: BodyType<AgendaPersonalOwnerInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAgendaPersonalOwner>>,
+  TError,
+  { data: BodyType<AgendaPersonalOwnerInput> },
+  TContext
+> => {
+  const mutationKey = ["updateAgendaPersonalOwner"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAgendaPersonalOwner>>,
+    { data: BodyType<AgendaPersonalOwnerInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateAgendaPersonalOwner(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateAgendaPersonalOwnerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAgendaPersonalOwner>>
+>;
+export type UpdateAgendaPersonalOwnerMutationBody =
+  BodyType<AgendaPersonalOwnerInput>;
+export type UpdateAgendaPersonalOwnerMutationError = ErrorType<unknown>;
+
+export const useUpdateAgendaPersonalOwner = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAgendaPersonalOwner>>,
+    TError,
+    { data: BodyType<AgendaPersonalOwnerInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateAgendaPersonalOwner>>,
+  TError,
+  { data: BodyType<AgendaPersonalOwnerInput> },
+  TContext
+> => {
+  return useMutation(getUpdateAgendaPersonalOwnerMutationOptions(options));
+};
+
+export const getListAgendaChangeRequestsUrl = () => {
+  return `/api/agenda/requests`;
+};
+
+export const listAgendaChangeRequests = async (
+  options?: RequestInit,
+): Promise<AgendaChangeRequestList> => {
+  return customFetch<AgendaChangeRequestList>(
+    getListAgendaChangeRequestsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListAgendaChangeRequestsQueryKey = () => {
+  return [`/api/agenda/requests`] as const;
+};
+
+export const getListAgendaChangeRequestsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAgendaChangeRequests>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listAgendaChangeRequests>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListAgendaChangeRequestsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAgendaChangeRequests>>
+  > = ({ signal }) => listAgendaChangeRequests({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAgendaChangeRequests>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAgendaChangeRequestsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAgendaChangeRequests>>
+>;
+export type ListAgendaChangeRequestsQueryError = ErrorType<unknown>;
+
+export function useListAgendaChangeRequests<
+  TData = Awaited<ReturnType<typeof listAgendaChangeRequests>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listAgendaChangeRequests>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAgendaChangeRequestsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getCreateAgendaChangeRequestUrl = () => {
+  return `/api/agenda/requests`;
+};
+
+export const createAgendaChangeRequest = async (
+  agendaWindowChangeInput: AgendaWindowChangeInput,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getCreateAgendaChangeRequestUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(agendaWindowChangeInput),
+  });
+};
+
+export const getCreateAgendaChangeRequestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createAgendaChangeRequest>>,
+    TError,
+    { data: BodyType<AgendaWindowChangeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createAgendaChangeRequest>>,
+  TError,
+  { data: BodyType<AgendaWindowChangeInput> },
+  TContext
+> => {
+  const mutationKey = ["createAgendaChangeRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createAgendaChangeRequest>>,
+    { data: BodyType<AgendaWindowChangeInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createAgendaChangeRequest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateAgendaChangeRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createAgendaChangeRequest>>
+>;
+export type CreateAgendaChangeRequestMutationBody =
+  BodyType<AgendaWindowChangeInput>;
+export type CreateAgendaChangeRequestMutationError = ErrorType<unknown>;
+
+export const useCreateAgendaChangeRequest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createAgendaChangeRequest>>,
+    TError,
+    { data: BodyType<AgendaWindowChangeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createAgendaChangeRequest>>,
+  TError,
+  { data: BodyType<AgendaWindowChangeInput> },
+  TContext
+> => {
+  return useMutation(getCreateAgendaChangeRequestMutationOptions(options));
+};
+
+export const getDecideAgendaChangeRequestUrl = (id: number) => {
+  return `/api/agenda/requests/${id}/decision`;
+};
+
+export const decideAgendaChangeRequest = async (
+  id: number,
+  agendaChangeDecisionInput: AgendaChangeDecisionInput,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDecideAgendaChangeRequestUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(agendaChangeDecisionInput),
+  });
+};
+
+export const getDecideAgendaChangeRequestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof decideAgendaChangeRequest>>,
+    TError,
+    { id: number; data: BodyType<AgendaChangeDecisionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof decideAgendaChangeRequest>>,
+  TError,
+  { id: number; data: BodyType<AgendaChangeDecisionInput> },
+  TContext
+> => {
+  const mutationKey = ["decideAgendaChangeRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof decideAgendaChangeRequest>>,
+    { id: number; data: BodyType<AgendaChangeDecisionInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return decideAgendaChangeRequest(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DecideAgendaChangeRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof decideAgendaChangeRequest>>
+>;
+export type DecideAgendaChangeRequestMutationBody =
+  BodyType<AgendaChangeDecisionInput>;
+export type DecideAgendaChangeRequestMutationError = ErrorType<unknown>;
+
+export const useDecideAgendaChangeRequest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof decideAgendaChangeRequest>>,
+    TError,
+    { id: number; data: BodyType<AgendaChangeDecisionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof decideAgendaChangeRequest>>,
+  TError,
+  { id: number; data: BodyType<AgendaChangeDecisionInput> },
+  TContext
+> => {
+  return useMutation(getDecideAgendaChangeRequestMutationOptions(options));
+};
+
+/**
+ * @summary Consultar compromissos Google importados no período autenticado
+ */
+export const getGetGoogleAgendaCommitmentsUrl = (
+  params: GetGoogleAgendaCommitmentsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/agenda/google-compromissos?${stringifiedParams}`
+    : `/api/agenda/google-compromissos`;
+};
+
+export const getGoogleAgendaCommitments = async (
+  params: GetGoogleAgendaCommitmentsParams,
+  options?: RequestInit,
+): Promise<GoogleAgendaCommitments> => {
+  return customFetch<GoogleAgendaCommitments>(
+    getGetGoogleAgendaCommitmentsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetGoogleAgendaCommitmentsQueryKey = (
+  params?: GetGoogleAgendaCommitmentsParams,
+) => {
+  return [
+    `/api/agenda/google-compromissos`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetGoogleAgendaCommitmentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGoogleAgendaCommitments>>,
+  TError = ErrorType<void>,
+>(
+  params: GetGoogleAgendaCommitmentsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGoogleAgendaCommitments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetGoogleAgendaCommitmentsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGoogleAgendaCommitments>>
+  > = ({ signal }) =>
+    getGoogleAgendaCommitments(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGoogleAgendaCommitments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGoogleAgendaCommitmentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGoogleAgendaCommitments>>
+>;
+export type GetGoogleAgendaCommitmentsQueryError = ErrorType<void>;
+
+/**
+ * @summary Consultar compromissos Google importados no período autenticado
+ */
+
+export function useGetGoogleAgendaCommitments<
+  TData = Awaited<ReturnType<typeof getGoogleAgendaCommitments>>,
+  TError = ErrorType<void>,
+>(
+  params: GetGoogleAgendaCommitmentsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGoogleAgendaCommitments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGoogleAgendaCommitmentsQueryOptions(
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Consultar a descrição importada de um compromisso selecionado
+ */
+export const getGetGoogleAgendaCommitmentDescriptionUrl = (
+  id: number,
+  params: GetGoogleAgendaCommitmentDescriptionParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/agenda/google-compromissos/${id}/descricao?${stringifiedParams}`
+    : `/api/agenda/google-compromissos/${id}/descricao`;
+};
+
+export const getGoogleAgendaCommitmentDescription = async (
+  id: number,
+  params: GetGoogleAgendaCommitmentDescriptionParams,
+  options?: RequestInit,
+): Promise<GoogleAgendaCommitmentDescription> => {
+  return customFetch<GoogleAgendaCommitmentDescription>(
+    getGetGoogleAgendaCommitmentDescriptionUrl(id, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetGoogleAgendaCommitmentDescriptionQueryKey = (
+  id: number,
+  params?: GetGoogleAgendaCommitmentDescriptionParams,
+) => {
+  return [
+    `/api/agenda/google-compromissos/${id}/descricao`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetGoogleAgendaCommitmentDescriptionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGoogleAgendaCommitmentDescription>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  params: GetGoogleAgendaCommitmentDescriptionParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGoogleAgendaCommitmentDescription>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetGoogleAgendaCommitmentDescriptionQueryKey(id, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGoogleAgendaCommitmentDescription>>
+  > = ({ signal }) =>
+    getGoogleAgendaCommitmentDescription(id, params, {
+      signal,
+      ...requestOptions,
+    });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGoogleAgendaCommitmentDescription>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGoogleAgendaCommitmentDescriptionQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGoogleAgendaCommitmentDescription>>
+>;
+export type GetGoogleAgendaCommitmentDescriptionQueryError = ErrorType<void>;
+
+/**
+ * @summary Consultar a descrição importada de um compromisso selecionado
+ */
+
+export function useGetGoogleAgendaCommitmentDescription<
+  TData = Awaited<ReturnType<typeof getGoogleAgendaCommitmentDescription>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  params: GetGoogleAgendaCommitmentDescriptionParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGoogleAgendaCommitmentDescription>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGoogleAgendaCommitmentDescriptionQueryOptions(
+    id,
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
 /**
  * @summary Compute released/blocked/occupied slots for a resource on a date (anti-island engine)
  */
@@ -10959,6 +15543,368 @@ export const useBookAgendaSession = <
   TContext
 > => {
   return useMutation(getBookAgendaSessionMutationOptions(options));
+};
+
+/**
+ * O servidor decide pela identidade da sessão e pela matriz de Governança. Sem sessão responde 401; sessão sem permissão responde 200 com autorizado=false e o motivo. Nenhum parâmetro do navegador escolhe o canal.
+ * @summary Diz se o acesso atual pode usar o encaixe rápido interno e qual a antecedência em minutos
+ */
+export const getGetAgendaEncaixePoliticaUrl = () => {
+  return `/api/agenda/encaixe/politica`;
+};
+
+export const getAgendaEncaixePolitica = async (
+  options?: RequestInit,
+): Promise<AgendaEncaixePolitica> => {
+  return customFetch<AgendaEncaixePolitica>(getGetAgendaEncaixePoliticaUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAgendaEncaixePoliticaQueryKey = () => {
+  return [`/api/agenda/encaixe/politica`] as const;
+};
+
+export const getGetAgendaEncaixePoliticaQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAgendaEncaixePolitica>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAgendaEncaixePolitica>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAgendaEncaixePoliticaQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAgendaEncaixePolitica>>
+  > = ({ signal }) => getAgendaEncaixePolitica({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAgendaEncaixePolitica>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAgendaEncaixePoliticaQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAgendaEncaixePolitica>>
+>;
+export type GetAgendaEncaixePoliticaQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Diz se o acesso atual pode usar o encaixe rápido interno e qual a antecedência em minutos
+ */
+
+export function useGetAgendaEncaixePolitica<
+  TData = Awaited<ReturnType<typeof getAgendaEncaixePolitica>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAgendaEncaixePolitica>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAgendaEncaixePoliticaQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Mesma decisão da confirmação. Confere agenda, profissional em TODAS as agendas, cliente (se informado), compromissos do Google e o frescor da integração. 403 se o acesso não for autorizado ao encaixe.
+ * @summary Horários de início possíveis para um encaixe interno, com o trecho inteiro conferido
+ */
+export const getGetAgendaEncaixeDisponibilidadeUrl = (
+  params: GetAgendaEncaixeDisponibilidadeParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/agenda/encaixe/disponibilidade?${stringifiedParams}`
+    : `/api/agenda/encaixe/disponibilidade`;
+};
+
+export const getAgendaEncaixeDisponibilidade = async (
+  params: GetAgendaEncaixeDisponibilidadeParams,
+  options?: RequestInit,
+): Promise<AgendaEncaixeDisponibilidade> => {
+  return customFetch<AgendaEncaixeDisponibilidade>(
+    getGetAgendaEncaixeDisponibilidadeUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetAgendaEncaixeDisponibilidadeQueryKey = (
+  params?: GetAgendaEncaixeDisponibilidadeParams,
+) => {
+  return [
+    `/api/agenda/encaixe/disponibilidade`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetAgendaEncaixeDisponibilidadeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAgendaEncaixeDisponibilidade>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetAgendaEncaixeDisponibilidadeParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAgendaEncaixeDisponibilidade>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetAgendaEncaixeDisponibilidadeQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAgendaEncaixeDisponibilidade>>
+  > = ({ signal }) =>
+    getAgendaEncaixeDisponibilidade(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAgendaEncaixeDisponibilidade>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAgendaEncaixeDisponibilidadeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAgendaEncaixeDisponibilidade>>
+>;
+export type GetAgendaEncaixeDisponibilidadeQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Horários de início possíveis para um encaixe interno, com o trecho inteiro conferido
+ */
+
+export function useGetAgendaEncaixeDisponibilidade<
+  TData = Awaited<ReturnType<typeof getAgendaEncaixeDisponibilidade>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetAgendaEncaixeDisponibilidadeParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAgendaEncaixeDisponibilidade>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAgendaEncaixeDisponibilidadeQueryOptions(
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Canal interno decidido no servidor. Corpo estrito: não aceita canal, empresa nem antecedência. 201 grava; 200 com duplicada=true devolve a marcação idêntica recém-criada; 409 traz codigo e alternativas. O Google é chamado depois da gravação e sua falha nunca desfaz a marcação.
+ * @summary Confirma um encaixe rápido interno (consulta avulsa) com antecedência curta
+ */
+export const getBookAgendaEncaixeUrl = () => {
+  return `/api/agenda/encaixe`;
+};
+
+export const bookAgendaEncaixe = async (
+  agendaEncaixeBody: AgendaEncaixeBody,
+  options?: RequestInit,
+): Promise<AgendaEncaixeResposta> => {
+  return customFetch<AgendaEncaixeResposta>(getBookAgendaEncaixeUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(agendaEncaixeBody),
+  });
+};
+
+export const getBookAgendaEncaixeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bookAgendaEncaixe>>,
+    TError,
+    { data: BodyType<AgendaEncaixeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bookAgendaEncaixe>>,
+  TError,
+  { data: BodyType<AgendaEncaixeBody> },
+  TContext
+> => {
+  const mutationKey = ["bookAgendaEncaixe"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bookAgendaEncaixe>>,
+    { data: BodyType<AgendaEncaixeBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return bookAgendaEncaixe(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BookAgendaEncaixeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bookAgendaEncaixe>>
+>;
+export type BookAgendaEncaixeMutationBody = BodyType<AgendaEncaixeBody>;
+export type BookAgendaEncaixeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Confirma um encaixe rápido interno (consulta avulsa) com antecedência curta
+ */
+export const useBookAgendaEncaixe = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bookAgendaEncaixe>>,
+    TError,
+    { data: BodyType<AgendaEncaixeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof bookAgendaEncaixe>>,
+  TError,
+  { data: BodyType<AgendaEncaixeBody> },
+  TContext
+> => {
+  return useMutation(getBookAgendaEncaixeMutationOptions(options));
+};
+
+/**
+ * Caminho explícito de consulta avulsa. O corpo NÃO tem protocolId (se vier, é recusado) e a sessão nasce com protocolId nulo. Agenda e cliente precisam ser da empresa do acesso (404 caso contrário). Horário ocupado do profissional ou do cliente responde 409 com mensagem genérica. Com syncGoogle=true o evento é criado no Google da agenda FORA da transação, sem enviar convite; falha ou resultado incerto volta em googleSyncWarning e a marcação permanece salva.
+ * @summary Marca uma consulta avulsa (sem protocolo) na agenda escolhida; a empresa vem do acesso
+ */
+export const getBookAvulsaSessionUrl = () => {
+  return `/api/agenda/book-avulsa`;
+};
+
+export const bookAvulsaSession = async (
+  bookAvulsaBody: BookAvulsaBody,
+  options?: RequestInit,
+): Promise<BookAgendaSessionResponse> => {
+  return customFetch<BookAgendaSessionResponse>(getBookAvulsaSessionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(bookAvulsaBody),
+  });
+};
+
+export const getBookAvulsaSessionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bookAvulsaSession>>,
+    TError,
+    { data: BodyType<BookAvulsaBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bookAvulsaSession>>,
+  TError,
+  { data: BodyType<BookAvulsaBody> },
+  TContext
+> => {
+  const mutationKey = ["bookAvulsaSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bookAvulsaSession>>,
+    { data: BodyType<BookAvulsaBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return bookAvulsaSession(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BookAvulsaSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bookAvulsaSession>>
+>;
+export type BookAvulsaSessionMutationBody = BodyType<BookAvulsaBody>;
+export type BookAvulsaSessionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Marca uma consulta avulsa (sem protocolo) na agenda escolhida; a empresa vem do acesso
+ */
+export const useBookAvulsaSession = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bookAvulsaSession>>,
+    TError,
+    { data: BodyType<BookAvulsaBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof bookAvulsaSession>>,
+  TError,
+  { data: BodyType<BookAvulsaBody> },
+  TContext
+> => {
+  return useMutation(getBookAvulsaSessionMutationOptions(options));
 };
 
 /**
@@ -13012,3 +17958,1048 @@ export function useGetFinancialGoalsSummary<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Lê parâmetros editáveis da homologação do WhatsApp
+ */
+export const getGetEvolutionHomologacaoConfigUrl = () => {
+  return `/api/evolution/homologacao/config`;
+};
+
+export const getEvolutionHomologacaoConfig = async (
+  options?: RequestInit,
+): Promise<EvolutionHomologacaoConfig> => {
+  return customFetch<EvolutionHomologacaoConfig>(
+    getGetEvolutionHomologacaoConfigUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetEvolutionHomologacaoConfigQueryKey = () => {
+  return [`/api/evolution/homologacao/config`] as const;
+};
+
+export const getGetEvolutionHomologacaoConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof getEvolutionHomologacaoConfig>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEvolutionHomologacaoConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetEvolutionHomologacaoConfigQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getEvolutionHomologacaoConfig>>
+  > = ({ signal }) =>
+    getEvolutionHomologacaoConfig({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getEvolutionHomologacaoConfig>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetEvolutionHomologacaoConfigQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getEvolutionHomologacaoConfig>>
+>;
+export type GetEvolutionHomologacaoConfigQueryError = ErrorType<void>;
+
+/**
+ * @summary Lê parâmetros editáveis da homologação do WhatsApp
+ */
+
+export function useGetEvolutionHomologacaoConfig<
+  TData = Awaited<ReturnType<typeof getEvolutionHomologacaoConfig>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEvolutionHomologacaoConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetEvolutionHomologacaoConfigQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Salva parâmetros editáveis da homologação
+ */
+export const getUpdateEvolutionHomologacaoConfigUrl = () => {
+  return `/api/evolution/homologacao/config`;
+};
+
+export const updateEvolutionHomologacaoConfig = async (
+  evolutionHomologacaoConfigUpdate: EvolutionHomologacaoConfigUpdate,
+  options?: RequestInit,
+): Promise<EvolutionHomologacaoConfigSaved> => {
+  return customFetch<EvolutionHomologacaoConfigSaved>(
+    getUpdateEvolutionHomologacaoConfigUrl(),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(evolutionHomologacaoConfigUpdate),
+    },
+  );
+};
+
+export const getUpdateEvolutionHomologacaoConfigMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEvolutionHomologacaoConfig>>,
+    TError,
+    { data: BodyType<EvolutionHomologacaoConfigUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateEvolutionHomologacaoConfig>>,
+  TError,
+  { data: BodyType<EvolutionHomologacaoConfigUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateEvolutionHomologacaoConfig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateEvolutionHomologacaoConfig>>,
+    { data: BodyType<EvolutionHomologacaoConfigUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateEvolutionHomologacaoConfig(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateEvolutionHomologacaoConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateEvolutionHomologacaoConfig>>
+>;
+export type UpdateEvolutionHomologacaoConfigMutationBody =
+  BodyType<EvolutionHomologacaoConfigUpdate>;
+export type UpdateEvolutionHomologacaoConfigMutationError = ErrorType<void>;
+
+/**
+ * @summary Salva parâmetros editáveis da homologação
+ */
+export const useUpdateEvolutionHomologacaoConfig = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEvolutionHomologacaoConfig>>,
+    TError,
+    { data: BodyType<EvolutionHomologacaoConfigUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateEvolutionHomologacaoConfig>>,
+  TError,
+  { data: BodyType<EvolutionHomologacaoConfigUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateEvolutionHomologacaoConfigMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Envia um texto escrito pela equipe para um único contato autorizado
+ */
+export const getSendEvolutionIsolatedTestUrl = () => {
+  return `/api/evolution/teste`;
+};
+
+export const sendEvolutionIsolatedTest = async (
+  evolutionIsolatedTestInput: EvolutionIsolatedTestInput,
+  options?: RequestInit,
+): Promise<EvolutionIsolatedTestResult> => {
+  return customFetch<EvolutionIsolatedTestResult>(
+    getSendEvolutionIsolatedTestUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(evolutionIsolatedTestInput),
+    },
+  );
+};
+
+export const getSendEvolutionIsolatedTestMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEvolutionIsolatedTest>>,
+    TError,
+    { data: BodyType<EvolutionIsolatedTestInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendEvolutionIsolatedTest>>,
+  TError,
+  { data: BodyType<EvolutionIsolatedTestInput> },
+  TContext
+> => {
+  const mutationKey = ["sendEvolutionIsolatedTest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendEvolutionIsolatedTest>>,
+    { data: BodyType<EvolutionIsolatedTestInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return sendEvolutionIsolatedTest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendEvolutionIsolatedTestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendEvolutionIsolatedTest>>
+>;
+export type SendEvolutionIsolatedTestMutationBody =
+  BodyType<EvolutionIsolatedTestInput>;
+export type SendEvolutionIsolatedTestMutationError = ErrorType<void>;
+
+/**
+ * @summary Envia um texto escrito pela equipe para um único contato autorizado
+ */
+export const useSendEvolutionIsolatedTest = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEvolutionIsolatedTest>>,
+    TError,
+    { data: BodyType<EvolutionIsolatedTestInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendEvolutionIsolatedTest>>,
+  TError,
+  { data: BodyType<EvolutionIsolatedTestInput> },
+  TContext
+> => {
+  return useMutation(getSendEvolutionIsolatedTestMutationOptions(options));
+};
+
+/**
+ * @summary Lista clientes ativos com telefone protegido
+ */
+export const getGetEvolutionHomologacaoClientsUrl = () => {
+  return `/api/evolution/homologacao/clientes`;
+};
+
+export const getEvolutionHomologacaoClients = async (
+  options?: RequestInit,
+): Promise<EvolutionHomologacaoClients> => {
+  return customFetch<EvolutionHomologacaoClients>(
+    getGetEvolutionHomologacaoClientsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetEvolutionHomologacaoClientsQueryKey = () => {
+  return [`/api/evolution/homologacao/clientes`] as const;
+};
+
+export const getGetEvolutionHomologacaoClientsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getEvolutionHomologacaoClients>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEvolutionHomologacaoClients>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetEvolutionHomologacaoClientsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getEvolutionHomologacaoClients>>
+  > = ({ signal }) =>
+    getEvolutionHomologacaoClients({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getEvolutionHomologacaoClients>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetEvolutionHomologacaoClientsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getEvolutionHomologacaoClients>>
+>;
+export type GetEvolutionHomologacaoClientsQueryError = ErrorType<void>;
+
+/**
+ * @summary Lista clientes ativos com telefone protegido
+ */
+
+export function useGetEvolutionHomologacaoClients<
+  TData = Awaited<ReturnType<typeof getEvolutionHomologacaoClients>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEvolutionHomologacaoClients>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetEvolutionHomologacaoClientsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Confirma vínculo explícito entre cliente e telefone
+ */
+export const getUpdateEvolutionHomologacaoLinkUrl = () => {
+  return `/api/evolution/homologacao/vinculo`;
+};
+
+export const updateEvolutionHomologacaoLink = async (
+  evolutionHomologacaoLinkUpdate: EvolutionHomologacaoLinkUpdate,
+  options?: RequestInit,
+): Promise<EvolutionHomologacaoLinkResult> => {
+  return customFetch<EvolutionHomologacaoLinkResult>(
+    getUpdateEvolutionHomologacaoLinkUrl(),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(evolutionHomologacaoLinkUpdate),
+    },
+  );
+};
+
+export const getUpdateEvolutionHomologacaoLinkMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEvolutionHomologacaoLink>>,
+    TError,
+    { data: BodyType<EvolutionHomologacaoLinkUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateEvolutionHomologacaoLink>>,
+  TError,
+  { data: BodyType<EvolutionHomologacaoLinkUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateEvolutionHomologacaoLink"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateEvolutionHomologacaoLink>>,
+    { data: BodyType<EvolutionHomologacaoLinkUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateEvolutionHomologacaoLink(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateEvolutionHomologacaoLinkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateEvolutionHomologacaoLink>>
+>;
+export type UpdateEvolutionHomologacaoLinkMutationBody =
+  BodyType<EvolutionHomologacaoLinkUpdate>;
+export type UpdateEvolutionHomologacaoLinkMutationError = ErrorType<void>;
+
+/**
+ * @summary Confirma vínculo explícito entre cliente e telefone
+ */
+export const useUpdateEvolutionHomologacaoLink = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEvolutionHomologacaoLink>>,
+    TError,
+    { data: BodyType<EvolutionHomologacaoLinkUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateEvolutionHomologacaoLink>>,
+  TError,
+  { data: BodyType<EvolutionHomologacaoLinkUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateEvolutionHomologacaoLinkMutationOptions(options));
+};
+
+/**
+ * @summary Executa o motor real sem registrar nem enviar pergunta simulada
+ */
+export const getPlanEvolutionHomologacaoResponseUrl = () => {
+  return `/api/evolution/homologacao/planejar`;
+};
+
+export const planEvolutionHomologacaoResponse = async (
+  evolutionHomologacaoPlanInput: EvolutionHomologacaoPlanInput,
+  options?: RequestInit,
+): Promise<EvolutionHomologacaoPlanResult> => {
+  return customFetch<EvolutionHomologacaoPlanResult>(
+    getPlanEvolutionHomologacaoResponseUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(evolutionHomologacaoPlanInput),
+    },
+  );
+};
+
+export const getPlanEvolutionHomologacaoResponseMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof planEvolutionHomologacaoResponse>>,
+    TError,
+    { data: BodyType<EvolutionHomologacaoPlanInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof planEvolutionHomologacaoResponse>>,
+  TError,
+  { data: BodyType<EvolutionHomologacaoPlanInput> },
+  TContext
+> => {
+  const mutationKey = ["planEvolutionHomologacaoResponse"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof planEvolutionHomologacaoResponse>>,
+    { data: BodyType<EvolutionHomologacaoPlanInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return planEvolutionHomologacaoResponse(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PlanEvolutionHomologacaoResponseMutationResult = NonNullable<
+  Awaited<ReturnType<typeof planEvolutionHomologacaoResponse>>
+>;
+export type PlanEvolutionHomologacaoResponseMutationBody =
+  BodyType<EvolutionHomologacaoPlanInput>;
+export type PlanEvolutionHomologacaoResponseMutationError = ErrorType<void>;
+
+/**
+ * @summary Executa o motor real sem registrar nem enviar pergunta simulada
+ */
+export const usePlanEvolutionHomologacaoResponse = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof planEvolutionHomologacaoResponse>>,
+    TError,
+    { data: BodyType<EvolutionHomologacaoPlanInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof planEvolutionHomologacaoResponse>>,
+  TError,
+  { data: BodyType<EvolutionHomologacaoPlanInput> },
+  TContext
+> => {
+  return useMutation(
+    getPlanEvolutionHomologacaoResponseMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Envia individualmente a resposta do motor com aviso de simulação
+ */
+export const getSendEvolutionHomologacaoResponseUrl = () => {
+  return `/api/evolution/homologacao/enviar-resposta`;
+};
+
+export const sendEvolutionHomologacaoResponse = async (
+  evolutionHomologacaoSendInput: EvolutionHomologacaoSendInput,
+  options?: RequestInit,
+): Promise<EvolutionHomologacaoSendResult> => {
+  return customFetch<EvolutionHomologacaoSendResult>(
+    getSendEvolutionHomologacaoResponseUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(evolutionHomologacaoSendInput),
+    },
+  );
+};
+
+export const getSendEvolutionHomologacaoResponseMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEvolutionHomologacaoResponse>>,
+    TError,
+    { data: BodyType<EvolutionHomologacaoSendInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendEvolutionHomologacaoResponse>>,
+  TError,
+  { data: BodyType<EvolutionHomologacaoSendInput> },
+  TContext
+> => {
+  const mutationKey = ["sendEvolutionHomologacaoResponse"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendEvolutionHomologacaoResponse>>,
+    { data: BodyType<EvolutionHomologacaoSendInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return sendEvolutionHomologacaoResponse(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendEvolutionHomologacaoResponseMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendEvolutionHomologacaoResponse>>
+>;
+export type SendEvolutionHomologacaoResponseMutationBody =
+  BodyType<EvolutionHomologacaoSendInput>;
+export type SendEvolutionHomologacaoResponseMutationError = ErrorType<void>;
+
+/**
+ * @summary Envia individualmente a resposta do motor com aviso de simulação
+ */
+export const useSendEvolutionHomologacaoResponse = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEvolutionHomologacaoResponse>>,
+    TError,
+    { data: BodyType<EvolutionHomologacaoSendInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendEvolutionHomologacaoResponse>>,
+  TError,
+  { data: BodyType<EvolutionHomologacaoSendInput> },
+  TContext
+> => {
+  return useMutation(
+    getSendEvolutionHomologacaoResponseMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Lista perguntas, destinos, ligações ativas e propostas
+ */
+export const getGetSinapsesClinicasPainelUrl = () => {
+  return `/api/cadastros/sinapses/painel`;
+};
+
+export const getSinapsesClinicasPainel = async (
+  options?: RequestInit,
+): Promise<SinapseClinicalPanel> => {
+  return customFetch<SinapseClinicalPanel>(getGetSinapsesClinicasPainelUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSinapsesClinicasPainelQueryKey = () => {
+  return [`/api/cadastros/sinapses/painel`] as const;
+};
+
+export const getGetSinapsesClinicasPainelQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSinapsesClinicasPainel>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSinapsesClinicasPainel>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetSinapsesClinicasPainelQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSinapsesClinicasPainel>>
+  > = ({ signal }) => getSinapsesClinicasPainel({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSinapsesClinicasPainel>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSinapsesClinicasPainelQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSinapsesClinicasPainel>>
+>;
+export type GetSinapsesClinicasPainelQueryError = ErrorType<void>;
+
+/**
+ * @summary Lista perguntas, destinos, ligações ativas e propostas
+ */
+
+export function useGetSinapsesClinicasPainel<
+  TData = Awaited<ReturnType<typeof getSinapsesClinicasPainel>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSinapsesClinicasPainel>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSinapsesClinicasPainelQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Grava propostas idempotentes sem ativá-las
+ */
+export const getGenerateInitialSinapseProposalsUrl = () => {
+  return `/api/cadastros/sinapses/propostas/carga-inicial`;
+};
+
+export const generateInitialSinapseProposals = async (
+  sinapseProposalGenerationInput: SinapseProposalGenerationInput,
+  options?: RequestInit,
+): Promise<SinapseProposalGenerationResult> => {
+  return customFetch<SinapseProposalGenerationResult>(
+    getGenerateInitialSinapseProposalsUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(sinapseProposalGenerationInput),
+    },
+  );
+};
+
+export const getGenerateInitialSinapseProposalsMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateInitialSinapseProposals>>,
+    TError,
+    { data: BodyType<SinapseProposalGenerationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateInitialSinapseProposals>>,
+  TError,
+  { data: BodyType<SinapseProposalGenerationInput> },
+  TContext
+> => {
+  const mutationKey = ["generateInitialSinapseProposals"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateInitialSinapseProposals>>,
+    { data: BodyType<SinapseProposalGenerationInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return generateInitialSinapseProposals(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateInitialSinapseProposalsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateInitialSinapseProposals>>
+>;
+export type GenerateInitialSinapseProposalsMutationBody =
+  BodyType<SinapseProposalGenerationInput>;
+export type GenerateInitialSinapseProposalsMutationError = ErrorType<void>;
+
+/**
+ * @summary Grava propostas idempotentes sem ativá-las
+ */
+export const useGenerateInitialSinapseProposals = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateInitialSinapseProposals>>,
+    TError,
+    { data: BodyType<SinapseProposalGenerationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generateInitialSinapseProposals>>,
+  TError,
+  { data: BodyType<SinapseProposalGenerationInput> },
+  TContext
+> => {
+  return useMutation(
+    getGenerateInitialSinapseProposalsMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Altera o destino de uma proposta ainda pendente
+ */
+export const getUpdateSinapseProposalUrl = (id: number) => {
+  return `/api/cadastros/sinapses/propostas/${id}`;
+};
+
+export const updateSinapseProposal = async (
+  id: number,
+  sinapseProposalUpdate: SinapseProposalUpdate,
+  options?: RequestInit,
+): Promise<SinapseProposal> => {
+  return customFetch<SinapseProposal>(getUpdateSinapseProposalUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(sinapseProposalUpdate),
+  });
+};
+
+export const getUpdateSinapseProposalMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSinapseProposal>>,
+    TError,
+    { id: number; data: BodyType<SinapseProposalUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSinapseProposal>>,
+  TError,
+  { id: number; data: BodyType<SinapseProposalUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateSinapseProposal"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSinapseProposal>>,
+    { id: number; data: BodyType<SinapseProposalUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateSinapseProposal(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSinapseProposalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSinapseProposal>>
+>;
+export type UpdateSinapseProposalMutationBody = BodyType<SinapseProposalUpdate>;
+export type UpdateSinapseProposalMutationError = ErrorType<void>;
+
+/**
+ * @summary Altera o destino de uma proposta ainda pendente
+ */
+export const useUpdateSinapseProposal = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSinapseProposal>>,
+    TError,
+    { id: number; data: BodyType<SinapseProposalUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSinapseProposal>>,
+  TError,
+  { id: number; data: BodyType<SinapseProposalUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateSinapseProposalMutationOptions(options));
+};
+
+/**
+ * @summary Move uma proposta pendente para as ligações ativas da tela
+ */
+export const getApproveSinapseProposalUrl = (id: number) => {
+  return `/api/cadastros/sinapses/propostas/${id}/aprovar`;
+};
+
+export const approveSinapseProposal = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SinapseProposalStatusResult> => {
+  return customFetch<SinapseProposalStatusResult>(
+    getApproveSinapseProposalUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getApproveSinapseProposalMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveSinapseProposal>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof approveSinapseProposal>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["approveSinapseProposal"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof approveSinapseProposal>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return approveSinapseProposal(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ApproveSinapseProposalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof approveSinapseProposal>>
+>;
+
+export type ApproveSinapseProposalMutationError = ErrorType<void>;
+
+/**
+ * @summary Move uma proposta pendente para as ligações ativas da tela
+ */
+export const useApproveSinapseProposal = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveSinapseProposal>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof approveSinapseProposal>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getApproveSinapseProposalMutationOptions(options));
+};
+
+/**
+ * @summary Recusa uma proposta sem apagar seu registro
+ */
+export const getRejectSinapseProposalUrl = (id: number) => {
+  return `/api/cadastros/sinapses/propostas/${id}/recusar`;
+};
+
+export const rejectSinapseProposal = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SinapseProposalStatusResult> => {
+  return customFetch<SinapseProposalStatusResult>(
+    getRejectSinapseProposalUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getRejectSinapseProposalMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rejectSinapseProposal>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rejectSinapseProposal>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["rejectSinapseProposal"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rejectSinapseProposal>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return rejectSinapseProposal(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RejectSinapseProposalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rejectSinapseProposal>>
+>;
+
+export type RejectSinapseProposalMutationError = ErrorType<void>;
+
+/**
+ * @summary Recusa uma proposta sem apagar seu registro
+ */
+export const useRejectSinapseProposal = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rejectSinapseProposal>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof rejectSinapseProposal>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getRejectSinapseProposalMutationOptions(options));
+};

@@ -1,12 +1,15 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, asc } from "drizzle-orm";
-import { db, budgetCatalogTable, budgetSettingsTable, substancesTable, DEFAULT_CARD_FEES } from "@workspace/db";
+import { db, budgetCatalogTable, budgetSettingsTable, substancesTable } from "@workspace/db";
 import {
   CreateBudgetCatalogItemBody,
   UpdateBudgetCatalogItemParams,
   UpdateBudgetCatalogItemBody,
   DeleteBudgetCatalogItemParams,
 } from "@workspace/api-zod";
+import { exigirComercial, FERRAMENTA_POLITICA_COMERCIAL } from "../lib/comercial-acesso";
+import { lerPoliticaClinica } from "../lib/comercial-politica";
+import { pool } from "@workspace/db";
 import { DEFAULT_ITEM_VOLUME_TIERS, DEFAULT_CART_VOLUME_TIERS } from "../lib/budget-calc";
 
 const router: IRouter = Router();
@@ -27,10 +30,11 @@ function formatItem(row: typeof budgetCatalogTable.$inferSelect) {
     maxAplicacoesMes: row.maxAplicacoesMes ?? null,
     minAplicacoesMes: row.minAplicacoesMes ?? null,
     itemVolumeTiers: row.itemVolumeTiers ?? null,
+    custoUnitCents: row.custoUnitCents ?? null,
   };
 }
 
-router.get("/budget-catalog", async (_req, res): Promise<void> => {
+router.get("/budget-catalog", exigirComercial(), async (_req, res): Promise<void> => {
   const rows = await db
     .select()
     .from(budgetCatalogTable)
@@ -38,7 +42,7 @@ router.get("/budget-catalog", async (_req, res): Promise<void> => {
   res.json(rows.map(formatItem));
 });
 
-router.post("/budget-catalog", async (req, res): Promise<void> => {
+router.post("/budget-catalog", exigirComercial(FERRAMENTA_POLITICA_COMERCIAL), async (req, res): Promise<void> => {
   const parsed = CreateBudgetCatalogItemBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -66,7 +70,7 @@ router.post("/budget-catalog", async (req, res): Promise<void> => {
   res.status(201).json(formatItem(row));
 });
 
-router.patch("/budget-catalog/:id", async (req, res): Promise<void> => {
+router.patch("/budget-catalog/:id", exigirComercial(FERRAMENTA_POLITICA_COMERCIAL), async (req, res): Promise<void> => {
   const params = UpdateBudgetCatalogItemParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -89,7 +93,7 @@ router.patch("/budget-catalog/:id", async (req, res): Promise<void> => {
   res.json(formatItem(row));
 });
 
-router.delete("/budget-catalog/:id", async (req, res): Promise<void> => {
+router.delete("/budget-catalog/:id", exigirComercial(FERRAMENTA_POLITICA_COMERCIAL), async (req, res): Promise<void> => {
   const params = DeleteBudgetCatalogItemParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -126,7 +130,7 @@ const SEED_ITEMS: Array<{
   { name: "Consulta Medica (60 min)", kind: "consultation", unitPriceCents: 60000, defaultSessions: 1, frequencyDays: null, match: null, repeticaoLivre: true, maxAplicacoesMes: null, minAplicacoesMes: null },
 ];
 
-router.post("/budget-catalog/seed", async (_req, res): Promise<void> => {
+router.post("/budget-catalog/seed", exigirComercial(FERRAMENTA_POLITICA_COMERCIAL), async (req, res): Promise<void> => {
   let catalogInserted = 0;
   let catalogBackfilled = 0;
 
@@ -181,26 +185,19 @@ router.post("/budget-catalog/seed", async (_req, res): Promise<void> => {
 
   const allRows = await db.select({ id: budgetCatalogTable.id }).from(budgetCatalogTable);
 
-  // settings row id=1 (com escadas de volume default)
-  let settingsCreated = false;
-  const [settings] = await db.select().from(budgetSettingsTable).where(eq(budgetSettingsTable.id, 1));
-  if (!settings) {
-    await db.insert(budgetSettingsTable).values({
-      id: 1,
-      cardFees: DEFAULT_CARD_FEES,
-      itemVolumeTiers: DEFAULT_ITEM_VOLUME_TIERS,
-      cartVolumeTiers: DEFAULT_CART_VOLUME_TIERS,
-    });
-    settingsCreated = true;
-  } else if (settings.itemVolumeTiers == null || settings.cartVolumeTiers == null) {
-    // Backfill das escadas em settings ja existente (Fase 1 -> Fase 2).
+  // politica da clinica da sessao (com escadas de volume default), sem tocar na de outra clinica
+  const empresaId = req.comercial!.empresaId;
+  const existia = await pool.query("SELECT 1 FROM budget_settings WHERE empresa_id=$1", [empresaId]);
+  const settingsCreated = existia.rows.length === 0;
+  const settings = await lerPoliticaClinica(pool, empresaId);
+  if (!settings.itemVolumeTiers?.length || !settings.cartVolumeTiers?.length) {
     await db
       .update(budgetSettingsTable)
       .set({
-        itemVolumeTiers: settings.itemVolumeTiers ?? DEFAULT_ITEM_VOLUME_TIERS,
-        cartVolumeTiers: settings.cartVolumeTiers ?? DEFAULT_CART_VOLUME_TIERS,
+        itemVolumeTiers: settings.itemVolumeTiers?.length ? settings.itemVolumeTiers : DEFAULT_ITEM_VOLUME_TIERS,
+        cartVolumeTiers: settings.cartVolumeTiers?.length ? settings.cartVolumeTiers : DEFAULT_CART_VOLUME_TIERS,
       })
-      .where(eq(budgetSettingsTable.id, 1));
+      .where(eq(budgetSettingsTable.empresaId, empresaId));
   }
 
   res.json({ catalogInserted, catalogBackfilled, catalogTotal: allRows.length, settingsCreated });

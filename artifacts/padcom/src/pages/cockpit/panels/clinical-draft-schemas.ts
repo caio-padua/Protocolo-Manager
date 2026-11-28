@@ -5,7 +5,7 @@ export const prescriptionDraftSchema = z.object({
   selected: z.array(z.object({
     id: z.string(), cat: z.string(), name: z.string(), ativos: z.string(), preco: z.number(),
     tomadas: z.array(z.object({
-      doses: z.number(), via: z.string(), periodo: z.string(), hora: z.string(), raw: z.string().optional(),
+      doses: z.number(), via: z.string(), periodo: z.string(), hora: z.string(), raw: z.string().optional(), orientacao: z.string().optional(),
     })),
   })),
   defaultPharmacyId: z.number().nullable(),

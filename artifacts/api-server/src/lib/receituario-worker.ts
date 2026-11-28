@@ -159,7 +159,7 @@ export async function liberarSlot(slotId: number): Promise<void> {
           <div style="font-family:Inter,sans-serif;background:#0a0f1c;min-height:100vh;padding:32px 0">
             <div style="max-width:560px;margin:0 auto;background:#151c2e;border-radius:8px;overflow:hidden;border:1px solid #1e2840">
               <div style="background:#151c2e;padding:28px 32px 16px;border-bottom:2px solid #c2a05a">
-                <span style="font-size:22px;font-weight:800;color:#c2a05a;letter-spacing:2px">PAXTER</span>
+                <span style="font-size:22px;font-weight:800;color:#c2a05a;letter-spacing:2px">PAXMED</span>
                 <span style="display:block;font-size:9px;color:#45B8CC;letter-spacing:3px;text-transform:uppercase;margin-top:2px">Clinical Intelligence System</span>
               </div>
               <div style="padding:28px 32px">
@@ -190,7 +190,7 @@ export async function liberarSlot(slotId: number): Promise<void> {
                 </p>
               </div>
               <div style="background:#0a0f1c;padding:14px 32px;text-align:center;border-top:1px solid #1e2840">
-                <span style="color:#334155;font-size:10px">PAXTER Clinical Intelligence System — documento assinado digitalmente</span>
+                <span style="color:#334155;font-size:10px">PaxMed Clinical Intelligence System — documento assinado digitalmente</span>
               </div>
             </div>
           </div>`;
@@ -201,7 +201,7 @@ export async function liberarSlot(slotId: number): Promise<void> {
 
         const result = await sendGmailMessage({
           to: client.email,
-          subject: `PAXTER | Receituário Magistral | ${slot.nome}`,
+          subject: `PAXMED | Receituário Magistral | ${slot.nome}`,
           html,
           attachments,
         });
@@ -227,7 +227,7 @@ export async function liberarSlot(slotId: number): Promise<void> {
         .join("\n");
       const driveInfo = driveWebViewLink ? `\n\n📂 Drive: ${driveWebViewLink}` : "";
       const msg = [
-        `🧪 *PAXTER — Receituário Magistral*`,
+        `🧪 *PaxMed — Receituário Magistral*`,
         ``,
         `Olá, ${client.name}!`,
         `Sua receita *${slot.nome}* está pronta.`,
@@ -270,7 +270,7 @@ export async function liberarSlot(slotId: number): Promise<void> {
           ? `\n\n📂 <a href="${driveWebViewLink}">Abrir no Drive</a>`
           : "";
         const msg = [
-          `🧪 <b>PAXTER — Receituário Magistral</b>`,
+          `🧪 <b>PaxMed — Receituário Magistral</b>`,
           ``,
           `Olá, ${client.name}!`,
           `Receita <b>${slot.nome}</b> liberada em ${fmtBR(slot.dataLiberacao)}.`,

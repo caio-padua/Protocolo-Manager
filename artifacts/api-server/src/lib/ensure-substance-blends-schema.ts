@@ -14,7 +14,8 @@ export async function ensureSubstanceBlendsSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS is_blend BOOLEAN NOT NULL DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS presentation_quantity REAL,
       ADD COLUMN IF NOT EXISTS presentation_unit TEXT,
-      ADD COLUMN IF NOT EXISTS ampoule_volume_ml REAL;
+      ADD COLUMN IF NOT EXISTS ampoule_volume_ml REAL,
+      ADD COLUMN IF NOT EXISTS antioxidante BOOLEAN NOT NULL DEFAULT FALSE;
 
     CREATE TABLE IF NOT EXISTS substance_blend_components (
       id SERIAL PRIMARY KEY,

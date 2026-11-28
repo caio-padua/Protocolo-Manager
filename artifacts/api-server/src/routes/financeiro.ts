@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { eq, and } from "drizzle-orm";
-import { db, paymentsTable, clientsTable, financialGoalsTable } from "@workspace/db";
+import { db, paymentsTable, clientsTable, financialGoalsTable, schedulingRequestsTable } from "@workspace/db";
 import {
   GetReconciliationQueryParams,
   ListFinancialGoalsQueryParams,
@@ -11,6 +11,7 @@ import {
 } from "@workspace/api-zod";
 import { requireCollaborator } from "./collaborator";
 import { asaasListCharges } from "../lib/asaas";
+import { linhasLocaisTeste } from "../lib/asaas-teste-cobrancas.js";
 
 // ===========================================================================
 // FINANCEIRO — Conciliacao (Asaas x payments locais) e Metas & Crescimento.
@@ -72,6 +73,38 @@ router.get("/reconciliation", requireCollaborator, async (req, res): Promise<voi
     for (const c of cs) clientNameById.set(c.id, c.name);
   }
 
+  // Livro de cobrancas de teste entra como lado "sistema" (rotulado TESTE), com ids negativos
+  // para nunca colidir com pagamentos reais.
+  const testeNomeByCharge = new Map<string, string>();
+  for (const t of await linhasLocaisTeste()) {
+    const stLocal = ASAAS_PAID.has(String(t.asaas_status)) ? "paid" : String(t.asaas_status ?? "pending").toLowerCase();
+    localRows.push({
+      id: -Number(t.id), amount: t.valor_centavos / 100, status: stLocal,
+      asaasChargeId: t.asaas_charge_id, invoiceUrl: t.invoice_url, dueDate: t.vencimento, clientId: 0,
+    });
+    testeNomeByCharge.set(t.asaas_charge_id, `[TESTE] ${t.descricao}`);
+  }
+
+  // Cobrancas do Concierge vivem em scheduling_requests (nao em payments): entram como lado
+  // "sistema" para nao aparecerem como "so no gateway". Sem nome do paciente (so o numero do pedido).
+  const sreqs = await db
+    .select({
+      id: schedulingRequestsTable.id,
+      chargeId: schedulingRequestsTable.asaasChargeId,
+      amount: schedulingRequestsTable.paymentAmount,
+      status: schedulingRequestsTable.paymentStatus,
+      invoiceUrl: schedulingRequestsTable.asaasInvoiceUrl,
+    })
+    .from(schedulingRequestsTable);
+  for (const q of sreqs) {
+    if (!q.chargeId) continue;
+    localRows.push({
+      id: -(1_000_000 + q.id), amount: q.amount ?? 0, status: q.status,
+      asaasChargeId: q.chargeId, invoiceUrl: q.invoiceUrl, dueDate: null, clientId: 0,
+    });
+    testeNomeByCharge.set(q.chargeId, `Concierge #${q.id}`);
+  }
+
   const localByCharge = new Map<string, (typeof localRows)[number]>();
   for (const r of localRows) {
     if (r.asaasChargeId) localByCharge.set(r.asaasChargeId, r);
@@ -111,7 +144,7 @@ router.get("/reconciliation", requireCollaborator, async (req, res): Promise<voi
       });
       continue;
     }
-    const clientName = local.clientId != null ? clientNameById.get(local.clientId) ?? null : null;
+    const clientName = testeNomeByCharge.get(ch.id) ?? (local.clientId != null ? clientNameById.get(local.clientId) ?? null : null);
     let match: Item["match"] = "ok";
     if (Math.abs((local.amount ?? 0) - ch.value) > 0.01) {
       match = "value_mismatch";
@@ -140,7 +173,7 @@ router.get("/reconciliation", requireCollaborator, async (req, res): Promise<voi
       items.push({
         asaasChargeId: r.asaasChargeId,
         paymentId: r.id,
-        clientName: r.clientId != null ? clientNameById.get(r.clientId) ?? null : null,
+        clientName: testeNomeByCharge.get(r.asaasChargeId) ?? (r.clientId != null ? clientNameById.get(r.clientId) ?? null : null),
         asaasStatus: null,
         localStatus: r.status,
         asaasValue: null,

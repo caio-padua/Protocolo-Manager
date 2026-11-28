@@ -103,7 +103,6 @@ export default function MonitorMotorPage() {
   const [loading, setLoading]       = useState(true);
   const [recovery, setRecovery]     = useState<"idle" | "running" | "ok" | "err">("idle");
   const [audit, setAudit]           = useState<AuditRow[]>([]);
-  const [reprocessando, setReprocessando] = useState<Record<number, boolean>>({});
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -149,24 +148,6 @@ export default function MonitorMotorPage() {
     const t = setInterval(() => { void carregarAudit(); }, 5000);
     return () => clearInterval(t);
   }, [carregarAudit]);
-
-  async function reprocessarDoc(id: number) {
-    setReprocessando((prev) => ({ ...prev, [id]: true }));
-    try {
-      const token = getCollabToken();
-      await fetch(`/api/exames-lab/reprocessar/${id}`, {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      // Atualiza monitor e auditoria após reprocessar
-      void carregar();
-      void carregarAudit();
-    } catch {
-      /* silencioso — monitor refaz o status */
-    } finally {
-      setReprocessando((prev) => ({ ...prev, [id]: false }));
-    }
-  }
 
   async function acionarRecovery() {
     setRecovery("running");
@@ -406,16 +387,13 @@ export default function MonitorMotorPage() {
                           </Link>
                           <button
                             type="button"
-                            disabled={reprocessando[d.id]}
-                            onClick={() => void reprocessarDoc(d.id)}
+                            disabled
                             className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded disabled:opacity-50"
-                            style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d" }}
-                            title="Reprocessar este documento com a IA agora"
+                            style={{ background: "#e2e8f0", color: "#475569", border: "1px solid #cbd5e1" }}
+                            title="Bloqueado até haver preservação versionada dos resultados anteriores."
                           >
-                            {reprocessando[d.id]
-                              ? <Loader2 className="h-3 w-3 animate-spin" />
-                              : <RotateCcw className="h-3 w-3" />}
-                            Reprocessar
+                            <RotateCcw className="h-3 w-3" />
+                            Bloqueado
                           </button>
                         </td>
                       </tr>

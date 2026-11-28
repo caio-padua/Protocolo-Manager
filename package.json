@@ -6,10 +6,13 @@
   "scripts": {
     "check:paxter-governance": "node scripts/paxter-governance.mjs",
     "test:paxter-governance": "node --test scripts/tests/paxter-governance.test.mjs",
+    "check:catalogo": "node scripts/catalogo-ecossistema.mjs",
+    "test:catalogo": "node --test scripts/tests/catalogo-ecossistema.test.mjs",
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "poc:lottery": "playwright test -c tools/lottery-engine-poc/playwright.config.ts",
     "test:e2e": "CHROMIUM_PATH=/nix/store/qa9cnw4v5xkxyip6mb9kxqfq1z4x2dx1-chromium-138.0.7204.100/bin/chromium playwright test"
   },
   "private": true,

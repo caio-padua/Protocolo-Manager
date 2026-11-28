@@ -1,0 +1,66 @@
+@import url("https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Jost:wght@400;500;600&display=swap");
+
+.plr-root {
+  width: 1200px; height: 630px; position: relative; overflow: hidden; isolation: isolate; display: flex; align-items: center; justify-content: center;
+  font-family: "EB Garamond", Georgia, serif; color: #14284a;
+  background: #0c1a34;
+}
+.plr-root::before { /* risca de giz */
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background-image: repeating-linear-gradient(164deg, transparent 0 11px, rgba(190, 215, 255, 0.09) 11px 12px, transparent 12px 26px),
+    radial-gradient(ellipse 90% 80% at 50% 40%, rgba(40, 70, 130, 0.35), rgba(5, 12, 28, 0.6));
+}
+
+/* PILHA CENTRAL: placa em relevo em cima, painel escuro por baixo */
+.plr-pilha { position: relative; z-index: 2; width: 800px; height: 520px; }
+
+.plr-bevel {
+  position: absolute; z-index: 3; left: 0; right: 0; top: 0; height: 208px; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center; gap: 44px; border-radius: 16px;
+  background: linear-gradient(180deg, #14264a 0%, #0d1b38 48%, #091428 100%);
+  border: 1px solid rgba(150, 185, 235, 0.26); border-top-color: rgba(255, 255, 255, 0.4);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.3), inset 2px 0 0 rgba(255, 255, 255, 0.07), inset -2px 0 0 rgba(0, 0, 0, 0.25), inset 0 -3px 0 rgba(0, 0, 0, 0.45), 0 5px 0 #0a1530, 0 10px 0 #050b19, 0 26px 34px rgba(0, 0, 0, 0.62);
+}
+.plr-arte { position: relative; flex: none; }
+.plr-arte img { display: block; width: 100%; height: 100%; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.5)); }
+.plr-sim { width: 148px; height: 149.2px; }
+.plr-nome { width: 380px; height: 63.8px; }
+.plr-marca { display: flex; flex-direction: column; align-items: center; gap: 14px; flex: none; }
+.plr-tagline {
+  margin: 0; font-family: "Jost", sans-serif; font-size: 15px; font-weight: 500; letter-spacing: 5.6px; text-transform: uppercase; white-space: nowrap;
+  padding-left: 5.6px; color: #d9bd7a; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+.plr-luz { position: absolute; inset: 0; overflow: hidden; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; mix-blend-mode: screen; }
+.plr-raio {
+  position: absolute; top: -20%; bottom: -20%; left: 0; width: 34%;
+  background: linear-gradient(100deg, transparent 0%, rgba(255, 244, 205, 0) 12%, rgba(255, 246, 214, 0.88) 50%, rgba(255, 244, 205, 0) 88%, transparent 100%);
+  transform: translateX(-130%) skewX(-18deg); animation: plrVarre 7s ease-in-out infinite;
+}
+@keyframes plrVarre { 0%, 12% { transform: translateX(-130%) skewX(-18deg); } 58%, 100% { transform: translateX(330%) skewX(-18deg); } }
+.plr-estatico .plr-luz { display: none; } /* imagem do link: sem raio (previa e parada) */
+
+/* PAINEL ESCURO (desliza por baixo da placa) */
+.plr-gaveta {
+  position: absolute; z-index: 1; left: 34px; right: 34px; top: 176px; bottom: 12px; box-sizing: border-box;
+  padding: 72px 30px 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; text-align: center;
+  border-radius: 0 0 16px 16px;
+  background: linear-gradient(180deg, #16294f 0%, #1a3160 100%);
+  border: 1px solid rgba(150, 185, 235, 0.22); border-top: none;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.32), inset 2px 0 0 rgba(255, 255, 255, 0.06), inset -2px 0 0 rgba(0, 0, 0, 0.22), 0 6px 0 #0b1731, 0 12px 0 #050b19, 0 28px 34px rgba(0, 0, 0, 0.58);
+}
+.plr-titulo { margin: 0; font-size: 38px; line-height: 1.1; font-weight: 600; color: #f3efe3; letter-spacing: 0.2px; }
+.plr-titulo em { font-style: italic; font-weight: 500; color: #e3b659; }
+
+.plr-lista { list-style: none; margin: 26px 0 0; padding: 0; display: flex; align-items: center; justify-content: center; gap: 18px; }
+.plr-lista li { display: flex; align-items: center; gap: 18px; }
+.plr-lista i { width: 7px; height: 7px; transform: rotate(45deg); background: #e3b659; opacity: 0.85; }
+.plr-lista span { font-family: "Jost", sans-serif; font-size: 17px; font-weight: 500; letter-spacing: 3.2px; text-transform: uppercase; color: #b9c6e0; }
+
+.plr-manual { margin: 28px 0 0; font-size: 24px; font-weight: 500; line-height: 1.2; color: #d8e0f0; }
+.plr-confira {
+  margin-top: 38px; padding: 9px 44px; border-radius: 9px; font-size: 28px; font-weight: 700; letter-spacing: 2.5px; color: #3a2606;
+  background: linear-gradient(180deg, #fbe7a6 0%, #dcae48 55%, #b07d22 100%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 3px 0 #6e4b10;
+}
+
+@media (prefers-reduced-motion: reduce) { .plr-raio { animation: none; } }

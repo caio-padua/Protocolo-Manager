@@ -2,27 +2,16 @@
  * Posta correção em thread no post das 23:09 no Slack #padaxor-projeto
  * Executar: npx tsx src/scripts/post-slack-thread-correcao.ts
  */
+import { isRecord, loadReplitConnectorAccessToken } from "../lib/replit-connection";
+
+export {};
 
 const CHANNEL_ID = "C0BLW5S7GQL";
 // ts do post das 23:09 que disse CONCLUÍDO (informado pelo CEO)
 const THREAD_TS = "1786500568.952229";
 
 async function getSlackToken(): Promise<string> {
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY
-    ? "repl " + process.env.REPL_IDENTITY
-    : process.env.WEB_REPL_RENEWAL
-    ? "depl " + process.env.WEB_REPL_RENEWAL
-    : null;
-  if (!xReplitToken || !hostname) throw new Error("REPL_IDENTITY ausente");
-  const res = await fetch(`https://${hostname}/api/v2/connection?include_secrets=true`, {
-    headers: { Accept: "application/json", "X-Replit-Token": xReplitToken },
-  });
-  const data = await res.json();
-  const conn = data.items?.find((i: any) => i.connector_name === "slack");
-  const token = conn?.settings?.access_token || conn?.settings?.oauth?.credentials?.access_token;
-  if (!token) throw new Error("Slack não conectado");
-  return token;
+  return loadReplitConnectorAccessToken("slack");
 }
 
 async function main() {
@@ -50,11 +39,11 @@ Dr. Manus identificou com \`git diff\` que o commit seguinte havia removido a id
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({ channel: CHANNEL_ID, thread_ts: THREAD_TS, text: texto }),
   });
-  const result = await res.json();
-  if (result.ok) {
+  const result: unknown = await res.json();
+  if (isRecord(result) && result.ok === true) {
     console.log("✅ Thread postada — ts:", result.ts);
   } else {
-    console.error("ERRO:", result.error, result);
+    console.error("ERRO:", isRecord(result) ? result.error : "Resposta inválida do Slack", result);
   }
 }
 

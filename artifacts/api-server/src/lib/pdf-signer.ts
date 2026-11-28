@@ -1,4 +1,6 @@
 import { PDFDocument, rgb, StandardFonts, PDFPage, degrees } from "pdf-lib";
+import { carregarFotoProfissional } from "./professional-photo";
+import type { PDFFont } from "pdf-lib";
 import forge from "node-forge";
 import fs from "fs";
 import path from "path";
@@ -7,6 +9,12 @@ import { P12Signer } from "@signpdf/signer-p12";
 import { pdflibAddPlaceholder } from "@signpdf/placeholder-pdf-lib";
 import { gerarRasFapPdf, type DadosRasFap, type ModoRasFap } from "./ras-fap";
 import QRCode from "qrcode";
+import {
+  MENSAGEM_DOSE_CLINICA_REVISAO,
+  detalheCatalogoSeguroParaProtocolo,
+  dosePrescritaParaDocumento,
+  nomeSubstanciaNoProtocolo,
+} from "./protocol-dose-presentation";
 
 const signpdf = new SignPdf();
 
@@ -29,7 +37,7 @@ async function embedPaxterQr(pdfDoc: PDFDocument): Promise<QrImage> {
 // Fonte do certificado: cache configuravel (cofre/object storage) com fallback
 // ao arquivo local. NUNCA quebra no carregamento do modulo — so falha (com
 // mensagem clara) na hora de assinar, se nada estiver configurado.
-import { getCertBufferSync, getCertPasswordsSync } from "./cert-source.js";
+import { getCertBufferSync, getCertPasswordsSync, isDoctorCertificateActive } from "./cert-source.js";
 
 interface SubstanceInfo {
   substanceName: string;
@@ -100,14 +108,16 @@ function loadCertificate(): { key: forge.pki.rsa.PrivateKey; cert: forge.pki.Cer
 
 let cachedCertPassword: string | null = null;
 function getCertPassword(): string {
-  if (cachedCertPassword) return cachedCertPassword;
+  // Certificado do medico logado nunca usa nem alimenta o cache do certificado global.
+  const overridden = isDoctorCertificateActive();
+  if (!overridden && cachedCertPassword) return cachedCertPassword;
   const pfxBuffer = getCertBufferSync();
   const pfxBinary = forge.util.binary.raw.encode(new Uint8Array(pfxBuffer));
   const pfxAsn1 = forge.asn1.fromDer(pfxBinary);
   for (const pw of getCertPasswordsSync()) {
     try {
       forge.pkcs12.pkcs12FromAsn1(pfxAsn1, pw);
-      cachedCertPassword = pw;
+      if (!overridden) cachedCertPassword = pw;
       return pw;
     } catch {
       continue;
@@ -180,7 +190,7 @@ interface Fonts {
 }
 
 function drawPageFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages: number, qrImg: QrImage = null) {
-  const footerText = `Instituto Pádua · Paxter — desenvolvido pela Padcon · Advanced Systems Architecture · Página ${pageNum} de ${totalPages} · ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`;
+  const footerText = `Instituto Pádua · PaxMed — desenvolvido pela Padcon · Advanced Systems Architecture · Página ${pageNum} de ${totalPages} · ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`;
   page.drawText(footerText, {
     x: MARGIN,
     y: MARGIN - 20,
@@ -194,7 +204,7 @@ function drawPageFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages
       const qx = PAGE_W - MARGIN - qs;
       const qy = 20;
       page.drawImage(qrImg, { x: qx, y: qy, width: qs, height: qs });
-      page.drawText("Paxter", { x: qx - 52, y: qy + 13, size: 5.5, font: fonts.bold, color: GRAY });
+      page.drawText("PaxMed", { x: qx - 52, y: qy + 13, size: 5.5, font: fonts.bold, color: GRAY });
       page.drawText("paxter.com.br", { x: qx - 52, y: qy + 5, size: 5, font: fonts.regular, color: GRAY });
     } catch { /* nunca derruba a emissao */ }
   }
@@ -237,10 +247,10 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
   const { cert } = loadCertificate();
 
   const pdfDoc = await PDFDocument.create();
-  pdfDoc.setTitle(`RAS ${String(ras.id).padStart(6, "0")} — ${ras.clientName}`);
-  pdfDoc.setAuthor("Instituto Pádua — Paxter");
-  pdfDoc.setSubject("Registro de Administração de Substâncias");
-  pdfDoc.setCreator("Sistema Paxter");
+  pdfDoc.setTitle(`RASP ${String(ras.id).padStart(6, "0")} — ${ras.clientName}`);
+  pdfDoc.setAuthor("Instituto Pádua — PaxMed");
+  pdfDoc.setSubject("Registro de Atendimentos, Substâncias e Procedimentos");
+  pdfDoc.setCreator("Sistema PaxMed");
 
   const fonts: Fonts = {
     regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
@@ -281,7 +291,11 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
   // ============================================================
   {
 
-    page.drawText("REGISTRO DE ADMINISTRAÇÃO DE SUBSTÂNCIAS", {
+    page.drawText("REGISTRO DE ATENDIMENTOS,", {
+      x: MARGIN, y, size: 14, font: fonts.bold, color: DARK_BLUE,
+    });
+    y -= 16;
+    page.drawText("SUBSTÂNCIAS E PROCEDIMENTOS", {
       x: MARGIN, y, size: 14, font: fonts.bold, color: DARK_BLUE,
     });
     y -= 16;
@@ -289,7 +303,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
       x: MARGIN, y, size: 9, font: fonts.regular, color: GRAY,
     });
 
-    const rasNumber = `RAS N.° ${String(ras.id).padStart(6, "0")}`;
+    const rasNumber = `RASP N.° ${String(ras.id).padStart(6, "0")}`;
     const rasNumWidth = fonts.bold.widthOfTextAtSize(rasNumber, 10);
     page.drawText(rasNumber, {
       x: PAGE_W - MARGIN - rasNumWidth, y: PAGE_H - MARGIN, size: 10, font: fonts.bold, color: DARK_BLUE,
@@ -614,11 +628,11 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
       },
       {
         title: "8. LEI GERAL DE PROTEÇÃO DE DADOS (LGPD)",
-        text: "Em conformidade com a Lei nº 13.709/2018 (LGPD), autorizo a coleta, armazenamento e processamento dos meus dados pessoais e dados sensíveis de saúde para fins exclusivos de: execução do protocolo terapêutico; emissão de documentos clínicos (RAS, receituários); acompanhamento da evolução clínica; comunicação sobre agendamentos e resultados. Tenho ciência do meu direito de solicitar a exclusão, correção ou portabilidade dos meus dados a qualquer momento.",
+        text: "Em conformidade com a Lei nº 13.709/2018 (LGPD), autorizo a coleta, armazenamento e processamento dos meus dados pessoais e dados sensíveis de saúde para fins exclusivos de: execução do protocolo terapêutico; emissão de documentos clínicos (RASP, receituários); acompanhamento da evolução clínica; comunicação sobre agendamentos e resultados. Tenho ciência do meu direito de solicitar a exclusão, correção ou portabilidade dos meus dados a qualquer momento.",
       },
       {
         title: "9. ARMAZENAMENTO DIGITAL",
-        text: "Autorizo o armazenamento digital de todos os registros de atendimento, incluindo o presente termo, no sistema Paxter e, quando aplicável, em ambiente de nuvem seguro (Google Drive), com compartilhamento exclusivo ao meu e-mail cadastrado, em modo somente leitura.",
+        text: "Autorizo o armazenamento digital de todos os registros de atendimento, incluindo o presente termo, no sistema PaxMed e, quando aplicável, em ambiente de nuvem seguro (Google Drive), com compartilhamento exclusivo ao meu e-mail cadastrado, em modo somente leitura.",
       },
       {
         title: "10. DECLARAÇÃO FINAL",
@@ -675,7 +689,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
 
   const pdfBytes = await embedPadesSignature(pdfDoc, {
     name: signerName,
-    reason: "Assinatura digital do RAS (ICP-Brasil)",
+    reason: "Assinatura digital do RASP (ICP-Brasil)",
     location: ras.unit || "Instituto Pádua",
     contactInfo: ras.clientCpf || "",
   });
@@ -724,6 +738,9 @@ interface PhysicalRASData {
   valorTratamento?: string;
   substances: PhysicalRASSubstance[];
   sessions: PhysicalRASSession[];
+  persistedGrid?: import("./protocol-ras-grid").PersistedRasRow[];
+  /** K9: registros por visita (por número da linha da grade); só protocolos de datas exatas. */
+  registros?: Map<number, import("./ras-fap-rubrica").RegistroRasFap>;
   todayDate?: string;
 }
 
@@ -769,7 +786,7 @@ function parseISODateLocal(s: string, campo: string): Date {
   if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   const d = new Date(s);
   if (!isNaN(d.getTime())) return d;
-  throw new Error(`RAS FAP: data invalida em ${campo}: "${s}"`);
+  throw new Error(`RASP FAP: data invalida em ${campo}: "${s}"`);
 }
 
 // Garante inteiro finito dentro de [min,max] (defende a grade contra dados ruins
@@ -798,6 +815,12 @@ function viaLabel(t?: string): string | undefined {
 
 function physicalDataToFap(data: PhysicalRASData): DadosRasFap {
   return {
+    registros: data.registros,
+    gradePersistida: data.persistedGrid?.map(row => ({
+      numero: row.number,
+      data: parseISODateLocal(row.date, "sessão persistida"),
+      contadores: row.counters,
+    })),
     nome: data.clientName,
     cpf: data.clientCpf || undefined,
     celular: data.clientPhone || undefined,
@@ -883,6 +906,8 @@ interface ProtocolDocPayment {
 
 interface ProtocolDocumentData {
   protocolId: number;
+  /** Profissional que atende: a foto da capa sai do cadastro dele, nunca de outra pessoa. */
+  professionalId?: number | null;
   protocolTitle: string;
   clientName: string;
   clientCpf: string;
@@ -940,7 +965,7 @@ function drawRubricLine(page: PDFPage, fonts: Fonts, clientName: string) {
 }
 
 function drawDocFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages: number, clientName: string) {
-  const footerText = `Instituto Padua · Padaxor - desenvolvido pela Padcon · Advanced Systems Architecture | Protocolo Medico Personalizado | Pagina ${pageNum} de ${totalPages}`;
+  const footerText = `Instituto Pádua · PaxMed - desenvolvido pela Padcon · Advanced Systems Architecture | Protocolo Medico Personalizado | Pagina ${pageNum} de ${totalPages}`;
   page.drawText(footerText, { x: MARGIN, y: 18, size: 6, font: fonts.regular, color: GRAY });
   drawRubricLine(page, fonts, clientName);
 }
@@ -1428,6 +1453,16 @@ async function embedJpegAsset(pdfDoc: PDFDocument, fileName: string): Promise<Em
   return null;
 }
 
+export async function embedFotoProfissional(pdfDoc: PDFDocument, professionalId: number | null | undefined): Promise<EmbeddedPng | null> {
+  const foto = await carregarFotoProfissional(professionalId);
+  if (!foto) return null;
+  try {
+    return foto.formato === "jpg" ? await pdfDoc.embedJpg(stripJpegMetadata(foto.bytes)) : await pdfDoc.embedPng(foto.bytes);
+  } catch {
+    return null;
+  }
+}
+
 function maskCpf(cpf: string | undefined): string {
   if (!cpf) return "—";
   const d = cpf.replace(/\D/g, "");
@@ -1651,7 +1686,8 @@ function drawSubstancePremiumPage(
   // Fio fino fechando o cabecalho: substitui a borda que a faixa navy dava.
   pg.drawLine({ start: { x: MARGIN, y: bandY + 1 }, end: { x: MARGIN + CONTENT_W, y: bandY + 1 }, thickness: 0.6, color: LINE_P });
 
-  const cleanDose = safeTxt(sub.dose).replace(/\s*\/\s*\d+[\.,]?\d*\s*(ml|mL|ML)/gi, "").trim();
+  const cleanDose = dosePrescritaParaDocumento(sub.dose);
+  if (!cleanDose) throw new Error(MENSAGEM_DOSE_CLINICA_REVISAO);
   const doW = pf.manReg.widthOfTextAtSize(cleanDose || EMPTY_SHORT, 7);
   pg.drawText(cleanDose || EMPTY_SHORT, { x: MARGIN + CONTENT_W - doW, y: bandY + 9, size: 7, font: pf.manReg, color: INK_P });
 
@@ -1697,36 +1733,36 @@ function drawSubstancePremiumPage(
     }
   }
 
-  // ── GRADE 1b: segunda fila — concentração, volume e duração (task-266) ─────
-  // Estes 3 campos estavam cadastrados na substância mas nunca chegavam ao PDF.
-  // Campo sem dado exibe marcador "—" (grade invariável, R2.2).
-  const PRES2_H = 30;
-  const pres2Y = presY - PRES2_H;
-  pg.drawRectangle({ x: MARGIN, y: pres2Y, width: CONTENT_W, height: PRES2_H, color: MIST_P, opacity: 0.22 });
-  pg.drawLine({ start: { x: MARGIN, y: presY }, end: { x: MARGIN + CONTENT_W, y: presY }, thickness: 0.3, color: LINE_P });
-  const pres2Cells: Array<{ lbl: string; val: string }> = [
-    { lbl: "CONCENTRAÇÃO",   val: safeTxt(sub.concentrationMg) },
-    { lbl: "VOLUME (AMPOLA)",val: safeTxt(sub.volumeAmpola) },
-    { lbl: "DURAÇÃO (MIN)",  val: sub.durationMinutes != null && sub.durationMinutes > 0 ? String(sub.durationMinutes) : "" },
-  ];
-  const cell2W = CONTENT_W / pres2Cells.length;
-  for (let ci = 0; ci < pres2Cells.length; ci++) {
-    const cx0 = MARGIN + ci * cell2W;
-    if (ci > 0) {
-      pg.drawLine({ start: { x: cx0, y: pres2Y + 3 }, end: { x: cx0, y: pres2Y + PRES2_H - 3 }, thickness: 0.4, color: LINE_P });
-    }
-    pg.drawText(pres2Cells[ci].lbl, { x: cx0 + 5, y: pres2Y + PRES2_H - 10, size: 4.4, font: pf.manBold, color: INK_P });
-    const raw2 = pres2Cells[ci].val;
-    const has2 = raw2.trim().length > 0;
-    const shown2 = has2 ? raw2 : EMPTY_SHORT;
-    const cell2Font = has2 ? pf.cgBold : pf.cgReg;
-    let vs2 = 9;
-    while (cell2Font.widthOfTextAtSize(shown2, vs2) > cell2W - 10 && vs2 > 5.2) vs2 -= 0.25;
-    pg.drawText(shown2, { x: cx0 + 5, y: pres2Y + 9, size: vs2, font: cell2Font, color: has2 ? NAVY_P : EMPTY_C });
-  }
-
   // ── GRADE 2: duas colunas de altura fixa ───────────────────────────────────
-  const bodyTop = pres2Y - 20;
+  const DUR_H = 30;
+  const durY = presY - DUR_H;
+  pg.drawRectangle({ x: MARGIN, y: durY, width: CONTENT_W, height: DUR_H, color: MIST_P, opacity: 0.22 });
+  pg.drawLine({ start: { x: MARGIN, y: presY }, end: { x: MARGIN + CONTENT_W, y: presY }, thickness: 0.3, color: LINE_P });
+  const durationText = sub.durationMinutes != null && sub.durationMinutes > 0
+    ? new Intl.NumberFormat("pt-BR").format(sub.durationMinutes)
+    : "";
+  const durationLabelY = durY + DUR_H - 10;
+  pg.drawText("DURAÇÃO (MIN)", {
+    x: MARGIN + 5,
+    y: durationLabelY,
+    size: 4.4,
+    font: pf.manBold,
+    color: INK_P,
+  });
+  const shownDuration = durationText || EMPTY_SHORT;
+  const durationFont = durationText ? pf.cgBold : pf.cgReg;
+  let durationSize = 9;
+  while (durationFont.widthOfTextAtSize(shownDuration, durationSize) > CONTENT_W - 10 && durationSize > 5.2) {
+    durationSize -= 0.25;
+  }
+  pg.drawText(shownDuration, {
+    x: MARGIN + 5,
+    y: durY + 8,
+    size: durationSize,
+    font: durationFont,
+    color: durationText ? NAVY_P : EMPTY_C,
+  });
+  const bodyTop = durY - 20;
   const leftW = 200;
   const rightX = MARGIN + leftW + 16;
   const rightW = CONTENT_W - leftW - 16;
@@ -2624,6 +2660,45 @@ export async function buildProtocolDocumentLayout(
   data: ProtocolDocumentData,
   certData: PdfCertData = null,
 ): Promise<void> {
+  data = {
+    ...data,
+    notes: detalheCatalogoSeguroParaProtocolo(data.notes),
+    substances: data.substances.map(substance => {
+      const dose = dosePrescritaParaDocumento(substance.dose);
+      if (!dose) throw new Error(MENSAGEM_DOSE_CLINICA_REVISAO);
+      const bodySystemEffectsText = substance.bodySystemEffects
+        ? JSON.stringify(substance.bodySystemEffects)
+        : "";
+      return {
+        ...substance,
+        name: nomeSubstanciaNoProtocolo(substance.name),
+        dose,
+        description: detalheCatalogoSeguroParaProtocolo(substance.description),
+        mainFunction: detalheCatalogoSeguroParaProtocolo(substance.mainFunction),
+        perceivedEffects: detalheCatalogoSeguroParaProtocolo(substance.perceivedEffects),
+        composicao: detalheCatalogoSeguroParaProtocolo(substance.composicao),
+        posologia: detalheCatalogoSeguroParaProtocolo(substance.posologia),
+        contraindications: detalheCatalogoSeguroParaProtocolo(substance.contraindications),
+        scientificEvidence: detalheCatalogoSeguroParaProtocolo(substance.scientificEvidence),
+        longevityBenefit: detalheCatalogoSeguroParaProtocolo(substance.longevityBenefit),
+        qualityOfLifeImpact: detalheCatalogoSeguroParaProtocolo(substance.qualityOfLifeImpact),
+        sleepBenefit: detalheCatalogoSeguroParaProtocolo(substance.sleepBenefit),
+        energyBenefit: detalheCatalogoSeguroParaProtocolo(substance.energyBenefit),
+        libidoBenefit: detalheCatalogoSeguroParaProtocolo(substance.libidoBenefit),
+        physicalPerformance: detalheCatalogoSeguroParaProtocolo(substance.physicalPerformance),
+        muscleStrength: detalheCatalogoSeguroParaProtocolo(substance.muscleStrength),
+        mentalClarity: detalheCatalogoSeguroParaProtocolo(substance.mentalClarity),
+        skinHairNails: detalheCatalogoSeguroParaProtocolo(substance.skinHairNails),
+        immuneSupport: detalheCatalogoSeguroParaProtocolo(substance.immuneSupport),
+        bodySystemEffects: detalheCatalogoSeguroParaProtocolo(bodySystemEffectsText)
+          ? substance.bodySystemEffects
+          : undefined,
+        concentrationMg: undefined,
+        volumeAmpola: undefined,
+      };
+    }),
+  };
+
   const cert = certData?.cert ?? null;
   const certInfo = certData?.certInfo ?? null;
 
@@ -2643,7 +2718,7 @@ export async function buildProtocolDocumentLayout(
     embedBrandPng(pdfDoc, "padcon-words.png"),       // PADCON + Platform® + Advanced Systems Architecture
     embedPaxterQr(pdfDoc),
     embedBrandPng(pdfDoc, "padua-wordmark.png"),    // logo Instituto Pádua (capa + subcapa)
-    embedJpegAsset(pdfDoc, "dr-caio-photo.jpg"),    // foto do Dr. Caio (opcional — layout Gamma-inspired)
+    embedFotoProfissional(pdfDoc, data.professionalId),  // foto do profissional que atende (opcional)
   ]);
 
   const allPages: PDFPage[] = [];
@@ -2781,7 +2856,7 @@ export async function buildProtocolDocumentLayout(
       if (fy < MARGIN + 30) { finPg = newDocPage(pdfDoc, allPages); finPg.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: IVORY_P }); fy = PAGE_H - MARGIN; }
       if (fzebra) finPg.drawRectangle({ x: MARGIN, y: fy - fRowH + 4, width: CONTENT_W, height: fRowH, color: MIST_P, opacity: 0.4 });
       fzebra = !fzebra;
-      const cleanD = safeTxt(sub.dose).replace(/\s*\/\s*\d+[\.,]?\d*\s*(ml|mL|ML)/gi, "").trim();
+      const cleanD = dosePrescritaParaDocumento(sub.dose);
       const unitPr = sub.unitPrice ?? 0;
       const subTotal = unitPr * sub.totalSessions;
       const fmtUnit = unitPr > 0 ? `R$ ${unitPr.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "-";
@@ -3003,7 +3078,7 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
 
   const pdfDoc = await PDFDocument.create();
   pdfDoc.setTitle(`Protocolo ${data.protocolTitle} — ${data.clientName}`);
-  pdfDoc.setAuthor("Instituto Padua — PAXMED");
+  pdfDoc.setAuthor("Instituto Pádua — PAXMED");
   pdfDoc.setSubject("Carta de Tratamento Premium PAXMED");
   pdfDoc.setCreator("Sistema PAXMED");
 
@@ -3016,7 +3091,7 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
   const pdfBytes = await embedPadesSignature(pdfDoc, {
     name: sName,
     reason: "Assinatura digital do protocolo (ICP-Brasil)",
-    location: data.unit || "Instituto Padua",
+    location: data.unit || "Instituto Pádua",
     contactInfo: data.clientCpf || "",
   });
 

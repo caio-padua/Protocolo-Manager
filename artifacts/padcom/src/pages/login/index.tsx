@@ -22,6 +22,7 @@ import { clerkPublishableKey } from "@/lib/clerk-app";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { isAppPasswordValid, PASSWORD_POLICY_MESSAGE } from "@workspace/password-policy";
+import { postCollaboratorLogin } from "./login-request";
 
 interface BootstrapStatus {
   needsBootstrap: boolean;
@@ -130,7 +131,7 @@ export default function LoginPage() {
         !rt.startsWith("/login")
       ) return rt;
     } catch { /* */ }
-    return "/";
+    return "/dashboard";
   }
 
   function beginGoogleLogin() {
@@ -212,7 +213,7 @@ export default function LoginPage() {
           password,
         });
       } else {
-        res = await postJson("/api/collaborator/login", {
+        res = await postCollaboratorLogin({
           identifier: loginIdentifierForRequest(username),
           password,
         });
@@ -222,7 +223,7 @@ export default function LoginPage() {
       setCollabSession(data.token, data.professional);
       navigate(getReturnTo(), { replace: true });
     } catch {
-      setError("Erro de conexão. Tente novamente.");
+      setError("O serviço de acesso não respondeu. Aguarde e tente novamente.");
       setBusy(false);
     }
   }
@@ -287,7 +288,7 @@ export default function LoginPage() {
 
   return (
     <div className={`${theme === "dark" ? "dark bg-[#0f2440] text-[#f4e2a8]" : "bg-[#f3ecdd] text-[#16284a]"} relative isolate flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden px-4 py-8`}>
-      <div className="leva-fabric pointer-events-none" aria-hidden="true" />
+      <div className="leva-fabric leva-fabric-fixo pointer-events-none" aria-hidden="true" />
       <div className="absolute right-4 top-4 z-20">
         <ThemeToggle theme={theme} onToggle={toggle} />
       </div>
@@ -298,7 +299,7 @@ export default function LoginPage() {
         <PaxterSymbolGlass size={56} tone="dark" sharp />
         <div className="text-center">
           <p className="text-[28px] font-bold tracking-[0.18em] text-[#16284a] uppercase leading-none dark:text-[#f4e2a8]">
-            PADAXOR
+            PAXMED
           </p>
           <p className="text-[11px] tracking-[0.22em] text-[#916f32] uppercase mt-1 dark:text-[#d9bd78]">
             Motor Clínico · PAWARDS
@@ -663,7 +664,7 @@ export default function LoginPage() {
 
         {/* Rodapé discreto */}
         <p className="mt-6 text-center text-[10px] tracking-wider text-[#16284a]/55 dark:text-slate-400">
-          PADAXOR © {new Date().getFullYear()} · PAWARDS Sistemas
+          PaxMed © {new Date().getFullYear()} · PAWARDS Sistemas
         </p>
       </div>
       </div>

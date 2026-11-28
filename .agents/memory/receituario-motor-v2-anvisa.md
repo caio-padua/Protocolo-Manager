@@ -1,48 +1,24 @@
 ---
-name: Motor de Receituário V2 (ANVISA 4 boxes)
-description: generateReceituarioPdfV2 no receituario-pdf.ts — interface, rota e botão frontend validados em produção.
+name: Receituário e assinatura de documentos clínicos
+description: Identidade clínica, quadro de assinatura 3A-1C e paginação de receitas.
 ---
 
-# Motor de Receituário V2 — ANVISA 4 Boxes
+# Receituário e assinatura
 
-## Regra
+Usar a identidade clínica autenticada e o certificado validado para o profissional e a clínica; nunca supor um médico, uma clínica ou um destinatário fixo.
 
-`generateReceituarioPdfV2(data: ReceituarioDataV2)` é o motor único para TODA prescrição magistral.
-Zero `window.print()`, zero modelo hardcoded — qualquer tela de prescrição chama o backend.
+**Why:** Uma instalação pode atender várias clínicas e profissionais, e inferir a identidade pode expor dados ou assinar pelo profissional errado.
 
-**Why:** CEO determinou que todas as prescrições usem o motor real com ICP-Brasil.
+**How to apply:** Obter a identidade e a autorização no servidor antes de gerar ou enviar qualquer documento.
 
-## Como aplicar
+O quadro de assinatura de prescrições e pedidos de exames segue o modelo 3A-1C definido em `specs/modelo-3a-1c-assinatura.md`.
 
-- Backend auto-carrega: médico=professionals id=6, clínica=locations id=8 (Instituto Padua)
-- Rota: `POST /api/receituario/emitir-prescricao`
-- Body: `{ patient: {nome, cpf, dataNascimento, telefone}, formulas: [{nome, ativos, posologia, via, forma}], tipoReceita }`
-- Drive folder fixo: `1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep`
-- E-mail destino fixo: `drcaiohenriquepadua@gmail.com`
-- PDF anexado ao e-mail via `sendGmailMessage` (com `attachments[]`)
+**Why:** O usuário escolheu um padrão único para todos os modelos, com dados reais do certificado e sem indicar assinatura inexistente.
 
-## Dados confirmados (20/07/2026)
+**How to apply:** Manter o QR do validador oficial separado de eventuais links de acesso à cópia e assinar digitalmente somente após concluir o documento.
 
-| Campo | Valor |
-|---|---|
-| `medico.name` | Dr. Caio Henrique Fernandes Pádua |
-| `medico.crm` | CRM SP 123456 (DB) |
-| `clinica.name` | Instituto Padua |
-| `clinica.address` | Rua Guaxupé, 327 - Tatuapé - São Paulo - SP |
-| `clinica.phone` | +5511977154000 |
-| `locationsTable.nome_fantasia` | coluna snake_case no DB; acesso via `(clinica as any).nome_fantasia` |
+Receitas longas do modelo com faixas devem ser paginadas em folhas reais, sem comprimir uma imagem longa em uma única folha.
 
-## Layout do PDF
+**Why:** A compressão de uma captura longa reduz e deforma as fórmulas e o quadro de assinatura, prejudicando leitura e dimensões.
 
-4 boxes ANVISA:
-- Box 1 (EMITENTE): sempre preenchido (médico + clínica)
-- Box 2 (PACIENTE): preenchido com dados reais do paciente
-- Box 3 (COMPRADOR): linhas pontilhadas em branco (farmácia preenche)
-- Box 4 (FORNECEDOR): linhas pontilhadas em branco (apenas para "especial")
-
-## Frontend (prescricao/index.tsx)
-
-- Botão "Gerar Receituário Assinado" chama `handleGerarReceituario()`
-- `gerandoPdf` state controla spinner
-- Toast de sucesso abre Drive URL automaticamente
-- `tomadaToText(t)` converte cada Tomada em linha de posologia
+**How to apply:** Reservar o quadro e cada fórmula inteiros na impressão, verificar a paginação e assinar o arquivo final.

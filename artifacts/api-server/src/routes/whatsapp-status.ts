@@ -9,7 +9,8 @@ import {
   lembretesPrescricaoTable,
   clientsTable,
 } from "@workspace/db";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { requireCollaborator } from "./collaborator";
 import { executarLembretesPeriodo } from "../lib/lembrete-periodo";
 
 const router: IRouter = Router();
@@ -34,7 +35,15 @@ export function mascararTelefone(bruto: string | null | undefined): string {
 }
 
 // GET /api/whatsapp/messages?limit= — log recente (telefone mascarado).
-router.get("/whatsapp/messages", async (req, res): Promise<void> => {
+// Isolamento multiclínica: exige sessão de colaborador e devolve SÓ as mensagens da clínica da sessão.
+function empresaDaSessao(req: import("express").Request): number | null {
+  const c = req.tenantContext;
+  return c?.authenticated && Number.isSafeInteger(c.empresaId) && c.empresaId > 0 ? c.empresaId : null;
+}
+
+router.get("/whatsapp/messages", requireCollaborator, async (req, res): Promise<void> => {
+  const empresaId = empresaDaSessao(req);
+  if (empresaId === null) { res.status(401).json({ error: "Sessão sem clínica identificada." }); return; }
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
   const rows = await db
     .select({
@@ -50,6 +59,7 @@ router.get("/whatsapp/messages", async (req, res): Promise<void> => {
     })
     .from(whatsappMensagensLogTable)
     .leftJoin(clientsTable, eq(clientsTable.id, whatsappMensagensLogTable.clienteId))
+    .where(sql`${whatsappMensagensLogTable}.empresa_id = ${empresaId}`)
     .orderBy(desc(whatsappMensagensLogTable.criadoEm))
     .limit(limit);
 
@@ -69,10 +79,13 @@ router.get("/whatsapp/messages", async (req, res): Promise<void> => {
 });
 
 // GET /api/whatsapp/stats — contagem por status (para os KPIs da tela).
-router.get("/whatsapp/stats", async (_req, res): Promise<void> => {
+router.get("/whatsapp/stats", requireCollaborator, async (req, res): Promise<void> => {
+  const empresaId = empresaDaSessao(req);
+  if (empresaId === null) { res.status(401).json({ error: "Sessão sem clínica identificada." }); return; }
   const rows = await db
     .select({ status: whatsappMensagensLogTable.status, total: sql<number>`count(*)::int` })
     .from(whatsappMensagensLogTable)
+    .where(sql`${whatsappMensagensLogTable}.empresa_id = ${empresaId}`)
     .groupBy(whatsappMensagensLogTable.status);
 
   const porStatus: Record<string, number> = {};
@@ -93,7 +106,9 @@ router.get("/whatsapp/stats", async (_req, res): Promise<void> => {
 });
 
 // GET /api/lembretes/failures — envios de lembrete que FALHARAM (com cliente).
-router.get("/lembretes/failures", async (req, res): Promise<void> => {
+router.get("/lembretes/failures", requireCollaborator, async (req, res): Promise<void> => {
+  const empresaId = empresaDaSessao(req);
+  if (empresaId === null) { res.status(401).json({ error: "Sessão sem clínica identificada." }); return; }
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
   const rows = await db
     .select({
@@ -106,7 +121,7 @@ router.get("/lembretes/failures", async (req, res): Promise<void> => {
     })
     .from(lembreteEnviosTable)
     .leftJoin(clientsTable, eq(clientsTable.id, lembreteEnviosTable.clienteId))
-    .where(eq(lembreteEnviosTable.status, "FALHOU"))
+    .where(and(eq(lembreteEnviosTable.status, "FALHOU"), sql`${lembreteEnviosTable}.empresa_id = ${empresaId}`))
     .orderBy(desc(lembreteEnviosTable.createdAt))
     .limit(limit);
 
@@ -123,7 +138,9 @@ router.get("/lembretes/failures", async (req, res): Promise<void> => {
 });
 
 // GET /api/lembretes/prescricoes — lembretes ativos (para conferência/tela).
-router.get("/lembretes/prescricoes", async (_req, res): Promise<void> => {
+router.get("/lembretes/prescricoes", requireCollaborator, async (req, res): Promise<void> => {
+  const empresaId = empresaDaSessao(req);
+  if (empresaId === null) { res.status(401).json({ error: "Sessão sem clínica identificada." }); return; }
   const rows = await db
     .select({
       id: lembretesPrescricaoTable.id,
@@ -134,6 +151,7 @@ router.get("/lembretes/prescricoes", async (_req, res): Promise<void> => {
     })
     .from(lembretesPrescricaoTable)
     .leftJoin(clientsTable, eq(clientsTable.id, lembretesPrescricaoTable.clienteId))
+    .where(sql`${lembretesPrescricaoTable}.empresa_id = ${empresaId}`)
     .orderBy(desc(lembretesPrescricaoTable.updatedAt))
     .limit(100);
   res.json({ prescricoes: rows });

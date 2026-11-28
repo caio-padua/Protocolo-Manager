@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
+import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 import {
   Select,
   SelectContent,
@@ -172,7 +173,7 @@ export default function ExamesPage({
   const { data: clients } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
     queryFn: async () => {
-      const r = await fetch("/api/clients");
+      const r = await fetch("/api/clients", { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("Falha ao carregar clientes");
       return r.json();
     },
@@ -356,7 +357,7 @@ export default function ExamesPage({
     mutationFn: async () => {
       const r = await fetch("/api/exam-requests/emit", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           clientId: Number(clientId),
           professionalId: professionalId ? Number(professionalId) : undefined,
@@ -407,6 +408,8 @@ export default function ExamesPage({
           </div>
         </div>
       )}
+
+      <ClinicalCertificateStatus scope="professional" />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Catálogo de exames */}

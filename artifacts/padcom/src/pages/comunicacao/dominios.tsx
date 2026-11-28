@@ -205,6 +205,24 @@ const REGISTRADORES_INFO: RegistradorInfo[] = [
 // Tela principal
 // ─────────────────────────────────────────────────────────────────────────────
 
+function Field({
+  label, value, onChange, type = "text", placeholder = "", disabled = false,
+}: {
+  label: string; value: string; onChange: (v: string) => void;
+  type?: string; placeholder?: string; disabled?: boolean;
+}) {
+  return (
+    <div>
+      <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-1">{label}</label>
+      <input
+        type={type} value={value} onChange={e => onChange(e.target.value)}
+        placeholder={placeholder} disabled={disabled}
+        className="concave-3d w-full h-11 rounded px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50 disabled:cursor-not-allowed"
+      />
+    </div>
+  );
+}
+
 export default function PainelDominios() {
   const [, navigate] = useLocation();
   const [dominios, setDominios] = useState<Dominio[]>([]);
@@ -810,7 +828,7 @@ export default function PainelDominios() {
           </Button>
         </div>
         <ExplainRow>
-          Domínios PAXTER comercializados para clínicas parceiras como módulo mensal com e-mail corporativo Zoho incluso.
+          Domínios PaxMed comercializados para clínicas parceiras como módulo mensal com e-mail corporativo Zoho incluso.
           Fluxo: clínica solicita → CEO aprova → Asaas cobra → pagamento confirmado → e-mail criado automaticamente.
         </ExplainRow>
 

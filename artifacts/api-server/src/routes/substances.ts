@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { eq } from "drizzle-orm";
 import { db, substancesTable, substanceBlendComponentsTable } from "@workspace/db";
 import {
@@ -6,12 +6,33 @@ import {
   UpdateSubstanceParams,
   UpdateSubstanceBody,
 } from "@workspace/api-zod";
+import { configuredDurationSeconds, durationSecondsFromMinutes, substanceDurationMinutes } from "../lib/substance-duration";
+import { exigirTipoCompativelComVia, travarCatalogoClinico, ViaClinicaDivergente } from "../lib/catalogo-via-confirmada";
+import { requireCollaborator } from "./collaborator";
 
 const router: IRouter = Router();
 
+// O catálogo é compartilhado: uma clínica não pode alterar o cadastro global
+// das demais usando apenas o acesso de colaborador da própria clínica.
+function requireCatalogOwner(req: Request, res: Response, next: NextFunction) {
+  requireCollaborator(req, res, () => {
+    if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
+      res.status(401).json({ error: "Entre com seu acesso profissional." });
+      return;
+    }
+    if (!req.tenantContext.isPlatformOwner) {
+      res.status(403).json({ error: "A edição do catálogo compartilhado exige o proprietário da plataforma." });
+      return;
+    }
+    next();
+  });
+}
+
 function formatSubstance(s: typeof substancesTable.$inferSelect) {
+  const { preciseDurationSeconds: _preciseDurationSeconds, ...rest } = s;
   return {
-    ...s,
+    ...rest,
+    durationMinutes: substanceDurationMinutes(s),
     defaultDose: s.defaultDose ?? null,
     unit: s.unit ?? null,
     maxSessionsPerWeek: s.maxSessionsPerWeek ?? null,
@@ -20,6 +41,17 @@ function formatSubstance(s: typeof substancesTable.$inferSelect) {
     stockUnit: s.stockUnit ?? null,
     createdAt: s.createdAt.toISOString(),
   };
+}
+
+async function atualizarSubstancia(id: number, updates: Record<string, unknown>) {
+  if (!("procedureType" in updates)) {
+    return db.update(substancesTable).set(updates).where(eq(substancesTable.id, id)).returning();
+  }
+  return db.transaction(async tx => {
+    await travarCatalogoClinico(tx);
+    await exigirTipoCompativelComVia(tx, id, updates.procedureType);
+    return tx.update(substancesTable).set(updates).where(eq(substancesTable.id, id)).returning();
+  });
 }
 
 function serializeComponent(component: typeof substanceBlendComponentsTable.$inferSelect) {
@@ -35,6 +67,26 @@ function serializeComponent(component: typeof substanceBlendComponentsTable.$inf
     quantityUnit: component.quantityUnit ?? null,
     notes: component.notes ?? null,
   };
+}
+
+type ComponentForComparison = Pick<typeof substanceBlendComponentsTable.$inferInsert,
+  "componentSubstanceId" | "sortOrder" | "componentName" | "doseValue" | "doseUnit" | "quantity" | "quantityUnit" | "notes">;
+
+function sameReal(a: number | null | undefined, b: number | null | undefined) {
+  if (a == null || b == null) return a == null && b == null;
+  const left = Math.fround(a), right = Math.fround(b);
+  return Number.isFinite(left) && Number.isFinite(right) && left === right;
+}
+
+function sameComponents(current: ComponentForComparison[], proposed: ComponentForComparison[]) {
+  return current.length === proposed.length && current.every((a, index) => {
+    const b = proposed[index];
+    return a.sortOrder === b.sortOrder && a.componentName === b.componentName &&
+      (a.componentSubstanceId ?? null) === (b.componentSubstanceId ?? null) &&
+      sameReal(a.doseValue, b.doseValue) && (a.doseUnit ?? null) === (b.doseUnit ?? null) &&
+      sameReal(a.quantity, b.quantity) && (a.quantityUnit ?? null) === (b.quantityUnit ?? null) &&
+      (a.notes ?? null) === (b.notes ?? null);
+  });
 }
 
 router.get("/substances", async (_req, res): Promise<void> => {
@@ -69,7 +121,7 @@ router.get("/substances/:id/components", async (req, res): Promise<void> => {
     .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id));
 });
 
-router.put("/substances/:id/components", async (req, res): Promise<void> => {
+router.put("/substances/:id/components", requireCatalogOwner, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     res.status(400).json({ error: "Invalid id" });
@@ -116,16 +168,31 @@ router.put("/substances/:id/components", async (req, res): Promise<void> => {
       : components.length > 0;
 
     await db.transaction(async (tx) => {
+      // A trava antecede a leitura e a escrita; alterações concorrentes são
+      // comparadas com o estado efetivamente confirmado pela outra transação.
+      const [locked] = await tx.select({ id: substancesTable.id, isBlend: substancesTable.isBlend })
+        .from(substancesTable).where(eq(substancesTable.id, id)).for("update");
+      if (!locked) throw new Error("Substância não encontrada.");
+      const previous = await tx.select().from(substanceBlendComponentsTable)
+        .where(eq(substanceBlendComponentsTable.substanceId, id));
+      previous.sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+      if (locked.isBlend !== isBlend) {
+        await tx.update(substancesTable).set({ isBlend }).where(eq(substancesTable.id, id));
+      }
+      if (sameComponents(previous, components)) return;
       await tx.delete(substanceBlendComponentsTable)
         .where(eq(substanceBlendComponentsTable.substanceId, id));
       if (components.length > 0) {
         await tx.insert(substanceBlendComponentsTable).values(components);
       }
-      await tx.update(substancesTable)
-        .set({ isBlend })
-        .where(eq(substancesTable.id, id));
     });
   } catch (error: any) {
+    // O banco já desfez toda a transação. Não repetir automaticamente uma
+    // edição que pode ter sido substituída por outra pessoa.
+    if (error?.code === "40P01" || error?.cause?.code === "40P01") {
+      res.status(409).json({ error: "A composição foi alterada ao mesmo tempo. Recarregue o produto e confira antes de tentar novamente." });
+      return;
+    }
     res.status(400).json({ error: error?.message ?? "Could not save blend components" });
     return;
   }
@@ -137,18 +204,28 @@ router.put("/substances/:id/components", async (req, res): Promise<void> => {
   res.json(saved.map(serializeComponent));
 });
 
-router.post("/substances", async (req, res): Promise<void> => {
+router.post("/substances", requireCatalogOwner, async (req, res): Promise<void> => {
   const parsed = CreateSubstanceBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
-  const [substance] = await db.insert(substancesTable).values(parsed.data).returning();
+  const { durationMinutes, ...data } = parsed.data;
+  let preciseDurationSeconds: number | null;
+  try {
+    preciseDurationSeconds = durationMinutes === undefined
+      ? await configuredDurationSeconds(data.procedureType ?? "iv")
+      : durationSecondsFromMinutes(durationMinutes);
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "Duração inválida." });
+    return;
+  }
+  const [substance] = await db.insert(substancesTable).values({ ...data, preciseDurationSeconds }).returning();
   res.status(201).json(formatSubstance(substance));
 });
 
-router.put("/substances/:id", async (req, res): Promise<void> => {
+router.put("/substances/:id", requireCatalogOwner, async (req, res): Promise<void> => {
   const params = UpdateSubstanceParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -161,7 +238,22 @@ router.put("/substances/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [substance] = await db.update(substancesTable).set(parsed.data).where(eq(substancesTable.id, params.data.id)).returning();
+  const { durationMinutes, ...data } = parsed.data;
+  let preciseDurationSeconds: number | undefined;
+  try {
+    if (durationMinutes !== undefined) preciseDurationSeconds = durationSecondsFromMinutes(durationMinutes);
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "Duração inválida." });
+    return;
+  }
+  let substance: typeof substancesTable.$inferSelect | undefined;
+  try {
+    [substance] = await atualizarSubstancia(params.data.id,
+      { ...data, ...(preciseDurationSeconds === undefined ? {} : { preciseDurationSeconds }) });
+  } catch (error) {
+    if (error instanceof ViaClinicaDivergente) { res.status(409).json({ error: error.message }); return; }
+    throw error;
+  }
   if (!substance) {
     res.status(404).json({ error: "Substance not found" });
     return;
@@ -172,17 +264,17 @@ router.put("/substances/:id", async (req, res): Promise<void> => {
 
 const PATCHABLE_FIELDS = [
   "name", "category", "color", "defaultDose", "unit", "maxSessionsPerWeek", "intervalDays",
-  "notes", "stockQuantity", "stockUnit", "procedureType", "durationMinutes", "description",
+  "notes", "stockQuantity", "stockUnit", "procedureType", "doctorParticipation", "durationMinutes", "description",
   "mainFunction", "perceivedEffects", "timeToEffect", "starRating", "bodySystemEffects",
   "longevityBenefit", "qualityOfLifeImpact", "sleepBenefit", "energyBenefit", "libidoBenefit",
   "physicalPerformance", "muscleStrength", "mentalClarity", "skinHairNails", "immuneSupport",
   "contraindications", "scientificEvidence", "categoryType",
   "categoryMeters", "pricePerUnit", "composicao", "posologia",
-  "isBlend", "presentationQuantity", "presentationUnit", "ampouleVolumeMl",
+  "isBlend", "presentationQuantity", "presentationUnit", "ampouleVolumeMl", "disponivel",
 ] as const;
 
-router.patch("/substances/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+router.patch("/substances/:id", requireCatalogOwner, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid id" });
     return;
@@ -196,8 +288,32 @@ router.patch("/substances/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: "No valid fields to update" });
     return;
   }
+  if ("doctorParticipation" in updates && updates.doctorParticipation !== null &&
+      typeof updates.doctorParticipation !== "boolean") {
+    res.status(400).json({ error: "A participação médica deve ser sim, não ou não definida." });
+    return;
+  }
+  if ("disponivel" in updates && updates.disponivel !== null && typeof updates.disponivel !== "boolean") {
+    res.status(400).json({ error: "A situação da substância deve ser verdadeiro ou falso." });
+    return;
+  }
+  if ("durationMinutes" in updates) {
+    try {
+      updates.preciseDurationSeconds = durationSecondsFromMinutes(updates.durationMinutes);
+      delete updates.durationMinutes;
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Duração inválida." });
+      return;
+    }
+  }
 
-  const [substance] = await db.update(substancesTable).set(updates).where(eq(substancesTable.id, id)).returning();
+  let substance: typeof substancesTable.$inferSelect | undefined;
+  try {
+    [substance] = await atualizarSubstancia(id, updates);
+  } catch (error) {
+    if (error instanceof ViaClinicaDivergente) { res.status(409).json({ error: error.message }); return; }
+    throw error;
+  }
   if (!substance) {
     res.status(404).json({ error: "Substance not found" });
     return;

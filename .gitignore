@@ -83,3 +83,4 @@ playwright-report/
 
 # Relatorios renderizados e outros resultados gerados; fontes ficam versionadas.
 /generated-artifacts/
+/paxter-codigo-completo.zip

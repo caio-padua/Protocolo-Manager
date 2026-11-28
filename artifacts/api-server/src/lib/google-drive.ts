@@ -1,14 +1,15 @@
 import { google } from "googleapis";
+import {
+  findReplitConnection,
+  getReplitConnectionAccessToken,
+  type ReplitConnectorConnection,
+} from "./replit-connection";
 
-let connectionSettings: any;
-
-function extractToken(conn: any): string | undefined {
-  return conn?.settings?.access_token || conn?.settings?.oauth?.credentials?.access_token;
-}
+let connectionSettings: ReplitConnectorConnection | undefined;
 
 async function getAccessToken(): Promise<string> {
-  if (connectionSettings && connectionSettings.settings?.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
-    const cached = extractToken(connectionSettings);
+  if (connectionSettings?.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
+    const cached = getReplitConnectionAccessToken(connectionSettings);
     if (cached) return cached;
   }
 
@@ -23,7 +24,7 @@ async function getAccessToken(): Promise<string> {
     throw new Error("X-Replit-Token not found");
   }
 
-  connectionSettings = await fetch(
+  const response = await fetch(
     "https://" + hostname + "/api/v2/connection?include_secrets=true",
     {
       headers: {
@@ -31,9 +32,11 @@ async function getAccessToken(): Promise<string> {
         "X-Replit-Token": xReplitToken,
       },
     }
-  ).then(res => res.json()).then(data => data.items?.find((i: any) => i.connector_name === "google-drive"));
+  );
+  if (!response.ok) throw new Error("Google Drive not connected");
+  connectionSettings = findReplitConnection(await response.json(), "google-drive");
 
-  const accessToken = connectionSettings?.settings?.access_token || connectionSettings?.settings?.oauth?.credentials?.access_token;
+  const accessToken = getReplitConnectionAccessToken(connectionSettings);
   if (!connectionSettings || !accessToken) {
     throw new Error("Google Drive not connected");
   }
@@ -194,37 +197,41 @@ async function findOldClientFolder(drive: any, rootId: string, cpf: string, _cli
 }
 
 // ID fixo da pasta "CLIENTES (INSTITUTO PADUA)" — única empresa ativa (24/07/2026).
-// Quando outra empresa for ativada, passar drive_clientes_folder_id da empresa
-// como parâmetro rootFolderId em ensureClientFolderStructure().
+// Rotas clínicas multiempresa devem informar explicitamente a raiz de clientes
+// da empresa. A raiz fixa abaixo permanece apenas para fluxos legados ainda não
+// migrados e nunca deve ser usada como fallback em uma emissão clínica.
 const ACTIVE_CLIENTES_FOLDER_ID = "15y0SgIkeOnaTGYSTCQfZqscPyOBMT_w9";
 
 async function ensureRootFolder(_drive: any, rootFolderId?: string): Promise<string> {
-  // Usa o ID explícito quando fornecido (multi-empresa futuro).
-  // Para a empresa ativa, usa a constante gravada na sessão de 24/07/2026.
-  return rootFolderId ?? ACTIVE_CLIENTES_FOLDER_ID;
+  if (rootFolderId !== undefined) {
+    const configuredRoot = rootFolderId.trim();
+    if (!configuredRoot) throw new Error("A empresa não possui uma pasta de clientes configurada no Drive.");
+    return configuredRoot;
+  }
+  return ACTIVE_CLIENTES_FOLDER_ID;
 }
 
-export async function ensureClientFolderStructure(clientName: string, cpf: string): Promise<{
+export async function ensureClientFolderStructure(clientName: string, cpf: string, rootFolderId?: string): Promise<{
   rootFolderId: string;
   clientFolderId: string;
   subfolders: Record<string, string>;
 }> {
   const drive = await getUncachableDriveClient();
 
-  const rootFolderId = await ensureRootFolder(drive);
+  const resolvedRootFolderId = await ensureRootFolder(drive, rootFolderId);
 
   const newFolderName = buildClientFolderName(clientName, cpf);
-  let clientFolderId = await findFolder(drive, newFolderName, rootFolderId);
+  let clientFolderId = await findFolder(drive, newFolderName, resolvedRootFolderId);
 
   if (!clientFolderId) {
-    const oldFolderId = await findOldClientFolder(drive, rootFolderId, cpf, clientName);
+    const oldFolderId = await findOldClientFolder(drive, resolvedRootFolderId, cpf, clientName);
 
     if (oldFolderId) {
       await renameFolder(drive, oldFolderId, newFolderName);
       clientFolderId = oldFolderId;
       console.log(`[Drive] Pasta antiga renomeada para: ${newFolderName}`);
     } else {
-      clientFolderId = await createFolder(drive, newFolderName, rootFolderId);
+      clientFolderId = await createFolder(drive, newFolderName, resolvedRootFolderId);
       console.log(`[Drive] Pasta nova criada: ${newFolderName}`);
     }
   }
@@ -236,7 +243,7 @@ export async function ensureClientFolderStructure(clientName: string, cpf: strin
 
   await findOrCreateFolder(drive, "CADASTROS ANTIGOS", subfolders["CADASTRO"]);
 
-  return { rootFolderId, clientFolderId, subfolders };
+  return { rootFolderId: resolvedRootFolderId, clientFolderId, subfolders };
 }
 
 export async function createClientSpreadsheet(
@@ -552,7 +559,7 @@ export async function uploadFileToDrive(
 
     if (existingFiles.data.files?.length) {
       for (const f of existingFiles.data.files) {
-        await drive.files.delete({ fileId: f.id });
+        if (f.id) await drive.files.delete({ fileId: f.id });
       }
     }
   }
@@ -578,6 +585,39 @@ export async function uploadFileToDrive(
     fileId: res.data.id!,
     webViewLink: res.data.webViewLink ?? "",
   };
+}
+
+/**
+ * Escolhe um nome livre na pasta sem substituir arquivos já armazenados.
+ * O Drive permite nomes iguais; por isso, exames repetidos recebem " 2", " 3"...
+ * antes da extensão. A verificação evita colisões comuns; a escrita sempre usa
+ * allowDuplicates=true para que uma corrida entre duas requisições nunca apague
+ * o arquivo da outra.
+ */
+export async function getUniqueDriveFileName(
+  folderId: string,
+  desiredName: string,
+  excludeFileId?: string,
+): Promise<string> {
+  const drive = await getUncachableDriveClient();
+  const dot = desiredName.lastIndexOf(".");
+  const hasExtension = dot > 0;
+  const stem = hasExtension ? desiredName.slice(0, dot) : desiredName;
+  const extension = hasExtension ? desiredName.slice(dot) : "";
+  const escapeQuery = (value: string) => value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+
+  for (let suffix = 1; suffix <= 100; suffix++) {
+    const candidate = suffix === 1 ? desiredName : `${stem} ${suffix}${extension}`;
+    const existing = await drive.files.list({
+      q: `'${escapeQuery(folderId)}' in parents and name='${escapeQuery(candidate)}' and trashed=false`,
+      fields: "files(id)",
+      pageSize: 100,
+    });
+    const collision = (existing.data.files ?? []).some((file) => file.id !== excludeFileId);
+    if (!collision) return candidate;
+  }
+
+  throw new Error(`Não foi possível reservar um nome livre para "${desiredName}".`);
 }
 
 export interface DriveChild {
@@ -1077,7 +1117,7 @@ export function formatProtocolFileName(date: string, clientName: string): string
 
 export function formatRASFileName(date: string, clientName: string, cpf: string): string {
   const [y, m, d] = date.split("-");
-  return `${d}.${m}.${y.slice(-2)} RAS ${removeDiacritics(clientName).toUpperCase()} ${cpf}.pdf`;
+  return `${d}.${m}.${y.slice(-2)} RASP ${removeDiacritics(clientName).toUpperCase()} ${cpf}.pdf`;
 }
 
 export function formatPhysicalRASFileName(date: string, clientName: string, protocolTitle: string): string {
@@ -1085,7 +1125,7 @@ export function formatPhysicalRASFileName(date: string, clientName: string, prot
   const yy = y.slice(-2);
   const cleanName = removeDiacritics(clientName).toUpperCase();
   const cleanTitle = removeDiacritics(protocolTitle).toUpperCase();
-  return `${yy}.${m}.${d} RAS FAP ${cleanName} (${cleanTitle}).pdf`;
+  return `${yy}.${m}.${d} RASP FAP ${cleanName} (${cleanTitle}).pdf`;
 }
 
 export async function uploadToFolderById(
@@ -1655,7 +1695,10 @@ export async function listDriveFolder(
     spaces: "drive",
     pageSize: 1000,
   });
-  return res.data.files || [];
+  return (res.data.files || []).flatMap((file) => {
+    if (!file.id || !file.name || !file.mimeType) return [];
+    return [{ id: file.id, name: file.name, mimeType: file.mimeType }];
+  });
 }
 
 // Move um arquivo/pasta para a lixeira do Drive.

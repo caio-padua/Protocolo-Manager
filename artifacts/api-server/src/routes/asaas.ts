@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
+import { cancelRefundedPedido, cancelUnpaidPedido, markPedidoPaid } from "../lib/pedido-medico.js";
 import {
   db,
   paymentsTable,
@@ -12,6 +13,7 @@ import {
 import {
   asaasCreateCustomer,
   asaasCreateCharge,
+  asaasGetCharge,
   asaasCreateInvoice,
   asaasListMunicipalServices,
   asaasCreateTransfer,
@@ -22,6 +24,8 @@ import { getSecret } from "../lib/secure-settings.js";
 import { finalizeConciergeBooking } from "../lib/concierge-finalize.js";
 import { registrarFalha } from "../lib/concierge-penalidade.js";
 import { requireCollaborator } from "./collaborator.js";
+import { aplicarStatusTeste } from "../lib/asaas-teste-cobrancas.js";
+import { deliverApprovedClinicalDocumentReissue } from "../lib/atendimento-telegram-reenvio.js";
 import { montarAssuntoCobranca, formatBRL, formatDataBR } from "../lib/cobranca-mensagem.js";
 import {
   enviarMensagemPaxter,
@@ -651,7 +655,127 @@ router.post("/asaas/webhook", async (req, res): Promise<void> => {
     return;
   }
 
+  // Depois que a resposta sai (e o banco ja foi atualizado), grava o retrato financeiro (bruto, taxas, liquido,
+  // extrato) por LEITURA no Asaas. Nunca altera status e nunca derruba o webhook.
+  res.on("finish", () => {
+    if (res.statusCode !== 200) return;
+    void import("../lib/asaas-conciliacao.js")
+      .then((m) => m.reconciliarCobranca(String(payment.id), { origem: "webhook", aplicar: false }))
+      .catch((err: unknown) => req.log.warn({ err: String(err) }, "Retrato financeiro pos-webhook falhou (sem efeito no pagamento)"));
+  });
+
   try {
+    // Cobranca de teste (laboratorio): atualiza so o livro de teste; nao toca pagamentos reais.
+    const testeHit = await db.execute(
+      sql`SELECT 1 FROM asaas_cobrancas_teste WHERE asaas_charge_id = ${payment.id} LIMIT 1`,
+    );
+    if (testeHit.rows.length > 0) {
+      const st = event === "PAYMENT_RECEIVED" || event === "PAYMENT_CONFIRMED" ? "RECEIVED"
+        : event === "PAYMENT_OVERDUE" ? "OVERDUE"
+        : event === "PAYMENT_DELETED" ? "DELETED"
+        : event === "PAYMENT_REFUNDED" ? "REFUNDED" : String(payment.status ?? event);
+      await aplicarStatusTeste(payment.id, st, payment.paymentDate ?? null);
+      res.status(200).json({ ok: true, teste: true });
+      return;
+    }
+
+    const reissueHit = await db.execute(sql`SELECT r.id,r.client_id,r.empresa_id,r.fee_amount,
+        r.require_human_review,r.review_resolved_at,r.request_status,c.asaas_customer_id
+      FROM clinical_document_reissue_requests r
+      JOIN clients c ON c.id=r.client_id
+      WHERE r.asaas_charge_id=${String(payment.id)} LIMIT 1`);
+    const reissue = reissueHit.rows[0] as {
+      id: number | string; client_id: number | string; empresa_id: number | string;
+      fee_amount: number | string | null; require_human_review: boolean; review_resolved_at: string | Date | null;
+      request_status: string; asaas_customer_id: string | null;
+    } | undefined;
+    if (reissue) {
+      const expectedReference = `paxmed_reissue:${reissue.id}`;
+      const expectedAmount = Number(reissue.fee_amount);
+      const actualAmount = Number(payment.value);
+      const identityMatches = payment.externalReference === expectedReference &&
+        typeof payment.customer === "string" &&
+        payment.customer === reissue.asaas_customer_id &&
+        Number.isFinite(expectedAmount) && Number.isFinite(actualAmount) &&
+        Math.round(expectedAmount * 100) === Math.round(actualAmount * 100);
+      if (!identityMatches) {
+        await db.execute(sql`UPDATE clinical_document_reissue_requests
+          SET request_status='unknown',payment_status='unverified',
+              eligibility_reason='O evento do provedor não correspondeu ao cliente, valor e referência registrados.',
+              updated_at=NOW()
+          WHERE id=${reissue.id}`);
+        res.status(200).json({ ok: true, reissue: "needs_review" });
+        return;
+      }
+      if (event === "PAYMENT_RECEIVED" || event === "PAYMENT_CONFIRMED") {
+        // O evento só dispara a conferência: o estado financeiro vem de leitura direta no Asaas.
+        let live: Awaited<ReturnType<typeof asaasGetCharge>>;
+        try {
+          live = await asaasGetCharge(String(payment.id));
+        } catch (err) {
+          req.log.error({ err: String(err), requestId: String(reissue.id) }, "Segunda via: não foi possível confirmar o pagamento no Asaas");
+          res.status(503).json({ error: "payment_verification_unavailable" });
+          return;
+        }
+        const liveOk = ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(String(live.status)) &&
+          Math.round(Number(live.value) * 100) === Math.round(expectedAmount * 100) &&
+          live.externalReference === expectedReference;
+        if (!liveOk) {
+          res.status(200).json({ ok: true, reissue: "not_confirmed_by_provider" });
+          return;
+        }
+        const paidDate = payment.paymentDate || new Date().toISOString();
+        await db.execute(sql`UPDATE clinical_document_reissue_requests
+          SET payment_status='paid',paid_at=${paidDate},
+              request_status=CASE WHEN require_human_review AND review_resolved_at IS NULL THEN 'awaiting_review' ELSE 'approved' END,
+              eligibility_reason='Pagamento confirmado pelo Asaas.',
+              updated_at=NOW()
+          WHERE id=${reissue.id} AND request_status IN ('awaiting_payment','unknown')`);
+        await db.update(paymentsTable).set({ status: "paid", paidAt: paidDate })
+          .where(eq(paymentsTable.asaasChargeId, String(payment.id)));
+        if (!reissue.require_human_review || reissue.review_resolved_at) {
+          await deliverApprovedClinicalDocumentReissue(String(reissue.id)).catch((err) =>
+            req.log.error({ err: String(err), requestId: String(reissue.id) }, "Entrega automática da segunda via após pagamento falhou"),
+          );
+        }
+      } else if (event === "PAYMENT_OVERDUE") {
+        await db.execute(sql`UPDATE clinical_document_reissue_requests
+          SET payment_status='overdue',eligibility_reason='A cobrança venceu sem confirmação de pagamento.',updated_at=NOW()
+          WHERE id=${reissue.id} AND request_status IN ('awaiting_payment','unknown')`);
+        await db.update(paymentsTable).set({ status: "overdue" })
+          .where(eq(paymentsTable.asaasChargeId, String(payment.id)));
+      } else if (event === "PAYMENT_DELETED" || event === "PAYMENT_REFUNDED" ||
+          event === "PAYMENT_CHARGEBACK_REQUESTED") {
+        await db.execute(sql`UPDATE clinical_document_reissue_requests
+          SET request_status='cancelled',payment_status='cancelled',
+              delivery_share_expires_at=NOW(),
+              eligibility_reason='Cobrança cancelada, estornada ou contestada.',
+              updated_at=NOW()
+          WHERE id=${reissue.id}`);
+        await db.update(paymentsTable).set({ status: "cancelled" })
+          .where(eq(paymentsTable.asaasChargeId, String(payment.id)));
+      }
+      res.status(200).json({ ok: true, reissue: true });
+      return;
+    }
+
+    // Pedido medico do cliente (Area do Cliente): cobranca propria, transicoes idempotentes.
+    const pedidoHit = await db.execute(
+      sql`SELECT 1 FROM client_medical_requests WHERE asaas_charge_id = ${payment.id} LIMIT 1`,
+    );
+    if (pedidoHit.rows.length > 0) {
+      const paid = payment.paymentDate || new Date().toISOString().slice(0, 10);
+      if (event === "PAYMENT_RECEIVED" || event === "PAYMENT_CONFIRMED") {
+        await markPedidoPaid(payment.id, paid);
+      } else if (event === "PAYMENT_OVERDUE" || event === "PAYMENT_DELETED") {
+        await cancelUnpaidPedido(payment.id);
+      } else if (event === "PAYMENT_REFUNDED" || event === "PAYMENT_CHARGEBACK_REQUESTED") {
+        await cancelRefundedPedido(payment.id);
+      }
+      res.status(200).json({ ok: true });
+      return;
+    }
+
     // A cobranca pode estar na tabela de pagamentos (clientes) OU amarrada a uma
     // solicitacao de agendamento Concierge (lead ainda nao cadastrado). Atualiza
     // as duas fontes que existirem; so ignora se nenhuma reconhecer o charge.

@@ -1,4 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import PainelEncaminhamento from "@/components/encaminhamento/PainelEncaminhamento";
+import DestinosEmissao, { NOME_DESTINO, type DestinoEmissao, type CanalEnvio } from "@/components/encaminhamento/DestinosEmissao";
 import { tituloProprio } from "@/lib/utils";
 import {
   Search,
@@ -19,18 +21,23 @@ import {
   FileSignature,
   Loader2,
   CheckCircle2,
+  FolderPlus,
+  Columns3,
 } from "lucide-react";
 import {
   CATEGORIES,
   FORMULAS,
   VIAS,
   PERIODOS,
+  ORIENTACOES,
   parseBody,
   tomadaToText,
   getPrecoMedio,
   formatBRL,
   type Tomada,
   type FormulaSeed,
+  PROTOCOLOS_SEED,
+  type Protocolo,
   type SelectedFormula,
 } from "../../prescricao/data";
 import { useQuery } from "@tanstack/react-query";
@@ -39,7 +46,12 @@ import type { PrescriptionItemInput, RecipePlan, EmitResult } from "@workspace/a
 import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
 import { useToast } from "@/hooks/use-toast";
 import { BASE } from "../../comunicacao/_shared";
+import { useProtocolosSalvos } from "../../prescricao/useProtocolosSalvos";
 import { PrescricoesEmitidas, PrescriptionPdfLink } from "../../prescricao/PrescricoesEmitidas";
+import PainelRecolhivel from "@/components/PainelRecolhivel";
+import AtivosLinhas from "./AtivosLinhas";
+import { chaveTexto } from "@/lib/comparar-receitas";
+import { HistoricoReceitasExpandido, type FormulaParaEdicao } from "../../prescricao/HistoricoReceitasExpandido";
 import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
 import { ClinicalIdentityPanel } from "@/components/ClinicalIdentityPanel";
 import { ClinicalDraftGate, ClinicalDraftNotice, type IdentityQuery } from "@/components/ClinicalDraft";
@@ -60,6 +72,38 @@ import { useQueryClient } from "@tanstack/react-query";
 // ===========================================================================
 
 const GOLD = "#c2a05a";
+const MOSTRAR_EMISSOES_SUSPENSAS = false;
+const SAFE_CLINICAL_ERROR =
+  "Falha interna ao salvar. O rascunho foi preservado; confira o histórico antes de tentar novamente.";
+
+function safeClinicalErrorMessage(error: unknown): string {
+  const raw = error instanceof Error
+    ? error.message
+    : typeof error === "string"
+      ? error
+      : error && typeof error === "object" && "message" in error
+        ? String((error as { message: unknown }).message)
+        : "";
+  const jsonStart = raw.indexOf("{");
+  const jsonEnd = raw.lastIndexOf("}");
+  if (jsonStart >= 0 && jsonEnd > jsonStart) {
+    try {
+      const payload = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as { error?: unknown };
+      if (typeof payload.error === "string" && payload.error.trim()) {
+        const message = payload.error.trim();
+        if (!/<!doctype|<html|failed query|insert into|select\s.+\sfrom|stack trace/i.test(message)) {
+          return message.slice(0, 300);
+        }
+      }
+    } catch {
+      // A resposta não é JSON confiável; abaixo mostramos somente uma mensagem genérica.
+    }
+  }
+  if (/HTTP\s+5\d\d\b|<!doctype|<html|failed query|insert into|select\s.+\sfrom|stack trace/i.test(raw)) {
+    return SAFE_CLINICAL_ERROR;
+  }
+  return raw.trim().slice(0, 300) || SAFE_CLINICAL_ERROR;
+}
 
 const INTERNAL_COLORS: { value: string; label: string; hex: string }[] = [
   { value: "", label: "— sem cor —", hex: "" },
@@ -102,9 +146,21 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
 
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch] = useState("");
+  const [leftTab, setLeftTab] = useState<"cat" | "proto">("cat");
+  const [catalogoAberto, setCatalogoAberto] = useState(false);
+  /** Depois de adicionar, devolve a tela à receita: fecha a gaveta e limpa a busca. */
+  const recolherCatalogo = () => { setCatalogoAberto(false); setSearch(""); };
 
   const [previewPlans, setPreviewPlans] = useState<RecipePlan[] | null>(null);
   const [emitResult, setEmitResult] = useState<EmitResult | null>(null);
+  // Destinos escolhidos ANTES de emitir. Escolher não envia; só "Emitir e enviar" envia, com a confirmação marcada.
+  const [destinos, setDestinos] = useState<DestinoEmissao[]>([]);
+  const [previaLoading, setPreviaLoading] = useState(false);
+  const [focoPedido, setFocoPedido] = useState<{ id: string; ativo: string | null } | null>(null);
+  const [farmaciaAberta, setFarmaciaAberta] = useState<Array<string | number>>([]);
+  const [abaHistorico, setAbaHistorico] = useState<"emitidas" | "comparar">("emitidas");
+  const [contatos, setContatos] = useState<Partial<Record<CanalEnvio, string>>>({});
+  const [envioAuto, setEnvioAuto] = useState<{ enviando: boolean; itens: Array<{ titulo: string; linhas: Array<{ ok: boolean; texto: string }> }> } | null>(null);
   // ── Motor Único (emite PDF com o modelo ativo do banco) ───────────────────
   const [emitirMotorUnicoLoading, setEmitirMotorUnicoLoading] = useState(false);
   // ── PDF Visual (Puppeteer server-side — fiel ao template HTML) ────────────
@@ -154,9 +210,16 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
           return;
         }
         setEmitResult(res);
-        toast({ title: `Receitas geradas (${res.recipes.length})`, description: "Confira os documentos e o resultado de cada envio." });
+        toast({
+          title: res.signatureStatus === "unsigned_expired"
+            ? `Prescrição gerada sem assinatura (${res.recipes.length})`
+            : `Receitas assinadas (${res.recipes.length})`,
+          description: res.signatureStatus === "unsigned_expired"
+            ? "O documento não foi enviado e exige assinatura manual antes de uso clínico."
+            : "Confira os documentos no histórico.",
+        });
       },
-      onError: (error) => { if (draft.isCurrent()) toast({ title: "Erro ao emitir receitas — rascunho preservado", description: error.message, variant: "destructive" }); },
+      onError: (error) => { if (draft.isCurrent()) toast({ title: "Erro ao emitir receitas — rascunho preservado", description: safeClinicalErrorMessage(error), variant: "destructive" }); },
     },
   });
 
@@ -214,9 +277,85 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
       const { ativos, tomadas } = parseBody(f.body);
       return [...prev, { id: f.id, cat: f.cat, name: f.name, ativos, tomadas, preco: getPrecoMedio(f) }];
     });
+    recolherCatalogo();
     setPreviewPlans(null);
     setEmitResult(null);
   };
+  // Protocolos: conjunto de fórmulas adicionado de uma vez (mesmo comportamento da tela Prescrição).
+  const { salvos: protocolosSalvos, salvar: salvarProtocolo, remover: removerProtocolo } = useProtocolosSalvos();
+  const allProtocolos: Protocolo[] = [...PROTOCOLOS_SEED, ...protocolosSalvos];
+  const addProtocolo = (p: Protocolo) => {
+    setSelected((prev) => {
+      const next = [...prev];
+      for (const id of p.formulaIds) {
+        const f = allFormulas.find((x) => x.id === id);
+        if (!f || next.find((s) => s.id === f.id)) continue;
+        const { ativos, tomadas } = parseBody(f.body);
+        next.push({ id: f.id, cat: f.cat, name: f.name, ativos, tomadas, preco: getPrecoMedio(f) });
+      }
+      return next;
+    });
+    recolherCatalogo();
+    setPreviewPlans(null);
+    setEmitResult(null);
+  };
+  // Prescrição Modelo: só preenche o rascunho com fórmulas JÁ existentes no catálogo
+  // (posologia do próprio catálogo). Não emite, não assina, não envia.
+  const PRESCRICAO_MODELO_IDS = [
+    "lugol-5", "t3-10mcg", "t4-30mcg", "blend-tireoide-cafe", "ki-gotas", "ki-selenio-caps",
+    "mio-inositol-500", "cabergolina-blend", "tamoxifeno-15", "raloxifeno-60", "silimarina-leve",
+  ];
+  const addPrescricaoModelo = () => {
+    setSelected((prev) => {
+      const next = [...prev];
+      for (const id of PRESCRICAO_MODELO_IDS) {
+        const f = allFormulas.find((x) => x.id === id);
+        if (!f || next.find((s) => s.id === f.id)) continue;
+        const { ativos, tomadas } = parseBody(f.body);
+        next.push({ id: f.id, cat: f.cat, name: f.name, ativos, tomadas, preco: getPrecoMedio(f) });
+      }
+      return next;
+    });
+    setPreviewPlans(null);
+    setEmitResult(null);
+  };
+  /** Ponte da comparação: leva ao editor DESTA tela os ativos mantidos, sem criar editor novo. Não emite nem envia. */
+  const levarDaComparacao = (itens: FormulaParaEdicao[]) => {
+    if (!itens.length) return;
+    const novos: SelectedFormula[] = itens.map((it) => {
+      const cat = allFormulas.find((f) => chaveTexto(f.name) === chaveTexto(it.name));
+      const tomadas = parseBody((it.posologia ?? "").split(";").join("\n")).tomadas;
+      return {
+        id: cat?.id ?? `hist-${chaveTexto(it.name).replace(/[^a-z0-9]+/g, "-")}`,
+        cat: cat?.cat ?? "historico", name: cat?.name ?? it.name, ativos: it.ativos, tomadas,
+        preco: cat ? getPrecoMedio(cat) : 0,
+      };
+    });
+    setSelected((prev) => {
+      const next = [...prev];
+      for (const n of novos) {
+        const i = next.findIndex((x) => x.id === n.id);
+        if (i >= 0) next[i] = n; else next.push(n);
+      }
+      return next;
+    });
+    setPreviewPlans(null);
+    setEmitResult(null);
+    const alvo = itens.findIndex((i) => i.foco);
+    const idx = alvo >= 0 ? alvo : 0;
+    setFocoPedido({ id: novos[idx].id, ativo: itens[idx].foco });
+  };
+  useEffect(() => {
+    if (!focoPedido) return;
+    const campos = Array.from(document.querySelectorAll<HTMLInputElement>(`input[data-ativos-id="${CSS.escape(focoPedido.id)}"]`));
+    if (!campos.length) return;
+    const alvo = (focoPedido.ativo && campos.find((c) => chaveTexto(c.value).includes(chaveTexto(focoPedido.ativo!)))) || campos[0];
+    alvo.scrollIntoView({ behavior: "smooth", block: "center" });
+    alvo.focus({ preventScroll: true });
+    alvo.select();
+    setFocoPedido(null);
+  }, [focoPedido, selected]);
+
   const removeFormula = (id: string) => {
     setSelected((prev) => prev.filter((s) => s.id !== id));
     setPreviewPlans(null);
@@ -349,7 +488,91 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
     previewMutation.mutate({ data: { items: buildItems() } });
   };
 
-  const handleEmit = () => {
+  /** Prévia: gera um PDF de teste (sem validade, não emite, não envia) e abre numa nova aba. */
+  const handlePreviewPdf = async () => {
+    if (previaLoading) return;
+    const err = validateRouting(false);
+    if (err) { toast({ title: err, variant: "destructive" }); return; }
+    const tab = window.open("about:blank", "_blank");
+    if (tab) tab.opener = null;
+    setPreviaLoading(true);
+    try {
+      const headers = { Authorization: `Bearer ${getCollabToken() ?? ""}` };
+      const r = await fetch(`${BASE}/api/clinical-demonstrations/${clientId}`, {
+        method: "POST", headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "prescricao", prescriptionItems: buildItems() }),
+      });
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d?.id) throw new Error(d?.error || "Não foi possível gerar a prévia.");
+      const pdf = await fetch(`${BASE}/api/clinical-demonstrations/${clientId}/${d.id}`, { headers });
+      if (!pdf.ok) throw new Error("A prévia foi gerada, mas não pôde ser aberta.");
+      const url = URL.createObjectURL(await pdf.blob());
+      if (!tab) { URL.revokeObjectURL(url); throw new Error("Permita abrir uma nova aba para ver a prévia."); }
+      tab.location.href = url;
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      tab?.close();
+      toast({ title: "Prévia indisponível", description: safeClinicalErrorMessage(e), variant: "destructive" });
+    } finally {
+      setPreviaLoading(false);
+    }
+  };
+
+  /** Depois de emitir: envia o PDF já emitido aos destinos marcados. Falha ou incerteza nunca repete sozinha. */
+  const encaminharAposEmitir = async (res: EmitResult, alvos: DestinoEmissao[]) => {
+    const token = getCollabToken();
+    const itens: Array<{ titulo: string; linhas: Array<{ ok: boolean; texto: string }> }> = [];
+    setEnvioAuto({ enviando: true, itens });
+    if (res.signatureStatus === "unsigned_expired") {
+      setEnvioAuto({ enviando: false, itens: [{ titulo: "Envio não realizado", linhas: [{ ok: false, texto: "A prescrição foi gerada sem assinatura digital. Nada foi enviado; exige assinatura manual." }] }] });
+      return;
+    }
+    const canais = alvos.filter((d) => d !== "DRIVE");
+    const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` };
+    for (const rec of res.recipes) {
+      const linhas: Array<{ ok: boolean; texto: string }> = [];
+      if (canais.length) {
+        try {
+          const r = await fetch(`${BASE}/api/clinical-documents/resend`, {
+            method: "POST", headers,
+            body: JSON.stringify({ clientId, documentType: "prescricao", documentId: rec.id, channels: canais, confirmed: true, operationKey: crypto.randomUUID() }),
+          });
+          const d = await r.json().catch(() => null);
+          if (!r.ok) throw new Error(d?.error || "O servidor não confirmou o envio.");
+          for (const x of (d?.results ?? []) as Array<{ channel: DestinoEmissao; state: string; error?: string }>) {
+            const dest = contatos[x.channel as CanalEnvio];
+            const aceito = x.state === "provider_accepted";
+            const quem = x.channel === "EMAIL" ? `ao e-mail ${dest ?? ""}` : x.channel === "TELEGRAM" ? `ao Telegram ${dest ?? ""}` : `ao número ${dest ?? ""}`;
+            linhas.push({
+              ok: aceito,
+              texto: aceito
+                ? `PDF, documento encaminhado ${quem}`.trim()
+                : `${NOME_DESTINO[x.channel] ?? x.channel}: não encaminhado. ${x.error || (x.state === "unknown" ? "Resultado incerto; confira o histórico antes de repetir." : x.state)}`,
+            });
+          }
+        } catch (e) {
+          linhas.push({ ok: false, texto: `Envio: ${e instanceof Error ? e.message : "falha"}. Confira o histórico antes de repetir.` });
+        }
+      }
+      if (alvos.includes("DRIVE")) {
+        try {
+          const r = await fetch(`${BASE}/api/clinical-documents/archive-folder`, {
+            method: "POST", headers, body: JSON.stringify({ clientId, documentType: "prescricao", documentId: rec.id, confirmed: true }),
+          });
+          const d = await r.json().catch(() => null);
+          if (!r.ok) throw new Error(d?.error || "O servidor não confirmou o arquivamento.");
+          linhas.push({ ok: true, texto: `PDF, documento ${d.estado === "ja_estava" ? "já estava" : "guardado"} na pasta ${d.pasta ?? "do cliente"}`.trim() });
+        } catch (e) {
+          linhas.push({ ok: false, texto: `Drive: ${e instanceof Error ? e.message : "falha"}` });
+        }
+      }
+      itens.push({ titulo: rec.title, linhas });
+      setEnvioAuto({ enviando: true, itens: [...itens] });
+    }
+    setEnvioAuto({ enviando: false, itens: [...itens] });
+  };
+
+  const handleEmit = (signatureMode: "signed" | "unsigned_expired" = "signed", enviarPara: DestinoEmissao[] = []) => {
     if (draft.pending || emitMutation.isPending) return;
     if (!identity.data?.canPrescribe || identity.isFetching || identity.isError) {
       toast({ title: "Identidade clínica pendente", description: identity.data?.issue ?? identity.error?.message, variant: "destructive" });
@@ -367,6 +590,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
     const snapshot = draft.value;
     emitMutation.mutate({
       data: {
+        signatureMode,
         clientId,
         clientName: client.name.trim(),
         clientCpf: client.cpf || null,
@@ -378,7 +602,11 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
         items: buildItems(),
       },
     }, { onSuccess: res => {
-      if (Array.isArray(res.recipes) && res.recipes.length) draft.complete(snapshot);
+      if (Array.isArray(res.recipes) && res.recipes.length) {
+        draft.complete(snapshot);
+        if (enviarPara.length) { void encaminharAposEmitir(res as EmitResult, enviarPara); }
+        else setEnvioAuto(null);
+      }
     } });
   };
 
@@ -409,7 +637,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
         void queryClient.invalidateQueries({ queryKey: getCountClinicalApprovalsQueryKey() });
         toast({ title: "Prescrição enviada para conferência", description: "O médico responsável revisará e emitirá sob a própria identidade." });
       },
-      onError: error => toast({ title: "Não foi possível enviar para conferência", description: `${error.message} — o rascunho foi preservado.`, variant: "destructive" }),
+      onError: error => toast({ title: "Não foi possível enviar para conferência", description: `${safeClinicalErrorMessage(error)} — o rascunho foi preservado.`, variant: "destructive" }),
     });
   };
 
@@ -468,9 +696,16 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
         <ClinicalDraftNotice draft={draft} identity={identity} />
       </fieldset>
       {approvalQueued && <p role="status" className="bevel-3d px-3 py-2 text-sm text-emerald-800">Solicitação registrada para revisão do médico responsável. Nenhuma mensagem foi enviada.</p>}
-      {emitMutation.isError && <p role="alert" className="text-sm text-destructive">Falha ao emitir: {emitMutation.error.message}. Rascunho preservado; confira o histórico antes de tentar novamente.</p>}
+      {emitMutation.isError && <p role="alert" className="text-sm text-destructive">Falha ao emitir: {safeClinicalErrorMessage(emitMutation.error)}</p>}
       {!draft.pending && <fieldset disabled={emitMutation.isPending || previewMutation.isPending || createApproval.isPending} className="min-w-0 space-y-4">
-      <ClinicalIdentityPanel identity={identity} />
+      <ClinicalIdentityPanel
+        identity={identity}
+        allowUnsignedPrescription
+        ocultarQuandoNormal
+        canGenerateUnsigned={buildItems().length > 0 && !draft.pending}
+        unsignedGenerationPending={emitMutation.isPending}
+        onGenerateUnsigned={() => handleEmit("unsigned_expired")}
+      />
       {/* Cabeçalho do paciente (prefil) + duração/CID */}
       <div className="screen-3d rounded-md p-3">
         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Paciente</p>
@@ -500,96 +735,194 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
             onChange={(e) => setCid(e.target.value)}
           />
         </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={addPrescricaoModelo}
+            data-testid="button-prescricao-modelo"
+            className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold"
+            style={{ color: GOLD }}
+          >
+            <FileText className="h-4 w-4" />
+            Prescrição Modelo
+          </button>
+        </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
-        {/* Catálogo */}
-        <div className="space-y-3">
-          <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest" style={{ color: GOLD }}>
-            <FileText className="h-4 w-4" /> Catálogo ({filtered.length})
-          </h3>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              className={`w-full pl-9 ${inputCls}`}
-              placeholder="Buscar fórmula…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+      <div className="space-y-4" data-testid="bloco-prescricao">
+      <div className="grid gap-4">
+        {/* Catálogo e Protocolos — mesmo visual da tela Prescrição (menu) */}
+        <section className="panel-3d min-w-0 space-y-3 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="bevel-3d inline-flex items-center gap-2 px-3 py-1.5 text-sm font-bold uppercase tracking-widest text-primary">
+              <FileText className="h-4 w-4" /> Catálogo e Protocolos
+            </h3>
+            <span className="shrink-0 font-mono text-xs text-muted-foreground">
+              {leftTab === "cat" ? `${filtered.length} disponíveis` : `${allProtocolos.length} protocolos`}
+            </span>
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[240px] flex-1">
+              <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                className={`w-full pl-9 ${inputCls}`}
+                placeholder="Buscar fórmula, ativo ou protocolo…"
+                value={search}
+                data-testid="busca-catalogo"
+                onChange={(e) => { setSearch(e.target.value); setLeftTab("cat"); }}
+              />
+            </div>
             <button
-              onClick={() => setActiveCategory("all")}
-              className={`rounded-md px-2.5 py-1 text-xs font-semibold ${activeCategory === "all" ? "btn-3d-soft" : "text-muted-foreground hover:text-foreground"}`}
+              type="button" aria-expanded={catalogoAberto} data-testid="explorar-categorias"
+              onClick={() => setCatalogoAberto((v) => !v)}
+              className={`${catalogoAberto ? "btn-3d-apertado" : "btn-3d-soft"} flex items-center gap-2 !rounded-[3px] px-4 py-2 text-xs font-bold uppercase tracking-wide`}
             >
-              Todas <span className="opacity-70">{stats.all}</span>
+              <Layers className="h-4 w-4" /> Explorar categorias
             </button>
-            {CATEGORIES.map((c) => {
-              const n = stats[c.id] || 0;
-              if (!n) return null;
-              const active = activeCategory === c.id;
-              return (
+          </div>
+          {(catalogoAberto || search.trim() !== "") && (
+          <div className="space-y-3">
+          <div className="concave-3d grid max-w-md grid-cols-2 gap-1 p-1">
+            <button
+              onClick={() => setLeftTab("cat")}
+              className={`flex items-center justify-center gap-1.5 rounded-md py-2 text-sm font-semibold transition ${leftTab === "cat" ? "btn-3d-soft" : "text-muted-foreground"}`}
+            >
+              <FileText className="h-4 w-4" /> Categorias
+            </button>
+            <button
+              onClick={() => setLeftTab("proto")}
+              className={`flex items-center justify-center gap-1.5 rounded-md py-2 text-sm font-semibold transition ${leftTab === "proto" ? "btn-3d-soft" : "text-muted-foreground"}`}
+            >
+              <Layers className="h-4 w-4" /> Protocolos
+            </button>
+          </div>
+          {leftTab === "cat" ? (
+            <>
+              <div className="flex flex-wrap gap-2">
                 <button
-                  key={c.id}
-                  onClick={() => setActiveCategory(c.id)}
-                  className={`rounded-md px-2.5 py-1 text-xs font-semibold ${active ? "btn-3d-soft" : "text-muted-foreground hover:text-foreground"}`}
+                  onClick={() => setActiveCategory("all")}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${activeCategory === "all" ? "btn-3d" : "btn-3d-soft"}`}
                 >
-                  <span className="max-w-[140px] truncate">{c.label}</span> <span className="opacity-70">{n}</span>
+                  <FileText className="h-3.5 w-3.5" /> Todas <span className="font-mono opacity-70">{stats.all}</span>
                 </button>
-              );
-            })}
-          </div>
-          <div className="max-h-[460px] space-y-2 overflow-y-auto pr-1">
-            {filtered.map((f) => {
-              const cat = CATEGORIES.find((c) => c.id === f.cat);
-              const isSel = !!selected.find((s) => s.id === f.id);
-              return (
-                <div key={f.id} className="panel-3d-sub rounded-md p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      {cat && (
-                        <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: GOLD }}>
-                          {cat.label}
-                        </span>
-                      )}
-                      <h4 className="text-sm font-semibold text-foreground">{f.name}</h4>
-                      <p className="mt-0.5 line-clamp-2 font-mono text-[11px] text-muted-foreground">
-                        {f.body.split("\n").slice(0, 2).join(" • ")}
-                      </p>
-                    </div>
+                {CATEGORIES.map((c) => {
+                  const Icon = c.icon;
+                  const n = stats[c.id] || 0;
+                  if (!n) return null;
+                  const active = activeCategory === c.id;
+                  return (
                     <button
-                      onClick={() => (isSel ? removeFormula(f.id) : addFormula(f))}
-                      className={`shrink-0 rounded-md px-2.5 py-1.5 text-xs font-semibold ${isSel ? "btn-3d-soft" : "btn-3d-soft"}`}
-                      style={isSel ? { color: "#34d399" } : { color: GOLD }}
+                      key={c.id}
+                      onClick={() => setActiveCategory(c.id)}
+                      className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${active ? "btn-3d" : "btn-3d-soft"}`}
                     >
-                      {isSel ? (
-                        <span className="flex items-center gap-1">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Incluída
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1">
-                          <Plus className="h-3.5 w-3.5" />
-                          Adicionar
-                        </span>
-                      )}
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      <span className="max-w-[150px] truncate">{c.label}</span>
+                      <span className="font-mono opacity-70">{n}</span>
                     </button>
+                  );
+                })}
+              </div>
+              <div className="grid max-h-[420px] grid-cols-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+                {filtered.map((f) => {
+                  const cat = CATEGORIES.find((c) => c.id === f.cat);
+                  const isSel = !!selected.find((s) => s.id === f.id);
+                  return (
+                    <div key={f.id} className={`panel-3d-sub flex flex-col p-3 ${isSel ? "panel-3d-active" : ""}`}>
+                      <div className="min-w-0 flex-1">
+                        {cat && (
+                          <span className="rounded-sm bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                            {cat.label}
+                          </span>
+                        )}
+                        <h4 className="mt-1 text-sm font-semibold text-foreground">{f.name}</h4>
+                        <p className="mt-1 line-clamp-2 font-mono text-[11px] text-muted-foreground">
+                          {f.body.split("\n").slice(0, 2).join(" • ")}
+                        </p>
+                        <span
+                          className="mt-1.5 inline-flex items-center gap-1 rounded-sm border border-amber-200 bg-amber-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-700"
+                          title="Valor médio de mercado — uso interno, não aparece para o cliente"
+                        >
+                          ≈ {formatBRL(getPrecoMedio(f))} <span className="font-sans tracking-wide">INTERNO</span>
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => (isSel ? removeFormula(f.id) : addFormula(f))}
+                        className={`mt-2.5 flex w-full items-center justify-center gap-1 rounded-md px-3 py-2 text-xs font-semibold ${isSel ? "btn-3d-soft" : "btn-3d"}`}
+                      >
+                        {isSel ? (
+                          <>
+                            <CheckCircle2 className="h-4 w-4" /> Incluída
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-4 w-4" /> Adicionar
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+                {filtered.length === 0 && (
+                  <p className="col-span-full py-8 text-center text-sm text-muted-foreground">Nenhuma fórmula encontrada.</p>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="grid max-h-[560px] grid-cols-1 gap-3 overflow-y-auto pr-1">
+              <p className="px-1 text-xs text-muted-foreground">Clique para adicionar o conjunto inteiro à receita.</p>
+              {allProtocolos.map((p) => (
+                <div key={p.id} className="panel-3d-sub p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                      <Layers className="h-4 w-4 text-primary" /> {p.nome}
+                    </h4>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {p.id.startsWith("db-") && (
+                        <button
+                          onClick={() => void removerProtocolo(p.id)}
+                          title="Remover da minha lista"
+                          className="p-1 text-destructive hover:opacity-80"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => addProtocolo(p)}
+                        className="btn-3d flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Adicionar
+                      </button>
+                    </div>
                   </div>
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">
+                    {p.formulaIds
+                      .map((id) => allFormulas.find((f) => f.id === id)?.name)
+                      .filter(Boolean)
+                      .join(" • ")}
+                  </p>
                 </div>
-              );
-            })}
-            {filtered.length === 0 && (
-              <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma fórmula encontrada.</p>
-            )}
+              ))}
+            </div>
+          )}
           </div>
-        </div>
+          )}
+        </section>
 
         {/* Receita selecionada + roteamento + emissão */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest" style={{ color: GOLD }}>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <h3 className="mr-auto flex items-center gap-2 text-sm font-bold uppercase tracking-widest" style={{ color: GOLD }}>
               <FileSignature className="h-4 w-4" /> Receita ({selected.length})
             </h3>
+            {selected.length > 0 && (
+              <button
+                onClick={() => void salvarProtocolo(selected.map((s) => s.id))}
+                className="flex items-center gap-1 text-xs font-semibold text-primary hover:opacity-80"
+              >
+                <FolderPlus className="h-4 w-4" /> Salvar protocolo
+              </button>
+            )}
             {selected.length > 0 && (
               <button
                 onClick={() => {
@@ -607,10 +940,10 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
 
           {selected.length === 0 ? (
             <div className="concave-3d flex items-center justify-center rounded-md py-10 text-center text-sm text-muted-foreground">
-              Adicione fórmulas do catálogo ao lado.
+              Busque uma fórmula acima ou abra "Explorar categorias".
             </div>
           ) : (
-            <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+            <div className="space-y-3">
               {selected.map((f, idx) => (
                 <div key={f.id} className="panel-3d-sub overflow-hidden rounded-md">
                   <div className="concave-3d flex items-center justify-between gap-2 px-3 py-2">
@@ -625,14 +958,9 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                   <div className="space-y-3 p-3">
                     <div>
                       <label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                        Ativos (edite mg / adicione / retire)
+                        Ativos
                       </label>
-                      <textarea
-                        value={f.ativos}
-                        onChange={(e) => updateAtivos(f.id, e.target.value)}
-                        className={`mt-1 w-full resize-y font-mono text-xs ${inputCls}`}
-                        rows={Math.min(f.ativos.split("\n").length + 1, 12)}
-                      />
+                      <AtivosLinhas formulaId={f.id} valor={f.ativos} onChange={(v) => updateAtivos(f.id, v)} />
                     </div>
                     <div>
                       <div className="mb-1 flex items-center justify-between">
@@ -649,13 +977,23 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                           Tomada
                         </button>
                       </div>
-                      <div className="space-y-2">
+                      <div className="overflow-x-auto">
+                       <div className="min-w-[780px] space-y-2">
+                        <div className="grid grid-cols-12 items-center gap-1.5 px-2 text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                          <span className="col-span-1 text-center">Qtd</span>
+                          <span className="col-span-1">Via</span>
+                          <span className="col-span-3">Período</span>
+                          <span className="col-span-4">Orientação</span>
+                          <span className="col-span-2 text-center">Sugestão de horário</span>
+                          <span className="col-span-1" />
+                        </div>
                         {f.tomadas.map((t, ti) => (
                           <div key={ti} className="concave-3d grid grid-cols-12 items-center gap-1.5 rounded-md p-2">
                             <select
+                              aria-label="Quantidade de doses"
                               value={t.doses}
                               onChange={(e) => updateTomada(f.id, ti, "doses", e.target.value)}
-                              className={`col-span-2 text-center font-mono !px-1 !py-2 ${inputCls}`}
+                              className={`col-span-1 text-center font-mono !px-1 !py-2 ${inputCls}`}
                             >
                               {[1, 2, 3, 4, 5, 6].map((n) => (
                                 <option key={n} value={n} className="bg-background text-foreground">
@@ -664,9 +1002,10 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                               ))}
                             </select>
                             <select
+                              aria-label="Via"
                               value={t.via || "VO"}
                               onChange={(e) => updateTomada(f.id, ti, "via", e.target.value)}
-                              className={`col-span-2 !px-1 !py-2 ${inputCls}`}
+                              className={`col-span-1 !px-1 !py-2 ${inputCls}`}
                             >
                               {VIAS.map((v) => (
                                 <option key={v} value={v} className="bg-background text-foreground">
@@ -675,19 +1014,31 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                               ))}
                             </select>
                             <input
+                              aria-label="Período"
                               list="cockpit-periodos-list"
                               value={t.periodo}
                               onChange={(e) => updateTomada(f.id, ti, "periodo", e.target.value)}
                               placeholder="Período…"
-                              className={`col-span-5 !px-2 !py-2 ${inputCls}`}
+                              className={`col-span-3 !px-2 !py-2 ${inputCls}`}
                             />
                             <input
+                              aria-label="Orientação"
+                              list="cockpit-orientacoes-list"
+                              value={t.orientacao ?? ""}
+                              onChange={(e) => updateTomada(f.id, ti, "orientacao", e.target.value)}
+                              placeholder="Ex.: 10 minutos antes do almoço"
+                              className={`col-span-4 !px-2 !py-2 ${inputCls}`}
+                            />
+                            <input
+                              aria-label="Sugestão de horário"
                               value={t.hora}
                               onChange={(e) => updateTomada(f.id, ti, "hora", e.target.value)}
                               placeholder="14h"
                               className={`col-span-2 text-center font-mono !px-1 !py-2 ${inputCls}`}
                             />
                             <button
+                              type="button"
+                              aria-label="Remover tomada"
                               onClick={() => removeTomada(f.id, ti)}
                               className="col-span-1 flex justify-center text-destructive hover:opacity-80"
                             >
@@ -695,6 +1046,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                             </button>
                           </div>
                         ))}
+                       </div>
                       </div>
                     </div>
                   </div>
@@ -702,6 +1054,11 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
               ))}
             </div>
           )}
+          <datalist id="cockpit-orientacoes-list">
+            {ORIENTACOES.map((o) => (
+              <option key={o} value={o} />
+            ))}
+          </datalist>
           <datalist id="cockpit-periodos-list">
             {PERIODOS.map((p) => (
               <option key={p} value={p} />
@@ -719,12 +1076,17 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
             </div>
           )}
 
+          {/* O documento de teste foi substituído pelo botão "Prévia em PDF" do painel de emissão. */}
+          {/* Camadas horizontais abaixo das fórmulas: nada fica ao lado nem cruza outro painel. */}
+        </div>
+      </div>
+      <PainelRecolhivel titulo="Prescrição e Envio" testId="painel-emissao">
+        {selected.length === 0 && !emitResult && !envioAuto && (
+          <p className="concave-3d !rounded-[3px] px-3 py-3 text-sm text-muted-foreground" role="status">Adicione fórmulas acima.</p>
+        )}
           {/* Roteamento para farmácias + emissão */}
           {selected.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest" style={{ color: GOLD }}>
-                <Building2 className="h-4 w-4" /> Roteamento e Emissão
-              </h3>
+            <div className="space-y-3" data-testid="roteamento-farmacias">
 
               {!pharmacies?.length ? (
                 <div className="bevel-3d flex items-center gap-2 rounded-md px-3 py-2 text-xs text-amber-700">
@@ -733,179 +1095,91 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                 </div>
               ) : (
                 <>
-                  <div className="concave-3d flex flex-wrap items-center gap-2 rounded-md px-3 py-2">
-                    <label className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                      <Building2 className="h-3.5 w-3.5" />
-                      Farmácia padrão:
-                    </label>
-                    <select
-                      className="concave-3d rounded-md bg-transparent px-3 py-1.5 text-sm text-foreground"
-                      value={defaultPharmacyId ?? ""}
-                      onChange={(e) => changeDefaultPharmacy(e.target.value ? Number(e.target.value) : null)}
-                    >
-                      <option value="" className="bg-background text-foreground">
-                        — selecione —
-                      </option>
-                      {pharmacies.map((p) => (
-                        <option key={p.id} value={p.id} className="bg-background text-foreground">
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
 
                   <div className="space-y-2">
                     {selected.map((f, idx) => {
                       const r = getRoute(f.id);
                       const recipe = r.isControlled ? recipeTypeForControlledClass(r.anvisaType) : null;
                       const sncrFlag = r.isControlled && r.anvisaType ? sncrFlags.get(r.anvisaType) : undefined;
+                      const trocando = farmaciaAberta.includes(f.id) || r.pharmacyId != null;
                       return (
-                        <div key={f.id} className="panel-3d-sub rounded-md p-3">
-                          <div className="mb-2 flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-muted-foreground">#{idx + 1}</span>
-                            <span className="truncate text-sm font-semibold text-foreground">{f.name}</span>
-                            {sncrFlag && (
-                              <span className="ml-auto flex shrink-0 items-center gap-1 rounded-sm border border-amber-400/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
-                                <AlertTriangle className="h-3 w-3" />
-                                {sncrFlag === "low" ? "SNCR ACABANDO" : sncrFlag === "exhausted" ? "SNCR ESGOTADO" : "SEM INTERVALO SNCR"}
-                              </span>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-1 items-center gap-2 md:grid-cols-12">
-                            <div className="md:col-span-5">
+                        <div key={f.id} className="panel-3d-sub !rounded-[3px] px-3 py-2" data-testid={`rota-${f.id}`}>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                            <span className="flex min-w-0 basis-full items-center gap-2 sm:basis-auto sm:flex-1">
+                              <span className="font-mono text-xs font-bold text-muted-foreground">#{idx + 1}</span>
+                              <span className="truncate text-sm font-semibold text-foreground">{f.name}</span>
+                            </span>
+                            {trocando ? (
                               <select
-                                className="concave-3d w-full rounded-md bg-transparent px-2 py-2 text-xs text-foreground"
+                                aria-label="Farmácia desta fórmula"
+                                className="concave-3d max-w-[200px] !rounded-[2px] bg-transparent px-2 py-1.5 text-xs text-foreground"
                                 value={r.pharmacyId ?? ""}
                                 onChange={(e) => setRoute(f.id, { pharmacyId: e.target.value ? Number(e.target.value) : null })}
                               >
-                                <option value="" className="bg-background text-foreground">
-                                  Usar farmácia padrão
-                                </option>
+                                <option value="" className="bg-background text-foreground">Farmácia padrão</option>
                                 {(r.isControlled && r.anvisaType ? pharmaciesForType(r.anvisaType) : pharmacies).map((p) => (
-                                  <option key={p.id} value={p.id} className="bg-background text-foreground">
-                                    {p.name}
-                                  </option>
+                                  <option key={p.id} value={p.id} className="bg-background text-foreground">{p.name}</option>
                                 ))}
                               </select>
-                            </div>
-                            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-foreground md:col-span-3">
-                              <input
-                                type="checkbox"
-                                checked={r.isControlled}
-                                onChange={(e) => setRoute(f.id, { isControlled: e.target.checked })}
-                                className="h-4 w-4 accent-amber-500"
-                              />
+                            ) : (
+                              <button type="button" className="text-xs font-semibold underline underline-offset-2" style={{ color: GOLD }}
+                                onClick={() => setFarmaciaAberta((v) => [...v, f.id])}>Alterar farmácia</button>
+                            )}
+                            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-foreground">
+                              <input type="checkbox" checked={r.isControlled} onChange={(e) => setRoute(f.id, { isControlled: e.target.checked })} className="h-4 w-4 accent-amber-500" />
                               <ShieldAlert className="h-3.5 w-3.5 text-amber-700" />
                               Controlado
                             </label>
-                            {r.isControlled && (
-                              <div className="flex items-center gap-2 md:col-span-4">
-                                <select
-                                  className="field-engraved w-full rounded-md border border-amber-400/40 bg-transparent px-2 py-2 text-xs text-foreground"
-                                  value={r.anvisaType}
-                                  onChange={(e) => setRoute(f.id, { anvisaType: e.target.value })}
-                                >
-                                  <option value="" className="bg-background text-foreground">
-                                    Tipo Anvisa…
-                                  </option>
-                                  {ANVISA_CONTROLLED_CLASSES.map((c) => (
-                                    <option key={c.value} value={c.value} className="bg-background text-foreground">
-                                      {c.label}
-                                    </option>
-                                  ))}
-                                </select>
-                                {recipe && (
-                                  <span
-                                    className="shrink-0 rounded-sm border px-1.5 py-1 text-[10px] font-bold"
-                                    style={{ background: recipe.color, color: "#0f172a", borderColor: "#cbd5e1" }}
-                                  >
-                                    {recipe.colorName}
-                                  </span>
-                                )}
-                              </div>
-                            )}
+                            <span className="flex items-center gap-1.5">
+                              <Layers className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+                              <select
+                                aria-label="Cor interna"
+                                className="concave-3d !rounded-[2px] bg-transparent px-2 py-1.5 text-xs text-foreground"
+                                value={r.internalColor}
+                                onChange={(e) => setRoute(f.id, { internalColor: e.target.value })}
+                              >
+                                {INTERNAL_COLORS.map((c) => (
+                                  <option key={c.value} value={c.value} className="bg-background text-foreground">{c.value ? c.label : "Cor interna"}</option>
+                                ))}
+                              </select>
+                              {r.internalColor && (
+                                <span className="h-3.5 w-3.5 shrink-0 rounded-[2px] border border-input" style={{ background: INTERNAL_COLORS.find((c) => c.value === r.internalColor)?.hex }} />
+                              )}
+                            </span>
                           </div>
-                          <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-dashed border-border pt-2">
-                            <label className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                              <Layers className="h-3 w-3" />
-                              Cor interna
-                            </label>
-                            <select
-                              className="concave-3d rounded-md bg-transparent px-2 py-1.5 text-xs text-foreground"
-                              value={r.internalColor}
-                              onChange={(e) => setRoute(f.id, { internalColor: e.target.value })}
-                            >
-                              {INTERNAL_COLORS.map((c) => (
-                                <option key={c.value} value={c.value} className="bg-background text-foreground">
-                                  {c.label}
-                                </option>
-                              ))}
-                            </select>
-                            {r.internalColor && (
-                              <span
-                                className="h-3.5 w-3.5 shrink-0 rounded-[2px] border border-input"
-                                style={{ background: INTERNAL_COLORS.find((c) => c.value === r.internalColor)?.hex }}
-                              />
-                            )}
-                          </div>
+                          {r.isControlled && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <select
+                                aria-label="Tipo Anvisa"
+                                className="field-engraved min-w-[180px] !rounded-[2px] border border-amber-400/40 bg-transparent px-2 py-1.5 text-xs text-foreground"
+                                value={r.anvisaType}
+                                onChange={(e) => setRoute(f.id, { anvisaType: e.target.value })}
+                              >
+                                <option value="" className="bg-background text-foreground">Tipo Anvisa…</option>
+                                {ANVISA_CONTROLLED_CLASSES.map((c) => (
+                                  <option key={c.value} value={c.value} className="bg-background text-foreground">{c.label}</option>
+                                ))}
+                              </select>
+                              {recipe && (
+                                <span className="shrink-0 rounded-sm border px-1.5 py-1 text-[10px] font-bold" style={{ background: recipe.color, color: "#0f172a", borderColor: "#cbd5e1" }}>{recipe.colorName}</span>
+                              )}
+                              {sncrFlag && (
+                                <span className="flex shrink-0 items-center gap-1 rounded-sm border border-amber-400/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  {sncrFlag === "low" ? "SNCR ACABANDO" : sncrFlag === "exhausted" ? "SNCR ESGOTADO" : "SEM INTERVALO SNCR"}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={handlePreview}
-                      disabled={previewMutation.isPending}
-                      className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
-                      style={{ color: GOLD }}
-                    >
-                      {previewMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-                      {previewMutation.isPending ? "Gerando…" : "Prévia do desmembramento"}
-                    </button>
-                    {identity.data?.canPrescribe ? (
-                      <button
-                        onClick={handleEmit}
-                        disabled={emitMutation.isPending || identity.isFetching || identity.isError}
-                        data-testid="button-emit-prescriptions"
-                        className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
-                        style={{ color: GOLD }}
-                      >
-                        {emitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        {emitMutation.isPending ? "Emitindo…" : "Emitir receitas"}
-                      </button>
-                    ) : identity.data?.canPreparePrescription ? (
-                      <button
-                        onClick={handleSubmitForReview}
-                        disabled={createApproval.isPending || identity.isFetching || identity.isError}
-                        data-testid="button-submit-prescription-review"
-                        className="btn-3d flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-bold disabled:opacity-40"
-                      >
-                        {createApproval.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                        {createApproval.isPending ? "Enviando para revisão…" : "Enviar ao médico responsável"}
-                      </button>
-                    ) : null}
-                    {/* ── Motor Único (lê modelo ativo do banco) ── */}
-                    {identity.data?.canPrescribe && <button
-                      onClick={() => { void handleEmitirMotorUnico(); }}
-                      disabled
-                      title="Emissão alternativa suspensa até a homologação da assinatura e dos envios"
-                      className="btn-3d flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
-                    >
-                      {emitirMotorUnicoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                      Emitir Receituário
-                    </button>}
-                    {/* ── PDF Visual (Puppeteer server-side) ── */}
-                    {identity.data?.canPrescribe && <button
-                      onClick={() => { void handleGerarPdfVisual(); }}
-                      disabled
-                      title="PDF visual alternativo suspenso até a homologação da assinatura e dos envios"
-                      className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
-                    >
-                      {gerarPdfVisualLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                      Gerar PDF Visual
-                    </button>}
-                  </div>
+                </>
+              )}
+            </div>
+          )}
 
                   {/* Prévia */}
                   {previewPlans && !emitResult && (
@@ -929,19 +1203,13 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                               {plan.items.length} fórmula(s)
                               {plan.anvisaColorName ? ` · Receituário ${plan.anvisaColorName}` : ""}
                               {plan.needsSncr ? " · exige nº SNCR" : ""}
-                              {plan.pharmacyId ? ` · ${pharmacies.find((p) => p.id === plan.pharmacyId)?.name ?? "Farmácia"}` : ""}
+                              {plan.pharmacyId ? ` · ${pharmacies?.find((p) => p.id === plan.pharmacyId)?.name ?? "Farmácia"}` : ""}
                             </p>
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
-
-                </>
-              )}
-            </div>
-          )}
-
                   {/* Resultado independe do formulário, que fica vazio após o sucesso. */}
                   {emitResult && (
                     <div className="space-y-3">
@@ -959,12 +1227,8 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                         </div>
                       )}
 
-                      <h4 className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide" style={{ color: GOLD }}>
-                        <FileSignature className="h-3.5 w-3.5" />
-                        Receitas emitidas ({emitResult.recipes.length})
-                      </h4>
                       {emitResult.recipes.map((rec) => (
-                        <div key={rec.id} className="panel-3d-sub flex flex-wrap items-center justify-between gap-2 rounded-md p-3">
+                        <div key={rec.id} className="bevel-3d flex flex-wrap items-center justify-between gap-2 !rounded-[3px] p-3">
                           <div className="min-w-0">
                         <p className="text-sm font-semibold text-foreground">{rec.title}</p>
                             <p className="text-xs text-muted-foreground">
@@ -1003,7 +1267,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                             WhatsApp às farmácias
                           </h4>
                           {emitResult.pharmacyDispatches.map((d) => (
-                            <div key={d.pharmacyId} className="panel-3d-sub flex flex-wrap items-center justify-between gap-2 rounded-md p-3">
+                            <div key={d.pharmacyId} className="bevel-3d flex flex-wrap items-center justify-between gap-2 !rounded-[3px] p-3">
                               <div className="min-w-0">
                                 <p className="text-sm font-semibold text-foreground">{d.pharmacyName}</p>
                                 <p className="text-xs text-muted-foreground">
@@ -1027,9 +1291,120 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       )}
                     </div>
                   )}
-        <PrescricoesEmitidas clientId={clientId} emissionId={emitResult?.prescriptionId} />
+                  {!emitResult && selected.length > 0 && !pharmacies?.length && (
+                    <p className="concave-3d !rounded-[3px] px-3 py-3 text-xs text-muted-foreground" data-testid="emissao-vazia" role="status">Cadastre uma farmácia para liberar a emissão.</p>
+                  )}
+      </PainelRecolhivel>
+      {(selected.length > 0 || envioAuto) && <div className="md:sticky md:bottom-0 md:z-30" data-testid="dock-envio">
+        <div className="panel-3d-sub space-y-2 !rounded-[3px] p-2 shadow-lg">
+          {selected.length > 0 && !!pharmacies?.length && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                      <Building2 className="h-3.5 w-3.5" />
+                      Farmácia padrão:
+                    </label>
+                    <select
+                      className="concave-3d rounded-md bg-transparent px-3 py-1.5 text-sm text-foreground"
+                      value={defaultPharmacyId ?? ""}
+                      onChange={(e) => changeDefaultPharmacy(e.target.value ? Number(e.target.value) : null)}
+                    >
+                      <option value="" className="bg-background text-foreground">
+                        — selecione —
+                      </option>
+                      {pharmacies.map((p) => (
+                        <option key={p.id} value={p.id} className="bg-background text-foreground">
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+          )}
+                  {identity.data?.canPrescribe && selected.length > 0 && (
+                    <DestinosEmissao clientId={clientId} marcados={destinos} onChange={setDestinos} disabled={emitMutation.isPending} onContatos={setContatos} />
+                  )}
+                  {envioAuto && (
+                    <div className="bevel-3d space-y-2 !rounded-[3px] p-3 text-sm" role="status" data-testid="resultado-envio-emissao">
+                      {envioAuto.enviando && <p className="text-xs font-bold">Enviando…</p>}
+                      {envioAuto.itens.map((it, i) => (
+                        <div key={i}>
+                          <p className="font-semibold">{it.titulo}</p>
+                          <ul className="space-y-0.5">
+                            {it.linhas.map((l, j) => <li key={j} className={l.ok ? "text-emerald-800" : "font-bold text-destructive"}>{l.texto}</li>)}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2" data-testid="barra-emissao">
+                    <button
+                      onClick={() => void handlePreviewPdf()}
+                      disabled={previaLoading || selected.length === 0 || !identity.data?.canPrescribe}
+                      data-testid="button-previa-pdf"
+                      className="mr-auto flex items-center gap-2 rounded-[2px] border border-current/30 px-3 py-2 text-xs font-semibold disabled:opacity-40"
+                      style={{ color: GOLD }}
+                    >
+                      {previaLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                      {previaLoading ? "Gerando…" : "Visualizar PDF"}
+                    </button>
+                    {identity.data?.canPrescribe ? (
+                      <>
+                      <button
+                        onClick={() => handleEmit("unsigned_expired")}
+                        disabled={emitMutation.isPending || envioAuto?.enviando || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
+                        data-testid="button-emit-unsigned"
+                        className="btn-3d-soft flex items-center justify-center gap-2 !rounded-[2px] px-4 py-2 text-xs font-semibold disabled:opacity-40"
+                      >
+                        <FileSignature className="h-4 w-4" />
+                        Gerar sem Assinar
+                      </button>
+                      <button
+                        onClick={() => handleEmit()}
+                        disabled={emitMutation.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
+                        data-testid="button-emit-prescriptions"
+                        className="btn-3d-soft flex items-center justify-center gap-2 !rounded-[2px] px-4 py-2 text-xs font-semibold disabled:opacity-40"
+                        style={{ color: GOLD }}
+                      >
+                        {emitMutation.isPending && !envioAuto ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                        Apenas Emitir
+                      </button>
+                      <button
+                        onClick={() => handleEmit("signed", destinos)}
+                        disabled={emitMutation.isPending || envioAuto?.enviando || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length || destinos.length === 0}
+                        data-testid="button-emit-and-send"
+                        title={destinos.length === 0 ? "Marque ao menos um destino." : undefined}
+                        className="btn-3d flex items-center justify-center gap-2 !rounded-[2px] px-5 py-2 text-sm font-bold disabled:opacity-40"
+                      >
+                        {emitMutation.isPending || envioAuto?.enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        {emitMutation.isPending ? "Emitindo…" : envioAuto?.enviando ? "Enviando…" : "Assinar e Enviar"}
+                      </button>
+                      </>
+                    ) : identity.data?.canPreparePrescription ? (
+                      <button
+                        onClick={handleSubmitForReview}
+                        disabled={createApproval.isPending || identity.isFetching || identity.isError || selected.length === 0 || !pharmacies?.length}
+                        data-testid="button-submit-prescription-review"
+                        className="btn-3d flex items-center justify-center gap-2 !rounded-[2px] px-5 py-2 text-sm font-bold disabled:opacity-40"
+                      >
+                        {createApproval.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                        {createApproval.isPending ? "Enviando para revisão…" : "Enviar ao médico responsável"}
+                      </button>
+                    ) : null}
+                  </div>
         </div>
+      </div>}
       </div>
+      <PainelRecolhivel titulo="Prescrições — Histórico" testId="painel-historico">
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setAbaHistorico("emitidas")} data-testid="aba-emitidas"
+            className={`${abaHistorico === "emitidas" ? "btn-3d-apertado" : "btn-3d-soft"} !rounded-[2px] px-4 py-2 text-xs font-bold uppercase tracking-wider`}>Emitidas</button>
+          <button type="button" onClick={() => setAbaHistorico("comparar")} data-testid="aba-comparar"
+            className={`${abaHistorico === "comparar" ? "btn-3d-apertado" : "btn-3d-soft"} !rounded-[2px] px-4 py-2 text-xs font-bold uppercase tracking-wider`}>Comparar</button>
+          <div id="slot-gerar-prescricao" className="ml-auto" />
+        </div>
+        {abaHistorico === "emitidas"
+          ? <PrescricoesEmitidas fixo embutido clientId={clientId} emissionId={emitResult?.prescriptionId} />
+          : <HistoricoReceitasExpandido clientId={clientId} onLevarParaEdicao={levarDaComparacao} />}
+      </PainelRecolhivel>
       </fieldset>}
     </div>
   );

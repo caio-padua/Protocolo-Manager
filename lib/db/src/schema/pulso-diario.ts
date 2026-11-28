@@ -34,10 +34,12 @@ export const pulsoDiarioTable = pgTable(
     data: date("data", { mode: "string" }).notNull(), // YYYY-MM-DD (dia do registro)
     periodo: text("periodo").notNull(), // manha | tarde | noite
     energia: integer("energia"), // 0..10
-    disposicao: integer("disposicao"), // 0..10
+    disposicao: integer("disposicao"), // 0..10 (legado: histórico preservado)
+    libido: integer("libido"), // 0..10 (opcional, termômetro de saúde)
     sono: integer("sono"), // 0..10 (qualidade do sono, tipicamente de manhã)
     pressaoSistolica: integer("pressao_sistolica"), // mmHg
     pressaoDiastolica: integer("pressao_diastolica"), // mmHg
+    frequenciaCardiaca: integer("frequencia_cardiaca"), // bpm
     glicemia: integer("glicemia"), // mg/dL
     humor: text("humor"), // palavra/emoji curto opcional
     observacao: text("observacao"),

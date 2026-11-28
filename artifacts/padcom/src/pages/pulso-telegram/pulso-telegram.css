@@ -1,0 +1,29 @@
+/* Mini aplicativo do Pulso Diario (abre dentro do Telegram). Navy e ouro, relevo saliente nos botoes e concavo nos campos. */
+.pt { min-height: 100vh; padding: 16px 14px 28px; background: linear-gradient(180deg,#f7f0e1,#efe5cf); color: #16294a; font-family: Inter, Arial, sans-serif; }
+.pt-miolo { max-width: 420px; margin: 0 auto; display: grid; gap: 14px; }
+.pt-topo { text-align: center; }
+.pt-topo small { display: block; font-size: 9px; font-weight: 800; letter-spacing: .16em; color: #8a6d2f; text-transform: uppercase; }
+.pt-topo h1 { margin: 4px 0 2px; font: 700 24px/1.1 "EB Garamond", serif; color: #16294a; }
+.pt-topo p { margin: 0; font-size: 12px; color: #5b6a82; }
+.pt-bloco { display: grid; gap: 6px; }
+.pt-rotulo { display: flex; justify-content: space-between; align-items: baseline; font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #8a6d2f; }
+.pt-rotulo span { font-weight: 600; letter-spacing: .04em; color: #7b8aa0; text-transform: none; }
+.pt-fileira { display: grid; gap: 4px; grid-template-columns: repeat(5, minmax(0,1fr)); }
+.pt-fileira-11 { grid-template-columns: repeat(11, minmax(0,1fr)); gap: 3px; }
+.pt-q { min-height: 38px; padding: 0; border: 1px solid rgba(184,146,77,.55); border-radius: 3px; background: linear-gradient(#fffdf7,#f1e8d3); color: #16294a; font: 700 15px/1 "EB Garamond", serif; font-variant-numeric: lining-nums tabular-nums;
+  box-shadow: inset 0 1.5px 0 #fff, inset 0 -2px 3px rgba(120,90,30,.16), 0 2px 0 rgba(150,120,60,.35); }
+.pt-fileira-11 .pt-q { min-height: 34px; font-size: 14px; }
+.pt-q:active { transform: translateY(1px); box-shadow: inset 0 2px 3px rgba(120,90,30,.3); }
+.pt-q[aria-pressed="true"] { background: linear-gradient(#1f3a63,#14284a); color: #f6e7bd; border-color: #14284a; box-shadow: inset 0 1px 0 rgba(255,255,255,.25), inset 0 -2px 3px rgba(0,0,0,.35), 0 2px 0 #060f1f; }
+.pt-campo { width: 100%; box-sizing: border-box; min-height: 42px; padding: 0 12px; text-align: center; border: 1px solid rgba(184,146,77,.5); border-radius: 3px; background: linear-gradient(#ece2c9,#f7f0df); color: #16294a; font: 700 18px/1 "EB Garamond", serif; font-variant-numeric: lining-nums tabular-nums;
+  box-shadow: inset 0 2px 4px rgba(90,65,20,.28), inset 0 -1px 0 #fff; outline: none; }
+.pt-campo::placeholder { color: #9aa7b6; font: 500 12px Inter, Arial, sans-serif; letter-spacing: .02em; }
+.pt-campo:focus { border-color: #9a7b32; box-shadow: inset 0 2px 4px rgba(90,65,20,.28), 0 0 0 2px rgba(154,123,50,.25); }
+.pt-dupla { display: grid; gap: 14px; }
+.pt-enviar { min-height: 46px; border: 1px solid #14284a; border-radius: 3px; background: linear-gradient(#24436f,#14284a); color: #f6e7bd; font: 800 12px/1 Inter, Arial, sans-serif; letter-spacing: .14em; text-transform: uppercase;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), inset 0 -3px 0 rgba(0,0,0,.35), 0 3px 0 #060f1f; }
+.pt-enviar:disabled { opacity: .55; }
+.pt-erro { margin: 0; text-align: center; font-size: 12px; font-weight: 600; color: #b4413c; }
+.pt-msg { margin: 40px 0; text-align: center; font-size: 14px; color: #5b6a82; }
+.pt-ok { margin: 60px 0; text-align: center; }
+.pt-ok h2 { margin: 0 0 6px; font: 700 26px "EB Garamond", serif; color: #2f7a45; }

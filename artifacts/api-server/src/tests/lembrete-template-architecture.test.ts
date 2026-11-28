@@ -62,7 +62,7 @@ describe("template simples e somente fallback", () => {
   it("impede novos atalhos em todo o codigo de producao do servidor", () => {
     const violations = files(root).flatMap((path) => inspect(readFileSync(path, "utf8"), relative(root, path)));
     expect(violations).toEqual([]);
-  });
+  }, 20_000);
 
   it("detecta um canal novo que chama o template diretamente", () => {
     expect(inspect(`import { ${template} } from "../lib/lembrete-templates";

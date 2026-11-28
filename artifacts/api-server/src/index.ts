@@ -1,10 +1,31 @@
+import { rodarLiberacaoAutomatica } from "./lib/liberacao-automatica";
 import app from "./app";
 import { logger } from "./lib/logger";
+import { ensureAgendaIntegrationSchema } from "./lib/agenda-integracao-schema";
+import { startGoogleAgendaSync } from "./lib/agenda-google-sync";
 // startCronJobs migrado para api-worker (Onda 2 — evita duplicação em múltiplas réplicas)
 import { aquecerBannersAnimados } from "./lib/messaging/banner";
 import { ensurePhotoHistoryTable } from "./routes/client-photo.js";
 import { ensureExamSetsTable } from "./lib/exam-sets";
+import { ensureSystemErrorLogTable } from "./lib/system-error-log";
+import { ensurePrescriptionProtocolsTable } from "./lib/ensure-prescription-protocols";
+import { ensurePedidosMedicosTable } from "./lib/ensure-pedidos-medicos.js";
+import { ensureCeoDocumentosTable } from "./lib/ensure-ceo-documentos.js";
+import { ensurePapeisIniciais } from "./lib/ensure-papeis-iniciais.js";
+import { ensurePaxcareTables } from "./lib/ensure-paxcare.js";
+import { ensurePaxcarePlanosTables } from "./lib/paxcare-planos.js";
+import { ensureClinicalDocumentReissuesTable } from "./lib/ensure-clinical-document-reissues.js";
+import { ensureExamesAvulsosTable } from "./lib/exames-avulsos.js";
+import { ensureExamIdentitySchema } from "./lib/ensure-exam-identity-schema.js";
+import { ensureExamUnitReviewSchema } from "./lib/ensure-exam-unit-review-schema.js";
+import { ensureExamMarcosSchema } from "./lib/ensure-exam-marcos-schema";
+import { ensureAsaasTesteTable } from "./lib/asaas-teste-cobrancas.js";
+import { ensureAsaasConciliacaoTables } from "./lib/asaas-conciliacao.js";
+import { ensureBoloesTables } from "./lib/boloes.js";
+import { ensureMeusJogosTables } from "./lib/meus-jogos.js";
 import { ensureTelegramInboxTable } from "./lib/ensure-telegram-inbox.js";
+import { garantirTabelasComunicacao } from "./lib/comunicacao-migracao.js";
+import { ensureClientBodyPhotosTable } from "./lib/ensure-client-body-photos.js";
 import { runSeedSiteContent } from "./lib/seed-site-content";
 import { runSeedMensageriaPaxmed } from "./lib/seed-mensageria-paxmed";
 import { runSeedDemoRogerio } from "./lib/seed-demo-rogerio";
@@ -12,19 +33,26 @@ import { runSeedDieta } from "./lib/seed-dieta";
 import { ensureDietaReceitasSchema } from "./lib/ensure-dieta-receitas-schema";
 import { ensurePesquisasSchema } from "./lib/ensure-pesquisas-schema";
 import { ensureSubstanceApplicationsUnique } from "./lib/ensure-substance-applications-unique";
+import { ensureFornecedorCatalogosSchema } from "./lib/fornecedor-catalogos";
 import { ensureSubstanceBlendsSchema } from "./lib/ensure-substance-blends-schema";
 import { ensureProtocolEmissoesTable } from "./routes/protocols.js";
 import { ensureEmailLogProtocolId } from "./lib/ensure-email-log-protocol-id";
+import { ensureVisitConfirmations } from "./lib/ensure-visit-confirmations";
+import { ensureFilaMensagens } from "./lib/ensure-fila-mensagens.js";
+import { ensureClienteMedicacoes } from "./lib/ensure-cliente-medicacoes.js";
+import { ensureClientRubricas } from "./lib/client-rubrica";
 import { ensureProfessionalClerkIdentitySchema } from "./lib/ensure-professional-clerk-identity-schema";
-import { seedDirecoesExames } from "./lib/exam-extraction/seed-direcoes";
-import { seedCatalogoAnalitos } from "./lib/exam-extraction/seed-analitos";
-import { seedFaixasSexo } from "./lib/exam-extraction/seed-faixas-sexo";
+import { ensureProfessionalEmpresasSchema } from "./lib/ensure-professional-empresas-schema";
+import { ensurePaxFinanceSchema } from "./pax-finance/schema";
+import { ensureRecipeQrSchema } from "./lib/ensure-recipe-qr-schema";
 import { refreshCertCache } from "./lib/cert-source";
 import { recoverStuckDocuments } from "./routes/exames-lab";
 import { purgeOldDeviceOfferLimits } from "./lib/concierge-device-throttle";
 import { startWebhookGuard } from "./lib/telegram-webhook-guard";
 import { purgeOldDietaPdfs } from "./lib/dieta-planos-storage";
 import { checkDicionarioAndAlert } from "./lib/dicionario-sync-alert";
+import { pool } from "@workspace/db";
+import { PROCEDIMENTOS_SCHEMA_SQL } from "./lib/procedimentos-schema";
 
 const rawPort = process.env["PORT"];
 
@@ -44,6 +72,12 @@ if (Number.isNaN(port) || port <= 0) {
 // race condition entre requests e criação de tabelas auxiliares.
 (async () => {
   try {
+    await pool.query(PROCEDIMENTOS_SCHEMA_SQL);
+    logger.info("cadastro de procedimentos: estrutura aditiva pronta");
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao preparar cadastro de procedimentos; a tela pode ficar indisponível");
+  }
+  try {
     await ensureProfessionalClerkIdentitySchema();
     logger.info("identidades Google por ambiente: schema pronto antes do listen");
   } catch (e) {
@@ -51,7 +85,44 @@ if (Number.isNaN(port) || port <= 0) {
     process.exit(1);
   }
 
+  try {
+    await ensureProfessionalEmpresasSchema();
+    logger.info("vínculos empresariais do profissional: schema pronto antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao garantir vínculos empresariais do profissional — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensurePaxFinanceSchema();
+    logger.info("PAX FINANCE: esquema fin_* pronto antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao garantir esquema do PAX FINANCE — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureRecipeQrSchema();
+    logger.info("recipes: campos aditivos de QR prontos antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao garantir campos de QR das receitas — abortando boot");
+    process.exit(1);
+  }
+
   await ensureExamSetsTable();
+  try {
+    await ensureSystemErrorLogTable();
+    logger.info("system_error_log: tabela pronta antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao criar system_error_log — Central de Erros indisponível");
+  }
+  try {
+    await ensurePrescriptionProtocolsTable();
+    logger.info("prescription_protocols: tabela pronta antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao criar tabela prescription_protocols — abortando boot");
+    process.exit(1);
+  }
   try {
     await ensurePhotoHistoryTable();
     logger.info("client_photo_history: tabela pronta antes do listen");
@@ -61,9 +132,97 @@ if (Number.isNaN(port) || port <= 0) {
   }
 
   try {
+    await ensureExamesAvulsosTable();
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao criar tabela exam_avulso_requests — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureExamIdentitySchema();
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao criar tabela exam_identity_checks — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureExamUnitReviewSchema();
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao criar tabela exam_unit_review_request — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureExamMarcosSchema();
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao criar tabela exam_document_marcos — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensurePedidosMedicosTable();
+    await ensureCeoDocumentosTable();
+    await ensurePaxcareTables();
+    await ensurePaxcarePlanosTables();
+    await ensureClinicalDocumentReissuesTable();
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao criar tabela client_medical_requests — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensurePapeisIniciais();
+  } catch (e) {
+    // Não derruba o boot: sem preenchimento, o guarda continua negando (fail-closed), nunca liberando.
+    logger.error({ err: e }, "Falha no preenchimento inicial de papéis por clínica");
+  }
+
+  try {
+    await ensureBoloesTables();
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao criar tabelas de boloes — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureMeusJogosTables();
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao criar tabelas de Meus Jogos — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureAsaasTesteTable();
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao criar tabela asaas_cobrancas_teste — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureAsaasConciliacaoTables();
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao criar tabelas da conciliacao Asaas — abortando boot");
+    process.exit(1);
+  }
+
+  try {
     await ensureTelegramInboxTable();
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao criar tabela telegram_inbox_messages — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await garantirTabelasComunicacao();
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao preparar tabelas da comunicacao unificada — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureClientBodyPhotosTable();
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao criar tabela client_body_photos — abortando boot");
     process.exit(1);
   }
 
@@ -93,6 +252,8 @@ if (Number.isNaN(port) || port <= 0) {
 
   try {
     await ensureSubstanceBlendsSchema();
+    await ensureFornecedorCatalogosSchema();
+    await ensureAgendaIntegrationSchema();
     logger.info("substance blends: schema e correção segura da ADEK garantidos antes do listen");
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao garantir schema de blends — abortando boot");
@@ -113,6 +274,32 @@ if (Number.isNaN(port) || port <= 0) {
   } catch (e) {
     logger.error({ err: e }, "Falha ao garantir coluna email_log.protocol_id — abortando boot");
     process.exit(1);
+  }
+
+  try {
+    await ensureFilaMensagens();
+    await ensureClienteMedicacoes();
+  } catch (e) {
+    // Aditivo: sem as tabelas, fila e medicações externas ficam indisponíveis; o restante segue.
+    logger.error({ err: e }, "Falha ao garantir mensagens_fila / cliente_medicacoes");
+  }
+
+  try {
+    await ensureVisitConfirmations();
+    logger.info("visit_confirmations: tabelas da confirmação do cliente por visita garantidas antes do listen");
+  } catch (e) {
+    // Não derruba a API: a confirmação do cliente nunca pode impedir o registro de aplicações.
+    // As rotas da K8 respondem com erro claro e o worker tenta garantir as tabelas de novo.
+    logger.error({ err: e }, "Falha ao garantir tabelas visit_confirmations — a confirmação do cliente fica indisponível; o restante da API segue");
+  }
+
+  try {
+    await ensureClientRubricas();
+    logger.info("client_rubricas: tabela da rubrica em imagem do cliente garantida antes do listen");
+  } catch (e) {
+    // Não derruba a API: sem a tabela, só a rubrica em imagem fica indisponível (o RAS FAP cai nas iniciais
+    // apenas quando NÃO existe imagem; leitura com a tabela quebrada lança erro explícito).
+    logger.error({ err: e }, "Falha ao garantir tabela client_rubricas — a rubrica em imagem fica indisponível; o restante da API segue");
   }
 
   // Semeado (aguardado, não fire-and-forget): protocolos/catálogo/receitas
@@ -144,6 +331,7 @@ if (Number.isNaN(port) || port <= 0) {
   }
 
   app.listen(port, (err) => {
+    if (!err) startGoogleAgendaSync();
     if (err) {
       logger.error({ err }, "Error listening on port");
       process.exit(1);
@@ -167,14 +355,9 @@ if (Number.isNaN(port) || port <= 0) {
     runSeedDemoRogerio((m) => logger.info({ seed: "demo-rogerio" }, m)).catch((e) =>
       logger.error({ err: e }, "Falha ao semear demo Rogério Juarez"),
     );
-    seedDirecoesExames()
-      .then((r) => logger.info({ seed: "direcoes-exames", ...r }, "Direções de exames semeadas"))
-      .catch((e) => logger.error({ err: e }, "Falha ao semear direções de exames"));
-    seedCatalogoAnalitos()
-      .then((r) => logger.info({ seed: "catalogo-analitos", ...r }, "Catálogo/unidades/faixas semeados"))
-      .then(() => seedFaixasSexo())
-      .then((r) => logger.info({ seed: "faixas-sexo", ...r }, "Faixas por sexo semeadas"))
-      .catch((e) => logger.error({ err: e }, "Falha ao semear catálogo de analitos"));
+    // Curadoria laboratorial não é semeada no boot: rotinas anteriores podiam
+    // sobrescrever escolhas médicas ou fabricar faixas. A retomada depende de
+    // revisão dos valores e de importação explícita, preservando o que existe.
 
     // Recupera documentos de exame que ficaram presos em "processando"
     // por reinicializacao do servidor durante a extracao por IA.
@@ -218,8 +401,21 @@ if (Number.isNaN(port) || port <= 0) {
           logger.error({ err: e }, "[dieta-pdfs] Falha na limpeza de PDFs antigos"),
         );
     }
-    runPurgeDietaPdfs();
-    setInterval(runPurgeDietaPdfs, 24 * 60 * 60 * 1000);
+    // Exclusividade entre réplicas da API: uma execução por janela em todo o banco.
+    const purgaDietaExclusiva = () => {
+      void import("./lib/exclusividade-tarefas.js")
+        .then(({ executarUmaVezPorJanela }) => executarUmaVezPorJanela("api-purga-dieta-pdfs", 20 * 60 * 60_000, async () => runPurgeDietaPdfs()))
+        .catch((e) => logger.error({ err: e }, "[dieta-pdfs] Falha no controle de exclusividade"));
+    };
+    purgaDietaExclusiva();
+    setInterval(purgaDietaExclusiva, 24 * 60 * 60 * 1000);
+
+    // Liberação automática de pedido de exames (só com a validação médica desligada). Ciclo de 60 s.
+    setInterval(() => {
+      void import("./lib/exclusividade-tarefas.js")
+        .then(({ executarUmaVezPorJanela }) => executarUmaVezPorJanela("api-liberacao-automatica-exames", 48_000, async () => { await rodarLiberacaoAutomatica(); }))
+        .catch((e) => logger.error({ err: e }, "[liberacao-exames] Falha no controle de exclusividade"));
+    }, 60 * 1000);
 
   });
 })();

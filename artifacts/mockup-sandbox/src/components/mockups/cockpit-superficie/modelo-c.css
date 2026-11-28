@@ -1,0 +1,151 @@
+.cs-c {
+  background: #e8e4d9;
+  color: #203550;
+}
+
+.cs-c .cs-sidebar {
+  background: linear-gradient(180deg, #1b304d, #142640);
+  border-right: 1px solid #b99e61;
+}
+
+.cs-c .cs-page { background: #eeeade; }
+.cs-c .cs-notice {
+  color: #2c4158;
+  background: #e9dfc6;
+  border-bottom: 1px solid #d3c39c;
+}
+
+.cs-c .cc-shell {
+  color: #203550;
+  background: linear-gradient(145deg, #f2eee3, #e7e4d9 56%, #f4f1e8) !important;
+}
+
+.cs-c .cs-surface {
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(180deg, #f8f4e9, #ebe5d6);
+  box-shadow: inset 0 1px rgba(255,255,255,.92), inset 0 -1px #c8b98e;
+}
+
+.cs-c .cs-surface > .cc-header,
+.cs-c .cs-surface > .cc-rail-wrap {
+  position: relative;
+  z-index: 1;
+  background: transparent !important;
+}
+
+.cs-c .cc-heading { color: #80672e; }
+
+.cs-c .cc-identity,
+.cs-c .cc-empty-identity,
+.cs-c .cc-controls,
+.cs-c .cc-rail {
+  border-color: #cbbb91;
+  background: linear-gradient(145deg, #fffdf6, #f4efe2 65%, #eee6d5);
+  box-shadow: inset 0 1px rgba(255,255,255,.95), 0 5px 0 #d1c4a3, 0 11px 18px rgba(47, 54, 54, .12);
+}
+
+.cs-c .cc-identity { border-radius: 7px; }
+.cs-c .cc-portrait { border-color: #b69a58; }
+.cs-c .cc-grade-plan { color: #725a27; border-color: #b69a58; }
+.cs-c .cc-client-code { color: #7a632f; }
+.cs-c .cc-name-wrapper h1 { color: #1e3553; }
+.cs-c .cc-age { color: #56657a; }
+.cs-c .cc-client-details { color: #263d58; }
+.cs-c .cc-detail {
+  border-color: #d2c49f;
+  background: linear-gradient(180deg, #f4eedf, #ebe3d1);
+}
+.cs-c .cc-detail dt { color: #766945; }
+.cs-c .cc-detail dd { color: #203550; }
+
+.cs-c .cc-context-button,
+.cs-c .cc-action {
+  color: #203550;
+  border-color: #cbb986;
+  background: linear-gradient(180deg, #fffaf0, #ede4d0);
+  box-shadow: inset 0 1px rgba(255,255,255,.96), 0 3px 0 #d0c19b;
+}
+.cs-c .cc-context-button small,
+.cs-c .cc-action small { color: #59677a; }
+.cs-c .cc-context-button > svg,
+.cs-c .cc-action > svg { color: #907435; }
+.cs-c .cc-context-button[data-active="true"] {
+  color: #172d4a;
+  background: linear-gradient(180deg, #e7d5a8, #d5bd83);
+}
+
+.cs-c .cc-selector {
+  border-color: #cbbb91;
+  background: linear-gradient(180deg, #faf7ee, #eee6d6);
+}
+.cs-c .cc-selector > span { color: #79652f; }
+.cs-c .cc-rail-arrow,
+.cs-c .cc-rail-item {
+  color: #203550;
+  border-color: #d1c39d;
+  background: linear-gradient(180deg, #fffdf7, #eee8db);
+  box-shadow: inset 0 1px rgba(255,255,255,.9), 0 2px 0 #d2c5a6;
+}
+.cs-c .cc-rail-index { color: #8a7139; }
+.cs-c .cc-rail-item[data-active="true"] {
+  color: #172d4a;
+  border-color: #bda05c;
+  background: linear-gradient(180deg, #ead9ad, #d8c18b);
+}
+
+.cs-c .cc-shell.dark .cc-workspace-bar h2 { color: #1c3452; }
+.cs-c .cc-shell.dark .cc-modes,
+.cs-c .cc-shell.dark .cc-ficha-controls {
+  border-color: #c9bc9b;
+  background: #eae5d9;
+}
+.cs-c .cc-shell.dark .cc-modes button,
+.cs-c .cc-shell.dark .cc-ficha-controls button { color: #273e58; }
+.cs-c .cc-shell.dark .cc-modes button[data-active="true"] {
+  color: #fffaf0;
+  background: linear-gradient(180deg, #294a70, #1b3454);
+}
+.cs-c .cc-shell.dark .cc-panels-telas .cc-panel,
+.cs-c .cc-shell.dark .cc-panels-ficha .cc-panel {
+  border-color: #cbc09f;
+  background: linear-gradient(155deg, #fffdf7, #f5f0e5);
+  box-shadow: 0 5px 0 #d5c9aa, 0 9px 15px rgba(32, 53, 80, .12);
+}
+.cs-c .cc-shell.dark .cc-panel-heading { border-color: #d8ceb5; }
+.cs-c .cc-shell.dark .cc-panel-toggle,
+.cs-c .cc-shell.dark .cc-panel-title { color: #1c3452; }
+.cs-c .cc-shell.dark .cc-panel-loading { color: #637082; }
+
+.cs-c .cs-panel {
+  border-color: #c9bc9a;
+  background: linear-gradient(160deg, #fffdf7, #f1ebdd);
+  box-shadow: 0 5px 0 #d2c5a6, 0 10px 16px rgba(32, 53, 80, .12);
+}
+.cs-c .cs-panel h2 { color: #263c56; }
+.cs-c .cs-well {
+  color: #5c6978;
+  background: linear-gradient(180deg, #e5dfd0, #f7f2e6);
+  box-shadow: inset 0 3px 8px rgba(98, 88, 64, .19);
+}
+
+/* A pele clara da proposta prevalece também quando o tema original está escuro. */
+.cs-c .cc-shell.dark :is(.cc-identity, .cc-empty-identity, .cc-controls, .cc-rail) {
+  border-color: #cbbb91;
+  background: linear-gradient(145deg, #fffdf6, #f4efe2 65%, #eee6d5);
+}
+.cs-c .cc-shell.dark :is(.cc-context-button, .cc-action) {
+  color: #203550;
+  background: linear-gradient(180deg, #fffaf0, #ede4d0);
+}
+.cs-c .cc-shell.dark .cc-selector {
+  background: linear-gradient(180deg, #faf7ee, #eee6d6);
+}
+.cs-c .cc-shell.dark :is(.cc-rail-arrow, .cc-rail-item) {
+  color: #203550;
+  background: linear-gradient(180deg, #fffdf7, #eee8db);
+}
+.cs-c .cc-shell.dark :is(.cc-rail-item, .cc-context-button)[data-active="true"] {
+  color: #172d4a;
+  background: linear-gradient(180deg, #ead9ad, #d8c18b);
+}

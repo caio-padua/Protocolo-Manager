@@ -111,7 +111,7 @@ export async function finalizeConciergeBooking(id: number): Promise<void> {
           phone: row.patientPhone ?? null,
           status: "active",
           empresaId: 5,
-          locationId: 8,
+          locationId: 30,
         })
         .returning();
       client = created;

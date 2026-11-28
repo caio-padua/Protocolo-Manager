@@ -260,8 +260,6 @@ export default function PreviewValidacao() {
                       title="Prévia Celular"
                       scrolling="no"
                       style={{
-                        width:       "100%",
-                        height:      "100%",
                         border:      "none",
                         display:     "block",
                         background:  "#0d1a2d",

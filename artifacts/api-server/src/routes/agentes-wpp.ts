@@ -108,7 +108,7 @@ PASSOS: [passo1] | [passo2]`,
       proximosPassos.split("|").map(p => `• ${p.trim()}`).join("\n")
     : "";
 
-  const mensagem = `*PAXTER — ${ag.emoji} ${ag.nome}*
+  const mensagem = `*PaxMed — ${ag.emoji} ${ag.nome}*
 ─────────────────────
 Olá, ${clientName}! Seguem informações sobre nosso último atendimento.
 
@@ -131,8 +131,25 @@ _PAXTER Clinical Intelligence System_`;
 
   try {
     const r = await sendWhatsapp(telefone, mensagem, { clienteId: client_id });
-    logIntegracao({ tipo: "wpp_proativo", client_id, status: r.sent ? "ok" : "falhou", detalhe: { sid: r.sid, via: r.via } }).catch(() => {});
-    res.json({ ok: true, sid: r.sid, status: r.status, via: r.via, telefone: telefone.slice(-4).padStart(telefone.length, "*") });
+    logIntegracao({ tipo: "wpp_proativo", client_id, status: r.sent ? "ok" : "falhou", detalhe: { logId: r.logId, via: r.via } }).catch(() => {});
+    if (!r.sent) {
+      // Resultado de negócio: o consumidor atual lê ok=false e o link no corpo 2xx.
+      res.json({
+        ok: false,
+        error: r.error ?? "Não foi possível enviar a mensagem.",
+        via: r.via,
+        link_fallback: r.link,
+        telefone: telefone.slice(-4).padStart(telefone.length, "*"),
+      });
+      return;
+    }
+    res.json({
+      ok: true,
+      logId: r.logId,
+      status: "sent",
+      via: r.via,
+      telefone: telefone.slice(-4).padStart(telefone.length, "*"),
+    });
   } catch (err) {
     logger.error({ err }, "agentes-wpp: erro ao enviar");
     logIntegracao({ tipo: "wpp_proativo", client_id, status: "falhou", detalhe: { erro: String(err) } }).catch(() => {});

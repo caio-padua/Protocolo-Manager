@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 
 const GOLD = "#9a7b32";
 
@@ -9,7 +10,7 @@ export default function AvisoSemAnamnese({ clientId }: { clientId: number }) {
   useEffect(() => {
     let ativo = true;
     setSemAnamnese(false);
-    fetch(`${import.meta.env.BASE_URL}api/cockpit/${clientId}`)
+    fetch(`${import.meta.env.BASE_URL}api/cockpit/${clientId}`, { headers: collabAuthHeaders() })
       .then((r) => (r.ok ? r.json() : null))
       .then((dto) => {
         if (!ativo || !dto) return;

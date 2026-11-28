@@ -595,7 +595,7 @@ export function formatarRelatorioSlack(report: LlmReport): object[] {
   const blocks: object[] = [
     {
       type: "header",
-      text: { type: "plain_text", text: "🧠 PADAXOR — Monitor Horário" },
+      text: { type: "plain_text", text: "🧠 PAXMED — Monitor Horário" },
     },
     {
       type: "context",
@@ -822,7 +822,7 @@ export async function consultarHistorico(dias = 7): Promise<{
 // ---------------------------------------------------------------------------
 export async function postSlackReport(channelId: string, report: LlmReport): Promise<void> {
   const blocks = formatarRelatorioSlack(report);
-  const fallback = `PADAXOR LLMs — ${report.periodo}: ${report.totalChamadas} chamadas, ${usd(report.totalCustoUsd)}`;
+  const fallback = `PaxMed LLMs — ${report.periodo}: ${report.totalChamadas} chamadas, ${usd(report.totalCustoUsd)}`;
 
   const data = await slackPost("/chat.postMessage", {
     channel: channelId,
@@ -905,7 +905,7 @@ export function formatarRelatorioTelegram(report: LlmReport): string {
   const linhas: string[] = [];
 
   // ── Cabeçalho ───────────────────────────────────────────────────────────
-  linhas.push(`<b>🧠 PADAXOR — Monitor Horário</b>`);
+  linhas.push(`<b>🧠 PAXMED — Monitor Horário</b>`);
   linhas.push(`📅 ${geradoEmFormatado} (BRT) | ${report.periodo}`);
   linhas.push("");
 
@@ -1069,7 +1069,7 @@ export async function postTelegramReport(
         const slackResult = await slackPost("/chat.postMessage", {
           channel: fallbackSlackChannelId,
           text: [
-            `⚠️ *PADAXOR — Telegram offline*`,
+            `⚠️ *PAXMED — Telegram offline*`,
             `O relatório horário de LLMs *não pôde ser entregue* ao Telegram após ${TELEGRAM_MAX_TENTATIVAS} tentativas.`,
             `Erro: \`${ultimoErro}\``,
             `Chat ID: \`${chatId}\``,

@@ -41,7 +41,7 @@ import type {
 // Hidratação do token (cofre -> process.env), sem dependência de boot.
 // ---------------------------------------------------------------------------
 let _tokenCarregado = false;
-async function ensureZapsignTokenLoaded(): Promise<void> {
+export async function ensureZapsignTokenLoaded(): Promise<void> {
   if (_tokenCarregado) return;
   _tokenCarregado = true;
   if (process.env["ZAPSIGN_API_TOKEN"] || process.env["ZAPSIGN_TOKEN"]) return;
@@ -122,6 +122,9 @@ function hidratar(corpo: string, dados: Record<string, string>): string {
 export async function enviarAssinatura(
   input: EnviarAssinaturaInput,
 ): Promise<EnviarAssinaturaResultado> {
+  // Estado operacional nunca vem do chamador (inclusive recibos de recuperação).
+  const metadataExtra = { ...(input.metadataExtra || {}) };
+  for (const key of ["mock", "fallback", "originalPdfKey", "reenvioRecibo", "reenvioEstado"]) delete metadataExtra[key];
   await ensureZapsignTokenLoaded();
   const toggles = await ensureToggles();
 
@@ -242,7 +245,7 @@ export async function enviarAssinatura(
       hashOriginal,
       signatariosSnapshot: signatarios,
       canaisDistribuir: canais,
-      metadata: { ...(input.metadataExtra || {}) },
+      metadata: metadataExtra,
     })
     .onConflictDoNothing()
     .returning({ id: assinaturaSolicitacoesTable.id });
@@ -273,6 +276,8 @@ export async function enviarAssinatura(
   // can reclaim the slot and attempt the envelope creation again.
   // (Without this, a failed RASCUNHO would block all retries via ON CONFLICT.)
   let resultado: Awaited<ReturnType<typeof adapter.createDocumentEnvelope>>;
+  let fallback = false;
+  let originalPdfKey: string | undefined;
   try {
     resultado = await adapter.createDocumentEnvelope({
       templateCodigo: input.templateCodigo || tipoDoc,
@@ -284,16 +289,31 @@ export async function enviarAssinatura(
       // Paxter é dono da fila de notificação: ZapSign NÃO dispara WhatsApp sozinho.
       enviarWhatsappAutomatico: false,
       ordemAssinaturaAtiva: signatarios.length > 1,
-      metadata: { tipoDoc, pacienteId: input.pacienteId, ...(input.metadataExtra || {}) },
+      metadata: { tipoDoc, pacienteId: input.pacienteId, ...metadataExtra },
     });
   } catch (providerErr) {
-    // Release the RASCUNHO slot so the next retry can enter.
-    await db
-      .delete(assinaturaSolicitacoesTable)
-      .where(eq(assinaturaSolicitacoesTable.id, solicitacaoId));
-    throw providerErr;
+    if (provedor === "zapsign" && providerErr instanceof Error && /^ZapSign create failed 402:/.test(providerErr.message)) {
+      // O provedor recusou explicitamente. Preserva o PDF exato sem enviar link fictício.
+      try {
+        originalPdfKey = (await uploadPdfAssinado(`original-${solicitacaoId}`, Buffer.from(pdfBase64, "base64"))).storageKey;
+      } catch (storageErr) {
+        // O 402 é recusa comprovada: não existe envelope externo. É seguro
+        // liberar a reserva para repetir o envio após o storage se recuperar.
+        await db.delete(assinaturaSolicitacoesTable)
+          .where(and(eq(assinaturaSolicitacoesTable.id, solicitacaoId), eq(assinaturaSolicitacoesTable.status, "RASCUNHO")));
+        throw storageErr;
+      }
+      fallback = true;
+      resultado = { envelopeId: `MOCK-ZAPSIGN-${solicitacaoId}`, linksAssinatura: [], rawProvider: null };
+    } else {
+      // Release the RASCUNHO slot so the next retry can enter.
+      await db
+        .delete(assinaturaSolicitacoesTable)
+        .where(eq(assinaturaSolicitacoesTable.id, solicitacaoId));
+      throw providerErr;
+    }
   }
-  const mock = !adapter.isConfigured();
+  const mock = fallback || !adapter.isConfigured();
 
   // 8. Update the reservation row with the real envelope data + mark ENVIADO.
   await db
@@ -301,7 +321,7 @@ export async function enviarAssinatura(
     .set({
       provedorEnvelopeId: resultado.envelopeId,
       status: "ENVIADO",
-      metadata: { mock, ...(input.metadataExtra || {}) },
+      metadata: { ...metadataExtra, mock, fallback, ...(originalPdfKey ? { originalPdfKey } : {}) },
       enviadoEm: new Date(),
     })
     .where(eq(assinaturaSolicitacoesTable.id, solicitacaoId));
@@ -338,11 +358,11 @@ export async function enviarAssinatura(
     undefined;
   const primeiroNome = paciente.name.split(" ")[0] || paciente.name;
   const corpoMsg = linkPaciente
-    ? `Ola ${primeiroNome}, o Instituto Padua preparou um documento para sua assinatura digital. ` +
+    ? `Ola ${primeiroNome}, o Instituto Pádua preparou um documento para sua assinatura digital. ` +
       `Acesse com seguranca: ${linkPaciente}`
-    : `Ola ${primeiroNome}, o Instituto Padua preparou um documento para sua assinatura digital.`;
+    : `Ola ${primeiroNome}, o Instituto Pádua preparou um documento para sua assinatura digital.`;
 
-  const canaisMsg = canais.filter((c) => c !== "DRIVE");
+  const canaisMsg = mock ? [] : canais.filter((c) => c !== "DRIVE");
   for (const canal of canaisMsg) {
     const destinatario =
       canal === "WHATSAPP"
@@ -360,7 +380,7 @@ export async function enviarAssinatura(
         canal,
         momento: "ENVIO_INICIAL",
         destinatario: temDestino ? destinatario! : "",
-        assunto: canal === "EMAIL" ? "PAXTER | Documento para assinatura" : null,
+        assunto: canal === "EMAIL" ? "PAXMED | Documento para assinatura" : null,
         corpo: corpoMsg,
         status: temDestino ? "PENDENTE" : "PULADO",
         erro: temDestino ? null : `sem_${canal.toLowerCase()}`,
@@ -398,6 +418,8 @@ export interface WebhookResultado {
   duplicado: boolean;
   transient?: boolean;
   unauthorized?: boolean;
+  /** Evento relevante cujo envelope não pertence a nenhuma solicitação nossa. */
+  semSolicitacao?: boolean;
 }
 
 export async function receberWebhook(
@@ -494,9 +516,14 @@ export async function receberWebhook(
     return rows[0];
   }
 
+  // Evento que muda estado (assinado/recusado/removido) para um envelope que não
+  // casa com nenhuma solicitação: nunca fica como "processado com sucesso".
+  let envelopeSemSolicitacao = false;
+
   try {
     if (evento.envelopeId && isRecusado) {
       const sol = await acharSolicitacaoPorEnvelope(evento.envelopeId);
+      if (!sol) envelopeSemSolicitacao = true;
       if (sol) {
         await db
           .update(assinaturaSolicitacoesTable)
@@ -510,6 +537,7 @@ export async function receberWebhook(
       }
     } else if (evento.envelopeId && isRemovido) {
       const sol = await acharSolicitacaoPorEnvelope(evento.envelopeId);
+      if (!sol) envelopeSemSolicitacao = true;
       if (sol) {
         await db
           .update(assinaturaSolicitacoesTable)
@@ -522,6 +550,7 @@ export async function receberWebhook(
       }
     } else if (evento.envelopeId && isSucesso) {
       const sol = await acharSolicitacaoPorEnvelope(evento.envelopeId);
+      if (!sol) envelopeSemSolicitacao = true;
       if (sol) {
         const pdf = await adapter.downloadSignedArtifact(evento.envelopeId);
         const hashAssinado = createHash("sha256").update(pdf).digest("hex");
@@ -584,7 +613,7 @@ export async function receberWebhook(
               canal: "WHATSAPP",
               momento: "POS_ASSINATURA",
               destinatario: p.phone,
-              corpo: `Obrigado, ${primeiroNome}! Seu documento foi assinado e arquivado com seguranca pelo Instituto Padua.`,
+              corpo: `Obrigado, ${primeiroNome}! Seu documento foi assinado e arquivado com seguranca pelo Instituto Pádua.`,
               status: "PENDENTE",
             });
           }
@@ -598,6 +627,21 @@ export async function receberWebhook(
       .set({ erroProcessamento: (err as Error).message })
       .where(eq(assinaturaWebhookEventosTable.id, eventoId));
     return { ok: false, eventoId, duplicado: false, transient: true };
+  }
+
+  if (envelopeSemSolicitacao) {
+    // Responde 200 (a conta do provedor recebe avisos de documentos que não
+    // criamos; reentregar sem fim não ajuda), mas o evento permanece visível
+    // como pendente de vínculo e reprocessável. Nenhuma solicitação é alterada.
+    await db
+      .update(assinaturaWebhookEventosTable)
+      .set({ erroProcessamento: "solicitacao_nao_encontrada" })
+      .where(eq(assinaturaWebhookEventosTable.id, eventoId));
+    logger.warn(
+      { eventoId, provedor, tipo: evento.eventType },
+      "[assinatura] webhook relevante sem solicitacao correspondente (mantido pendente)",
+    );
+    return { ok: true, eventoId, duplicado: false, semSolicitacao: true };
   }
 
   await db
@@ -629,7 +673,8 @@ async function arquivarNoDrive(solicitacaoId: number, pdf: Buffer): Promise<void
   const yy = String(data.getFullYear()).slice(2);
   const mm = String(data.getMonth() + 1).padStart(2, "0");
   const dd = String(data.getDate()).padStart(2, "0");
-  const nomeArq = `${yy}.${mm}.${dd} ${sol.tipoDoc} ASSINADO ${(pac[0]?.name || "").toUpperCase()}.pdf`;
+  const nomeTipoDoc = sol.tipoDoc === "RAS" ? "RASP" : sol.tipoDoc;
+  const nomeArq = `${yy}.${mm}.${dd} ${nomeTipoDoc} ASSINADO ${(pac[0]?.name || "").toUpperCase()}.pdf`;
   const up = await uploadFileToDrive(folderId, nomeArq, "application/pdf", pdf, true);
   await db
     .update(assinaturaSolicitacoesTable)
@@ -639,7 +684,7 @@ async function arquivarNoDrive(solicitacaoId: number, pdf: Buffer): Promise<void
 
 async function notificarCEO(solicitacaoId: number, tipo: "ASSINADO" | "REJEITADO"): Promise<void> {
   const ceoPhone = process.env["CEO_WHATSAPP"];
-  const msg = `Paxter: documento da solicitacao #${solicitacaoId} foi ${tipo}.`;
+  const msg = `PaxMed: documento da solicitacao #${solicitacaoId} foi ${tipo}.`;
   if (ceoPhone) {
     await sendWhatsapp(ceoPhone, msg).catch(() => {});
   }
@@ -692,7 +737,7 @@ export async function obterPdfAssinado(
   const sol = rows[0];
   if (!sol || !sol.pdfStorageKey) return null;
   const buffer = await readPdfAssinado(sol.pdfStorageKey);
-  const filename = `assinatura-${sol.id}-${sol.tipoDoc}.pdf`;
+  const filename = `assinatura-${sol.id}-${sol.tipoDoc === "RAS" ? "RASP" : sol.tipoDoc}.pdf`;
   return { buffer, filename };
 }
 
@@ -760,6 +805,10 @@ type ResultadoEntrega = "ENVIADA" | "PULADO" | "FALHA";
 
 /** Entrega UMA notificação pelo seu canal. */
 async function entregarNotificacao(n: NotificacaoPendente): Promise<ResultadoEntrega> {
+  const [claim] = await db.update(assinaturaNotificacoesTable).set({ status: "PROCESSANDO" })
+    .where(and(eq(assinaturaNotificacoesTable.id, n.id), eq(assinaturaNotificacoesTable.status, "PENDENTE")))
+    .returning({ id: assinaturaNotificacoesTable.id });
+  if (!claim) return "PULADO";
   try {
     if (!n.destinatario || !n.destinatario.trim()) {
       // Sem destinatário: registra PULADO (não é falha de entrega).
@@ -778,7 +827,7 @@ async function entregarNotificacao(n: NotificacaoPendente): Promise<ResultadoEnt
     } else if (n.canal === "EMAIL") {
       const r = await sendGmailMessage({
         to: n.destinatario,
-        subject: n.assunto || "PAXTER | Documento para assinatura",
+        subject: n.assunto || "PAXMED | Documento para assinatura",
         html: `<p>${n.corpo.replace(/\n/g, "<br/>")}</p>`,
       });
       if (!r.success) throw new Error(r.error || "falha_email");
@@ -798,11 +847,13 @@ async function entregarNotificacao(n: NotificacaoPendente): Promise<ResultadoEnt
   }
 }
 
-export async function processarNotificacoes(limite = 50) {
+export async function processarNotificacoes(limite = 50, solicitacaoId?: number, momento?: string) {
   const pend = await db
     .select()
     .from(assinaturaNotificacoesTable)
-    .where(eq(assinaturaNotificacoesTable.status, "PENDENTE"))
+    .where(and(eq(assinaturaNotificacoesTable.status, "PENDENTE"),
+      solicitacaoId === undefined ? undefined : eq(assinaturaNotificacoesTable.solicitacaoId, solicitacaoId),
+      momento === undefined ? undefined : eq(assinaturaNotificacoesTable.momento, momento)))
     .orderBy(assinaturaNotificacoesTable.criadoEm)
     .limit(limite);
 

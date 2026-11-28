@@ -282,7 +282,7 @@ router.post("/agentes-trello/board-cliente/:clientId", async (req, res): Promise
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: `PAXTER — ${client.name}`,
+          name: `PaxMed — ${client.name}`,
           defaultLists: false,
           prefs_permissionLevel: "private",
           prefs_comments: "members",
@@ -434,7 +434,7 @@ router.post("/agentes-trello/webhook-externo", async (req, res): Promise<void> =
     const ag = agR.rows[0] as Record<string, string> | undefined;
     if (!ag) return;
 
-    const system = `Você é ${ag.nome}, ${ag.cargo} do sistema PAXTER. Tom: ${ag.tom_voz}.
+    const system = `Você é ${ag.nome}, ${ag.cargo} do sistema PaxMed. Tom: ${ag.tom_voz}.
 Está respondendo a ${client.name} no board Trello pessoal deste cliente. Seja acolhedor, direto e empático.`;
 
     const resp = await anthropic.messages.create({

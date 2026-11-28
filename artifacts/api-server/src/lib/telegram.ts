@@ -40,6 +40,58 @@ export interface WebhookInfo {
   fetchError?: string;
 }
 
+/** Monta a URL pública do webhook sem expor ou registrar credenciais. */
+export function resolveTelegramWebhookUrl(
+  env: NodeJS.ProcessEnv = process.env,
+): { url: string | null; error?: string } {
+  const httpsOrigin = (value: string): string | null => {
+    const candidate = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+    try {
+      const parsed = new URL(candidate);
+      if (parsed.protocol !== "https:" || parsed.username || parsed.password || !parsed.hostname) return null;
+      return parsed.origin;
+    } catch {
+      return null;
+    }
+  };
+
+  const publicBaseUrl = env["PUBLIC_BASE_URL"]?.trim();
+  if (publicBaseUrl) {
+    const origin = httpsOrigin(publicBaseUrl);
+    if (!origin) {
+      const protocol = /^https?:\/\//i.test(publicBaseUrl)
+        ? (() => { try { return new URL(publicBaseUrl).protocol; } catch { return ""; } })()
+        : "https:";
+      return {
+        url: null,
+        error: protocol && protocol !== "https:" ? "public_base_url_https_required" : "public_base_url_invalid",
+      };
+    }
+    if (env["NODE_ENV"] === "production" && new URL(origin).hostname.endsWith(".replit.dev")) {
+      return { url: null, error: "dominio_temporario_nao_permitido_em_producao" };
+    }
+    return { url: `${origin}/api/webhooks/telegram` };
+  }
+
+  const railwayDomain = env["RAILWAY_PUBLIC_DOMAIN"]?.trim();
+  if (railwayDomain) {
+    const origin = httpsOrigin(railwayDomain);
+    if (!origin) return { url: null, error: "railway_public_domain_invalido" };
+    if (env["NODE_ENV"] === "production" && new URL(origin).hostname.endsWith(".replit.dev")) {
+      return { url: null, error: "dominio_temporario_nao_permitido_em_producao" };
+    }
+    return { url: `${origin}/api/webhooks/telegram` };
+  }
+
+  if (env["NODE_ENV"] === "production") return { url: null, error: "dominio_publico_ausente" };
+
+  const developmentDomain = env["REPLIT_DEV_DOMAIN"]?.trim();
+  if (!developmentDomain) return { url: null, error: "dominio_publico_ausente" };
+  const origin = httpsOrigin(developmentDomain);
+  if (!origin) return { url: null, error: "dominio_desenvolvimento_invalido" };
+  return { url: `${origin}/api/webhooks/telegram` };
+}
+
 /**
  * Consulta o Telegram para saber se o webhook ainda está registrado.
  * Retorna WebhookInfo com `url` vazio quando não há webhook (polling assumiu ou nunca foi configurado).
@@ -96,8 +148,8 @@ export async function getWebhookInfo(): Promise<WebhookInfo> {
 
 /**
  * Registra (ou atualiza) o webhook do bot no Telegram.
- * A URL é montada a partir de RAILWAY_PUBLIC_DOMAIN (produção) ou
- * REPLIT_DEV_DOMAIN (dev), com o segredo do cofre.
+ * A URL prioriza PUBLIC_BASE_URL; em produção, não usa domínio temporário do Replit.
+ * Em desenvolvimento, REPLIT_DEV_DOMAIN continua disponível como fallback.
  * MOCK quando sem token — nunca lança exceção.
  */
 export async function setWebhook(): Promise<{ ok: boolean; description?: string; mock?: boolean; error?: string }> {
@@ -108,16 +160,13 @@ export async function setWebhook(): Promise<{ ok: boolean; description?: string;
     return { ok: false, mock: true, error: "token_ausente" };
   }
 
-  // Monta a URL pública do webhook
-  const domain =
-    process.env["RAILWAY_PUBLIC_DOMAIN"] ||
-    process.env["REPLIT_DEV_DOMAIN"] ||
-    "";
-  if (!domain) {
-    return { ok: false, error: "dominio_publico_ausente" };
+  // PUBLIC_BASE_URL tem prioridade; Railway é fallback de produção e o domínio
+  // temporário do Replit só é permitido fora de produção.
+  const resolvedWebhook = resolveTelegramWebhookUrl();
+  if (!resolvedWebhook.url) {
+    return { ok: false, error: resolvedWebhook.error ?? "dominio_publico_ausente" };
   }
-
-  const webhookUrl = `https://${domain}/api/webhooks/telegram`;
+  const webhookUrl = resolvedWebhook.url;
 
   // O segredo é obrigatório — sem ele o handler público descartará todos os
   // updates (fail-closed), registrando o webhook mas tornando o canal mudo.
@@ -159,10 +208,16 @@ export interface TelegramResult {
   sent: boolean;
   mock: boolean;
   error?: string;
+  /** Identificador da mensagem aceito pelo Telegram (prova de envio real). */
+  messageId?: number;
 }
 
 /** Envia texto a um chat. MOCK quando sem token (nunca falha por isso). */
-export async function sendTelegram(chatId: string, text: string): Promise<TelegramResult> {
+export async function sendTelegram(
+  chatId: string,
+  text: string,
+  options: { disableWebPagePreview?: boolean } = {},
+): Promise<TelegramResult> {
   // ChatId especial: força falha para testar o fallback Slack (endpoint de teste).
   if (chatId === "PADAXOR_TEST_FORCE_FAIL") {
     logger.info({ chatId }, "[telegram] TEST_FORCE_FAIL — simulando rejeição forçada do Telegram");
@@ -173,27 +228,34 @@ export async function sendTelegram(chatId: string, text: string): Promise<Telegr
   const token = process.env["TELEGRAM_BOT_TOKEN"];
   if (!token) {
     // MOCK: registra só metadados — JAMAIS o token.
-    logger.info({ chatId, len: text.length }, "[telegram] MOCK envio (sem token no cofre)");
+    logger.info({ len: text.length }, "[telegram] MOCK envio (sem token no cofre)");
     return { sent: true, mock: true };
   }
   try {
     const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
+      signal: AbortSignal.timeout(15_000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: chatId,
         text,
         parse_mode: "HTML",
-        disable_web_page_preview: false,
+        disable_web_page_preview: options.disableWebPagePreview ?? false,
       }),
     });
     if (!resp.ok) {
-      const corpo = await resp.text().catch(() => "");
-      return { sent: false, mock: false, error: `telegram_http_${resp.status}: ${corpo.slice(0, 140)}` };
+      return { sent: false, mock: false, error: `telegram_http_${resp.status}` };
     }
-    return { sent: true, mock: false };
-  } catch (e) {
-    return { sent: false, mock: false, error: (e as Error).message };
+    const data: unknown = await resp.json();
+    if (!data || typeof data !== "object" || !("ok" in data) || data.ok !== true
+      || !("result" in data) || !data.result || typeof data.result !== "object"
+      || !("message_id" in data.result) || typeof data.result.message_id !== "number"
+      || !Number.isSafeInteger(data.result.message_id) || data.result.message_id <= 0) {
+      return { sent: false, mock: false, error: "telegram_resultado_invalido" };
+    }
+    return { sent: true, mock: false, messageId: data.result.message_id };
+  } catch {
+    return { sent: false, mock: false, error: "telegram_falha_de_rede_ou_timeout" };
   }
 }
 
@@ -211,7 +273,7 @@ export async function sendTelegramPhoto(
   await ensureTelegramTokenLoaded();
   const token = process.env["TELEGRAM_BOT_TOKEN"];
   if (!token) {
-    logger.info({ chatId, len: caption.length }, "[telegram] MOCK envio de foto (sem token no cofre)");
+    logger.info({ len: caption.length }, "[telegram] MOCK envio de foto (sem token no cofre)");
     return { sent: true, mock: true };
   }
   try {
@@ -322,7 +384,7 @@ export async function getTelegramBotInfo(): Promise<TelegramBotInfo> {
   await ensureTelegramTokenLoaded();
   const token = process.env["TELEGRAM_BOT_TOKEN"];
   if (!token) {
-    return { username: "Paduaclinica_bot", firstName: "Paxter Bot", mock: true };
+    return { username: "Paduaclinica_bot", firstName: "PaxMed Bot", mock: true };
   }
   try {
     const resp = await fetch(`https://api.telegram.org/bot${token}/getMe`);
@@ -362,5 +424,83 @@ export async function setTelegramBotName(name: string): Promise<{ ok: boolean; e
   } catch (e) {
     logger.warn({ err: (e as Error).message }, "[telegram] setTelegramBotName falhou");
     return { ok: false, error: String(e) };
+  }
+}
+
+/** Envia uma imagem gerada em memoria (flyer PaxMed) como foto, com legenda de texto curta. Sem degradar em silencio. */
+export async function sendTelegramPhotoBuffer(chatId: string, png: Buffer, filename: string, caption: string): Promise<TelegramResult> {
+  await ensureTelegramTokenLoaded();
+  const token = process.env["TELEGRAM_BOT_TOKEN"];
+  if (!token) return { sent: true, mock: true };
+  try {
+    const fd = new FormData();
+    fd.append("chat_id", chatId);
+    fd.append("caption", caption);
+    fd.append("parse_mode", "HTML");
+    fd.append("photo", new Blob([new Uint8Array(png)], { type: "image/png" }), filename);
+    const resp = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: "POST", body: fd, signal: AbortSignal.timeout(30_000) });
+    if (!resp.ok) return { sent: false, mock: false, error: `telegram_http_${resp.status}` };
+    const data: any = await resp.json();
+    if (data?.ok !== true || !Number.isSafeInteger(data?.result?.message_id)) return { sent: false, mock: false, error: "telegram_resultado_invalido" };
+    return { sent: true, mock: false };
+  } catch {
+    return { sent: false, mock: false, error: "telegram_falha_de_rede_ou_timeout" };
+  }
+}
+
+/** Envia um arquivo (PDF ou imagem) guardado em memória como documento. Sem degradar em silêncio. */
+export async function sendTelegramDocumentBuffer(chatId: string, bytes: Buffer, filename: string, mime: string): Promise<TelegramResult> {
+  await ensureTelegramTokenLoaded();
+  const token = process.env["TELEGRAM_BOT_TOKEN"];
+  if (!token) return { sent: true, mock: true };
+  try {
+    const fd = new FormData();
+    fd.append("chat_id", chatId);
+    fd.append("document", new Blob([new Uint8Array(bytes)], { type: mime }), filename);
+    const resp = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, { method: "POST", body: fd, signal: AbortSignal.timeout(60_000) });
+    if (!resp.ok) return { sent: false, mock: false, error: `telegram_http_${resp.status}` };
+    const data: any = await resp.json();
+    if (data?.ok !== true || !Number.isSafeInteger(data?.result?.message_id)) return { sent: false, mock: false, error: "telegram_resultado_invalido" };
+    return { sent: true, mock: false };
+  } catch {
+    return { sent: false, mock: false, error: "telegram_falha_de_rede_ou_timeout" };
+  }
+}
+
+/**
+ * Envia texto com UM botão que abre um mini aplicativo (web_app) dentro do Telegram.
+ * Só envio: não depende do webhook. MOCK quando sem token.
+ */
+export async function sendTelegramBotaoWebApp(
+  chatId: string,
+  text: string,
+  botao: { texto: string; url: string },
+): Promise<TelegramResult> {
+  await ensureTelegramTokenLoaded();
+  const token = process.env["TELEGRAM_BOT_TOKEN"];
+  if (!token) {
+    logger.info({ len: text.length }, "[telegram] MOCK envio com botão web_app (sem token no cofre)");
+    return { sent: true, mock: true };
+  }
+  try {
+    const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      signal: AbortSignal.timeout(15_000),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: "HTML",
+        reply_markup: { inline_keyboard: [[{ text: botao.texto, web_app: { url: botao.url } }]] },
+      }),
+    });
+    if (!resp.ok) return { sent: false, mock: false, error: `telegram_http_${resp.status}` };
+    const data = await resp.json() as { ok?: boolean; result?: { message_id?: number } };
+    if (data.ok !== true || !Number.isSafeInteger(data.result?.message_id)) {
+      return { sent: false, mock: false, error: "telegram_resultado_invalido" };
+    }
+    return { sent: true, mock: false };
+  } catch {
+    return { sent: false, mock: false, error: "telegram_falha_de_rede_ou_timeout" };
   }
 }

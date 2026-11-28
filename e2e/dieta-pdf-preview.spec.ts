@@ -236,7 +236,7 @@ test.describe("Dieta — PDF preview + confirmação de e-mail", () => {
       await expect(page.getByText("ana.silva@example.invalid")).toBeVisible();
 
       await page.getByRole("button", { name: /Confirmar envio/i }).click();
-      await expect(page.getByText("Plano enviado!")).toBeVisible({ timeout: 5_000 });
+      await expect(page.getByText("Plano enviado!", { exact: true })).toBeVisible({ timeout: 5_000 });
       expect(emailConfirmationAuthorization).toBe("Bearer e2e-fake-token");
       expect(emailConfirmationBody).toEqual({ clientId: 42, planId: 77 });
     }

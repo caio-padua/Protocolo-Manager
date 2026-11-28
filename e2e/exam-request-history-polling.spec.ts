@@ -20,7 +20,7 @@ async function setup(context: BrowserContext, page: Page) {
     if (path === "/api/clients/42") return json(client);
     if (path === "/api/clinical-context/42") return json({
       professional, client, clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
-      canPrescribe: true, issue: null,
+      canPrescribe: true, canRequestExams: true, issue: null,
     });
     if (path === "/api/exam-requests/42/history") {
       state.reads++;

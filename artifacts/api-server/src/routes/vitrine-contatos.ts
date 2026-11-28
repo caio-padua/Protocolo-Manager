@@ -23,6 +23,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { requireCollaborator } from "./collaborator.js";
+import { isPlatformOwner } from "../lib/clinical-access";
 
 const router: IRouter = Router();
 
@@ -50,6 +51,8 @@ async function ensureTables(): Promise<void> {
       criado_em         TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await db.execute(sql`ALTER TABLE vitrine_contatos ADD COLUMN IF NOT EXISTS consentimento BOOLEAN`);
+  await db.execute(sql`ALTER TABLE vitrine_contatos ADD COLUMN IF NOT EXISTS consentimento_em TIMESTAMPTZ`);
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS vitrine_contatos_email_idx
       ON vitrine_contatos (email)
@@ -162,15 +165,28 @@ router.post("/vitrine-contatos", async (req: Request, res: Response): Promise<vo
       return;
     }
 
+    // Consentimento: só true explícito conta; ausente fica nulo ("não informado").
+    const consentimento = req.body?.consentimento === true ? true : req.body?.consentimento === false ? false : null;
+
+    // Repetição (duplo clique/reenvio): mesmo e-mail + mesma necessidade em 10 min não grava de novo.
+    const rep = await db.execute(sql`
+      SELECT id FROM vitrine_contatos
+       WHERE email = ${email} AND necessidade = ${necessidade} AND criado_em > NOW() - INTERVAL '10 minutes' LIMIT 1
+    `);
+    if (rep.rows.length > 0) {
+      res.json({ ok: true, duplicado: true });
+      return;
+    }
+
     await db.execute(sql`
       INSERT INTO vitrine_contatos
         (nome, email, telefone, clinica, especialidade, volume_protocolos,
-         necessidade, user_agent, utm, source)
+         necessidade, user_agent, utm, source, consentimento, consentimento_em)
       VALUES
         (${nome}, ${email}, ${telefone}, ${clinica}, ${especialidade}, ${volume},
          ${necessidade}, ${userAgent},
          ${utm ? JSON.stringify(utm) : null}::jsonb,
-         ${source})
+         ${source}, ${consentimento}, ${consentimento === true ? sql`NOW()` : null})
     `);
 
     req.log.info({ email, clinica, especialidade, source }, "vitrine_contato_captado");
@@ -185,6 +201,10 @@ router.post("/vitrine-contatos", async (req: Request, res: Response): Promise<vo
 
 router.get("/vitrine-contatos", requireCollaborator, async (req: Request, res: Response): Promise<void> => {
   try {
+    if (!(await isPlatformOwner(Number(req.collaborator?.professionalId)))) {
+      res.status(403).json({ error: "Acesso restrito ao titular da plataforma." });
+      return;
+    }
     await ensureTables();
     const contatado = req.query.contatado === "true" ? true
       : req.query.contatado === "false" ? false
@@ -215,6 +235,10 @@ router.patch(
   requireCollaborator,
   async (req: Request, res: Response): Promise<void> => {
     try {
+      if (!(await isPlatformOwner(Number(req.collaborator?.professionalId)))) {
+        res.status(403).json({ error: "Acesso restrito ao titular da plataforma." });
+        return;
+      }
       await ensureTables();
       const id = Number(req.params.id);
       if (!Number.isInteger(id) || id <= 0) {

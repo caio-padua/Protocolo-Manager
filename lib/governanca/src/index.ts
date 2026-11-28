@@ -78,14 +78,19 @@ export const GRUPOS: GrupoFerramentas[] = [
       { id: "ras", nome: "RAS / Aplicação" },
       { id: "anamnese", nome: "Anamnese" },
       { id: "agenda", nome: "Agenda" },
+      { id: "agenda_gerenciamento", nome: "Agenda Gerenciamento (Pit Stop: confirmar e enviar ao Google)" },
+      { id: "agenda_encaixe_interno", nome: "Agenda · Encaixe rápido interno (antecedência curta, sem liberação em cadeia)" },
     ],
   },
   {
     grupo: "Gestão",
     itens: [
       { id: "financeiro", nome: "Financeiro" },
+      { id: "politica_comercial", nome: "Política comercial (descontos, parcelas e balizadores)" },
+      { id: "aprovar_excecao", nome: "Aprovar exceção comercial (gerente financeiro)" },
       { id: "estoque", nome: "Estoque" },
       { id: "corpo_clinico", nome: "Corpo Clínico" },
+      { id: "documentos_profissionais", nome: "Documentos dos profissionais (enviar e ver)" },
       { id: "gerenciar_liberacoes_clinicas", nome: "Gerenciar liberações clínicas" },
       { id: "governanca", nome: "Governança", soCeo: true, href: "/cadastros/governanca" },
     ],
@@ -116,7 +121,14 @@ const DEFAULT_ON: Record<string, PapelId[]> = {
   ras: ["medico", "enfermagem"],
   anamnese: ["medico", "enfermagem"],
   agenda: ["medico", "enfermagem"],
+  // Recepção NÃO vem ligada: o CEO a autoriza na matriz (Governança). Vale sempre só na empresa da sessão.
+  agenda_gerenciamento: ["medico", "enfermagem"],
+  // Encaixe interno marcado pela própria equipe, com antecedência em minutos. Nunca vale para paciente.
+  agenda_encaixe_interno: ["medico", "enfermagem", "recepcao"],
   financeiro: ["administrativo", "financeiro"],
+  // Política comercial muda preço; aprovar exceção libera desconto fora do padrão. Só o financeiro por padrão.
+  politica_comercial: ["administrativo", "financeiro"],
+  aprovar_excecao: ["financeiro"],
   estoque: ["enfermagem", "administrativo"],
   corpo_clinico: ["administrativo"],
 };

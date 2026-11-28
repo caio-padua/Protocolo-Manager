@@ -5,8 +5,12 @@
 // PILOTO da Fábrica de Padrão de Documentos: este gerador consome a camada única
 // (lib/documentos/padrao.ts) para cabeçalho-mastro PAXTER, cores da marca, rodapé
 // e paginação. O conteúdo específico (lista de exames) continua aqui.
+import { blocoDeveIrParaProximaPagina } from "./pdf-bloco-integro";
 import { PDFFont } from "pdf-lib";
 import { COR, iniciarFabrica, type CabecalhoOpts } from "./documentos/padrao";
+import { ASSINATURA_3A1C_ALTURA, desenharAssinatura3a1c } from "./documentos/bloco-assinatura-3a1c";
+import { marcarDemonstracao } from "./documentos/marca-demonstracao";
+import type { TextosEmpresa2b } from "./documentos/paxmed-2b-limites";
 
 export interface ExamRequestItem {
   nomeExame: string;
@@ -16,6 +20,10 @@ export interface ExamRequestItem {
 }
 
 export interface ExamRequestPdfContext {
+  homologacao?: boolean;
+  /** Exclusivo para prova sintética offline, ainda sem verificação real. */
+  modelo2bProva?: boolean;
+  identidade2bProva?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array };
   tipo: string;
   tipoLabel: string;
   clientName: string;
@@ -25,6 +33,10 @@ export interface ExamRequestPdfContext {
   dateBR: string;
   observacao?: string | null;
   items: ExamRequestItem[];
+  /** Dados do certificado ICP-Brasil que assina o documento (bloco visível de assinatura digital). */
+  /** Imagem da assinatura cadastrada do médico (desenhada à direita do quadro do certificado). */
+  assinaturaImagem?: { bytes: Uint8Array; mime: "image/png" | "image/jpeg" } | null;
+  certificado?: { assinante: string; cpf?: string | null; ac?: string | null; serial?: string | null; validTo?: string | null } | null;
 }
 
 function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
@@ -51,18 +63,25 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
 }
 
 export async function generateExamRequestPdf(ctx: ExamRequestPdfContext): Promise<Uint8Array> {
-  const fab = await iniciarFabrica();
+  if ((ctx.modelo2bProva && !ctx.homologacao) || (ctx.identidade2bProva && !ctx.modelo2bProva)) {
+    throw new Error("Modelo 2B de prova exige documento de homologação.");
+  }
+  const fab = await iniciarFabrica(ctx.modelo2bProva
+    ? { modeloProva: "paxmed-2b-sintetico", identidadeProva: ctx.identidade2bProva }
+    : undefined);
   const { font, fontBold, margem, larguraConteudo } = fab;
 
   const cabecalho: CabecalhoOpts = {
-    titulo: "SOLICITAÇÃO DE EXAMES",
+    titulo: ctx.homologacao && !ctx.modelo2bProva ? "DEMONSTRAÇÃO DE EXAMES" : "SOLICITAÇÃO DE EXAMES",
     subtitulo: `EXAMES — ${ctx.tipoLabel.toUpperCase()}`,
+    ...(ctx.modelo2bProva && !ctx.identidade2bProva ? { emissor: "instituto_padua" as const } : {}),
   };
 
   let { page, y } = fab.novaPagina(cabecalho);
+  const topoPagina = y;
 
   const ensureSpace = (needed: number) => {
-    if (y - needed < 72) {
+    if (y - needed < fab.limiteInferior) {
       const nova = fab.novaPagina(cabecalho);
       page = nova.page;
       y = nova.y;
@@ -87,13 +106,24 @@ export async function generateExamRequestPdf(ctx: ExamRequestPdfContext): Promis
   y -= 6;
 
   // Lista de exames
-  drawLine("Solicito a realização dos seguintes exames:", 10, fontBold, COR.navy);
+  drawLine(ctx.homologacao ? "Exames para demonstração:" : "Solicito a realização dos seguintes exames:", 10, fontBold, COR.navy);
   y -= 4;
 
   let idx = 1;
   for (const item of ctx.items) {
-    ensureSpace(16);
     const titleLines = wrapText(`${idx}. ${item.nomeExame}`, fontBold, 11, larguraConteudo);
+    const preparoLines = item.preparo && item.preparo.trim()
+      ? wrapText(`Preparo: ${item.preparo}`, font, 9, larguraConteudo - 12) : [];
+    // Regra do CEO: exame inteiro (título + preparo) + 1 linha em branco, senão página nova.
+    if (blocoDeveIrParaProximaPagina({
+      y, alturaBloco: titleLines.length * 14 + preparoLines.length * 11 + 6,
+      limiteInferior: fab.limiteInferior, linhaEmBranco: 11, topoPaginaNova: topoPagina,
+    })) {
+      const nova = fab.novaPagina(cabecalho);
+      page = nova.page;
+      y = nova.y;
+    }
+    ensureSpace(16);
     for (const l of titleLines) {
       ensureSpace(14);
       page.drawText(l, { x: margem, y, size: 11, font: fontBold, color: COR.tinta });
@@ -121,13 +151,17 @@ export async function generateExamRequestPdf(ctx: ExamRequestPdfContext): Promis
     }
   }
 
-  // Assinatura
-  ensureSpace(60);
-  y -= 30;
-  page.drawLine({ start: { x: margem, y }, end: { x: margem + 240, y }, thickness: 1, color: COR.tinta });
-  y -= 14;
-  drawLine(`${ctx.professionalName ?? ""}`, 10, fontBold, COR.tinta);
-  if (ctx.professionalCrm) drawLine(`CRM ${ctx.professionalCrm}`, 9, font, COR.cinza);
+  ensureSpace(ASSINATURA_3A1C_ALTURA + 24);
+  y -= 24;
+  await desenharAssinatura3a1c(fab.doc, page, y - ASSINATURA_3A1C_ALTURA, {
+    certificado: ctx.certificado,
+    profissional: ctx.professionalName ?? "",
+    crm: ctx.professionalCrm ?? "",
+    assinaturaImagem: ctx.assinaturaImagem,
+  });
+  y -= ASSINATURA_3A1C_ALTURA;
 
-  return fab.finalizar();
+  fab.carimbarRodape();
+  if (ctx.homologacao) await marcarDemonstracao(fab.doc);
+  return fab.doc.save();
 }

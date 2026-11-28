@@ -1,4 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { ceoApi } from "@/lib/ceo-api";
+import { semAcento, compararEmpresas, ehInstitutoPadua } from "./locais/locais-modo";
+import "./locais/locais.css";
+import "./empresas-cartao.css";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -6,17 +10,29 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Paxmed2bEmpresa } from "@/components/receituario/Paxmed2bEmpresa";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Building2, Users, Briefcase, Plus, Loader2, Save, Pencil, Trash2,
-  Phone, MapPin, Mail, ChevronDown, ChevronRight, ShieldCheck, Globe, Tag,
-  FileText, Upload, ExternalLink, X, FolderSearch, Check, AlertCircle,
+  Loader2, Minus, Plus, FileText, Upload, ExternalLink, X, FolderSearch, Check, AlertCircle,
 } from "lucide-react";
+import { TrilhoAbas, type ItemTrilho } from "@/components/ui/trilho-abas";
+import { PlacaSecao } from "@/components/ui/placa-secao";
+import { PlacaTitulo } from "@/components/ui/placa-titulo";
+import { SanfonaVertical } from "@/components/ui/sanfona-vertical";
 import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 import SemanticCodeManager from "./SemanticCodeManager";
+import { LocaisDaEmpresa } from "./LocaisDaEmpresa";
+import { ClassificacaoEmpresa, ResumoClassificacao } from "./ClassificacaoEmpresa";
+import { ChaveOuro } from "@/components/ui/chave-ouro";
+import { BarraGrupo } from "@/components/ui/barra-grupo";
+import { JanelaDado } from "@/components/ui/janela-dado";
+import { LocaisExternosAba } from "@/components/empresa/LocaisExternosAba";
+import { ResponsavelEmpresaAba } from "@/components/empresa/ResponsavelEmpresaAba";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
 
@@ -25,7 +41,7 @@ interface Empresa {
   id: number; iheId: number | null;
   nome: string; nomeFantasia: string | null; razaoSocial: string | null;
   nick: string | null; cnpj: string | null;
-  tipo: string; tipoUnidade: string | null; status: string; ativa: boolean;
+  tipo: string; tipoUnidade: string | null; classificacaoAssistencial: string | null; grauComplexidade: string | null; status: string; ativa: boolean;
   donoNome: string | null; slug: string | null; areaUrl: string | null; timezone: string | null;
   endereco: string | null; numero: string | null; complemento: string | null;
   cep: string | null; bairro: string | null;
@@ -90,6 +106,8 @@ const formSchema = z.object({
   cnpj:            z.string().optional(),
   tipo:            z.string(),
   tipoUnidade:     z.string().optional(),
+  classificacaoAssistencial: z.string().optional(),
+  grauComplexidade: z.string().optional(),
   status:          z.string(),
   ativa:           z.boolean(),
   donoNome:        z.string().optional(),
@@ -176,7 +194,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 const EMPTY: FormValues = {
   nome: "", nomeFantasia: "", razaoSocial: "", nick: "", cnpj: "", tipo: "clinic",
-  tipoUnidade: "CLINICA", status: "ATIVO", ativa: true,
+  tipoUnidade: "", classificacaoAssistencial: "", grauComplexidade: "", status: "ATIVO", ativa: true,
   donoNome: "", slug: "", areaUrl: "", timezone: "America/Sao_Paulo",
   cnae: "", cnaeDescricao: "", naturezaJuridica: "Ltda",
   regimeTributario: "", inscricaoEstadual: "",
@@ -196,6 +214,8 @@ const EMPTY: FormValues = {
   zohoEmail: "", zohoStatus: "sugerido",
   googleCalendarId: "", googleDriveFolderId: "",
 };
+
+const ABAS_VALIDAS = ["ident", "classificacao", "marca-documento", "fiscal", "end", "referencias", "nfe", "integ", "contratos", "locais-externos", "resp-empresarial", "resp-medico"];
 
 // ── Labels de referência ───────────────────────────────────────────────────────
 const TIPO_LABELS: Record<string, string> = {
@@ -259,15 +279,104 @@ function PermBadge({ ok, label }: { ok: boolean; label: string }) {
   );
 }
 
+// ── Abas do cadastro da empresa (Padrão 36): grupos = assunto, ordem de preenchimento ──────────
+const ABAS_EMPRESA: ItemTrilho[] = [
+  { value: "ident", label: "Dados", grupo: "cadastro" },
+  { value: "classificacao", label: "Classificação", grupo: "cadastro" },
+  { value: "end", label: "Endereço", grupo: "cadastro" },
+  { value: "marca-documento", label: "Identidade", grupo: "cadastro" },
+  { value: "fiscal", label: "Fiscal e CNAE", grupo: "fiscal" },
+  { value: "nfe", label: "Notas fiscais", grupo: "fiscal" },
+  { value: "referencias", label: "Origem", grupo: "fiscal" },
+  { value: "resp-empresarial", label: "Responsável empresarial", grupo: "responsaveis" },
+  { value: "resp-medico", label: "Responsável médico", grupo: "responsaveis" },
+  { value: "integ", label: "Integrações", grupo: "sistema" },
+  { value: "contratos", label: "Contratos", grupo: "sistema" },
+  { value: "locais-atendimento", label: "Agendas", grupo: "locais" },
+  { value: "locais-externos", label: "Local externo", grupo: "locais" },
+];
+
+// ── Seções do cadastro (Padrões 37 e 40): título em placa Saliente de largura fixa, sem símbolo e sem contador ──────
+interface SecaoDef { titulo: string; dica?: string }
+const SECOES: Record<string, SecaoDef> = {
+  identificacao: { titulo: "Identificação" },
+  contatos: { titulo: "Contatos" },
+  classificacao: { titulo: "Classificação" },
+  historico: { titulo: "Dados comerciais históricos", dica: "somente consulta" },
+  juridicos: { titulo: "Dados jurídicos" },
+  responsavel: { titulo: "Responsável legal" },
+  contador: { titulo: "Contador" },
+  endComercial: { titulo: "Endereço comercial" },
+  endFiscal: { titulo: "Endereço fiscal", dica: "para a NF-e; pode ser igual ao comercial" },
+  nfe: { titulo: "Nota fiscal eletrônica", dica: "NFS-e / NF-e" },
+  certificado: { titulo: "Certificado digital", dica: "A1 / A3" },
+  zapsign: { titulo: "ZapSign", dica: "assinatura digital" },
+  whatsapp: { titulo: "WhatsApp Business", dica: "API da Meta" },
+  twilio: { titulo: "Twilio", dica: "SMS / WhatsApp sandbox" },
+  telegram: { titulo: "Telegram" },
+  zoho: { titulo: "Zoho", dica: "e-mail da empresa" },
+  google: { titulo: "Google" },
+};
+
+/** Título de seção em placa de largura fixa (Padrão 40). */
+function SecaoEmpresa({ id }: { id: keyof typeof SECOES | string }) {
+  const def = SECOES[id];
+  return <PlacaSecao titulo={def.titulo} dica={def.dica} />;
+}
+
+/** Trilho de abas: só o nome escrito; a aba escolhida fica afundada (insert bevel). */
+function TrilhoEmpresa() {
+  return <TrilhoAbas itens={ABAS_EMPRESA} rotulo="Seções do cadastro empresarial" testidPrefixo="empresa-aba" />;
+}
+
 // ── Card da empresa ────────────────────────────────────────────────────────────
-function EmpresaCard({ empresa, onEdit, onDelete, onOpen }: {
+/** Logotipo REAL da empresa numa janelinha de vidro. Sem símbolo real (o de exemplo não vale), mostra um ícone neutro. */
+/** Iniciais do nome (sem a palavra "Instituto"), usadas enquanto a empresa não tem logotipo real. */
+function iniciais(nome: string): string {
+  const palavras = nome.split(/\s+/).filter((p) => p && p.toLowerCase() !== "instituto");
+  return (palavras.length ? palavras : nome.split(/\s+/)).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("");
+}
+function LogoEmpresa({ empresaId, nome }: { empresaId: number; nome: string }) {
+  const { data: url } = useQuery<string | null>({
+    queryKey: ["empresa-simbolo", empresaId],
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const r = await fetch(`${apiBase}/paxmed-2b/empresas-simbolos/${empresaId}`, { headers: collabAuthHeaders() });
+      return r.ok ? URL.createObjectURL(await r.blob()) : null;
+    },
+  });
+  return (
+    <div className="vidro-logo" data-testid={`empresa-logo-${empresaId}`} data-com-logo={url ? "sim" : "nao"}>
+      {url ? <img src={url} alt={`Logotipo de ${nome}`} /> : <span className="iniciais" title="Logotipo ainda não cadastrado">{iniciais(nome)}</span>}
+    </div>
+  );
+}
+
+// Nome do Responsável empresarial vindo do cadastro novo (abas de responsáveis); sem acesso do dono da plataforma, não mostra nada.
+function useResponsavelEmpresarial(empresaId: number): string | null {
+  const [nome, setNome] = useState<string | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    ceoApi<{ responsavelEmpresarial: { nome: string } | null }>(`/ceo/empresas/${empresaId}/responsaveis`)
+      .then(d => { if (vivo) setNome(d.responsavelEmpresarial?.nome ?? null); })
+      .catch(() => { if (vivo) setNome(null); });
+    return () => { vivo = false; };
+  }, [empresaId]);
+  return nome;
+}
+
+function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen }: {
   empresa: Empresa;
   onEdit: () => void;
-  onDelete: () => void;
+  onToggleAtiva: (ativa: boolean) => void;
   onOpen: () => void;
 }) {
+  // O Instituto Pádua é a empresa de acesso do sistema: desativá-lo derrubaria o login (regra também no servidor).
+  const protegida = ehInstitutoPadua(empresa.nome) && empresa.ativa;
+  const respEmpresarial = useResponsavelEmpresarial(empresa.id);
   return (
-    <div className="panel-3d relative overflow-hidden flex flex-col cursor-default">
+    <div className={`panel-3d relative overflow-hidden flex flex-col cursor-default ${protegida ? "panel-3d-active" : ""} ${empresa.ativa ? "" : "opacity-60"}`} data-testid={`empresa-card-${empresa.id}`}>
       {/* Faixa lateral: genesis=dourado, ativa=teal, inativa=amber */}
       <div className={`absolute left-0 top-0 bottom-0 w-[4px] rounded-l-[6px] ${
         empresa.tipo === "genesis_seed" ? "bg-amber-400" :
@@ -275,84 +384,49 @@ function EmpresaCard({ empresa, onEdit, onDelete, onOpen }: {
       }`} />
 
       <div className="pl-4 pr-3 pt-3 pb-3 flex flex-col gap-2.5 flex-1">
-        {/* Linha de status */}
-        <div className="flex items-center gap-2">
-          <span className={`paxter-led ${empresa.ativa ? "paxter-led-breathe paxter-led-green" : "paxter-led-amber"}`} />
-          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-            {TIPO_LABELS[empresa.tipo] ?? empresa.tipo}
-          </span>
-          {empresa.tipoUnidade && (
-            <span className="text-[8px] px-1.5 py-0.5 bg-primary/10 text-primary rounded-[3px] font-bold uppercase">
-              {TIPO_UNIDADE_LABELS[empresa.tipoUnidade] ?? empresa.tipoUnidade}
-            </span>
-          )}
-          <span className="ml-auto text-[9px] font-mono text-muted-foreground/40">#{empresa.id}</span>
+        {/* Nome em janela Côncava (insert bevel) + logotipo em vidro à direita */}
+        <div className="flex items-stretch gap-3">
+          <div className="concave-3d flex min-h-[4.75rem] min-w-0 flex-1 flex-col justify-center px-3 py-2">
+            <h3 className="font-black text-[15px] uppercase tracking-tight leading-tight">{empresa.nome}</h3>
+            {empresa.nomeFantasia && (
+              <p className="mt-1 truncate text-[10px] text-muted-foreground">{empresa.nomeFantasia}</p>
+            )}
+          </div>
+          <LogoEmpresa empresaId={empresa.id} nome={empresa.nome} />
         </div>
 
-        {/* Nome */}
-        <div>
-          <h3 className="font-black text-[15px] uppercase tracking-tight leading-tight">{empresa.nome}</h3>
-          {empresa.nomeFantasia && (
-            <p className="text-[10px] text-muted-foreground mt-1">{empresa.nomeFantasia}</p>
-          )}
-        </div>
-
-        {/* Bloco de dados */}
-        <div className="concave-3d p-2.5 space-y-1.5 flex-1">
-          {empresa.cnpj && (
-            <div className="flex items-center gap-2 text-[11px]">
-              <ShieldCheck className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-              <span className="font-mono text-foreground/70">{empresa.cnpj}</span>
-            </div>
-          )}
+        {/* Cada dado na sua janelinha: rótulo escrito + valor, alinhados numa linha vertical imaginária */}
+        <div className="flex flex-1 flex-col gap-1.5">
+          {empresa.tipo === "genesis_seed" && <JanelaDado rotulo="Papel">Espelho do Instituto Pádua</JanelaDado>}
+          {empresa.cnpj && <JanelaDado rotulo="CNPJ" mono>{empresa.cnpj}</JanelaDado>}
           {(empresa.cidade || empresa.estado) && (
-            <div className="flex items-center gap-2 text-[11px]">
-              <MapPin className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-              <span className="text-foreground/70">
-                {[empresa.bairro, empresa.cidade, empresa.estado].filter(Boolean).join(" · ")}
-              </span>
-            </div>
+            <JanelaDado rotulo="Endereço">{[empresa.bairro, empresa.cidade, empresa.estado].filter(Boolean).join(" · ")}</JanelaDado>
           )}
-          {empresa.telefone && (
-            <div className="flex items-center gap-2 text-[11px]">
-              <Phone className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-              <span className="text-foreground/70">{empresa.telefone}</span>
-            </div>
-          )}
-          {empresa.emailGeral && (
-            <div className="flex items-center gap-2 text-[11px]">
-              <Mail className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-              <span className="text-muted-foreground truncate">{empresa.emailGeral}</span>
-            </div>
-          )}
-          {empresa.donoNome && (
-            <div className="flex items-center gap-2 text-[11px]">
-              <Users className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-              <span className="text-primary font-semibold">{empresa.donoNome}</span>
-            </div>
-          )}
+          {empresa.telefone && <JanelaDado rotulo="Telefone">{empresa.telefone}</JanelaDado>}
+          {empresa.emailGeral && <JanelaDado rotulo="E-mail">{empresa.emailGeral}</JanelaDado>}
+          {respEmpresarial && <JanelaDado rotulo="Responsável">{respEmpresarial}</JanelaDado>}
           {empresa.tipoContrato && (
-            <div className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
-              Modelo comercial histórico: {CONTRATO_LABELS[empresa.tipoContrato] ?? empresa.tipoContrato}
-            </div>
+            <JanelaDado rotulo="Contrato">{CONTRATO_LABELS[empresa.tipoContrato] ?? empresa.tipoContrato}</JanelaDado>
           )}
         </div>
 
         {/* Botões */}
         <div className="flex gap-1.5 pt-0.5">
           <button type="button" onClick={onOpen}
-            className="bevel-3d flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-primary/10 transition-colors">
-            <ChevronRight className="w-3 h-3" /> Ver Equipe
+            className="bevel-3d flex-1 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors">
+            Ver equipe
           </button>
-          <button type="button" onClick={onEdit}
-            className="bevel-3d px-2.5 py-1.5 hover:bg-primary/10 transition-colors">
-            <Pencil className="w-3.5 h-3.5" />
+          <button type="button" onClick={onEdit} aria-label={`Editar empresa ${empresa.nome}`} title="Editar empresa" data-testid={`empresa-editar-${empresa.id}`}
+            className="bevel-3d px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors">
+            Editar
           </button>
-          {empresa.tipo !== "genesis_seed" && (
-            <button type="button" onClick={onDelete}
-              className="bevel-3d px-2.5 py-1.5 text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors">
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+          {empresa.tipo !== "genesis_seed" && empresa.status !== "ARQUIVADA" && (
+            <label className={`bevel-3d px-3 py-1.5 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${protegida ? "cursor-not-allowed" : "cursor-pointer"}`}
+              title={protegida ? "Empresa de acesso do sistema: não pode ser desativada" : undefined}>
+              {empresa.ativa ? "Ativa" : "Inativa"}
+              <ChaveOuro checked={empresa.ativa} onCheckedChange={onToggleAtiva} disabled={protegida} data-testid={`empresa-ativa-${empresa.id}`}
+                aria-label={protegida ? `Empresa ${empresa.nome} protegida: não pode ser desativada` : `${empresa.ativa ? "Desativar" : "Ativar"} empresa ${empresa.nome}`} />
+            </label>
           )}
         </div>
       </div>
@@ -362,6 +436,7 @@ function EmpresaCard({ empresa, onEdit, onDelete, onOpen }: {
 
 // ── Painel lateral de equipe ───────────────────────────────────────────────────
 function PainelEquipe({ empresa, onClose }: { empresa: Empresa; onClose: () => void }) {
+  const respEmpresarial = useResponsavelEmpresarial(empresa.id);
   const [tab, setTab] = useState<"cargos" | "colaboradores">("colaboradores");
   const [expandedCargo, setExpandedCargo] = useState<number | null>(null);
 
@@ -399,8 +474,8 @@ function PainelEquipe({ empresa, onClose }: { empresa: Empresa; onClose: () => v
             Fechar
           </button>
         </div>
-        {empresa.donoNome && (
-          <p className="text-[11px] text-primary font-semibold mt-1.5">Responsável: {empresa.donoNome}</p>
+        {respEmpresarial && (
+          <p className="text-[11px] text-primary font-semibold mt-1.5">Responsável: {respEmpresarial}</p>
         )}
         {empresa.tipoContrato && (
           <p className="text-[9px] text-muted-foreground/60 uppercase font-bold mt-0.5">
@@ -469,7 +544,6 @@ function PainelEquipe({ empresa, onClose }: { empresa: Empresa; onClose: () => v
                   onClick={() => setExpandedCargo(expandedCargo === ca.id ? null : ca.id)}
                   className="w-full px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-primary/5 transition-colors">
                   <div className="flex items-center gap-2 min-w-0">
-                    <Briefcase className="w-3.5 h-3.5 shrink-0 text-muted-foreground/60" />
                     <div className="min-w-0 text-left">
                       <p className="font-bold text-[12px] truncate">{ca.cargo}</p>
                       <p className="text-[9px] text-muted-foreground">
@@ -479,8 +553,8 @@ function PainelEquipe({ empresa, onClose }: { empresa: Empresa; onClose: () => v
                     </div>
                   </div>
                   {expandedCargo === ca.id
-                    ? <ChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-                    : <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />}
+                    ? <Minus className="w-4 h-4 shrink-0 text-primary" strokeWidth={3} />
+                    : <Plus className="w-4 h-4 shrink-0 text-primary" strokeWidth={3} />}
                 </button>
 
                 {expandedCargo === ca.id && (
@@ -918,16 +992,28 @@ export default function CadastroEmpresas() {
   const queryClient = useQueryClient();
   const [formOpen, setFormOpen]   = useState(false);
   const [activeFormTab, setActiveFormTab] = useState("ident");
+  const [identidadeAlterada, setIdentidadeAlterada] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Empresa | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState("");
   const [painelEmpresa, setPainelEmpresa] = useState<Empresa | null>(null);
+  // Por enquanto as inativas continuam visíveis (no fim do próprio grupo); o interruptor do topo as esconde.
+  const [mostrarInativas, setMostrarInativas] = useState(true);
+  // Sanfona por cidade: grupos fechados (lembrados neste navegador) para olhar as cidades de baixo sem rolar.
+  const [fechados, setFechados] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("padcom.empresas.gruposFechados") || "[]") as string[]); } catch { return new Set(); }
+  });
+  const alternarGrupo = (chave: string) => setFechados((atual) => {
+    const novo = new Set(atual);
+    if (!novo.delete(chave)) novo.add(chave);
+    return novo;
+  });
+  useEffect(() => { localStorage.setItem("padcom.empresas.gruposFechados", JSON.stringify([...fechados])); }, [fechados]);
   const [driveImportOpen, setDriveImportOpen] = useState(false);
 
-  const { data: empresas = [], isLoading } = useQuery<Empresa[]>({
+  const { data: empresas = [], isLoading, isError, refetch } = useQuery<Empresa[]>({
     queryKey: ["empresas"],
+    retry: false,
     queryFn: async () => {
-      const r = await fetch(`${apiBase}/empresas`);
+      const r = await fetch(`${apiBase}/empresas`, { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("Erro ao carregar empresas");
       return r.json();
     },
@@ -943,7 +1029,7 @@ export default function CadastroEmpresas() {
       const url = editingId ? `${apiBase}/empresas/${editingId}` : `${apiBase}/empresas`;
       const r = await fetch(url, {
         method: editingId ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(values),
       });
       const d = await r.json().catch(() => ({}));
@@ -958,34 +1044,46 @@ export default function CadastroEmpresas() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const r = await fetch(`${apiBase}/empresas/${id}`, { method: "DELETE" });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Erro ao arquivar");
+  // Interruptor ativar/desativar (reversível). Excluir/arquivar empresa não é oferecido nesta tela por enquanto.
+  const { toast: aviso } = useToast();
+  const ativaMutation = useMutation({
+    mutationFn: async ({ id, ativa }: { id: number; ativa: boolean }) => {
+      const r = await fetch(`${apiBase}/empresas/${id}`, {
+        method: "PUT",
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ ativa }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Não foi possível alterar a empresa.");
       return d;
     },
-    onSuccess: () => {
+    onSuccess: (_d, { ativa }) => {
       queryClient.invalidateQueries({ queryKey: ["empresas"] });
-      toast.success("Empresa arquivada. Os dados foram preservados.");
-      setDeleteTarget(null);
-      setDeleteConfirm("");
+      aviso({ title: ativa ? "Empresa ativada." : "Empresa desativada. Nada foi apagado." });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => aviso({ title: e.message, variant: "destructive" }),
   });
+  const alternarAtiva = (e: Empresa, ativa: boolean) => {
+    if (!ativa && !window.confirm(`Desativar "${e.nome}"? Ela sai das listas ativas e das escolhas. Nada é apagado e você pode reativar.`)) return;
+    ativaMutation.mutate({ id: e.id, ativa });
+  };
 
   const openNew = () => {
     setEditingId(null);
+    setIdentidadeAlterada(false);
     form.reset(EMPTY);
     setActiveFormTab("ident");
     setFormOpen(true);
   };
   const openEdit = (e: Empresa) => {
     setEditingId(e.id);
+    setIdentidadeAlterada(false);
     form.reset({
       nome: e.nome, nomeFantasia: e.nomeFantasia || "", razaoSocial: e.razaoSocial || "",
       nick: e.nick || "", cnpj: e.cnpj || "",
-      tipo: e.tipo, tipoUnidade: normalizarTipoUnidade(e.tipoUnidade), status: e.status, ativa: e.ativa,
+      tipo: e.tipo, tipoUnidade: normalizarTipoUnidade(e.tipoUnidade),
+      classificacaoAssistencial: e.classificacaoAssistencial || "", grauComplexidade: e.grauComplexidade || "",
+      status: e.status, ativa: e.ativa,
       donoNome: e.donoNome || "", slug: e.slug || "", areaUrl: e.areaUrl || "", timezone: e.timezone || "America/Sao_Paulo",
       cnae: e.cnae ? formatarCnaeExistente(e.cnae) : "", cnaeDescricao: e.cnaeDescricao || "",
       naturezaJuridica: e.naturezaJuridica || "Ltda",
@@ -1024,128 +1122,142 @@ export default function CadastroEmpresas() {
     setActiveFormTab("ident");
     setFormOpen(true);
   };
-
-  // ── Agrupamento geográfico data-bound ──────────────────────────────────────
-  const grupos = useMemo(() => {
-    const ativas = empresas.filter((e) => e.ativa);
-    const map = new Map<string, Empresa[]>();
-    for (const e of ativas) {
-      const chave =
-        e.cidade && e.estado ? `${e.cidade} · ${e.estado}` :
-        e.cidade              ? e.cidade :
-        e.estado              ? `Estado: ${e.estado}` :
-                                "Sem Localização";
-      if (!map.has(chave)) map.set(chave, []);
-      map.get(chave)!.push(e);
+  const handleFormOpen = (open: boolean) => {
+    if (!open && (form.formState.isDirty || identidadeAlterada) &&
+      !window.confirm("Há alterações não salvas. Fechar descartará essas alterações. Continuar?")) return;
+    setFormOpen(open);
+  };
+  const changeFormTab = (value: string) => {
+    if (activeFormTab === "marca-documento" && value !== activeFormTab && identidadeAlterada) {
+      if (!window.confirm("Mudar de seção descartará as alterações não salvas da identidade. Continuar?")) return;
+      setIdentidadeAlterada(false);
     }
-    return [...map.entries()].sort(([a, ac], [b, bc]) =>
-      bc.length !== ac.length ? bc.length - ac.length : a.localeCompare(b, "pt-BR")
-    );
-  }, [empresas]);
+    setActiveFormTab(value);
+  };
 
-  const ativas   = empresas.filter((e) => e.ativa);
-  const inativas = empresas.filter((e) => !e.ativa);
+  // ── Agrupamento geográfico normalizado ("São Paulo" = "Sao Paulo") ──────────
+  // Grupo do Instituto Padua primeiro; demais em ordem alfabética determinística.
+  const grupos = useMemo(() => {
+    // Inativas ficam no MESMO grupo de cidade (e de zona), só que no fim dele; o interruptor do topo as esconde.
+    const visiveis = mostrarInativas ? empresas : empresas.filter((e) => e.ativa);
+    const map = new Map<string, { rotulo: string; lista: Empresa[] }>();
+    for (const e of visiveis) {
+      const cidade = e.cidade?.trim() || "";
+      const uf = e.estado?.trim().toUpperCase() || "";
+      const chave = `${semAcento(cidade)}|${uf}`;
+      const rotulo = cidade && uf ? `${cidade} · ${uf}` : cidade ? cidade : uf ? `Estado: ${uf}` : "Sem Localização";
+      const atual = map.get(chave);
+      if (!atual) map.set(chave, { rotulo, lista: [e] });
+      else {
+        atual.lista.push(e);
+        // Prefere a grafia acentuada como rótulo visível (São Paulo > Sao Paulo).
+        if (rotulo.normalize("NFD").length > atual.rotulo.normalize("NFD").length) atual.rotulo = rotulo;
+      }
+    }
+    const ativasPrimeiro = (a: Empresa, b: Empresa) => Number(b.ativa) - Number(a.ativa) || compararEmpresas(a, b);
+    const entradas = [...map.entries()].map(([chave, g]) => ({ chave, rotulo: g.rotulo, lista: [...g.lista].sort(ativasPrimeiro) }));
+    return entradas.sort((a, b) => {
+      const pa = a.lista.some((e) => ehInstitutoPadua(e.nome)) ? 0 : 1;
+      const pb = b.lista.some((e) => ehInstitutoPadua(e.nome)) ? 0 : 1;
+      if (pa !== pb) return pa - pb;
+      const sa = a.chave === "|" ? 1 : 0; const sb = b.chave === "|" ? 1 : 0;
+      if (sa !== sb) return sa - sb;
+      return a.rotulo.localeCompare(b.rotulo, "pt-BR", { sensitivity: "base" });
+    });
+  }, [empresas, mostrarInativas]);
+
+  const [codigosAberto, setCodigosAberto] = useState(false);
+  const todasAbertas = grupos.every((g) => !fechados.has(g.chave));
+
+  // ── Navegação profunda: /cadastros/empresas?empresa=ID&aba=marca-documento ──
+  const deepLinkTratado = useRef(false);
+  useEffect(() => {
+    if (deepLinkTratado.current || isLoading || isError) return;
+    const params = new URLSearchParams(window.location.search);
+    const alvo = params.get("empresa");
+    if (!alvo) return;
+    deepLinkTratado.current = true;
+    const empresa = empresas.find((e) => String(e.id) === alvo);
+    if (!empresa) { toast.error("A empresa solicitada não foi encontrada."); return; }
+    openEdit(empresa);
+    const aba = params.get("aba");
+    if (aba && ABAS_VALIDAS.includes(aba)) setActiveFormTab(aba);
+  }, [empresas, isLoading, isError]);
+
 
   return (
     <div className="flex h-full gap-4">
       {/* Coluna principal */}
       <div className={`flex flex-col gap-4 flex-1 min-w-0 transition-all ${painelEmpresa ? "lg:max-w-[55%]" : ""}`}>
 
-        {/* Cabeçalho */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="bevel-3d p-2.5 shrink-0"><Building2 className="w-5 h-5 text-primary" /></div>
-            <div className="min-w-0">
-              <h1 className="text-2xl font-black tracking-tight uppercase">EMPRESAS CLÍNICAS INDEPENDENTES</h1>
-              <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">
-                Cadastros clínicos · {ativas.length} ativa{ativas.length !== 1 ? "s" : ""} · {inativas.length} inativa{inativas.length !== 1 ? "s" : ""}
-              </p>
+        {/* Cabeçalho: só título e ações, nenhum número */}
+        <div className="flex flex-col items-stretch gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight uppercase">EMPRESAS CLÍNICAS INDEPENDENTES</h1>
+            <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">Cadastros clínicos</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <label className="bevel-3d inline-flex cursor-pointer items-center gap-2 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest">
+                Mostrar inativas
+                <ChaveOuro checked={mostrarInativas} onCheckedChange={setMostrarInativas} data-testid="empresas-mostrar-inativas"
+                  aria-label="Mostrar empresas inativas na lista" />
+              </label>
+              <button type="button" data-testid="empresas-alternar-todos"
+                onClick={() => setFechados(todasAbertas ? new Set(grupos.map((g) => g.chave)) : new Set())}
+                className="bevel-3d px-3 py-1.5 text-[10px] font-black uppercase tracking-widest">
+                {todasAbertas ? "Recolher todas as cidades" : "Abrir todas as cidades"}
+              </button>
             </div>
           </div>
-          <div className="flex gap-2 shrink-0">
-            <Button onClick={() => setDriveImportOpen(true)} className="btn-3d-soft px-4">
-              <FolderSearch className="w-4 h-4 mr-2" /> IMPORTAR DO DRIVE
+          <div className="grid grid-cols-2 gap-2 lg:flex lg:shrink-0">
+            <Button onClick={() => setDriveImportOpen(true)} className="btn-3d-soft min-w-0 px-2 sm:px-4 text-[10px] sm:text-xs">
+              IMPORTAR DO DRIVE
             </Button>
-            <Button onClick={openNew} className="btn-3d px-5">
-              <Plus className="w-4 h-4 mr-2" /> NOVA EMPRESA
+            <Button onClick={openNew} className="btn-3d min-w-0 px-2 sm:px-5 text-[10px] sm:text-xs">
+              NOVA EMPRESA
             </Button>
           </div>
         </div>
 
-        <SemanticCodeManager />
-
         {/* Grade de cards — agrupamento geográfico data-bound */}
         {isLoading ? (
           <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        ) : isError ? (
+          <div role="alert" className="concave-3d text-center py-10 text-sm">
+            <p>Não foi possível carregar as empresas. Verifique sua sessão e tente novamente.</p>
+            <Button type="button" className="btn-3d-soft mt-4" onClick={() => void refetch()}>Tentar novamente</Button>
+          </div>
         ) : empresas.length === 0 ? (
           <div className="concave-3d text-center py-16 text-muted-foreground text-sm">
             Nenhuma empresa cadastrada. Clique em NOVA EMPRESA.
           </div>
         ) : (
           <div className="space-y-8">
-            {grupos.map(([cidadeKey, lista]) => {
-              const zonaMap = new Map<string, Empresa[]>();
-              for (const e of lista) {
-                const z = e.zona || "—";
-                if (!zonaMap.has(z)) zonaMap.set(z, []);
-                zonaMap.get(z)!.push(e);
-              }
-              const temMultiplaZonas = zonaMap.size > 1;
-              return (
-                <div key={cidadeKey}>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="bevel-3d px-3 py-1.5 flex items-center gap-2 shrink-0">
-                      <MapPin className="w-3.5 h-3.5 text-primary" />
-                      <span className="font-black text-[11px] uppercase tracking-widest">{cidadeKey}</span>
-                      <span className="text-[9px] text-muted-foreground/60 font-bold">
-                        {lista.length} empresa{lista.length !== 1 ? "s" : ""}
-                      </span>
-                    </div>
-                    <div className="h-px bg-primary/15 flex-1" />
+            {grupos.map(({ chave: grupoChave, rotulo: cidadeKey, lista }) => (
+              <div key={grupoChave} data-testid={`empresas-grupo-${grupoChave}`}>
+                <BarraGrupo titulo={cidadeKey} aberto={!fechados.has(grupoChave)} onAlternar={() => alternarGrupo(grupoChave)}
+                  testId="empresas-grupo-rotulo" testIdControle={`empresas-grupo-toggle-${grupoChave}`} />
+                <SanfonaVertical aberta={!fechados.has(grupoChave)} testId={`empresas-grupo-corpo-${grupoChave}`}>
+                  <div className="grid grid-cols-1 gap-4 pt-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {lista.map((e) => (
+                      <EmpresaCard key={e.id} empresa={e}
+                        onEdit={() => openEdit(e)} onToggleAtiva={(v) => alternarAtiva(e, v)}
+                        onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
+                    ))}
                   </div>
-                  {temMultiplaZonas ? (
-                    <div className="space-y-5 pl-4 border-l-2 border-primary/10">
-                      {[...zonaMap.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR")).map(([zona, items]) => (
-                        <div key={zona}>
-                          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/50 mb-2.5 flex items-center gap-2">
-                            <Tag className="w-3 h-3" /> {zona}
-                          </p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                            {items.map((e) => (
-                              <EmpresaCard key={e.id} empresa={e}
-                                onEdit={() => openEdit(e)} onDelete={() => { setDeleteTarget(e); setDeleteConfirm(""); }}
-                                onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                      {lista.map((e) => (
-                        <EmpresaCard key={e.id} empresa={e}
-                          onEdit={() => openEdit(e)} onDelete={() => { setDeleteTarget(e); setDeleteConfirm(""); }}
-                          onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            {inativas.length > 0 && (
-              <div className="opacity-60">
-                <Divider label={`${inativas.length} inativa${inativas.length > 1 ? "s" : ""}`} />
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
-                  {inativas.map((e) => (
-                    <EmpresaCard key={e.id} empresa={e}
-                      onEdit={() => openEdit(e)} onDelete={() => { setDeleteTarget(e); setDeleteConfirm(""); }}
-                      onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
-                  ))}
-                </div>
+                </SanfonaVertical>
               </div>
-            )}
+            ))}
           </div>
         )}
+
+        {/* Códigos internos: fica no fim da lista, fechado, com explicação escrita */}
+        <div className="space-y-2 pt-2" data-testid="empresas-codigos">
+          <BarraGrupo titulo="Códigos das empresas" aberto={codigosAberto} onAlternar={() => setCodigosAberto((v) => !v)} testIdControle="empresas-codigos-toggle" />
+          <p className="text-[11px] text-muted-foreground">Códigos internos que identificam cada empresa e cada local nos registros do sistema. Clique na barra para abrir ou fechar.</p>
+          <SanfonaVertical aberta={codigosAberto}>
+            <div className="panel-3d-sub p-4"><SemanticCodeManager /></div>
+          </SanfonaVertical>
+        </div>
       </div>
 
       {/* Painel lateral de equipe */}
@@ -1159,42 +1271,63 @@ export default function CadastroEmpresas() {
       <DriveImportModal open={driveImportOpen} onClose={() => setDriveImportOpen(false)} />
 
       {/* Dialog — Formulário criar/editar com abas */}
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-3xl max-h-[94vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="px-6 pt-5 pb-3 border-b border-border/40">
-            <DialogTitle className="text-[13px] font-black uppercase tracking-widest">
-              {editingId ? "EDITAR EMPRESA" : "NOVA EMPRESA"}
+      <Dialog open={formOpen} onOpenChange={handleFormOpen}>
+        <DialogContent className="pax-dialogo-fixo top-2 translate-y-0 w-[calc(100vw-1rem)] max-w-6xl p-0 gap-0" data-testid="empresa-dialogo">
+          <DialogHeader className="px-6 py-3 pr-12 border-b border-border/40 shrink-0 flex-row items-center gap-3 space-y-0">
+            <DialogTitle className="bevel-3d inline-flex h-7 shrink-0 items-center px-3 text-[11px] font-black uppercase tracking-[0.18em] text-primary">
+              {editingId ? "Editar empresa" : "Nova empresa"}
             </DialogTitle>
+            {selectedEmpresa && (
+              <p className="min-w-0 truncate text-[13px] font-black uppercase tracking-tight" data-testid="empresa-dialogo-identificacao">
+                {selectedEmpresa.nome}
+                {selectedEmpresa.cnpj && <span className="ml-3 hidden font-mono text-[11px] font-semibold text-muted-foreground md:inline">{selectedEmpresa.cnpj}</span>}
+              </p>
+            )}
           </DialogHeader>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="flex flex-col flex-1 min-h-0">
-              <Tabs value={activeFormTab} onValueChange={setActiveFormTab} className="flex flex-col flex-1 min-h-0">
+            <form onSubmit={form.handleSubmit((v) => {
+              if (identidadeAlterada && !window.confirm("Salvar a empresa fechará esta janela e descartará as alterações não salvas da identidade. Continuar?")) return;
+              saveMutation.mutate(v);
+            }, (errors) => {
+              if (errors.nome || errors.slug) changeFormTab("ident");
+              else if (errors.cnae || errors.regimeTributario) changeFormTab("fiscal");
+              else if (errors.nfeProximoNumero) changeFormTab("nfe");
+              toast.error("Confira os campos destacados antes de salvar a empresa.");
+            })} className="flex flex-col flex-1 min-h-0">
+              <Tabs value={activeFormTab} onValueChange={changeFormTab} className="flex flex-col flex-1 min-h-0">
 
-                {/* Barra de abas */}
-                <div className="mx-4 sm:mx-6 mt-3 overflow-x-auto">
-                  <TabsList aria-label="Seções do cadastro empresarial"
-                    className="w-max min-w-full justify-start gap-3 h-auto bg-transparent p-1 border-b border-border/30 rounded-none">
-                    {[
-                      { value: "ident",      label: "Dados" },
-                      { value: "fiscal",     label: "Fiscal e CNAE" },
-                      { value: "end",        label: "Endereço" },
-                      { value: "referencias",label: "Origem e Referências" },
-                      { value: "nfe",        label: "Documentos Fiscais" },
-                      { value: "integ",      label: "Integrações" },
-                      { value: "contratos",  label: "Documentos e Contratos" },
-                    ].map(({ value, label }) => (
-                      <TabsTrigger key={value} value={value}
-                        className="bevel-3d whitespace-nowrap text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-3 py-2 border-0 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
-                        {label}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
+                {/* Trilho de abas: uma linha, altura fixa (Padrão 36) */}
+                <div className="mx-4 sm:mx-6 mt-3 shrink-0">
+                  <TrilhoEmpresa />
                 </div>
+
+                <TabsContent value="marca-documento" className="flex-1 overflow-y-auto px-6 py-4 mt-0">
+                  {!editingId ? (
+                    <p className="concave-3d p-4 text-xs">Salve a empresa primeiro e depois abra sua edição para configurar a identidade.</p>
+                  ) : import.meta.env.DEV ? (
+                    <Paxmed2bEmpresa key={editingId} empresaId={editingId} onDirtyChange={setIdentidadeAlterada} />
+                  ) : (
+                    <p className="concave-3d p-4 text-xs">A personalização dos documentos ainda está em teste e não está disponível nesta versão.</p>
+                  )}
+                </TabsContent>
+
+                {/* ── ABA: CLASSIFICAÇÃO (Padrão 38): escolher clicando, nunca digitar ─────────── */}
+                <TabsContent value="classificacao" className="flex-1 overflow-y-auto px-6 py-4 mt-0">
+                  <ClassificacaoEmpresa
+                    control={form.control}
+                    espelho={selectedEmpresa?.tipo === "genesis_seed"}
+                    onEscolher={(campo, valor, extras) => {
+                      form.setValue(campo, valor, { shouldDirty: true });
+                      if (extras?.cnaeDescricao) form.setValue("cnaeDescricao", extras.cnaeDescricao, { shouldDirty: true });
+                    }}
+                  />
+                </TabsContent>
 
                 {/* ── ABA: DADOS ────────────────────────────────────────────────── */}
                 <TabsContent value="ident" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <SecaoEmpresa id="identificacao" />
                     <FormField control={form.control} name="nome" render={({ field }) => (
                       <FormItem className="md:col-span-2">
                         <FormLabel className="lbl">Nome no Sistema *</FormLabel>
@@ -1204,13 +1337,13 @@ export default function CadastroEmpresas() {
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="nomeFantasia" render={({ field }) => (
-                      <FormItem className="md:col-span-2">
+                      <FormItem>
                         <FormLabel className="lbl">Nome Fantasia</FormLabel>
                         <FormControl><Input placeholder="Nome de divulgação da empresa" {...field} className="field-engraved" /></FormControl>
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="razaoSocial" render={({ field }) => (
-                      <FormItem className="md:col-span-2">
+                      <FormItem>
                         <FormLabel className="lbl">Razão Social</FormLabel>
                         <FormControl><Input placeholder="Nome jurídico completo (para NF-e e contratos)" {...field} className="field-engraved" /></FormControl>
                       </FormItem>
@@ -1227,37 +1360,7 @@ export default function CadastroEmpresas() {
                         <FormControl><Input placeholder="00.000.000/0001-00" {...field} className="field-engraved font-mono" /></FormControl>
                       </FormItem>
                     )} />
-                    <FormField control={form.control} name="tipo" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="lbl">Tipo</FormLabel>
-                        <div className="concave-3d p-1">
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]"><SelectValue /></SelectTrigger></FormControl>
-                            <SelectContent>
-                              <SelectItem value="clinic">Clínica</SelectItem>
-                              <SelectItem value="genesis_seed">Genesis (Template-Mestre)</SelectItem>
-                              <SelectItem value="telemedicina">Telemedicina</SelectItem>
-                              <SelectItem value="enfermagem">Enfermagem</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </FormItem>
-                    )} />
-                    <FormField control={form.control} name="tipoUnidade" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="lbl">Categoria</FormLabel>
-                        <div className="concave-3d p-1">
-                          <Select onValueChange={field.onChange} value={field.value || ""}>
-                            <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]"><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl>
-                            <SelectContent>
-                              <SelectItem value="CLINICA">Clínica</SelectItem>
-                              <SelectItem value="LABORATORIO">Laboratório</SelectItem>
-                              <SelectItem value="OUTRO">Outro</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </FormItem>
-                    )} />
+                    <ResumoClassificacao control={form.control} espelho={selectedEmpresa?.tipo === "genesis_seed"} onAbrir={() => changeFormTab("classificacao")} />
                     <FormField control={form.control} name="status" render={({ field }) => (
                       <FormItem>
                         <FormLabel className="lbl">Status</FormLabel>
@@ -1273,12 +1376,7 @@ export default function CadastroEmpresas() {
                         </div>
                       </FormItem>
                     )} />
-                    <FormField control={form.control} name="donoNome" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="lbl">Responsável Principal</FormLabel>
-                        <FormControl><Input placeholder="Dr. Nome Completo" {...field} className="field-engraved" /></FormControl>
-                      </FormItem>
-                    )} />
+                    {/* "Responsável Principal" (donoNome) saiu da aba Dados: quem responde pela clínica vem das abas Responsável empresarial e Responsável médico. A coluna no banco e o valor gravado são preservados. */}
                     <FormField control={form.control} name="slug" render={({ field }) => (
                       <FormItem>
                         <FormLabel className="lbl">Slug (URL interna)</FormLabel>
@@ -1295,7 +1393,7 @@ export default function CadastroEmpresas() {
                         </p>
                       </FormItem>
                     )} />
-                    <Divider label="Contatos" />
+                    <SecaoEmpresa id="contatos" />
                     <FormField control={form.control} name="telefone" render={({ field }) => (
                       <FormItem>
                         <FormLabel className="lbl">Telefone / WhatsApp</FormLabel>
@@ -1326,7 +1424,7 @@ export default function CadastroEmpresas() {
                         <FormControl><Input {...field} className="field-engraved" /></FormControl>
                       </FormItem>
                     )} />
-                    <Divider label="Dados comerciais históricos" />
+                    <SecaoEmpresa id="historico" />
                     <div className="concave-3d space-y-2 p-3 text-[11px]">
                       <p className="text-muted-foreground">
                         Informações antigas preservadas apenas para consulta. Esta tela não cria cobranças
@@ -1350,7 +1448,7 @@ export default function CadastroEmpresas() {
 
                 {/* ── ABA 2: JURÍDICO & FISCAL ───────────────────────────────────── */}
                 <TabsContent value="fiscal" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
-                  <Divider label="Dados Jurídicos" />
+                  <SecaoEmpresa id="juridicos" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="naturezaJuridica" render={({ field }) => (
                       <FormItem>
@@ -1385,6 +1483,7 @@ export default function CadastroEmpresas() {
                             </SelectContent>
                           </Select>
                         </div>
+                        <FormMessage />
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="cnae" render={({ field }) => (
@@ -1401,6 +1500,7 @@ export default function CadastroEmpresas() {
                             className="field-engraved font-mono"
                           />
                         </FormControl>
+                        <FormMessage />
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="cnaeDescricao" render={({ field }) => (
@@ -1434,7 +1534,7 @@ export default function CadastroEmpresas() {
                       </FormItem>
                     )} />
                   </div>
-                  <Divider label="Responsável Legal" />
+                  <SecaoEmpresa id="responsavel" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="responsavelLegalNome" render={({ field }) => (
                       <FormItem>
@@ -1449,7 +1549,7 @@ export default function CadastroEmpresas() {
                       </FormItem>
                     )} />
                   </div>
-                  <Divider label="Contador" />
+                  <SecaoEmpresa id="contador" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="contadorNome" render={({ field }) => (
                       <FormItem>
@@ -1480,7 +1580,7 @@ export default function CadastroEmpresas() {
 
                 {/* ── ABA 3: ENDEREÇOS ───────────────────────────────────────────── */}
                 <TabsContent value="end" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
-                  <Divider label="Endereço Comercial" />
+                  <SecaoEmpresa id="endComercial" />
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                     <FormField control={form.control} name="cep" render={({ field }) => (
                       <FormItem>
@@ -1533,7 +1633,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <Divider label="Endereço Fiscal (para NF-e — pode ser igual ao comercial)" />
+                  <SecaoEmpresa id="endFiscal" />
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                     <FormField control={form.control} name="cepFiscal" render={({ field }) => (
                       <FormItem>
@@ -1584,10 +1684,7 @@ export default function CadastroEmpresas() {
                 {/* ── ABA: REFERÊNCIAS DA PLANILHA ─────────────────────────────── */}
                 <TabsContent value="referencias" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
                   <div className="panel-3d-sub p-4 space-y-3">
-                    <div className="bevel-3d px-3 py-1.5 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
-                      <FileText className="w-3.5 h-3.5 text-primary" />
-                      Referências da planilha
-                    </div>
+                    <PlacaTitulo titulo="Referências da planilha" />
                     <p className="text-[11px] text-muted-foreground">
                       Estes valores são apenas referências da planilha de teste. Não criam vínculo jurídico,
                       hierarquia, permissão, cobrança ou código semântico oficial.
@@ -1637,7 +1734,7 @@ export default function CadastroEmpresas() {
 
                 {/* ── ABA 4: NF-e & CERTIFICADO ─────────────────────────────────── */}
                 <TabsContent value="nfe" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
-                  <Divider label="Nota Fiscal Eletrônica (NFS-e / NF-e)" />
+                  <SecaoEmpresa id="nfe" />
                   <div className="concave-3d p-3 text-[10px] text-muted-foreground mb-2">
                     Estes dados são puxados automaticamente pelo emissor de NF-e e pelo ZapSign na geração de contratos. Mantenha corretos.
                   </div>
@@ -1703,7 +1800,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <Divider label="Certificado Digital A1 / A3" />
+                  <SecaoEmpresa id="certificado" />
                   <div className="concave-3d p-3 text-[10px] text-muted-foreground mb-2">
                     O arquivo .pfx do certificado A1 é enviado via botão "Upload" e salvo na pasta CERTIFICADOS do Google Drive da empresa. Nunca fica no servidor.
                   </div>
@@ -1752,7 +1849,7 @@ export default function CadastroEmpresas() {
                 {/* ── ABA 5: INTEGRAÇÕES ─────────────────────────────────────────── */}
                 <TabsContent value="integ" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
 
-                  <Divider label="ZapSign — Assinatura Digital" />
+                  <SecaoEmpresa id="zapsign" />
                   <div className="concave-3d p-3 text-[10px] text-muted-foreground">
                     Cada empresa precisa de sua própria conta ZapSign. O sistema usa o token desta empresa para assinar contratos e documentos independentemente.
                   </div>
@@ -1771,7 +1868,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <Divider label="WhatsApp Business API (Meta)" />
+                  <SecaoEmpresa id="whatsapp" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="waNumero" render={({ field }) => (
                       <FormItem>
@@ -1799,7 +1896,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <Divider label="Twilio (SMS / WhatsApp Sandbox)" />
+                  <SecaoEmpresa id="twilio" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="twilioAccountSid" render={({ field }) => (
                       <FormItem>
@@ -1821,7 +1918,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <Divider label="Telegram" />
+                  <SecaoEmpresa id="telegram" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="telegramBotUsername" render={({ field }) => (
                       <FormItem>
@@ -1843,7 +1940,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <Divider label="Zoho / E-mail da Empresa" />
+                  <SecaoEmpresa id="zoho" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="zohoEmail" render={({ field }) => (
                       <FormItem>
@@ -1869,7 +1966,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <Divider label="Google" />
+                  <SecaoEmpresa id="google" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="googleCalendarId" render={({ field }) => (
                       <FormItem>
@@ -1891,44 +1988,59 @@ export default function CadastroEmpresas() {
                   <ContratosList empresaId={selectedEmpresa?.id ?? 0} />
                 </TabsContent>
 
+                {/* ── ABA: LOCAIS DE ATENDIMENTO (locais da empresa; saiu da frente do card) ── */}
+                <TabsContent value="locais-atendimento" className="flex-1 overflow-y-auto px-6 py-4 space-y-3 mt-0">
+                  {!editingId ? (
+                    <p className="concave-3d p-4 text-xs">Salve a empresa primeiro e depois abra sua edição para ver as agendas.</p>
+                  ) : (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        Agendas desta empresa. Cadastrar uma agenda não cria outra empresa. Profissionais que atendem em outro endereço usando o CNPJ desta empresa ficam na aba Local externo.
+                      </p>
+                      <LocaisDaEmpresa empresaId={editingId} />
+                    </>
+                  )}
+                </TabsContent>
+
+                {/* ── ABA: LOCAIS EXTERNOS (cadastro interno, mesmos campos da empresa) ── */}
+                <TabsContent value="locais-externos" className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 py-4 mt-0">
+                  {!editingId ? (
+                    <p className="concave-3d p-4 text-xs">Salve a empresa primeiro e depois abra sua edição para cadastrar locais externos.</p>
+                  ) : (
+                    <LocaisExternosAba key={editingId} empresaId={editingId} />
+                  )}
+                </TabsContent>
+
+                {/* ── ABAS: RESPONSÁVEIS (empresarial = dono; médico = responsável técnico) ── */}
+                {(["resp-empresarial", "resp-medico"] as const).map((v) => (
+                  <TabsContent key={v} value={v} className="flex-1 overflow-y-auto px-6 py-4 mt-0">
+                    {!editingId ? (
+                      <p className="concave-3d p-4 text-xs">Salve a empresa primeiro e depois abra sua edição para definir os responsáveis.</p>
+                    ) : (
+                      <ResponsavelEmpresaAba key={`${editingId}-${v}`} empresaId={editingId} funcao={v === "resp-medico" ? "medico" : "empresarial"} />
+                    )}
+                  </TabsContent>
+                ))}
+
               </Tabs>
 
               {/* Rodapé fixo com botões */}
-              <div className="flex justify-end gap-2 px-6 py-3 border-t border-border/40 shrink-0">
-                <Button type="button" className="btn-3d-soft" onClick={() => setFormOpen(false)}>CANCELAR</Button>
-                <Button type="submit" className="btn-3d px-6" disabled={saveMutation.isPending}>
-                  {saveMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                  SALVAR EMPRESA
-                </Button>
+              <div className="flex justify-end gap-2 px-6 py-3 border-t border-border/40 shrink-0" data-testid="empresa-dialogo-rodape">
+                {activeFormTab === "locais-externos" || activeFormTab === "locais-atendimento" || activeFormTab === "resp-empresarial" || activeFormTab === "resp-medico" ? (
+                  // Estas abas não usam o salvar da empresa (externos têm botão próprio); aqui só fecha a janela.
+                  <Button type="button" className="btn-3d-soft" onClick={() => handleFormOpen(false)}>FECHAR</Button>
+                ) : (
+                  <>
+                    <Button type="button" className="btn-3d-soft" onClick={() => handleFormOpen(false)}>CANCELAR</Button>
+                    <Button type="submit" className="btn-3d px-6" disabled={saveMutation.isPending}>
+                      {saveMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      SALVAR EMPRESA
+                    </Button>
+                  </>
+                )}
               </div>
             </form>
           </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog — confirmar exclusão */}
-      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setDeleteConfirm(""); } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-[13px] font-black uppercase tracking-widest text-destructive">ARQUIVAR EMPRESA</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="concave-3d p-3 text-sm">
-              <p className="text-muted-foreground mb-2">A empresa sairá das listas ativas. O registro, as unidades e o histórico não serão apagados; os vínculos hierárquicos antigos serão desativados. Digite o nome para confirmar:</p>
-              <p className="font-black text-foreground">{deleteTarget?.nome}</p>
-            </div>
-            <Input className="field-engraved" placeholder="Digite o nome exato"
-              value={deleteConfirm} onChange={(e) => setDeleteConfirm(e.target.value)} />
-            <DialogFooter>
-              <Button type="button" className="btn-3d-soft" onClick={() => { setDeleteTarget(null); setDeleteConfirm(""); }}>CANCELAR</Button>
-              <Button type="button" variant="destructive" className="btn-3d"
-                disabled={deleteConfirm !== deleteTarget?.nome || deleteMutation.isPending}
-                onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}>
-                {deleteMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-                ARQUIVAR
-              </Button>
-            </DialogFooter>
-          </div>
         </DialogContent>
       </Dialog>
     </div>

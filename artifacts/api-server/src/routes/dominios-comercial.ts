@@ -189,16 +189,15 @@ router.post("/dominios-comercial/propostas/:id/gerar-cobranca", async (req, res)
       const dueDateStr = dueDate.toISOString().slice(0, 10);
 
       const charge = await asaasCreateCharge({
-        customer: customerId,
+        customerId,
         billingType: "UNDEFINED",
         value: adesaoCentavos / 100,
         dueDate: dueDateStr,
-        description: `Adesão módulo domínio PAXTER — ${p.dominio}`,
+        description: `Adesão módulo domínio PaxMed — ${p.dominio}`,
         externalReference: `proposta_${id}_adesao`,
       });
       chargeId = charge.id;
       invoiceUrl = charge.invoiceUrl ?? null;
-      pixQr = (charge as Record<string, unknown>).pixQrCodeUrl as string ?? null;
     }
 
     // 3. Assinatura recorrente mensal via Asaas subscriptions
@@ -227,7 +226,7 @@ router.post("/dominios-comercial/propostas/:id/gerar-cobranca", async (req, res)
             value: mensalCentavos / 100,
             nextDueDate: nextBillingStr,
             cycle: "MONTHLY",
-            description: `Módulo domínio PAXTER mensal — ${p.dominio}`,
+            description: `Módulo domínio PaxMed mensal — ${p.dominio}`,
             externalReference: `proposta_${id}_mensal`,
           }),
         });

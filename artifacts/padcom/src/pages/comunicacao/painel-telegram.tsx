@@ -1,0 +1,324 @@
+/**
+ * Painel operacional do Telegram dentro da Central de Auditoria (tela existente, sem tela nova).
+ * Estados honestos: conectado (visto agora no sistema), parcial, documentado (só escrito em spec/relato),
+ * não comprovado (nunca testado) e pendente (falta fazer ou não encontrado).
+ * Nunca mostra token, segredo, URL do webhook, chat id nem texto de mensagem.
+ */
+import { useEffect, useState } from "react";
+import { Bot } from "lucide-react";
+import { BlockTitle, BASE } from "./_shared";
+import { getCollabToken } from "@/lib/collab-auth";
+import { BotaoMinMax } from "./botao-min-max";
+
+type Estado = "conectado" | "parcial" | "documentado" | "nao_comprovado" | "pendente";
+const ROTULO: Record<Estado, string> = {
+  conectado: "Conectado", parcial: "Parcial", documentado: "Documentado", nao_comprovado: "Não comprovado", pendente: "Pendente",
+};
+const COR: Record<Estado, string> = {
+  conectado: "#2e7d4f", parcial: "#b8924d", documentado: "#4a6fa5", nao_comprovado: "#8a6d3b", pendente: "#a13d3d",
+};
+
+function Selo({ e }: { e: Estado }) {
+  return (
+    <span className="concave-3d inline-flex items-center gap-1.5 whitespace-nowrap px-2 py-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: COR[e] }}>
+      <span className="inline-block h-2 w-2 rounded-full" style={{ background: COR[e] }} />{ROTULO[e]}
+    </span>
+  );
+}
+
+interface Painel {
+  token: { definido: boolean; origem: string | null } | null;
+  segredoWebhook: { definido: boolean } | null;
+  canalAtivo: boolean | null;
+  webhook: { consultado: boolean; saudavel: boolean; pendentes: number; ultimoErro: string | null; verificadoEm: string } | null;
+  vinculados: number | null;
+  mensagens: Array<{ direcao: string; n: number; ultima: string }> | null;
+  atendimento: Array<{ estado: string; n: number }> | null;
+  humano: number | null;
+  orientacoes: Array<{ status: string; n: number }> | null;
+  pedidos: { novos: number; total: number } | null;
+  modos: { atendimentoIa: string; lembretes: string; atendimentoLista: number; lembretesLista: number };
+}
+interface ClinicaIA {
+  empresaId: number;
+  clinica: string;
+  resolucoes: Array<{ caminho: string; total: number; interprete: number; conferente: number; aprendiz: number }>;
+  chamadas_ia: number;
+  tokens_entrada: number;
+  tokens_saida: number;
+  custos_por_moeda: Array<{ moeda: string | null; custoInformado: number | string | null }>;
+  usos_faq: number;
+  consultas_ia_evitadas: number;
+}
+interface ClinicaFollowup {
+  empresaId: number;
+  nome: string;
+  intervalHours: number | null;
+}
+
+const n = (v: number | string | null | undefined) => (v == null ? "indisponível" : Number(v).toLocaleString("pt-BR"));
+
+function Linha({ item, estado, detalhe }: { item: string; estado: Estado; detalhe: string }) {
+  return (
+    <tr className="border-t border-border/40 align-top">
+      <td className="px-2 py-2 text-[12px] font-semibold">{item}</td>
+      <td className="px-2 py-2"><Selo e={estado} /></td>
+      <td className="px-2 py-2 text-[12px] text-muted-foreground leading-relaxed">{detalhe}</td>
+    </tr>
+  );
+}
+
+function Tabela({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <div className="concave-3d overflow-x-auto">
+      <table className="w-full min-w-[560px] border-collapse">
+        <caption className="bevel-3d px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide">{titulo}</caption>
+        <thead><tr className="text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+          <th className="px-2 py-1">Item</th><th className="px-2 py-1">Estado</th><th className="px-2 py-1">Evidência e limite</th>
+        </tr></thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+export function PainelOperacionalTelegram() {
+  const [aberto, setAberto] = useState(true);
+  const [p, setP] = useState<Painel | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [usoIA, setUsoIA] = useState<ClinicaIA[] | null>(null);
+  const [erroIA, setErroIA] = useState<string | null>(null);
+  const [clinicasFollowup, setClinicasFollowup] = useState<ClinicaFollowup[] | null>(null);
+  const [intervalosEditados, setIntervalosEditados] = useState<Record<number, string>>({});
+  const [erroFollowup, setErroFollowup] = useState<string | null>(null);
+  const [salvandoFollowup, setSalvandoFollowup] = useState<number | null>(null);
+  useEffect(() => {
+    const t = getCollabToken();
+    const headers = new Headers();
+    if (t) headers.set("Authorization", `Bearer ${t}`);
+    fetch(`${BASE}/api/telegram-inbox/painel-operacional`, { headers })
+      .then(async (r) => { if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? "Sem acesso. Entre novamente com a conta de colaborador." : "O servidor respondeu com erro."); setP(await r.json()); })
+      .catch((e: unknown) => setErro(e instanceof Error ? e.message : "Não foi possível consultar o painel."));
+    fetch(`${BASE}/api/telegram-inbox/painel-ia`, { headers })
+      .then(async (r) => { if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? "Sem acesso aos custos e resultados por clínica." : "O servidor respondeu com erro."); const j = await r.json() as { clinicas: ClinicaIA[] }; setUsoIA(j.clinicas); })
+      .catch((e: unknown) => setErroIA(e instanceof Error ? e.message : "Não foi possível consultar o painel de inteligência artificial."));
+    fetch(`${BASE}/api/telegram-inbox/exam-followups/config`, { headers })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? "Somente o CEO pode configurar este fluxo." : "O servidor respondeu com erro.");
+        const data = await r.json() as { clinicas: ClinicaFollowup[] };
+        setClinicasFollowup(data.clinicas);
+        setIntervalosEditados(Object.fromEntries(data.clinicas.map((clinic) => [
+          clinic.empresaId, clinic.intervalHours == null ? "" : String(clinic.intervalHours),
+        ])));
+      })
+      .catch((e: unknown) => setErroFollowup(e instanceof Error ? e.message : "Não foi possível carregar as clínicas."));
+  }, []);
+
+  const [salvando, setSalvando] = useState(false);
+  const [avisoModo, setAvisoModo] = useState<string | null>(null);
+  const alterarModo = async (modo: "desligado" | "lista" | "ligado") => {
+    setSalvando(true); setAvisoModo(null);
+    try {
+      const t = getCollabToken();
+      const r = await fetch(`${BASE}/api/telegram-inbox/atendimento-modo`, { method: "PUT", headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: JSON.stringify({ modo }) });
+      if (!r.ok) throw new Error(r.status === 403 ? "Somente o CEO pode alterar." : "Não foi possível alterar.");
+      setP((a) => (a ? { ...a, modos: { ...a.modos, atendimentoIa: modo } } : a));
+      setAvisoModo(`Modo gravado: ${modo}.`);
+    } catch (e) { setAvisoModo(e instanceof Error ? e.message : "Falha ao alterar."); }
+    finally { setSalvando(false); }
+  };
+  const salvarIntervaloFollowup = async (clinic: ClinicaFollowup) => {
+    const raw = intervalosEditados[clinic.empresaId] ?? "";
+    const intervalHours = raw.trim() === "" ? null : Number(raw);
+    if (intervalHours !== null && (!Number.isSafeInteger(intervalHours) || intervalHours < 1 || intervalHours > 72)) {
+      setErroFollowup("Use um número inteiro entre 1 e 72, ou deixe vazio para desativar.");
+      return;
+    }
+    setSalvandoFollowup(clinic.empresaId);
+    setErroFollowup(null);
+    try {
+      const t = getCollabToken();
+      const response = await fetch(`${BASE}/api/telegram-inbox/exam-followups/config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+        body: JSON.stringify({ empresaId: clinic.empresaId, intervalHours }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "Não foi possível salvar a configuração.");
+      setClinicasFollowup((current) => current?.map((item) =>
+        item.empresaId === clinic.empresaId ? { ...item, intervalHours } : item) ?? null);
+    } catch (e) {
+      setErroFollowup(e instanceof Error ? e.message : "Falha ao salvar a configuração.");
+    } finally {
+      setSalvandoFollowup(null);
+    }
+  };
+
+  const msg = (d: string) => p?.mensagens?.find((m) => m.direcao === d)?.n ?? 0;
+  const atend = (e: string) => p?.atendimento?.find((a) => a.estado === e)?.n ?? 0;
+  const orient = (s: string) => p?.orientacoes?.find((o) => o.status === s)?.n ?? 0;
+  const falhasAtend = atend("falhou") + atend("esgotado") + atend("incerto");
+
+  const estToken: Estado = !p ? "pendente" : p.token == null ? "nao_comprovado" : p.token.definido ? "conectado" : "pendente";
+  const estSegredo: Estado = !p ? "pendente" : p.segredoWebhook == null ? "nao_comprovado" : p.segredoWebhook.definido ? "conectado" : "pendente";
+  const wh = p?.webhook;
+  const estWebhook: Estado = !p ? "pendente" : !wh || !wh.consultado ? "nao_comprovado" : wh.saudavel ? (wh.pendentes > 0 ? "parcial" : "conectado") : "pendente";
+
+  return (
+    <section className="panel-3d overflow-hidden" data-testid="painel-operacional-telegram">
+      <div className="bevel-3d flex items-center justify-between gap-3 px-5 py-3" style={{ borderLeft: "4px solid #b8924d" }}>
+        <div className="flex items-center gap-3">
+          <Bot className="h-5 w-5 text-[#b8924d]" />
+          <div>
+            <p className="text-[13px] font-bold uppercase tracking-wide">Telegram · Ferramentas</p>
+            <p className="text-[10px] text-muted-foreground">Atendimento automático, acompanhamento de exames e etapas · estados honestos, sem valores secretos</p>
+          </div>
+        </div>
+        <BotaoMinMax aberto={aberto} onAlternar={() => setAberto(!aberto)} />
+      </div>
+      {aberto && <div className="space-y-4 p-5">
+        {erro && <p role="alert" className="concave-3d p-3 text-[12px] text-rose-700 dark:text-rose-400">{erro} Os itens abaixo marcados como lidos do sistema aparecem como pendentes até a consulta funcionar.</p>}
+
+        <div className="concave-3d space-y-2 p-3" data-testid="controle-atendimento-ia">
+          <p className="text-[11px] font-bold uppercase tracking-wide">Atendimento automático no Telegram (somente CEO)</p>
+          <p className="text-[12px] text-muted-foreground">Modo atual: <b>{p?.modos.atendimentoIa ?? "—"}</b>. “Ligado” responde todo cliente que já deu o start no bot. Dúvida clínica sempre vai para a equipe.</p>
+          <div className="flex flex-wrap gap-2">
+            {(["desligado", "lista", "ligado"] as const).map((m) => (
+              <button key={m} type="button" disabled={salvando || !p} onClick={() => void alterarModo(m)} className={`min-h-11 px-4 text-[12px] font-bold uppercase ${p?.modos.atendimentoIa === m ? "btn-3d" : "bevel-3d"}`}>{m}</button>
+            ))}
+          </div>
+          {avisoModo && <p role="status" className="text-[12px]">{avisoModo}</p>}
+        </div>
+
+        <div className="concave-3d space-y-3 p-3" data-testid="configuracao-acompanhamento-exames">
+          <BlockTitle icon={Bot}>Acompanhamento de pedidos de exames</BlockTitle>
+          <p className="text-[12px] text-muted-foreground">
+            Desligado por padrão. Defina de 1 a 72 horas para perguntar se o cliente recebeu o pedido.
+            A pergunta sobre agendamento ocorre quatro dias após o envio confirmado. Alterações não criam mensagens retroativas.
+          </p>
+          {erroFollowup && <p role="alert" className="bevel-3d p-2 text-[12px] text-destructive">{erroFollowup}</p>}
+          {clinicasFollowup === null && !erroFollowup && <p role="status" className="text-[12px]">Carregando clínicas…</p>}
+          {clinicasFollowup?.length === 0 && <p className="text-[12px]">Nenhuma clínica ativa disponível.</p>}
+          <div className="grid gap-2 lg:grid-cols-2">
+            {clinicasFollowup?.map((clinic) => {
+              const raw = intervalosEditados[clinic.empresaId] ?? "";
+              const number = raw.trim() === "" ? null : Number(raw);
+              const valid = number === null || (Number.isSafeInteger(number) && number >= 1 && number <= 72);
+              return <article key={clinic.empresaId} className="bevel-3d flex flex-wrap items-end justify-between gap-3 p-3">
+                <div className="min-w-[180px] flex-1">
+                  <p className="text-[12px] font-bold">{clinic.nome}</p>
+                  <label className="mt-2 block text-[11px] text-muted-foreground" htmlFor={`intervalo-followup-${clinic.empresaId}`}>
+                    Horas até perguntar se recebeu
+                  </label>
+                  <input
+                    id={`intervalo-followup-${clinic.empresaId}`}
+                    data-testid={`intervalo-followup-${clinic.empresaId}`}
+                    type="number"
+                    min={1}
+                    max={72}
+                    step={1}
+                    value={raw}
+                    onChange={(event) => setIntervalosEditados((current) => ({
+                      ...current, [clinic.empresaId]: event.target.value,
+                    }))}
+                    placeholder="Vazio = desligado"
+                    className="concave-3d mt-1 h-10 w-full rounded-md bg-transparent px-3 text-sm"
+                  />
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    {clinic.intervalHours == null ? "Acompanhamento desligado" : `Ativo: primeira pergunta após ${clinic.intervalHours} hora(s)`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  data-testid={`salvar-followup-${clinic.empresaId}`}
+                  disabled={!valid || salvandoFollowup !== null}
+                  onClick={() => void salvarIntervaloFollowup(clinic)}
+                  className="btn-3d-soft min-h-10 px-4 text-xs font-bold uppercase disabled:opacity-60"
+                >
+                  {salvandoFollowup === clinic.empresaId ? "Salvando…" : "Salvar"}
+                </button>
+              </article>;
+            })}
+          </div>
+        </div>
+
+        <Tabela titulo="1. Lido agora do sistema (esta clínica, ambiente em uso)">
+          <Linha item="Token do bot" estado={estToken} detalhe={p?.token?.definido ? `Definido (origem: ${p.token.origem === "vault" ? "cofre" : "ambiente"}). Valor nunca exibido.` : "Não definido ou não consultado."} />
+          <Linha item="Segredo do webhook" estado={estSegredo} detalhe={p?.segredoWebhook?.definido ? "Definido. Valor nunca exibido." : "Não definido ou não consultado."} />
+          <Linha item="Canal ativado" estado={!p || p.canalAtivo == null ? "nao_comprovado" : p.canalAtivo ? "conectado" : "pendente"} detalhe={p?.canalAtivo == null ? "Configuração não lida." : p.canalAtivo ? "Canal marcado como ativo em Configurações." : "Canal desativado em Configurações."} />
+          <Linha item="Webhook" estado={estWebhook} detalhe={wh ? (wh.consultado ? `Consulta ao Telegram feita agora. Pendentes: ${wh.pendentes}. Último erro: ${wh.ultimoErro ?? "nenhum"}.` : "O Telegram não pôde ser consultado agora (sem token ou rede).") : "Não consultado."} />
+          <Linha item="Histórico de mensagens" estado={!p || p.mensagens == null ? "nao_comprovado" : msg("entrada") + msg("saida") > 0 ? "conectado" : "pendente"} detalhe={`Recebidas: ${n(msg("entrada"))} · Enviadas: ${n(msg("saida"))}. São registros do banco; aceite do Telegram não é confirmação visual no aparelho.`} />
+          <Linha item="Vínculo cliente ↔ conversa" estado={!p || p.vinculados == null ? "nao_comprovado" : p.vinculados > 0 ? "parcial" : "pendente"} detalhe={`${n(p?.vinculados)} cliente(s) com Telegram vinculado. O vínculo é individual (um chat por cliente; colisão nunca vincula). Parcial: poucos vínculos reais, só contatos de teste.`} />
+          <Linha item="Orientações aprovadas" estado={!p || p.orientacoes == null ? "nao_comprovado" : orient("aprovada") > 0 ? "conectado" : "pendente"} detalhe={`Aprovadas: ${n(orient("aprovada"))} · Rascunhos: ${n(orient("rascunho"))} · Inativas: ${n(orient("inativa"))}. Sem aprovada, dúvidas vão para a equipe.`} />
+          <Linha item="Atendimento humano" estado={!p || p.humano == null ? "nao_comprovado" : "conectado"} detalhe={`${n(p?.humano)} conversa(s) com a assistente pausada para a equipe. Mensagem humana no Cockpit pausa a assistente daquele cliente.`} />
+          <Linha item="Falhas do atendimento" estado={!p || p.atendimento == null ? "nao_comprovado" : falhasAtend > 0 ? "parcial" : "conectado"} detalhe={`Concluídas: ${n(atend("concluido"))} · Pendentes: ${n(atend("pendente") + atend("processando"))} · Com falha, esgotadas ou incertas: ${n(falhasAtend)}.`} />
+          <Linha item="Pedidos de quem não é cliente" estado={!p || p.pedidos == null ? "nao_comprovado" : "conectado"} detalhe={`Novos: ${n(p?.pedidos?.novos)} · Total: ${n(p?.pedidos?.total)}. Nunca viram reserva sozinhos.`} />
+          <Linha item="Assistente de dúvidas e agendamento" estado={!p ? "pendente" : p.modos.atendimentoIa === "desligado" ? "pendente" : "parcial"} detalhe={`Modo: ${p?.modos.atendimentoIa ?? "—"}${p && p.modos.atendimentoIa === "lista" ? ` (${p.modos.atendimentoLista} cliente(s) autorizados)` : ""}. Lembretes por Telegram: ${p?.modos.lembretes ?? "—"}${p && p.modos.lembretes === "lista" ? ` (${p.modos.lembretesLista} autorizados)` : ""}.`} />
+        </Tabela>
+
+        <div className="space-y-3">
+          <BlockTitle icon={Bot}>Resultados e custo da inteligência artificial por clínica</BlockTitle>
+          {erroIA && <p role="alert" className="concave-3d p-3 text-[12px]">{erroIA}</p>}
+          {usoIA === null && !erroIA && <p className="concave-3d p-3 text-[12px]">Carregando medições administrativas…</p>}
+          {usoIA?.length === 0 && <p className="concave-3d p-3 text-[12px]">Ainda não há medições no período.</p>}
+          {usoIA?.map((c) => {
+            const total = c.resolucoes.reduce((s, r) => s + Number(r.total), 0);
+            const por = (path: string) => c.resolucoes.find((r) => r.caminho === path)?.total ?? 0;
+            const chamadasInterprete = c.resolucoes.reduce((s, r) => s + Number(r.interprete), 0);
+            const chamadasConferente = c.resolucoes.reduce((s, r) => s + Number(r.conferente), 0);
+            const automaticas = ["cardapio", "regra", "interprete", "conferente", "documento", "agendamento"].reduce((s, path) => s + Number(por(path)), 0);
+            const taxa = total ? `${((automaticas / total) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : "sem dados";
+            const custos = c.custos_por_moeda.map((x) => `${x.moeda ?? "moeda não informada"}: ${x.custoInformado == null ? "custo não informado pelo provedor" : Number(x.custoInformado).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`).join(" · ");
+            return <article key={c.empresaId} className="concave-3d space-y-3 p-3" data-testid={`uso-ia-clinica-${c.empresaId}`}>
+              <p className="text-[12px] font-bold uppercase">{c.clinica}</p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  ["Cardápio aprendido", n(por("cardapio"))],
+                  ["Regras locais", n(por("regra"))],
+                  ["Documentos clínicos aprovados", n(por("documento"))],
+                  ["Intérprete chamado", n(chamadasInterprete)],
+                  ["Conferente chamado", n(chamadasConferente)],
+                  ["Fluxo de agendamento", n(por("agendamento"))],
+                ].map(([label, value]) => <div key={label} className="bevel-3d p-2 text-[11px]"><span className="block text-muted-foreground">{label}</span><strong>{value} resoluções em 30 dias</strong></div>)}
+              </div>
+              <div className="grid gap-2 text-[11px] sm:grid-cols-2">
+                <p className="bevel-3d p-2">Percentual roteado ao fluxo automático: <strong>{taxa}</strong> ({n(automaticas)} de {n(total)} caminhos registrados nos últimos 30 dias; não confirma entrega ao cliente).</p>
+                <p className="bevel-3d p-2">Chamadas de inteligência artificial: <strong>{n(c.chamadas_ia)}</strong>; entrada: {n(c.tokens_entrada)} tokens; saída: {n(c.tokens_saida)} tokens.</p>
+                <p className="bevel-3d p-2">Custo informado pelo provedor: <strong>{custos || "não informado pelo provedor"}</strong>. Nenhum valor estimado.</p>
+                <p className="bevel-3d p-2">Cardápio: {n(c.usos_faq)} usos acumulados; {n(c.consultas_ia_evitadas)} consultas de IA evitadas.</p>
+              </div>
+            </article>;
+          })}
+        </div>
+
+        <Tabela titulo="2. Prova real de ida e volta (desenvolvimento, 14/11/2026, registrada)">
+          <Linha item="Mensagem real do contato pessoal" estado="conectado" detalhe="Pedido de consulta recebido e gravado; Dr. Caio relatou o horário local (23h) e conferiu no aparelho." />
+          <Linha item="Resposta da assistente" estado="conectado" detalhe="Perguntas, lista de horários e confirmação, todas com aceite do Telegram e cópia de saída no histórico. Houve 3 respostas repetidas na 1ª rodada (corrigido; não reproduzido depois) e uma demora de cerca de 5 minutos por falha do serviço (corrigida)." />
+          <Linha item="Auditoria" estado="conectado" detalhe="Registros de entrada e saída por cliente e estados do atendimento conferidos no banco." />
+          <Linha item="Reserva de teste" estado="conectado" detalhe="Escolhida pela pessoa (opção 1), gravada, conferida (única, agenda online do médico principal) e depois cancelada; horário liberado. Outra reserva antiga de teste de outro contato segue ativa, aguardando ordem para cancelar." />
+          <Linha item="Contato da clínica" estado="nao_comprovado" detalhe="Sem conversa real de ida e volta nesta rodada." />
+          <Linha item="Produção" estado="nao_comprovado" detalhe="Nada foi testado nem publicado em produção. O endereço publicado ainda responde erro 404." />
+        </Tabela>
+
+        <Tabela titulo="3. Matriz de permissões da conversa (o que a assistente pode fazer)">
+          <Linha item="Perguntas sobre tratamento (queixa, dose, sintoma)" estado="conectado" detalhe="Comprovado por testes: nunca recebe resposta automática de IA; a equipe é avisada com prioridade. Só orientação aprovada por médico pode responder dúvida geral." />
+          <Linha item="Dúvida geral com orientação aprovada" estado="parcial" detalhe="Mecanismo testado, mas a biblioteca não tem nenhuma orientação aprovada; sem aprovada, encaminha à equipe." />
+          <Linha item="Agendamento de consulta (cliente)" estado="conectado" detalhe="Comprovado em desenvolvimento com reserva real, só de horários livres da agenda e só após gravar." />
+          <Linha item="Agendamento (quem não é cliente)" estado="parcial" detalhe="Gera pedido para a equipe; testado com transporte simulado, não com pessoa real." />
+          <Linha item="Próxima consulta (consulta de agenda do cliente)" estado="pendente" detalhe="Não encontrei no código a leitura da agenda do próprio cliente para responder “quando é minha consulta”. Não existe." />
+          <Linha item="Cancelar ou remarcar" estado="parcial" detalhe="A assistente só encaminha à equipe; não cancela nem remarca sozinha." />
+          <Linha item="RAS, RASP e prescrição perdida (reenvio pela conversa)" estado="pendente" detalhe="Reenvio de documentos pela conversa não foi encontrado. A especificação funcional desses fluxos não foi localizada. Nenhuma ação foi inferida." />
+          <Linha item="Envio de documentos por Telegram (fora da conversa)" estado="documentado" detalhe="Existe em specs e rotas de envio da equipe; não é um pedido iniciado pelo cliente na conversa." />
+        </Tabela>
+
+        <BlockTitle icon={Bot}>Etapas reproduzíveis da evolução</BlockTitle>
+        <ol className="concave-3d space-y-2 p-3 text-[12px] leading-relaxed" data-testid="etapas-telegram">
+          <li><strong>Etapa 1 · Telegram → Cockpit e retorno.</strong> Receber, gravar no Cockpit, responder pela equipe ou pela assistente. Estado: comprovada em desenvolvimento com o contato pessoal; falta o contato da clínica e a prova em produção (só após o comando de 100%).</li>
+          <li><strong>Etapa 2 · Vínculo do cliente.</strong> Link individual ou senha de validação já existem; colisão nunca vincula. Falta a tela para resolver vínculos ambíguos.</li>
+          <li><strong>Etapa 3 · Orientações aprovadas.</strong> Biblioteca com prévia fiel e aprovação médica. Falta o conteúdo aprovado pelo Dr. Caio.</li>
+          <li><strong>Etapa 4 · Documentos e agenda.</strong> Só depois das anteriores: consulta da própria agenda e reenvio de RAS, RASP e prescrição. Cada uma exige especificação, revisão e teste antes de ligar.</li>
+        </ol>
+      </div>}
+    </section>
+  );
+}

@@ -5,6 +5,7 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+import type { CertificateStatusState } from "./certificateStatusState";
 
 export interface CertificateStatus {
   isSet: boolean;
@@ -12,4 +13,8 @@ export interface CertificateStatus {
   fileName?: string | null;
   cpf?: string | null;
   updatedAt?: string | null;
+  state?: CertificateStatusState;
+  professionalType?: string | null;
+  validFrom?: Date | null;
+  validTo?: Date | null;
 }

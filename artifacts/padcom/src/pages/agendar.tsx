@@ -154,7 +154,7 @@ function FlagshipDrCaio({ theme, name, onClick }: { theme: "dark" | "light"; nam
     <button onClick={onClick} className="w-full text-left group">
       <div
         className="relative rounded-xl overflow-hidden p-5 transition-transform duration-300 group-hover:-translate-y-0.5"
-        style={{ background: t.cardBg, border: `1px solid ${t.border}`, boxShadow: t.shadow }}
+        style={{ background: t.cardBg, border: "1px solid transparent", boxShadow: t.shadow }}
       >
         {/* Faixa dourada (topo do cartão) */}
         <div className="absolute top-0 left-0 right-0" style={{ height: 3, background: t.goldBand }} />
@@ -412,15 +412,17 @@ export default function Agendar({ _variant = "novo" }: { _variant?: "novo" | "an
     >
       <div className="leva-fabric" aria-hidden="true" />
       <div className="relative z-[1] flex flex-col min-h-screen">
+        {/* Fita de terno de giz (modelo 11) rente ao teto + header panel-3d, congelados juntos */}
+        <div className="sticky top-0 z-20">
         {/* Header panel-3d — mesmo padrão do /area (Área do Paciente) */}
-        <header className="panel-3d px-4 py-5 flex items-center justify-between border-b border-border/60 sticky top-0 z-20">
+        <header className="panel-3d px-4 py-5 flex items-center justify-between border-b border-border/60">
           <div className="flex items-center gap-3">
             <PaxterSymbolGlass size={52} tone={isDark ? "dark" : "light"} sharp={true} />
             <div className="flex flex-col items-start gap-1">
               {/* Wordmark PAXTER — arte oficial */}
               <img
                 src="/brand/paxter-wordmark.png"
-                alt="PAXTER"
+                alt="PaxMed"
                 style={{ height: 24, width: "auto", objectFit: "contain" }}
                 draggable={false}
               />
@@ -438,6 +440,7 @@ export default function Agendar({ _variant = "novo" }: { _variant?: "novo" | "an
           </div>
           <ThemeToggle theme={theme} onToggle={toggle} />
         </header>
+        </div>
         <main className="flex-1 w-full max-w-lg mx-auto p-4 sm:p-6 pb-20 flex flex-col gap-6">
           {flows}
         </main>
@@ -934,7 +937,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
   // vizinho / contiguidade) ANTES do pagamento. So dispara no estagio "oferta".
   // Inclui CPF na query para a trava de escassez verificar penalidade no servidor.
   const cpfDigitsOffer = cpf.replace(/\D/g, "");
-  const offerQuery = useQuery({
+  const offerQuery = useQuery<OfertaConcierge>({
     queryKey: [
       "concierge-offer",
       prefWeekday,
@@ -953,12 +956,16 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
         `${BASE}/api/scheduling/concierge-offer?${params.toString()}`,
       );
       if (res.status === 403) {
-        const blocked = await res.json();
+        const blocked = (await res.json()) as OfertaConcierge & { code?: string };
         if (blocked.code === "CONCIERGE_BLOCKED" && blocked.blocked === true) return blocked;
         throw new Error("Falha ao buscar oferta");
       }
       if (!res.ok) throw new Error("Falha ao buscar oferta");
-      return res.json() as Promise<{
+      return res.json() as Promise<OfertaConcierge>;
+    },
+    enabled: stage === "oferta",
+  });
+  type OfertaConcierge = {
         blocked?: boolean;
         throttled?: boolean;
         requiresVerification?: boolean;
@@ -970,10 +977,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
         tentativas?: number;
         penalidade_dias?: number;
         days?: { date: string; times: { time: string }[] }[];
-      }>;
-    },
-    enabled: stage === "oferta",
-  });
+  };
 
   // ── Verificação de dispositivo: envio do código OTP ──────────────────────────
 

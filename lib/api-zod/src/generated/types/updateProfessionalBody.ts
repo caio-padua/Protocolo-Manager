@@ -19,6 +19,7 @@ export interface UpdateProfessionalBody {
   role?: string | null;
   professionalType?: string | null;
   areaId?: number | null;
+  workAreaIds?: number[];
   specialtyId?: number | null;
   registrationCouncil?: string | null;
   registrationNumber?: string | null;

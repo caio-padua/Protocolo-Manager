@@ -47,3 +47,11 @@ que só aparece em produção (eventos duplicados, dedup quebrada, import quebra
 conhecidos com `rg -v`. O que sobra é candidato a troca; revise um a um. Confirme documentos
 emitidos VISUALMENTE (renderize o PDF), não só por HTTP 200. QR + selo de marca em PDF: gere
 best-effort em try/catch para a emissão nunca quebrar se a lib de QR falhar.
+
+## Renomeação do registro clínico
+
+A autorização de renomear RAS para RASP em todos os lugares também abrange o texto dos modelos jurídicos salvos, sem alterar documentos já emitidos ou identificadores internos.
+
+**Why:** o responsável esclareceu que a substituição integral já incluía os modelos; não era necessário pedir novamente a mesma autorização.
+
+**How to apply:** atualizar somente os trechos do nome, preservar o restante de cada modelo e verificar antes e depois; manter o código interno antigo quando ele for necessário para os vínculos existentes.

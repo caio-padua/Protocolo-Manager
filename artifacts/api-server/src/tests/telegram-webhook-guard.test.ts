@@ -31,6 +31,16 @@ const { mockGetWebhookInfo, mockSendTelegram, mockProxy, mockLogError, mockLogIn
 
 // ── Mocks de módulo ───────────────────────────────────────────────────────────
 
+// Resolver do chat de alerta simulado: lê o ambiente (equivale ao processo com o cofre hidratado).
+// A regra real (cofre > ambiente, validação numérica) é provada em telegram-config.test.ts.
+vi.mock("../lib/telegram-config", () => ({
+  chatIdValido: () => true,
+  chatAlertaOuNull: async () => process.env["PADAXOR_TELEGRAM_CHAT_ID"] || null,
+  resolverChatAlerta: async () => {
+    const c = process.env["PADAXOR_TELEGRAM_CHAT_ID"] || null;
+    return { chatId: c, fonte: c ? "ambiente" : "ausente", motivo: c ? null : "ausente" };
+  },
+}));
 vi.mock("../lib/telegram", () => ({
   getWebhookInfo: mockGetWebhookInfo,
   sendTelegram:   mockSendTelegram,

@@ -136,8 +136,22 @@ export async function enviarMensagemPaxter(doc: unknown, _destination: unknown, 
   }
   const response = await fetch(configuration.providerUrl, { method: "POST", body: JSON.stringify({ channels, doc }) });
   if (!response.ok) throw new Error("Synthetic provider refused");
-  const result = await response.json();
-  if (result.resultados[0]?.sent === true) acceptedMessages++;
-  if (channels[0] === "TELEGRAM" && result.resultados[0]?.sent === true) acceptedTelegramMessages++;
-  return result;
+  const payload: unknown = await response.json();
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    !("resultados" in payload) ||
+    !Array.isArray(payload.resultados)
+  ) {
+    throw new Error("Synthetic provider returned an invalid result");
+  }
+  const firstResult = payload.resultados[0];
+  const sent =
+    typeof firstResult === "object" &&
+    firstResult !== null &&
+    "sent" in firstResult &&
+    firstResult.sent === true;
+  if (sent) acceptedMessages++;
+  if (channels[0] === "TELEGRAM" && sent) acceptedTelegramMessages++;
+  return payload;
 }

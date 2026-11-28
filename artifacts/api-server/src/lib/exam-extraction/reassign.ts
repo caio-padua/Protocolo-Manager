@@ -72,11 +72,14 @@ function classifyForTarget(
   const info = unitsByCode.get(targetCode);
   const conv = resolveConversion(info, row.unitRaw);
   const rawValue = parseBrazilNumber(row.valueRaw);
-  const value = rawValue === null ? null : rawValue * conv.factor;
+  const value = rawValue === null || conv.unknownUnit ? null : rawValue * conv.factor;
 
   let refLowN: number | null;
   let refHighN: number | null;
-  if (conv.factor === 1) {
+  if (conv.unknownUnit) {
+    refLowN = null;
+    refHighN = null;
+  } else if (conv.factor === 1) {
     refLowN = row.refLow === null ? null : Number(row.refLow);
     refHighN = row.refHigh === null ? null : Number(row.refHigh);
   } else {
@@ -447,7 +450,8 @@ export interface ImpactoExame {
 }
 
 /** Prévia de impacto de um exame: quantos resultados/clientes/documentos ele tem. */
-export async function impactoExame(code: string): Promise<ImpactoExame> {
+/** `empresaId` restringe a contagem à clínica (leitura por tela); sem ele, contagem global (uso interno da curadoria). */
+export async function impactoExame(code: string, empresaId?: number): Promise<ImpactoExame> {
   const entry = await getCatalogEntry(code);
   const agg = await db
     .select({
@@ -456,7 +460,14 @@ export async function impactoExame(code: string): Promise<ImpactoExame> {
       documentos: sql<number>`count(distinct ${examResultsTable.examDocumentId})`,
     })
     .from(examResultsTable)
-    .where(eq(examResultsTable.analyteCode, code));
+    .where(
+      empresaId == null
+        ? eq(examResultsTable.analyteCode, code)
+        : and(
+            eq(examResultsTable.analyteCode, code),
+            sql`${examResultsTable.clientId} IN (SELECT id FROM clients WHERE empresa_id = ${empresaId})`,
+          ),
+    );
   const row = agg[0] ?? { resultados: 0, clientes: 0, documentos: 0 };
   return {
     code,

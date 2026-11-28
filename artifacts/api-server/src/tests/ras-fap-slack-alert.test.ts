@@ -31,6 +31,72 @@ function makeDeps() {
   };
 }
 
+describe("notifySlackRasFapFailure — link direto ao protocolo", () => {
+  afterEach(() => { vi.unstubAllEnvs(); });
+
+  it.each(["drive", "email"] as const)(
+    "inclui hyperlink Slack para o protocolo no contexto %s",
+    async (context) => {
+      vi.stubEnv("PADCOM_BASE_URL", "https://padcom.example.test");
+      const deps = makeDeps();
+      await notifySlackRasFapFailure(
+        context, CLIENT_NAME, PROTOCOL_ID, PROTOCOL_TITLE,
+        ERROR_MSG, SLACK_CHANNEL, deps,
+      );
+      expect(deps.postAlert).toHaveBeenCalledWith(
+        SLACK_CHANNEL,
+        expect.stringContaining(
+          "<https://padcom.example.test/protocols/42|Abrir protocolo no PADCOM>",
+        ),
+      );
+    },
+  );
+
+  it.each([
+    ["https://padcom.example.test/", "https://padcom.example.test/protocols/42"],
+    [" https://padcom.example.test/manager/// ", "https://padcom.example.test/manager/protocols/42"],
+    ["http://localhost:5173", "http://localhost:5173/protocols/42"],
+  ])("normaliza a base %s sem perder o prefixo", async (base, expectedUrl) => {
+    vi.stubEnv("PADCOM_BASE_URL", base);
+    const deps = makeDeps();
+    await notifySlackRasFapFailure(
+      "drive", CLIENT_NAME, PROTOCOL_ID, PROTOCOL_TITLE,
+      ERROR_MSG, SLACK_CHANNEL, deps,
+    );
+    expect(deps.postAlert.mock.calls[0][1]).toContain(`<${expectedUrl}|`);
+  });
+
+  it("codifica o identificador como um único segmento da URL", async () => {
+    vi.stubEnv("PADCOM_BASE_URL", "https://padcom.example.test");
+    const deps = makeDeps();
+    await notifySlackRasFapFailure(
+      "drive", CLIENT_NAME, "42/a?b#c", PROTOCOL_TITLE,
+      ERROR_MSG, SLACK_CHANNEL, deps,
+    );
+    expect(deps.postAlert.mock.calls[0][1]).toContain(
+      "<https://padcom.example.test/protocols/42%2Fa%3Fb%23c|",
+    );
+  });
+
+  it.each([undefined, "", " ", "not-a-url", "javascript:alert(1)",
+    "https://user:pass@padcom.example.test", "https://padcom.example.test/?token=x",
+    "https://padcom.example.test/#page", "https://padcom.example.test/a|b",
+  ])("preserva o alerta e explica a indisponibilidade com base %s", async (base) => {
+    vi.stubEnv("PADCOM_BASE_URL", base);
+    const deps = makeDeps();
+    await notifySlackRasFapFailure(
+      "email", CLIENT_NAME, PROTOCOL_ID, PROTOCOL_TITLE,
+      ERROR_MSG, SLACK_CHANNEL, deps,
+    );
+    expect(deps.postAlert).toHaveBeenCalledOnce();
+    const text = deps.postAlert.mock.calls[0][1];
+    expect(text).toContain("Link indisponível:");
+    expect(text).toContain("PADCOM_BASE_URL");
+    expect(text).toContain(ERROR_MSG);
+    expect(text).not.toContain("|Abrir protocolo");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Bloco 1 — contexto "drive" (geração/salvamento no Google Drive)
 // ---------------------------------------------------------------------------

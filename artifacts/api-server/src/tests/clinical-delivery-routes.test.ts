@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("../lib/ceo-identidade", () => ({ medicoDoCeoPodeEmitir: async () => true }));
 import express from "express";
 import request from "supertest";
 import { PgDialect } from "drizzle-orm/pg-core";
+import { createHash } from "node:crypto";
 
 const state = vi.hoisted(() => ({
   allowed: true, phone: "+5500000000000", email: "patient@example.invalid", presEmail: "patient@example.invalid",
   empresa: 21, locationEmpresa: 21, issuer: 41, status: "emitted", member: true,
-  startFails: false, finishFails: false, logs: [] as any[], providerLogs: [] as any[], recurring: [] as any[], conditions: [] as any[],
-  wa: vi.fn(), tg: vi.fn(), mail: vi.fn(), motor: vi.fn(),
+  startFails: false, finishFails: false, badHash: false, missingHash: false, logs: [] as any[], providerLogs: [] as any[], recurring: [] as any[], conditions: [] as any[],
+  wa: vi.fn(), tg: vi.fn(), mail: vi.fn(), motor: vi.fn(), reads: vi.fn(), sync: vi.fn(),
 }));
 vi.mock("@workspace/db", async () => {
   const schema = await import("../../../../lib/db/src/schema");
@@ -23,8 +25,10 @@ vi.mock("@workspace/db", async () => {
     if (table === schema.locationsTable) return [{ id: 31, name: "Clínica sintética", empresaId: state.locationEmpresa, active: "true" }];
     if (table === schema.locationProfessionalsTable) return state.member ? [{ id: 1 }] : [];
     if (table === schema.recipesTable) return [
-      { id: 1, prescriptionId: 101, pharmacyId: 8, pdfData: "cGRmMQ==", fileName: "um.pdf" },
-      { id: 2, prescriptionId: 101, pharmacyId: 9, pdfData: "cGRmMg==", fileName: "dois.pdf" },
+      { id: 1, prescriptionId: 101, pharmacyId: 8, pdfData: "cGRmMQ==", fileName: "um.pdf",
+        qrPdfSha256: state.missingHash ? null : state.badHash ? "0".repeat(64) : createHash("sha256").update("pdf1").digest("hex") },
+      { id: 2, prescriptionId: 101, pharmacyId: 9, pdfData: "cGRmMg==", fileName: "dois.pdf",
+        qrPdfSha256: createHash("sha256").update("pdf2").digest("hex") },
     ];
     if (table === schema.pharmaciesTable) return [
       { id: 8, name: "Farmácia vinculada", email: "pharmacy@example.invalid", whatsapp: "pharmacy-phone" },
@@ -38,6 +42,7 @@ vi.mock("@workspace/db", async () => {
   };
   return { ...schema, db: {
     select: () => ({ from: (table: unknown) => {
+      state.reads(table);
       const chain: any = { then: (yes: any, no: any) => Promise.resolve(rows(table)).then(yes, no) };
       chain.where = (condition: any) => { state.conditions.push(condition); return chain; };
       chain.limit = chain.orderBy = chain.leftJoin = () => chain;
@@ -58,10 +63,12 @@ vi.mock("../lib/receituario-motor", () => ({ emitirReceituarioPdf: state.motor }
 vi.mock("../lib/whatsapp", () => ({ sendWhatsapp: state.wa }));
 vi.mock("../lib/telegram", () => ({ sendTelegram: state.tg }));
 vi.mock("../lib/google-gmail", () => ({ sendGmailMessage: state.mail }));
+vi.mock("../lib/lembrete-periodo", () => ({ sincronizarLembretePrescricao: state.sync }));
 vi.mock("../lib/prescription-reminder-message", () => ({
   prescriptionReminderMessage: vi.fn().mockResolvedValue("Orientações sintéticas"),
 }));
 import router from "../routes/prescription-delivery";
+import { prescriptionReminderMessage } from "../lib/prescription-reminder-message";
 import { ClinicalIdentityError } from "../lib/clinical-emitter";
 import { createCollaboratorToken } from "../lib/collaborator-auth";
 const app = express().use(express.json()).use(router);
@@ -78,7 +85,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   Object.assign(state, { allowed: true, member: true, phone: "+5500000000000",
     email: "patient@example.invalid", presEmail: "patient@example.invalid",
-    empresa: 21, locationEmpresa: 21, issuer: 41, status: "emitted", startFails: false, finishFails: false,
+    empresa: 21, locationEmpresa: 21, issuer: 41, status: "emitted", startFails: false, finishFails: false, badHash: false, missingHash: false,
     logs: [], providerLogs: [], recurring: [], conditions: [] });
   state.wa.mockResolvedValue({ sent: true, via: "twilio", logId: 501 });
   state.tg.mockResolvedValue({ sent: true });
@@ -87,6 +94,34 @@ beforeEach(() => {
 });
 
 describe("entregas clínicas confirmadas (somente simulações)", () => {
+  it.each(["sms", "", "ambos", null, 123, {}, ["whatsapp"], undefined])(
+    "lembrete rejeita canal inválido/omitido %j antes de qualquer operação", async channel => {
+      const result = await post({ confirmed: true, recipient: state.phone, channel }, "enviar-lembrete");
+      expect(result.status).toBe(400);
+      expect(result.body.error).toContain("Confirme um canal");
+      expect(state.reads).not.toHaveBeenCalled();
+      expect(state.sync).not.toHaveBeenCalled();
+      expect(prescriptionReminderMessage).not.toHaveBeenCalled();
+      expect(state.logs).toHaveLength(0);
+      for (const send of [state.wa, state.tg, state.mail, state.motor]) expect(send).not.toHaveBeenCalled();
+    },
+  );
+  it.each([
+    { ...body("email", "patient@example.invalid") },
+    { ...body("whatsapp", "pharmacy-phone"), pharmacyId: 8 },
+  ])("lembrete rejeita destino incompatível antes de consultar catálogo", async payload => {
+    expect((await post(payload, "enviar-lembrete")).status).toBe(400);
+    expect(state.reads).not.toHaveBeenCalled();
+    expect(prescriptionReminderMessage).not.toHaveBeenCalled();
+    expect(state.logs).toHaveLength(0);
+  });
+  it.each(["whatsapp", "telegram"])("lembrete confirmado envia somente por %s", async channel => {
+    const recipient = channel === "telegram" ? "patient-chat" : state.phone;
+    expect((await post(body(channel, recipient), "enviar-lembrete")).body.accepted).toBe(true);
+    expect(state.wa).toHaveBeenCalledTimes(channel === "whatsapp" ? 1 : 0);
+    expect(state.tg).toHaveBeenCalledTimes(channel === "telegram" ? 1 : 0);
+    expect(state.sync).not.toHaveBeenCalled();
+  });
   it.each(["delivery", "enviar-lembrete", "reenviar-email"])("%s bloqueia anônimo antes de qualquer efeito", async path => {
     expect((await request(app).post(`/prescriptions/101/${path}`).send(body())).status).toBe(401);
     expect(state.conditions).toHaveLength(0); expect(state.logs).toHaveLength(0);
@@ -99,10 +134,11 @@ describe("entregas clínicas confirmadas (somente simulações)", () => {
   it("consulta exige vínculo e ignora empresa/profissional da query", async () => {
     const result = await get();
     expect(result.status).toBe(200);
-    const filter = new PgDialect().sqlToQuery(state.conditions[0]);
-    expect(filter.sql).toContain("location_professionals");
-    expect(filter.sql).toContain("empresa_id");
-    expect(filter.params).toEqual([101, 41]);
+    const filter = state.conditions.map((condition) => new PgDialect().sqlToQuery(condition))
+      .find((query) => query.sql.includes("location_professionals"));
+    expect(filter).toBeDefined();
+    expect(filter!.sql).toContain("empresa_id");
+    expect(filter!.params).toEqual([101, 41]);
     expect(result.body.targets).not.toEqual(expect.arrayContaining([expect.objectContaining({ recipient: "unrelated@example.invalid" })]));
   });
   it.each(["sem acesso", "sem vínculo", "empresa divergente", "contato divergente"])("bloqueia %s sem envio", async scenario => {
@@ -128,17 +164,14 @@ describe("entregas clínicas confirmadas (somente simulações)", () => {
     expect(state.logs[0].empresaId).toBe(21);
     expect(state.wa).toHaveBeenCalledTimes(channel === "whatsapp" ? 1 : 0);
     expect(state.tg).toHaveBeenCalledTimes(channel === "telegram" ? 1 : 0);
-    expect(state.motor).toHaveBeenCalledTimes(channel === "email" ? 1 : 0);
+    expect(state.motor).not.toHaveBeenCalled();
     if (channel === "whatsapp") expect(state.wa).toHaveBeenCalledWith(state.phone,
       expect.any(String), expect.objectContaining({ mirrorTelegram: false }));
-    if (channel === "email") expect(state.motor).toHaveBeenCalledWith(expect.objectContaining({
-      medicoId: 41, clinicaId: 31, emailTo: [state.email],
-      identity: expect.objectContaining({
-        professional: expect.objectContaining({ id: 41 }),
-        client: expect.objectContaining({ id: 71 }),
-        clinic: expect.objectContaining({ id: 31, empresaId: 21 }),
-      }),
-      formulas: [expect.objectContaining({ nome: "Fórmula sintética", posologia: "1 ao dia" })],
+    if (channel === "email") expect(state.mail).toHaveBeenCalledWith(expect.objectContaining({
+      to: state.email, attachments: [
+        expect.objectContaining({ filename: "um.pdf", content: Buffer.from("pdf1") }),
+        expect.objectContaining({ filename: "dois.pdf", content: Buffer.from("pdf2") }),
+      ],
     }));
     const history = await get();
     expect(history.body.history[0].status).toBe("accepted");
@@ -150,6 +183,22 @@ describe("entregas clínicas confirmadas (somente simulações)", () => {
     expect(state.mail).toHaveBeenCalledWith(expect.objectContaining({
       to: "pharmacy@example.invalid", attachments: [expect.objectContaining({ filename: "um.pdf" })],
     }));
+  });
+  it("não envia para cliente nem farmácia se a integridade da receita divergir", async () => {
+    state.badHash = true;
+    const clientResult = await post(body("email", state.email));
+    expect(clientResult.body.status).toBe("failed");
+    const pharmacyResult = await post({ ...body("email", "pharmacy@example.invalid"), pharmacyId: 8 });
+    expect(pharmacyResult.body.status).toBe("failed");
+    expect(state.mail).not.toHaveBeenCalled();
+    expect(state.motor).not.toHaveBeenCalled();
+  });
+  it("não reenvia receita histórica sem resumo de integridade", async () => {
+    state.missingHash = true;
+    const result = await post(body("email", state.email));
+    expect(result.body.status).toBe("failed");
+    expect(result.body.error).toContain("Integridade");
+    expect(state.mail).not.toHaveBeenCalled();
   });
   it("outro médico não regenera documento com identidade de emissor errada", async () => {
     state.issuer = 42;
@@ -164,7 +213,7 @@ describe("entregas clínicas confirmadas (somente simulações)", () => {
     expect(state.logs[0].status).toBe("failed");
   });
   it.each(["email", "telegram"])("não anuncia sucesso quando %s recusa", async channel => {
-    state.motor.mockResolvedValue({ emailSent: false, emailError: "recusado" });
+    state.mail.mockResolvedValue({ success: false, error: "recusado" });
     state.tg.mockResolvedValue({ sent: false, error: "chat inválido" });
     const result = await post(body(channel, channel === "email" ? state.email : "patient-chat"));
     expect(result.body.status).toBe("failed"); expect(result.body.accepted).toBe(false);

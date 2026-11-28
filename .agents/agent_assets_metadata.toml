@@ -648,3 +648,1151 @@ mtime_ms = 1793625053672
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/4b17288b-e6a7-424f-adcc-811d2366b32d/5e1207e6-3c79-4ec0-8fdd-1fd9fd892f63"
 storage_version_token = "1793625363086855"
 content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+[[outputs]]
+id = "C7xyOrg8HfUFGvMG6Ww8C"
+uri = "file://generated-artifacts/receituario-previa-sintetica/receituario-real-modelo-1.png"
+type = "image"
+title = "Prévia sintética — página 1"
+description = "Amostra visual sem validade clínica; não foi emitida para um cliente."
+logical_id = "d1b6c803-7e3b-4849-84c9-7803a9024044"
+content_hash = "sha256:d7640bf6d7578671408c8b78dc7bca611699a8eeda0287c628e697798f2a7326"
+size = 163033
+mtime_ms = 1794017985523
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/d1b6c803-7e3b-4849-84c9-7803a9024044/34fb8ae2-e5c1-4f19-9ade-d782ba0b3dab"
+storage_version_token = "1794018133563541"
+content_type = "image/png"
+
+[[outputs]]
+id = "8Ry2afH3HHxvAj7FDI0PJ"
+uri = "file://generated-artifacts/receituario-previa-sintetica/receituario-real-modelo-2.png"
+type = "image"
+title = "Prévia sintética — página 2"
+description = "Amostra visual sem validade clínica, sem certificado real e sem envio."
+logical_id = "3e874022-82f6-4c39-80fc-f63d24b5be7c"
+content_hash = "sha256:5c0e5403a5eea1dbc8f1deb8f81e2e101beee788d8cbeb3e2c4d7d64147c86da"
+size = 78855
+mtime_ms = 1794017985524
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/3e874022-82f6-4c39-80fc-f63d24b5be7c/9ca66635-2c5f-478d-a348-73031b2ffdcf"
+storage_version_token = "1794018134261214"
+content_type = "image/png"
+
+[[outputs]]
+id = "pQrNqT8K2rpo-j3OkIEos"
+uri = "file://generated-artifacts/demonstracao-documentos/Receita-demonstracao.png"
+type = "image"
+title = "Receita de demonstração — página 1"
+description = "Prévia visual, sem validade clínica."
+logical_id = "9700af9e-35b2-4ca1-9b11-c251f4c13cf1"
+content_hash = "sha256:9fcd549ec19df66655db3b6fae922318bb3262fa7313dd9cabc935192b413a93"
+size = 137138
+mtime_ms = 1794026388299
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9700af9e-35b2-4ca1-9b11-c251f4c13cf1/86f70999-b723-4e65-a7ef-f51584f401af"
+storage_version_token = "1794026419324865"
+content_type = "image/png"
+
+[[outputs]]
+id = "r-CmGWs7ZuoKc4MC9tkhF"
+uri = "file://generated-artifacts/demonstracao-documentos/Exames-demonstracao.png"
+type = "image"
+title = "Pedido de exames de demonstração — página 1"
+description = "Prévia visual, sem validade clínica."
+logical_id = "a8250a36-85a2-4c5a-878d-153a77d181cb"
+content_hash = "sha256:a230d940b08e41c0b9c4d491124cf5df1b9a07668da5d0bf6f364429dd5ebb7b"
+size = 90846
+mtime_ms = 1794026388599
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/a8250a36-85a2-4c5a-878d-153a77d181cb/ebdd48ee-c57c-4d03-bac1-91392e462b15"
+storage_version_token = "1794026420113173"
+content_type = "image/png"
+
+[[outputs]]
+id = "VDdxNAp32fBKYvDZ6Gxjg"
+uri = "file://generated-artifacts/modelo-3a1c/receita-demonstracao.png"
+type = "image"
+title = "Receita de demonstração"
+description = "Modelo 3A-1C com dados fictícios, sem validade clínica."
+logical_id = "00904953-126c-416f-badc-af6988b781d5"
+content_hash = "sha256:660d973caa12686c5308ff526ec381dc30041a752d95e97b230c8bc25688b641"
+size = 243880
+mtime_ms = 1794028184935
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/00904953-126c-416f-badc-af6988b781d5/fc9bef98-d351-45c5-be33-9766fdc6dc39"
+storage_version_token = "1794028219877107"
+content_type = "image/png"
+
+[[outputs]]
+id = "adychK8Y9xvmHObRfFaR1"
+uri = "file://generated-artifacts/modelo-3a1c/exames-demonstracao.png"
+type = "image"
+title = "Pedido de exames de demonstração"
+description = "Modelo 3A-1C com dados fictícios, sem validade clínica."
+logical_id = "90fd1742-286e-43d3-893e-55975d8ca74c"
+content_hash = "sha256:f1092ad36cf1cd9299d33bbdcd4eacbdc22fa9fd292c2c5669bfaca5d33c9c39"
+size = 182404
+mtime_ms = 1794028186279
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/90fd1742-286e-43d3-893e-55975d8ca74c/726dfed7-abda-48f0-b33c-cd92f6fc78e7"
+storage_version_token = "1794028220912306"
+content_type = "image/png"
+
+[[outputs]]
+id = "N70lVQBxsUXTCj5DY4k3V"
+uri = "file://attached_assets/conferencia-receita-sintetica.png"
+type = "image"
+title = "Receituário sintético — novo layout"
+description = "Paciente à esquerda, emitente à direita, contornos dourados, quadro de assinatura novo. Dados fictícios."
+logical_id = "d3936408-0e77-4c75-9487-95db47c19437"
+content_hash = "sha256:2f7b89c53039430578235cd5fca6e32020bbd4c1b39e27600192430b63b23bc1"
+size = 129189
+mtime_ms = 1794049215279
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/d3936408-0e77-4c75-9487-95db47c19437/f8db8a11-a6fa-41f5-83a0-3d0e78978239"
+storage_version_token = "1794049219750656"
+content_type = "image/png"
+
+[[outputs]]
+id = "paCqSVlRXrLdPMN2Pi4o8"
+uri = "file://attached_assets/conferencia-exames-sintetico.png"
+type = "image"
+title = "Pedido de exames sintético — novo quadro de assinatura"
+description = "Dados fictícios."
+logical_id = "620702f2-d989-430b-ad22-3172ba49b514"
+content_hash = "sha256:3179429ad1670f1e71b6853923516a7ccc676c5c3d8a048315bb6f0a04b6e967"
+size = 59517
+mtime_ms = 1794049215295
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/620702f2-d989-430b-ad22-3172ba49b514/73bac413-1f9f-41ce-a2af-43c0b96f11cf"
+storage_version_token = "1794049220374686"
+content_type = "image/png"
+
+[[outputs]]
+id = "CyociCDRVK6gWSCOKrqh0"
+uri = "file://generated-artifacts/paxmed-2b-prova-pagina-1.png"
+type = "image"
+title = "Pedido de exames — página 1"
+description = "Prova visual sintética; sem validade clínica e sem código de verificação."
+logical_id = "2640d639-3b9a-4ef5-a5d2-b68e89a90684"
+content_hash = "sha256:47e7150141dc2d81591a021885d7047fb168c85922561c4eac5010160c409891"
+size = 454278
+mtime_ms = 1794070685146
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/2640d639-3b9a-4ef5-a5d2-b68e89a90684/664bad15-abfa-474d-add3-5c2d08cc3465"
+storage_version_token = "1794071011428934"
+content_type = "image/png"
+
+[[outputs]]
+id = "-N_eRoGI8Jjcwi4rkFZ2h"
+uri = "file://generated-artifacts/paxmed-2b-prova-pagina-2.png"
+type = "image"
+title = "Pedido de exames — página 2"
+description = "Continuação da prova sintética; não é um documento clínico."
+logical_id = "7bf4ed5e-8e2e-48b8-a052-1efc46223910"
+content_hash = "sha256:e2440a72263a69a700825a374031fdb381c44117d904b60b24ab49224773e8b5"
+size = 405331
+mtime_ms = 1794070685658
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/7bf4ed5e-8e2e-48b8-a052-1efc46223910/a14988ca-2982-421d-a69f-05cf2e2545cf"
+storage_version_token = "1794071012295998"
+content_type = "image/png"
+
+[[outputs]]
+id = "SOCJrDamIU1B3Ln9zRadO"
+uri = "file://generated-artifacts/paxmed-2b-receita-pagina-1.png"
+type = "image"
+title = "Receita de teste — página 1"
+description = "Prova visual sintética de um gerador alternativo; sem assinatura."
+logical_id = "c04ee96e-2dd8-4e4f-9c7b-8c560d27daf7"
+content_hash = "sha256:6717a6ff9ac07f3ec00c99c2c7ff50f896c28ea8c72281ad3dfac5749f698223"
+size = 403048
+mtime_ms = 1794070798043
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/c04ee96e-2dd8-4e4f-9c7b-8c560d27daf7/171347fe-815a-42a3-b92e-b43b71cfc578"
+storage_version_token = "1794071013327839"
+content_type = "image/png"
+
+[[outputs]]
+id = "XLI8SiI8o8RP8jRBX8B62"
+uri = "file://generated-artifacts/paxmed-2b-receita-pagina-2.png"
+type = "image"
+title = "Receita de teste — página 2"
+description = "Continuação da prova sintética; sem assinatura."
+logical_id = "72f58fc3-ba1e-44ac-a13b-eabb803ae8c0"
+content_hash = "sha256:ed0b9e7d4327307469c892f1709f9f64b86e34f736fb5e58d3dfee9d12a4a02a"
+size = 353163
+mtime_ms = 1794070809743
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/72f58fc3-ba1e-44ac-a13b-eabb803ae8c0/42b2bcb2-48ad-4c7a-846a-815109c1683e"
+storage_version_token = "1794071014200060"
+content_type = "image/png"
+
+[[outputs]]
+id = "m4Xo-8qBJYWI8Eq6APHx2"
+uri = "file://generated-artifacts/paxmed-2b-prova-sintetica.pdf"
+type = "pdf"
+title = "Pedido de exames para impressão de teste"
+description = "Formato de documento portátil, duas páginas; conteúdo fictício, sem validade clínica."
+logical_id = "59077b76-19aa-480c-b85a-1da4fb429474"
+content_hash = "sha256:acf84fa36270809d74c163f5797499001421c3449b578a171705e2493f03dfd5"
+size = 1744013
+mtime_ms = 1794070683874
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/59077b76-19aa-480c-b85a-1da4fb429474/d40e4ef8-7edb-4b08-8236-139d89413f5a"
+storage_version_token = "1794071015268515"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "Oc679dpuRlBzMPIWe7J-H"
+uri = "file://generated-artifacts/paxmed-2b-receita-sintetica.pdf"
+type = "pdf"
+title = "Receita para impressão de teste"
+description = "Formato de documento portátil, duas páginas; conteúdo fictício, sem validade clínica."
+logical_id = "acc6f033-c974-48cf-aad9-0725a8c114bd"
+content_hash = "sha256:949077aba1f4d90dc1c9853d403cb6c820fbfc766933172cdef8ecf4d1955646"
+size = 1731456
+mtime_ms = 1794070797175
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/acc6f033-c974-48cf-aad9-0725a8c114bd/d18808ea-a654-42d1-885e-240d90d974a0"
+storage_version_token = "1794071016193536"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "5E5lV9BVZZIAaM64Ds-TZ"
+uri = "file://generated-artifacts/simbolo-instituto-ouro-comparacao.png"
+type = "image"
+title = "Prova do símbolo em dourado"
+description = "Imagem de teste baseada no símbolo isolado existente e na paleta do cabeçalho recebido; ainda não está cadastrada no menu."
+logical_id = "2a16dd1d-4396-4ddf-ad71-4e0b9bb59a28"
+content_hash = "sha256:1740821b35ddce338add5643f39fb0f1049791b7d4dde755f9d41b4dd8727cdb"
+size = 28263
+mtime_ms = 1794071523062
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/2a16dd1d-4396-4ddf-ad71-4e0b9bb59a28/930a509e-2373-4808-a490-042d6dd9b2b5"
+storage_version_token = "1794071586005917"
+content_type = "image/png"
+
+[[outputs]]
+id = "wuMQGsSo_gGQvlUpIwJ-V"
+uri = "file://generated-artifacts/paxmed-2b-tela-390.png"
+type = "image"
+title = "Personalização da clínica — prova em celular"
+description = "Tela de teste com dados fictícios; não representa a conta real nem um documento clínico."
+logical_id = "32d10830-f875-4ab0-9667-4a5b8c1b4d80"
+content_hash = "sha256:5df813f704291510d73b193a56b47f748b67524c8864aef802fc125bfc664a3b"
+size = 136714
+mtime_ms = 1794072440846
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/32d10830-f875-4ab0-9667-4a5b8c1b4d80/9b82b677-24fc-410d-9a7b-c68dff1c89f6"
+storage_version_token = "1794072491930706"
+content_type = "image/png"
+
+[[outputs]]
+id = "j1AjrZEC96MOHNJ1V0olf"
+uri = "file://generated-artifacts/prova-transformacao-preto-branco-colorido.png"
+type = "image"
+title = "Teste: símbolo preto, branco e colorido"
+description = "Entradas transparentes enviadas em teste isolado; os três resultados retornados têm a mesma forma e os mesmos tons de dourado."
+logical_id = "38ea1bea-70e4-47a6-8334-09cf6a52db5e"
+content_hash = "sha256:911e9a043761dfd60a46ab801a491100137b7be658d91ad62aed40d34bb259c8"
+size = 235457
+mtime_ms = 1794073043561
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/38ea1bea-70e4-47a6-8334-09cf6a52db5e/30e8f87f-13c6-4148-893a-face325286e8"
+storage_version_token = "1794073106903518"
+content_type = "image/png"
+
+[[outputs]]
+id = "_A7a3Db0ut0tsp-nlm3hI"
+uri = "file://generated-artifacts/prova-transformacao-tres-cores.png"
+type = "image"
+title = "Prova: preto, branco e duas cores"
+description = "As três entradas têm o mesmo desenho e fundo transparente. As saídas vieram do processo de salvamento e leitura em teste isolado."
+logical_id = "06187d09-87e5-46b8-916d-bb504df4b39c"
+content_hash = "sha256:3d0b9b937f517dd89d17356499877b7bea389ad4f7b1f5909d58ff2e8122f702"
+size = 236259
+mtime_ms = 1794073157641
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/06187d09-87e5-46b8-916d-bb504df4b39c/aad1d279-ad99-4532-9237-8e95796c05cc"
+storage_version_token = "1794073164531811"
+content_type = "image/png"
+
+[[outputs]]
+id = "0QCibbONV4a9k4TeqBIQn"
+uri = "file://generated-artifacts/paxmed-identidade-instituto-prova.pdf"
+type = "pdf"
+title = "Prévia de teste — identidade do Instituto Pádua"
+description = "Documento sintético, sem validade clínica e sem código de verificação. O acabamento visual do cabeçalho é aproximado."
+logical_id = "04b4caea-34eb-4586-9f46-5330866198ff"
+content_hash = "sha256:a208e3204ebc17bf22edda88e74f8c614d7831a411801af40f9a9e4698b730ab"
+size = 1171214
+mtime_ms = 1794074466209
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/04b4caea-34eb-4586-9f46-5330866198ff/ca665e10-6ed3-448a-843b-c276f1e02d5a"
+storage_version_token = "1794074494430119"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "YN0fi1GfhdIiV06U4PddW"
+uri = "file://generated-artifacts/paxmed-2b-clinicas-demonstracao.pdf"
+type = "pdf"
+title = "Prévia atualizada com Vila Formosa"
+description = "Documento de teste das dez clínicas ativas; o Instituto Pádua aparece na sexta página, com o bairro escolhido."
+logical_id = "59311273-8826-4594-9298-26de5b8b32ba"
+content_hash = "sha256:1892c89a17ada7f65f03984e660b6a27a6ab80b4196fbd10f5eb8221ac608ecb"
+size = 11573515
+mtime_ms = 1794078006621
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/59311273-8826-4594-9298-26de5b8b32ba/ae016628-9c2c-4de1-969f-2b440a17c38f"
+storage_version_token = "1794078017698544"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "G4VqpHWB-YM5_NiD68l2g"
+uri = "file://generated-artifacts/previa-visual-clinicas-leve.pdf"
+type = "pdf"
+title = "Prévia leve das dez clínicas"
+description = "Dez páginas de visualização em imagem, sem validade clínica; o Instituto Pádua está na sexta página."
+logical_id = "e28a02c0-45cd-4451-b37f-51f04ca97293"
+content_hash = "sha256:386068c11ddc5cc20519448cbfbdc6d4d18fa6637a00107dd99b65fb36e65713"
+size = 835120
+mtime_ms = 1794078163097
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/e28a02c0-45cd-4451-b37f-51f04ca97293/c3a535e5-fbc9-4d71-8f62-7798478e7096"
+storage_version_token = "1794078181052265"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "-HdDfUoKgCEI4YfMdB9hf"
+uri = "file://generated-artifacts/previa-instituto-padua-leve.jpg"
+type = "image"
+title = "Imagem do Instituto Pádua"
+description = "Alternativa em imagem para conferir a página do Instituto Pádua, sem validade clínica."
+logical_id = "7d970d59-8fd4-45ab-b4cf-b05fdd946f3b"
+content_hash = "sha256:b3f1d51eaf12ec4f3a2f388d061894048a7d23cf010f9bfc01de29f648f58f48"
+size = 78393
+mtime_ms = 1794078163228
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/7d970d59-8fd4-45ab-b4cf-b05fdd946f3b/eb741aad-ce7b-42bf-897a-bfedb169167d"
+storage_version_token = "1794078181961513"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "1A1_6Re5ApIOg03uFOBUf"
+uri = "file://generated-artifacts/simbolos-cadastrados-clinicas.png"
+type = "image"
+title = "Símbolos cadastrados nas clínicas"
+description = "Comparação visual das dez clínicas: nove símbolos fictícios novos e o símbolo preservado do Instituto Pádua."
+logical_id = "dfe8bee3-7015-4e8b-a8c6-fb3529080a2b"
+content_hash = "sha256:0c30864d5baa43988235fb893fd84579eaccc84874ce25d4658dfa4d7569b169"
+size = 668929
+mtime_ms = 1794078896472
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/dfe8bee3-7015-4e8b-a8c6-fb3529080a2b/2cd86763-95e5-4780-84c2-e33638e2ba3c"
+storage_version_token = "1794078976687336"
+content_type = "image/png"
+
+[[outputs]]
+id = "aXXuJz_2DSeemUwPqj1BI"
+uri = "file://generated-artifacts/novos-simbolos-previa-dez-clinicas.pdf"
+type = "pdf"
+title = "Prévia leve dos receituários"
+description = "Dez páginas de demonstração, em formato de imagem e sem validade clínica; inclui os novos símbolos e endereços cadastrados."
+logical_id = "7c0c3928-61bd-454a-9b7b-7d1ed4e7d953"
+content_hash = "sha256:5115afa06854b9e37cfa400d61225065ceb73b6fc58c740f702eb805a235cea6"
+size = 846223
+mtime_ms = 1794078899445
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/7c0c3928-61bd-454a-9b7b-7d1ed4e7d953/f2c1d149-7263-4c7b-a9bc-44e0639b87d2"
+storage_version_token = "1794078977719522"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "ZDLThdcI_13a_pF8fW_jq"
+uri = "file://generated-artifacts/paxmed-2b-empresa-1365.png"
+type = "image"
+title = "Prova da edição empresarial em teste"
+description = "Captura de teste automatizado com clínica e sessão simuladas; não demonstra acesso com sua conta nem uso em receituário clínico."
+logical_id = "6b349355-cbaa-492a-9cdb-6fae3a03995d"
+content_hash = "sha256:31a96325a4a0274c20925eb799dc8c3d2c167f13af38125b8117c7650879397b"
+size = 256778
+mtime_ms = 1794081515169
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/6b349355-cbaa-492a-9cdb-6fae3a03995d/8be0ce34-7f60-4ab4-9d9c-d1e3a7354121"
+storage_version_token = "1794081535175657"
+content_type = "image/png"
+
+[[outputs]]
+id = "MP5RKe5ZJH0lG2pNcn2r8"
+uri = "file://generated-artifacts/clinica-identidade-1365.png"
+type = "image"
+title = "Edição da clínica em computador"
+description = "Captura de teste com dados fictícios; não representa uma clínica real."
+logical_id = "b447d26e-fb26-4594-a470-fbafdf6356cb"
+content_hash = "sha256:77613c0d15414b0a59fe9c65a022316fc9dcf8aff86418c2ba037e1b640e204a"
+size = 233644
+mtime_ms = 1794083466001
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/b447d26e-fb26-4594-a470-fbafdf6356cb/2beacecd-3ed0-4ab1-a84c-9f426d358d59"
+storage_version_token = "1794083581180248"
+content_type = "image/png"
+
+[[outputs]]
+id = "RvgpQwFdwHzAr_fRKcx1b"
+uri = "file://generated-artifacts/clinica-identidade-390.png"
+type = "image"
+title = "Edição da clínica em celular"
+description = "Captura de teste com dados fictícios; a rolagem vertical ainda precisa ser eliminada."
+logical_id = "8d76292a-2d63-4090-bb52-07f9bafa6270"
+content_hash = "sha256:7818e4a408cc5c59368e6e2bc26397a42f9fdedf630945853480a1645e2185a4"
+size = 160721
+mtime_ms = 1794083478457
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/8d76292a-2d63-4090-bb52-07f9bafa6270/6d9a700f-8ff8-47b3-80a4-a3bb13520d14"
+storage_version_token = "1794083582003972"
+content_type = "image/png"
+
+[[outputs]]
+id = "cCZR0fOEd4_l0qYoK_N_K"
+uri = "file://generated-artifacts/plano-pendencias-paxter-08-11-2026.pdf"
+type = "pdf"
+title = "Plano de trabalho — o que falta fazer"
+description = "Documento de sete páginas com pendências, regras, validações e estimativas preliminares."
+logical_id = "99820308-3c08-4b39-88fa-924165e05e5e"
+content_hash = "sha256:45500ee1ec5def983b020cdf48bb99b9f017fcc01f1b1a579958269066fbfc64"
+size = 221447
+mtime_ms = 1794170191438
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/99820308-3c08-4b39-88fa-924165e05e5e/9fe9e735-b804-4a00-a86a-d0fedf818214"
+storage_version_token = "1794170203488978"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "FldCgAtSDvaeA2FPZp0NJ"
+uri = "file://generated-artifacts/provas/receituario-grand-finale-demonstracao.pdf"
+type = "pdf"
+title = "Prova visual do novo receituário"
+description = "Duas páginas com dados fictícios. Documento de teste sem validade clínica e sem assinatura digital."
+logical_id = "260ad4e4-697b-4e42-a40c-7e467120074f"
+content_hash = "sha256:a7d60e71d8231a1624dd19447e76f801eab361164b75cc39f77350107130140e"
+size = 2785424
+mtime_ms = 1794201288224
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/260ad4e4-697b-4e42-a40c-7e467120074f/c11ac874-0a18-4916-8a3d-ea96e0bd69b8"
+storage_version_token = "1794201296324634"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "xmlGlGXhBV6KDQB_WJdPP"
+uri = "file://generated-artifacts/provas/receituario-especial-demonstracao.pdf"
+type = "pdf"
+title = "Modelo de receituário especial"
+description = "Amostra visual com dados fictícios, sem validade clínica e sem assinatura digital."
+logical_id = "93d19d3e-f92b-4862-ad8f-4f478b98be11"
+content_hash = "sha256:3dcfa063a37422d1bd06de19f659f095459852a25c5e7b44d6c8512738fa0a01"
+size = 2771123
+mtime_ms = 1794201429908
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/93d19d3e-f92b-4862-ad8f-4f478b98be11/26b27fb2-fa7f-41bf-a0d3-7a02e2dc9ca7"
+storage_version_token = "1794201664426234"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "uewM0cj0b_oejFJiyf1UQ"
+uri = "file://generated-artifacts/provas/receituario-especial-ornamentado.pdf"
+type = "pdf"
+title = "Receituário especial com quadros ornamentados"
+description = "Amostra visual com quadros inferiores no padrão dos superiores. Dados fictícios, sem assinatura digital e sem validade clínica."
+logical_id = "97178b55-e701-4fe7-bd5e-3fdbd6b0fd03"
+content_hash = "sha256:42e9926f4affd380b096ff1221acd7c4f1c05eaca461e7bf554810bd6691108d"
+size = 2977756
+mtime_ms = 1794201934200
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/97178b55-e701-4fe7-bd5e-3fdbd6b0fd03/0e018d6d-b58c-4b54-8554-15c649d45465"
+storage_version_token = "1794202180138854"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "bbJAeGtWh2R2Qw5l0GLn0"
+uri = "file://generated-artifacts/provas/receituario-especial-instituto-padua.pdf"
+type = "pdf"
+title = "Receituário especial — Instituto Pádua"
+description = "Amostra visual com a marca oficial, faixa do certificado acima dos quadros e mais espaço para fórmulas. Dados fictícios; sem assinatura e sem validade clínica."
+logical_id = "9559fcbf-4817-4f7c-a899-c88430ec0282"
+content_hash = "sha256:99d0f692eb3e3d1647783b09f6a470c3f84163e5034d5f90039c20fa562d19f8"
+size = 3163752
+mtime_ms = 1794202738863
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9559fcbf-4817-4f7c-a899-c88430ec0282/f1a025d4-37ff-433c-8a01-b0705f47f4e9"
+storage_version_token = "1794202833091022"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "48q9eqSF0WrhxLK6vgeS9"
+uri = "file://generated-artifacts/ras-fap-k9-exemplo-sintetico.png"
+type = "image"
+title = "RAS FAP com a K9 ligada (dados de teste)"
+description = "Cliente e visitas fictícios. Linhas 1 a 4 mostram data efetiva, hora, rubrica, enfermeira e check por aplicação."
+logical_id = "66150d29-634e-472e-9053-5facc371b370"
+content_hash = "sha256:d4e93b6b230314bde0966882493969150c3c563de088ce25a8b42dc376ae0077"
+size = 160388
+mtime_ms = 1794269966227
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/66150d29-634e-472e-9053-5facc371b370/252800ec-4046-4f12-b221-6efd22e5a8ec"
+storage_version_token = "1794269970141768"
+content_type = "image/png"
+
+[[outputs]]
+id = "7_Qo1Y_yj8V4TiMr1qSWD"
+uri = "file://generated-artifacts/ras-rubrica-carlucia-recorte.png"
+type = "image"
+title = "RAS FAP com a rubrica da Carlúcia (recorte)"
+description = "Linhas 1 e 2: rubrica em imagem (a 2 com o aviso (cadastro)). Linha 3: sem imagem, iniciais. Linha 4: AGUARDANDO. Dados de visita sintéticos; a imagem é a gravada no cadastro."
+logical_id = "b091df84-8eb1-486d-acb7-cb58edc93f9f"
+content_hash = "sha256:e32af6e21cc118477cc10baf3ecd87e35eb8b65d6c2e11f73d65cec5d7649b63"
+size = 61374
+mtime_ms = 1794271097652
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/b091df84-8eb1-486d-acb7-cb58edc93f9f/0fb9c983-a7a0-4d40-a45c-d6561cf50d37"
+storage_version_token = "1794271520086178"
+content_type = "image/png"
+
+[[outputs]]
+id = "_L0TAvFGRiorZcLrQ-aaH"
+uri = "file://generated-artifacts/ras-rubrica-carlucia-prova.pdf"
+type = "pdf"
+title = "RAS FAP de prova (PDF)"
+description = "PDF completo com dados de visita sintéticos e a rubrica real lida do cadastro."
+logical_id = "75cdafd6-8cea-4876-91ea-6041dfad5ac7"
+content_hash = "sha256:dd120eeee1f2c2d437404fe2d03a374a737b6cb4e9f3431d3f28b50afc278e21"
+size = 14225
+mtime_ms = 1794271089836
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/75cdafd6-8cea-4876-91ea-6041dfad5ac7/f1bc98e6-f42e-4084-93a8-9ceca06c7dbf"
+storage_version_token = "1794271521436814"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "RdhzJFebI44k3-fP8sxae"
+uri = "file://generated-artifacts/rasp-exemplo-sintetico.pdf"
+type = "pdf"
+title = "Exemplo do RASP FAP"
+description = "Documento sintético para conferir o nome e a tipografia; não é um documento clínico."
+logical_id = "ff920dff-6c3f-4c68-90da-444d11b97357"
+content_hash = "sha256:ee008c63d99cc9844e4777a9be4d5245d0369b692b58a9369c4b3032aef265aa"
+size = 7408
+mtime_ms = 1794356426820
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/ff920dff-6c3f-4c68-90da-444d11b97357/940eda9b-38c3-4208-9b85-069644acdcc4"
+storage_version_token = "1794356427563279"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "azOMQar9lQHm8zpSAj8-e"
+uri = "file://generated-artifacts/clinica-vinculada-computador.png"
+type = "image"
+title = "Teste visual do cadastro do cliente"
+description = "Dados e respostas simulados; não comprova gravação no banco real."
+logical_id = "217237ae-b693-4f98-8775-6a459d01992b"
+content_hash = "sha256:f286fce6ff7c980fb4612c3a86e0407bcb13482bf20702e929fdfc1c251e1f0f"
+size = 385100
+mtime_ms = 1794403808669
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/217237ae-b693-4f98-8775-6a459d01992b/2ed8e0ca-14a5-4f4c-a6e4-8b2ca3dba777"
+storage_version_token = "1794403903110862"
+content_type = "image/png"
+
+[[outputs]]
+id = "yMVn_p0pP13Hllhn3i_p2"
+uri = "file://generated-artifacts/clinica-vinculada-celular.png"
+type = "image"
+title = "Teste visual do cadastro no celular"
+description = "Dados e respostas simulados; não comprova gravação no banco real."
+logical_id = "c8adc0dc-0180-456c-81cd-fedca8ea552c"
+content_hash = "sha256:c0eee688e8a91a9f101434baf53cfc3e9f7ba5f994933e5da7db9ffbc1f6de37"
+size = 147276
+mtime_ms = 1794403830917
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/c8adc0dc-0180-456c-81cd-fedca8ea552c/3a12b6b8-a9c3-42d8-a38f-678e4c00cfd4"
+storage_version_token = "1794403904031530"
+content_type = "image/png"
+
+[[outputs]]
+id = "_ZWURWtPCuJM2c5otnGBT"
+uri = "file://generated-artifacts/clinica-vinculada-profissional.png"
+type = "image"
+title = "Teste visual do cadastro profissional"
+description = "Dados e respostas simulados; não comprova gravação no banco real."
+logical_id = "fe56fd13-3cfe-4704-83f6-91e14d1dce8a"
+content_hash = "sha256:3e0e1fd3a5ba40761df7334a586460728a72a079483ce3058b86f014559f8960"
+size = 354499
+mtime_ms = 1794403887405
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/fe56fd13-3cfe-4704-83f6-91e14d1dce8a/a5191c41-9d82-4b43-8af5-aa58e4ac6113"
+storage_version_token = "1794403904794668"
+content_type = "image/png"
+
+[[outputs]]
+id = "_rqSDAmZxhjdY6SWVFcBl"
+uri = "file://screenshots/titulo-placa-coluna-estreita.jpg"
+type = "image"
+title = "Título da placa: coluna larga x coluna estreita"
+description = "Em cima, o título cabe em uma linha. Embaixo, com a coluna estreita, o título desce para a segunda linha e nada é cortado."
+logical_id = "9c81343d-73d4-4185-aaa9-5e79dbe4ad29"
+content_hash = "sha256:5efe86d99be521f84d0a6270688af8e3c4865645790dc0a202d2068779465831"
+size = 32103
+mtime_ms = 1794412898757
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9c81343d-73d4-4185-aaa9-5e79dbe4ad29/7dc8bcc6-41cf-405c-95e0-4d9fe6f959c8"
+storage_version_token = "1794412903263383"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "xeFW2gJFVX0KYY1qwO2kK"
+uri = "file://screenshots/janelas-novo.jpg"
+type = "image"
+title = "Janelas de Atendimento redesenhadas"
+description = "Prévia isolada da nova seção de janelas (dados fictícios)."
+logical_id = "9c00e11d-1fb4-41f2-bcbe-3d8781679c56"
+content_hash = "sha256:00684000eb46a6f061d8631bff7fc4457983f2c730e1f6356e02b6571e0f6798"
+size = 143585
+mtime_ms = 1794413993393
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9c00e11d-1fb4-41f2-bcbe-3d8781679c56/3859db43-692d-4e87-ae0d-5370d256d2c4"
+storage_version_token = "1794414005655378"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "CRZzY-2QuufaiuRww6ESx"
+uri = "file://generated-artifacts/comunicacao-autenticada.png"
+type = "image"
+title = "Dúvidas e Orientações com sessão real"
+description = "Verificação somente de leitura, sem alterações e sem envio de mensagens; a lista de clientes foi excluída da captura."
+logical_id = "33627cd1-4af7-44cf-b5a9-f178c47c6312"
+content_hash = "sha256:37d7198deaa33c3fb4fe1845dd98dca35b952fa37093850aaded1e0814e6296f"
+size = 704817
+mtime_ms = 1794672902560
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/33627cd1-4af7-44cf-b5a9-f178c47c6312/2b94eb24-c147-4088-809c-2c72492b7cb0"
+storage_version_token = "1794672973489932"
+content_type = "image/png"
+
+[[outputs]]
+id = "-33drs50Ba0EJBOA_fmku"
+uri = "file://generated-artifacts/cadastro-tipos-atendimento.png"
+type = "image"
+title = "Cadastro profissional — desktop"
+description = "Captura de teste com dados sintéticos: quatro formas e disponibilidade no mesmo bloco."
+logical_id = "f81fde74-ea02-4d14-b048-b185241dc48a"
+content_hash = "sha256:65cdbe9144a627616cf65d8824f290a86454fb0e42c823b60058064ef75e59de"
+size = 379696
+mtime_ms = 1794780395991
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/f81fde74-ea02-4d14-b048-b185241dc48a/b6e0d07d-67d1-4ab6-8528-d71e716fc20c"
+storage_version_token = "1794780597166252"
+content_type = "image/png"
+
+[[outputs]]
+id = "PvEtJyR6DOOYO_WGctzJv"
+uri = "file://generated-artifacts/cadastro-tipos-atendimento-mobile.png"
+type = "image"
+title = "Cadastro profissional — celular"
+description = "Captura de teste com dados sintéticos: as quatro formas e disponibilidade aparecem sem corte."
+logical_id = "9c1eeadf-b469-447b-88c4-888eefe525cc"
+content_hash = "sha256:f5b7904a53c4f108cf9c34c549589d0d59f3192f90e110bd43811a907494aaa6"
+size = 47933
+mtime_ms = 1794780411563
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9c1eeadf-b469-447b-88c4-888eefe525cc/423af266-02da-4096-99c6-af01a66c7137"
+storage_version_token = "1794780597871239"
+content_type = "image/png"
+
+[[outputs]]
+id = "bFhcMZpMzj0IfOJbWKuwj"
+uri = "file://docs/organograma-instituto-padua.html"
+type = "html"
+title = "Organograma Instituto Padua (versão 2.1)"
+description = "Clínica externa = cadastro dentro da sede, com CNPJ próprio, espaço sublocado."
+logical_id = "85f37893-824a-46f6-aca4-aff85219e09d"
+content_hash = "sha256:cfbc03dd32f2e68011876962bfaf5f2c91e8c45650530dea31231153f011c8d3"
+size = 3958
+mtime_ms = 1795022353340
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/85f37893-824a-46f6-aca4-aff85219e09d/3cab1659-ef1d-4b23-aa6e-a1f8a12f1319"
+storage_version_token = "1795022354817628"
+content_type = "text/html"
+
+[[outputs]]
+id = "0YxJi9cg975GIhrL5vZmP"
+uri = "file://docs/organograma-instituto-padua.pdf"
+type = "pdf"
+title = "Organograma Instituto Padua (PDF)"
+description = "Versão mais recente, com formas de atendimento, locais variáveis e clínicas externas."
+logical_id = "efd13399-7489-4ee9-9203-e187558ff8e7"
+content_hash = "sha256:3a1f01851a3d4beadca50bbbb736372a56e10b3a5a684dcdb2ddc1b323698df0"
+size = 57811
+mtime_ms = 1795022706391
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/efd13399-7489-4ee9-9203-e187558ff8e7/40a2add3-d92c-4cae-b4c2-9e9b12ba6cac"
+storage_version_token = "1795022710313141"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "a83S7bZ5GVAitnvPUFLV5"
+uri = "file://generated-artifacts/mobile-audit/relatorio-final.md"
+type = "text"
+title = "Relatório final da auditoria móvel do Padcon"
+description = "Cobertura das 151 rotas, teste das 12 abas do App do Cliente em cinco tamanhos e limites da homologação."
+logical_id = "4dd912d7-bf6e-4c6b-8dc9-f298350e6ebf"
+content_hash = "sha256:7a53cfee65e252c4f4a5c5805718fe3af83ba7765ea3bee834e006de793e4941"
+size = 4207
+mtime_ms = 1795141758476
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/4dd912d7-bf6e-4c6b-8dc9-f298350e6ebf/d2bd1a57-014d-4227-b206-4f9b77449993"
+storage_version_token = "1795141865438839"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "GhYssj0g5bQmP2MfMAS0F"
+uri = "file://generated-artifacts/Manual-Integrado-PAM.pdf"
+type = "pdf"
+title = "Manual de Funcionamento da Clínica integrado com o PAM"
+description = "Sete páginas: as seis páginas do manual e a página 7 com o fluxo do PAM no pedido de exame."
+logical_id = "fc337845-f725-4abd-8829-e0ce8a189e80"
+content_hash = "sha256:308fe6ab786e60d67ac2e7d8da2c8c63a8b3cf9bfe8dda48f654315223e5a0f8"
+size = 2463521
+mtime_ms = 1795207284659
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/fc337845-f725-4abd-8829-e0ce8a189e80/6a2aa387-b56c-46c0-b57b-0fc9e24cd470"
+storage_version_token = "1795207286967860"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "Yi4XFC1XMssGFYj5eZsEf"
+uri = "file://generated-artifacts/MFC-Manual-Completo.pdf"
+type = "pdf"
+title = "MFC - Manual completo (6 páginas)"
+description = "Arquivo do manual do Instituto Pádua, já cadastrado na biblioteca de anexos."
+logical_id = "7fb76501-e5dd-4997-97cf-f92a4be57def"
+content_hash = "sha256:3f2b4235a80404f5d5ab001b6b36626836f8e980ce150ec3934de63a62fe4714"
+size = 2371630
+mtime_ms = 1795208321427
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/7fb76501-e5dd-4997-97cf-f92a4be57def/bb2bf51f-067f-4547-9b40-2d6ce7defcad"
+storage_version_token = "1795208475103763"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "Ou08MLQDOeICxVDh-3O1F"
+uri = "file://generated-artifacts/MFC-PAM-Programa-de-Acompanhamento-Medico.pdf"
+type = "pdf"
+title = "MFC - PAM (2 páginas)"
+description = "Arquivo do manual do Instituto Pádua, já cadastrado na biblioteca de anexos."
+logical_id = "843c40e6-f4e9-4ebd-bbd5-d89e18bcae18"
+content_hash = "sha256:e51c130c7fb5384e62707104c68c62cc526aa9fde4328a3cd02764c23e727368"
+size = 500977
+mtime_ms = 1795208313707
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/843c40e6-f4e9-4ebd-bbd5-d89e18bcae18/a5b6c03b-57ab-4d6a-adda-f7a650d9cdae"
+storage_version_token = "1795208475914643"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "WGHHAd_WBgDwBdud0GPRY"
+uri = "file://generated-artifacts/MFC-Tirar-Duvidas.pdf"
+type = "pdf"
+title = "MFC - Tirar dúvidas (1 página)"
+description = "Arquivo do manual do Instituto Pádua, já cadastrado na biblioteca de anexos."
+logical_id = "a3eebdf9-b748-40ff-9a02-d8c4675e9deb"
+content_hash = "sha256:8349640cc5aeb40e336ab3ae3a2e01c4489b890f5a4c08ef2f8c4aaa5f3be2c0"
+size = 420644
+mtime_ms = 1795208338504
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/a3eebdf9-b748-40ff-9a02-d8c4675e9deb/3772eb1b-0b8b-436f-8fad-58e1731ce436"
+storage_version_token = "1795208476703915"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "ebHufAhOKyIxuSvsB8dQ6"
+uri = "file://generated-artifacts/auditoria-paxmed-2026-11-20.txt"
+type = "text"
+title = "Auditoria PaxMed: schema, 117 perguntas e lógica"
+description = "Somente leitura. Schema das tabelas, catálogo completo de perguntas e resumo de rotas."
+logical_id = "ca42480a-af8e-494f-b79e-e7e6d07dad59"
+content_hash = "sha256:d11cab6cce0ae10220bb3516b9dffe32f666c399bbfdd8fa22cf862f74826796"
+size = 61275
+mtime_ms = 1795215961966
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/ca42480a-af8e-494f-b79e-e7e6d07dad59/0b339cdf-2215-40b2-b3f9-df1bb29c7f13"
+storage_version_token = "1795215965151070"
+content_type = "text/plain"
+
+[[outputs]]
+id = "4Fb5UF3Tz6VTyyqCg7QdH"
+uri = "file://generated-artifacts/auditoria-parte1b-schema-restante.txt"
+type = "text"
+title = "Parte 1B: schema restante"
+description = "Somente leitura"
+logical_id = "ceff2c15-bb4c-464f-9b40-fd201636fe37"
+content_hash = "sha256:593e79c23aac41f1b3bee8a1156420a6c0643da6f87e053d9e034df943f54697"
+size = 19727
+mtime_ms = 1795217463060
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/ceff2c15-bb4c-464f-9b40-fd201636fe37/65fdd103-dca3-40e7-a840-88a32d08fd8d"
+storage_version_token = "1795217464952650"
+content_type = "text/plain"
+
+[[outputs]]
+id = "hxrLM4yIU7-K5CbHXvJ62"
+uri = "file://generated-artifacts/auditoria-parte2-catalogo-perguntas.txt"
+type = "text"
+title = "Parte 2: 117 perguntas e mapa do motor"
+description = "Somente leitura"
+logical_id = "c5a45a02-7435-4b1b-8a2c-0d0f42021743"
+content_hash = "sha256:ce3b64808eedb9670e1e3834dccad53a179c190ab6a1a8d3f63bf02ae98cceb5"
+size = 32564
+mtime_ms = 1795217463222
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/c5a45a02-7435-4b1b-8a2c-0d0f42021743/b49503e0-0cad-43aa-8c1d-99201735ebed"
+storage_version_token = "1795217465777422"
+content_type = "text/plain"
+
+[[outputs]]
+id = "Vm5FDHi3SdBcb2drkUCEz"
+uri = "file://generated-artifacts/auditoria-parte3-logica.txt"
+type = "text"
+title = "Parte 3: lógica de anamnese e exames"
+description = "Somente leitura"
+logical_id = "a5884bb5-fcdc-48e8-8257-8fce2d1e1e46"
+content_hash = "sha256:1d3f218128093d8aa943cdb2285cd92c46168b676d317821d488a67867a07cf6"
+size = 2417
+mtime_ms = 1795217463227
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/a5884bb5-fcdc-48e8-8257-8fce2d1e1e46/fa80ffdc-70b4-4369-b204-19ab7c0816d7"
+storage_version_token = "1795217466417501"
+content_type = "text/plain"
+
+[[outputs]]
+id = "D4hDUltwOdkp3ghUBFsVH"
+uri = "file://generated-artifacts/auditoria-parte2b-linhas-42-a-117.txt"
+type = "text"
+title = "Parte 2B: 76 perguntas restantes (texto bruto completo)"
+description = "Linhas 42 a 117 do catálogo, com opções em JSON exato"
+logical_id = "903a479a-3a96-4374-904f-a904d56f7547"
+content_hash = "sha256:36e64333829df6a11bb331aa954b941060ec99bac29bf327c93dcb89dee34459"
+size = 18646
+mtime_ms = 1795217661802
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/903a479a-3a96-4374-904f-a904d56f7547/8cbefff9-a05b-43fe-94ff-e4378abe1ddd"
+storage_version_token = "1795217662915812"
+content_type = "text/plain"
+
+[[outputs]]
+id = "sMfL_dISfBKZPDCJQp5w7"
+uri = "file://generated-artifacts/auditoria-parte2c-ultimas-45.txt"
+type = "text"
+title = "Parte 2C corrigida: de id 111 até o final (42 linhas)"
+description = "Substitui o cartão anterior, que começava em id 108"
+logical_id = "854c7f3f-dc63-49c3-80fa-1be104041bc1"
+content_hash = "sha256:f3da16ef2cda0c54f2f62820bff3e5c7645122393903bf779d0d0d99ee3cf45b"
+size = 10486
+mtime_ms = 1795217743363
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/854c7f3f-dc63-49c3-80fa-1be104041bc1/58aa9e9b-29be-4f53-a481-1aa1efaef946"
+storage_version_token = "1795217745653809"
+content_type = "text/plain"
+
+[[outputs]]
+id = "g7ZEUBr2GTxOiglpMi6mA"
+uri = "file://.agents/skills/paxter-loop/CODIGO-PAXTER.md"
+type = "text"
+title = "Bíblia — Código Paxter"
+description = "Regras do projeto (Código Penal)."
+logical_id = "2476e870-05e1-4184-b169-1bb44955c210"
+content_hash = "sha256:742079026ff6f74822d38bad6384b3506c9e22e4a2542849fc572f9059673ffe"
+size = 47926
+mtime_ms = 1794178898672
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/2476e870-05e1-4184-b169-1bb44955c210/70d59274-0d29-4ecf-9521-2d67533cdce3"
+storage_version_token = "1795273871238945"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "po2XZTH3zAL_yDxKPP5kf"
+uri = "file://.agents/COMUNICACAO-DR-CAIO.md"
+type = "text"
+title = "Regras de comunicação com o Dr. Caio"
+description = "Lidas no início de toda demanda."
+logical_id = "946a7e8d-1bdd-4afe-94e9-84fdf561c0b8"
+content_hash = "sha256:e62c3be87c02e4a0b188c32be268f3964106af3c62f967ce75e1f431d4d384fd"
+size = 1009
+mtime_ms = 1795273870076
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/946a7e8d-1bdd-4afe-94e9-84fdf561c0b8/469a891f-f013-48de-ae6c-475401d3038b"
+storage_version_token = "1795273871837772"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "iWdzbtEbltDrE2FKTKLtW"
+uri = "file://tmp_shots/painel2.png"
+type = "image"
+title = "Painel de encaminhamento (receita da Carlúcia, celular)"
+description = "Canais, abrir PDF e guardar no Drive"
+logical_id = "c51472e1-d5df-4743-90f6-45012d40512d"
+content_hash = "sha256:0c7a629d6053e66cd38ed883e7fdf61f54abc0c232cca94b96b02e4308a63401"
+size = 101951
+mtime_ms = 1795354190289
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/c51472e1-d5df-4743-90f6-45012d40512d/9e646d05-3792-4716-9e28-51fc0d2b24de"
+storage_version_token = "1795354198510862"
+content_type = "image/png"
+
+[[outputs]]
+id = "By2xdBTJ3b-Yx49pbHwXI"
+uri = "file://generated-artifacts/whatsapp-supervisao/parametros-desktop.jpg"
+type = "image"
+title = "Parâmetros editáveis no computador"
+description = "Tela autenticada com os valores salvos; não representa envio ou entrega de mensagens."
+logical_id = "5fefd430-9081-49bf-bc6e-37994d86ead4"
+content_hash = "sha256:01def7a0c0b1209a33aa0e6705eec2182d3b5663051bec6bb6dd3a8e19a73bcd"
+size = 72267
+mtime_ms = 1795387822565
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/5fefd430-9081-49bf-bc6e-37994d86ead4/c85e083b-c1da-4f63-822a-04c0a3d4057f"
+storage_version_token = "1795388414282666"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "_57Pc9gljXS8RXeY9W9Kl"
+uri = "file://generated-artifacts/whatsapp-supervisao/parametros-celular.jpg"
+type = "image"
+title = "Parâmetros editáveis no celular"
+description = "Conferência da mesma configuração em tela de 390 pixels, sem dados clínicos."
+logical_id = "6195ff2b-503d-4d53-b86c-6563e1850a4d"
+content_hash = "sha256:0f72acc90d7a40098d4f6a85fc73a822d1faa0e98ec6007b78a4b736430a7f26"
+size = 52084
+mtime_ms = 1795387839441
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/6195ff2b-503d-4d53-b86c-6563e1850a4d/6297d1a9-57f6-4562-86e6-a5ab5ded70c3"
+storage_version_token = "1795388415116442"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "CFRloSiAKliotV4DCiM4a"
+uri = "file://generated-artifacts/auditoria-catalogo-exames.md"
+type = "text"
+title = "Auditoria do catálogo de exames (Markdown)"
+description = "280 exames, números, achados e sugestões, para outra IA auditar."
+logical_id = "cad11dce-40f6-418c-bee2-7e551b340706"
+content_hash = "sha256:c08eb831fd8834d7cfc6521eb1044508757f2adabd264aade771a5bf99753a40"
+size = 65696
+mtime_ms = 1795465099654
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/cad11dce-40f6-418c-bee2-7e551b340706/93c6f6ad-5dbc-421b-8828-863877089443"
+storage_version_token = "1795465103258549"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "tVyf8-xtJD75f98f5sBWM"
+uri = "file://generated-artifacts/catalogo-exames.csv"
+type = "table"
+title = "Catálogo de exames (planilha CSV)"
+description = "Todas as linhas e colunas do catálogo."
+logical_id = "d94113bd-f33a-4a26-b443-c432e0b542d6"
+content_hash = "sha256:7c7ea9eea8ac358f7bb5b1486cd71a9290cb57f08254872be57a87444b5a8903"
+size = 59501
+mtime_ms = 1795465099659
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/d94113bd-f33a-4a26-b443-c432e0b542d6/d3057f51-bde6-4829-a4e9-d531c80781bc"
+storage_version_token = "1795465103928377"
+content_type = "text/csv"
+
+[[outputs]]
+id = "Sef61LcjqET4l3h9gEEP3"
+uri = "file://generated-artifacts/catalogo-exames.json"
+type = "unspecified"
+title = "Catálogo de exames (JSON)"
+description = "Mesmos dados em formato para IA e programas."
+logical_id = "f86d9d31-3c5f-44f9-ae6a-9acd302b7fcb"
+content_hash = "sha256:1f8dd4c6f6463c643adf66c9f6554ade21b529a725cf373a31ee7886b318d4ed"
+size = 169781
+mtime_ms = 1795465099315
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/f86d9d31-3c5f-44f9-ae6a-9acd302b7fcb/d0ac41ec-69f6-4e7c-981e-dbd0c58dd2ab"
+storage_version_token = "1795465104580939"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "mWkYi84ziJZ1LsE373nZE"
+uri = "file://generated-artifacts/extracao-cerebro/anamnese-perguntas.csv"
+type = "table"
+title = "Anamnese: 173 perguntas"
+description = "Anamnese: 173 perguntas"
+logical_id = "b1d6ddf6-e3b3-4857-a10d-7da69ede97d3"
+content_hash = "sha256:744571c05afe61743dbca22b684398ec87a877229f7e4606929cb7fa60f03afc"
+size = 76259
+mtime_ms = 1795473771555
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/b1d6ddf6-e3b3-4857-a10d-7da69ede97d3/208a5666-d89f-4277-bf4f-221029e5b0ba"
+storage_version_token = "1795473778492747"
+content_type = "text/csv"
+
+[[outputs]]
+id = "9DdGM_O1XofDwz5VauscS"
+uri = "file://generated-artifacts/extracao-cerebro/exames-280.csv"
+type = "table"
+title = "280 exames com vínculos de bloco e grade"
+description = "280 exames com vínculos de bloco e grade"
+logical_id = "6ee7ad23-6186-40f3-b461-f3cf1df505a2"
+content_hash = "sha256:329f8750114c841e2378e138498218acd1aee6d98ee928326e61e9d145397ca7"
+size = 52989
+mtime_ms = 1795473771655
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/6ee7ad23-6186-40f3-b461-f3cf1df505a2/1a2412a6-dfeb-43eb-b8ca-69c90debdb50"
+storage_version_token = "1795473779105580"
+content_type = "text/csv"
+
+[[outputs]]
+id = "44PNLS_byslWnBr88GI2o"
+uri = "file://generated-artifacts/extracao-cerebro/blocos-grades-vinculos.csv"
+type = "table"
+title = "409 vínculos bloco/grade"
+description = "409 vínculos bloco/grade"
+logical_id = "6d0439aa-35c9-4a1b-8716-d804f1011d56"
+content_hash = "sha256:2828ec560421feab496126ed0231be26e7e1b25d9a6e1abb8ba01835f732925b"
+size = 25899
+mtime_ms = 1795473771699
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/6d0439aa-35c9-4a1b-8716-d804f1011d56/8324d5de-9367-44f8-9f62-d35f4128d841"
+storage_version_token = "1795473779830710"
+content_type = "text/csv"
+
+[[outputs]]
+id = "FlnVspJrAmmbnlHCnv38O"
+uri = "file://generated-artifacts/extracao-cerebro/CODIGO-motor-anamnese.ts.txt"
+type = "text"
+title = "Código do motor clínico"
+description = "Código do motor clínico"
+logical_id = "1ebb4f69-1271-4e65-b558-84b311acc727"
+content_hash = "sha256:2d30a8c08b8dd6a906e8438787aaa637a2fee598a1323ea0053a56e8f302eb37"
+size = 10255
+mtime_ms = 1795473771879
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/1ebb4f69-1271-4e65-b558-84b311acc727/b22123c1-403b-4ec9-b128-c41b357b96bf"
+storage_version_token = "1795473780356332"
+content_type = "text/plain"
+
+[[outputs]]
+id = "CXH36nvpirRrQgYojTmIu"
+uri = "file://generated-artifacts/extracao-cerebro/CODIGO-anamnese-motor-ponte.ts.txt"
+type = "text"
+title = "Ponte Anamnese V2 para o motor"
+description = "Ponte Anamnese V2 para o motor"
+logical_id = "786c716b-1e9c-48d0-aa10-5300d4ef00bf"
+content_hash = "sha256:824c59fbc62e6465e327af3171632825eb40fec1795c32ab7d22908235890e7f"
+size = 6133
+mtime_ms = 1795473771891
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/786c716b-1e9c-48d0-aa10-5300d4ef00bf/754ca69d-2d7e-4314-9f8c-9c37ff217934"
+storage_version_token = "1795473780828227"
+content_type = "text/plain"
+
+[[outputs]]
+id = "Gx6NX5VzdhVVvg4Gz0Eyx"
+uri = "file://generated-artifacts/extracao-cerebro/ligacoes-pergunta-sintoma.csv"
+type = "table"
+title = "31 ligações pergunta e sintoma"
+description = "31 ligações pergunta e sintoma"
+logical_id = "77b3776d-f6da-4aa3-81d7-bf04d8104044"
+content_hash = "sha256:20e250d0acc3cc60aaffe915bd70af311511f5aefeb23977241f4bd6b0659c60"
+size = 1431
+mtime_ms = 1795473771739
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/77b3776d-f6da-4aa3-81d7-bf04d8104044/a09c1076-1b51-4865-9f50-e81bc545bc16"
+storage_version_token = "1795473781323652"
+content_type = "text/csv"
+
+[[outputs]]
+id = "P-m8HJCGqnNdDhLV7N-XA"
+uri = "file://generated-artifacts/extracao-cerebro/ligacoes-pergunta-doenca.csv"
+type = "table"
+title = "6 ligações pergunta e doença"
+description = "6 ligações pergunta e doença"
+logical_id = "b2ade0e8-b222-42f2-80ba-7a9a67bd2302"
+content_hash = "sha256:83fd73693cc0ed68100eaf5aab1dab38adf75e11cc2deec389b01f6f1d7f3db8"
+size = 309
+mtime_ms = 1795473771779
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/b2ade0e8-b222-42f2-80ba-7a9a67bd2302/99862759-1382-4cf0-b8e8-d9f7a7b8b772"
+storage_version_token = "1795473781776097"
+content_type = "text/csv"
+
+[[outputs]]
+id = "bXQ2XKkKK6V4PRN-p38-j"
+uri = "file://generated-artifacts/extracao-cerebro/doencas-bloco-motor.csv"
+type = "table"
+title = "58 doenças e bloco motor"
+description = "58 doenças e bloco motor"
+logical_id = "c8ecee49-eaeb-448e-b7b1-d3a0786f8338"
+content_hash = "sha256:68f9926c1c79039d7914e5d7a4f13d71de18c2f448c1a96869b47229d77cac9e"
+size = 1898
+mtime_ms = 1795473771819
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/c8ecee49-eaeb-448e-b7b1-d3a0786f8338/b0ca8731-ee48-496a-aebc-cf4139fb871e"
+storage_version_token = "1795473782243485"
+content_type = "text/csv"
+
+[[outputs]]
+id = "Xs8N0zO8w2BO0MLocyx8k"
+uri = "file://generated-artifacts/extracao-cerebro/sintomas.csv"
+type = "table"
+title = "41 sintomas oficiais"
+description = "41 sintomas oficiais"
+logical_id = "a11a9824-8a0d-44d5-b974-b9009f02a913"
+content_hash = "sha256:79346f21ce44da2f16f41eab20b8858bcff71e1530cf990a3c3afddd0b4778b1"
+size = 1375
+mtime_ms = 1795473771859
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/a11a9824-8a0d-44d5-b974-b9009f02a913/e306f07b-d302-418b-8551-a79b690aa040"
+storage_version_token = "1795473782706756"
+content_type = "text/csv"
+
+[[outputs]]
+id = "8gQX1Bfz2LORvlej-vpfh"
+uri = "file://generated-artifacts/extracao-cerebro/CODIGO-motor-anamnese.csv"
+type = "table"
+title = "Código do motor (planilha, com Exportar)"
+description = "Código do motor clínico, uma linha por linha de código"
+logical_id = "e63afdc1-2bc7-4d83-be75-dd21df7edb06"
+content_hash = "sha256:bd968440fd597c56448454adda6ff5b69bee13e5897561f603d30c853ac9cd6b"
+size = 11609
+mtime_ms = 1795474650940
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/e63afdc1-2bc7-4d83-be75-dd21df7edb06/725a30ea-dca9-4825-9d56-8dab8e874583"
+storage_version_token = "1795474652433559"
+content_type = "text/csv"
+
+[[outputs]]
+id = "qlilEdwQTSonhMmjcLav1"
+uri = "file://generated-artifacts/extracao-cerebro/CODIGO-anamnese-motor-ponte.csv"
+type = "table"
+title = "Código da ponte Anamnese para motor (planilha)"
+description = "Ponte da Anamnese V2 para o motor"
+logical_id = "cbf6cb93-8c1a-4a1f-b177-a592457aadc2"
+content_hash = "sha256:b586c5196390e2b0b4394bf60d74ef3d04c1921bc618e808f961447b13ddeabf"
+size = 6651
+mtime_ms = 1795474650945
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/cbf6cb93-8c1a-4a1f-b177-a592457aadc2/9a01ff45-bb9e-409b-a32f-c9b4c49b0b97"
+storage_version_token = "1795474652960289"
+content_type = "text/csv"
+
+[[outputs]]
+id = "Y_qGq4xh1wU95iMuWgHGW"
+uri = "file://generated-artifacts/extracao-cerebro/extracao-cerebro-completa.zip"
+type = "unspecified"
+title = "Pacote completo para o Gemini (ZIP)"
+description = "Todos os arquivos da extração em um só download"
+logical_id = "cf76d967-6eab-4163-b7be-abeacd5f7d5c"
+content_hash = "sha256:beb5408fd526224c7608c812ea032e9aa8d71ab704e2e126c8a00275a180c263"
+size = 35968
+mtime_ms = 1795474651228
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/cf76d967-6eab-4163-b7be-abeacd5f7d5c/f166e303-01a9-481d-bbf6-bc3d4b056893"
+storage_version_token = "1795474653413057"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "rOMJAwacGxa-ITvY9Pdkd"
+uri = "file://paxter-codigo-completo.zip"
+type = "unspecified"
+title = "paxter-codigo-completo.zip"
+description = "Código-fonte completo para auditoria externa"
+logical_id = "3c88b60e-add4-43b4-8fdb-7a3581b3031b"
+content_hash = "sha256:ad1ee8fa507991943f93a516cfd55b41f294d558c9857079bef1d076f4d15d8f"
+size = 18124388
+mtime_ms = 1795475452223
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/3c88b60e-add4-43b4-8fdb-7a3581b3031b/5e65def0-afdc-448a-943c-dee73c605c65"
+storage_version_token = "1795475476838512"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Qyym8545VuXPLdd5Jia1R"
+uri = "file://generated-artifacts/subsidio-auditoria-exames/subsidio-auditoria-exames.zip"
+type = "unspecified"
+title = "Subsídios 1, 2 e 3 para auditoria (ZIP)"
+description = "Código da tela, gaveta, blocos, rotas e resultado do SQL"
+logical_id = "acb906c9-6694-4e4b-bffe-d7e89171aca8"
+content_hash = "sha256:f8b2619fe36dbd5e3608fe2723aeba5350b540afc32c88f5e0b1f10f11346e13"
+size = 36447
+mtime_ms = 1795478738293
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/acb906c9-6694-4e4b-bffe-d7e89171aca8/ea84ee89-eeb6-4ae7-a6e5-1ca7371e2708"
+storage_version_token = "1795478742727899"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "5l6RGW2ExZrraBOUgHnqO"
+uri = "file://generated-artifacts/subsidio-auditoria-exames/SQL-auditoria-resultado.md"
+type = "text"
+title = "Subsídio 2: resultado da auditoria SQL"
+description = "Completude, duplicados e opções"
+logical_id = "860af9d2-f348-48b9-94b6-b7898a87472f"
+content_hash = "sha256:ac27509f88a62af769eb0802fbbe1897940d354594cad10d1ade57705b3888d2"
+size = 1388
+mtime_ms = 1795478737809
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/860af9d2-f348-48b9-94b6-b7898a87472f/25a0a14f-4750-495a-80d0-03b63c9525fc"
+storage_version_token = "1795478743219230"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "v6vXraZUjGxHg-ExIcLvi"
+uri = "file://generated-artifacts/ras-fap-real/apos-recarregar.png"
+type = "image"
+title = "Histórico preservado após recarregar"
+description = "Captura real do botão e da data de último reenvio, após recarregar a página autenticada."
+logical_id = "9bca1bfb-e83e-4b73-80d2-ae6da90febb8"
+content_hash = "sha256:dc4dcc6967f8bb325c959ac0bc3b7153d71ecd9ea0c7414f48794f1ae922e387"
+size = 8930
+mtime_ms = 1795527113543
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9bca1bfb-e83e-4b73-80d2-ae6da90febb8/3b437ef3-c1a6-47c4-965b-600eb49c4f4a"
+storage_version_token = "1795527203114527"
+content_type = "image/png"
+
+[[outputs]]
+id = "rXZU-v0sArogjKlg0dK5r"
+uri = "file://generated-artifacts/logotipo-paxmed-codigo.zip"
+type = "unspecified"
+title = "Código do logotipo PAXMED (zip)"
+description = "11 arquivos do logotipo: componentes, estilos e animações do raio."
+logical_id = "a3f5b15c-850e-4ed3-8f87-259f903ddfbe"
+content_hash = "sha256:21d578c8ee52e8399ad4e4218008a936ee929a0dbdc65d7a6a276755601e2492"
+size = 24453
+mtime_ms = 1795586334074
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/a3f5b15c-850e-4ed3-8f87-259f903ddfbe/3f61ecf0-ec17-445d-a16d-63973dc3343e"
+storage_version_token = "1795586337504865"
+content_type = "application/octet-stream"

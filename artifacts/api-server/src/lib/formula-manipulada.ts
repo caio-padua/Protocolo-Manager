@@ -20,11 +20,11 @@ import { db, catalogoFormulasTable, itemDoencaTable, perguntaDoencaTable, anamne
 import { eq, inArray } from "drizzle-orm";
 import { gatilhoBate } from "./motor-anamnese";
 import { MAPA_PERIODO, type ItemLembretePrescricao, type PeriodoAntigo } from "./lembrete-periodo";
-import { parsePosologia, semAcento, VIA_LABEL } from "@workspace/posologia";
+import { semAcento } from "@workspace/posologia";
+import { interpretarSubstancia, colarUnidades, limparTextoMensagem } from "./dose-substancia";
+import { linhaPosologia, periodoDaPosologia} from "./posologia-lembrete";
 
 const UNIDADES = /\b(mg|mcg|g|ml|ui|kg|l)\b/gi;
-// Dose numérica de uma substância: número (com vírgula/ponto) + unidade (mg/mcg/g/ml/ui/kg/l).
-const DOSE_SUBSTANCIA = /(\d+(?:[.,]\d+)?)\s*(mg|mcg|g|ml|ui|kg|l)\b/i;
 const STOPWORDS = new Set(["de", "do", "da", "dos", "das", "e", "ou", "com", "no", "na", "para", "ao", "à", "em", "por"]);
 
 // Nome/ativo do catálogo (TODO-MAIÚSCULO) em Title Case legível: cada palavra
@@ -46,74 +46,16 @@ function sentenca(txt: string): string {
   return cap.replace(UNIDADES, (u) => u.toLowerCase());
 }
 
-// SUBS 01 cru ("MAGNESIO 200 MG") -> ativo principal { nome: "Magnésio", dose: "200 mg" }.
-// Sem número reconhecível, devolve só o nome (sem dose).
-function ativoPrincipalDeSubs(subsRaw: string): { nome: string; dose?: string } {
-  const m = subsRaw.match(DOSE_SUBSTANCIA);
-  let dose: string | undefined;
-  let resto = subsRaw;
-  if (m) {
-    const numero = m[1].replace(".", ","); // vírgula decimal (Brasil)
-    dose = `${numero} ${m[2].toLowerCase()}`;
-    resto = subsRaw.replace(m[0], " ");
-  }
-  return { nome: titulo(resto), dose };
-}
-
-// Deriva o período canônico do dia de UMA posologia (9 períodos do cânone
-// `periodos_dia`, herdado do IHE — ordem do CEO em 09/07/2026): jejum -> JE,
-// café/manhã -> IM, almoço -> AL, tarde -> IT, jantar/noite/treino -> NO,
-// deitar/dormir -> FN, ceia -> CE. Sem pista, devolve undefined.
-function periodoDaPosologia(poso: string): PeriodoAntigo | undefined {
-  const t = poso.toLowerCase();
-  if (/(jejum|acordar)/.test(t)) return "jejum";
-  if (/(caf[eé]|desjejum|manh[aã])/.test(t)) return "manha";
-  if (/(almo[cç]o|meio-?dia)/.test(t)) return "almoco";
-  if (/tarde/.test(t)) return "tarde";
-  if (/ceia/.test(t)) return "ceia";
-  if (/(deitar|dormir)/.test(t)) return "final_noite";
-  if (/(jantar|noite|treino)/.test(t)) return "noite";
-  return undefined;
-}
-
-// Frase da refeição/momento a partir do texto cru da posologia (para a linha visível).
-// SEM acento (regra do CEO, 09/07/2026: tudo sem acento para não dar erro).
-function refeicaoDaPosologia(poso: string): string | undefined {
-  const t = poso.toLowerCase();
-  if (/jejum/.test(t)) return "em jejum";
-  if (/(caf[eé]|desjejum|acordar)/.test(t)) return "no cafe da manha";
-  if (/(almo[cç]o|meio-?dia)/.test(t)) return "no almoco";
-  if (/jantar/.test(t)) return "no jantar";
-  if (/ceia/.test(t)) return "na ceia";
-  if (/treino/.test(t)) return "no treino";
-  if (/(deitar|dormir)/.test(t)) return "antes de dormir";
-  if (/manh[aã]/.test(t)) return "pela manha";
-  if (/tarde/.test(t)) return "a tarde";
-  if (/noite/.test(t)) return "a noite";
-  return undefined;
+// SUBS cru ("MAGNESIO 200 MG") -> { nome: "Magnesio", dose: "200mg" } pela leitura
+// determinística (dose-substancia.ts). Dúvida = `alerta` (o lembrete não é enviado).
+function ativoPrincipalDeSubs(subsRaw: string): { nome: string; dose?: string; alerta?: string } {
+  const r = interpretarSubstancia(subsRaw);
+  return { nome: titulo(r.nomeBruto), dose: r.dose, alerta: r.alerta };
 }
 
 // "07:00" -> "07h00". Hora do período (para a linha "Horário:" do template do IHE).
 function horaFormatada(inicio: string): string {
   return inicio.replace(":", "h");
-}
-
-// Compõe a linha de posologia (Opção B): "1 dose, via oral, no almoço".
-// Quantidade vem do parser clonado do IHE; a forma é sempre "dose" (regra do CEO:
-// nunca "cápsula/sachê"); a via vem do slot VIA; a refeição vem do texto do POSO.
-function linhaPosologia(poso: string, viaRaw: string): string {
-  const p = parsePosologia(poso);
-  const qtd = p.quantidade ?? 1;
-  const unidade = qtd === 1 ? "dose" : "doses";
-  const partes: string[] = [`${qtd} ${unidade}`];
-
-  const via = parsePosologia(viaRaw).via ?? p.via;
-  if (via) partes.push(VIA_LABEL[via]);
-
-  const refeicao = refeicaoDaPosologia(poso);
-  if (refeicao) partes.push(refeicao);
-
-  return partes.join(", ");
 }
 
 // Compõe os itens de lembrete ricos de UMA fórmula: UM item por período em que ela é
@@ -133,6 +75,8 @@ export async function enriquecerItemFormula(
 
   let tituloFormula = "";
   let subs01 = "";
+  let totalSubs = 0;
+  const subsExtras: { ordem: number; raw: string }[] = [];
   let via = "";
   let apresentacao = ""; // lido mas IGNORADO (nunca vira dose)
   const posologias: string[] = [];
@@ -143,7 +87,11 @@ export async function enriquecerItemFormula(
     const val = (l.conteudo ?? "").trim();
     if (!val) continue;
     if (id === "TITL") tituloFormula = val;
-    else if (id === "SUBS01" && !subs01) subs01 = val; // só o principal
+    else if (id === "SUBS01" && !subs01) { subs01 = val; totalSubs += 1; }
+    else if (/^SUBS\d\d$/.test(id)) {
+      totalSubs += 1; // conta todas; só as 3 primeiras aparecem
+      if (/^SUBS0[2-3]$/.test(id)) subsExtras.push({ ordem: Number(id.slice(4)), raw: val });
+    }
     else if (id === "VIA") via = val;
     else if (id === "APRE") apresentacao = val;
     else if (id.startsWith("POSO")) posologias.push(val);
@@ -151,23 +99,45 @@ export async function enriquecerItemFormula(
   }
   void apresentacao;
 
-  const nome = tituloFormula ? titulo(tituloFormula) : itemNome?.trim() || itemRef;
+  const nome = colarUnidades(limparTextoMensagem(tituloFormula ? titulo(tituloFormula) : itemNome?.trim() || itemRef));
   const principal = subs01 ? ativoPrincipalDeSubs(subs01) : undefined;
   const ativoPrincipal = principal?.nome || undefined;
   const dose = principal?.dose;
-  const observacaoRefeicao = obs ? sentenca(obs) : undefined;
+  const alertasSubs: string[] = [];
+  const listaSubs = [
+    ...(subs01 ? [{ ordem: 1, raw: subs01 }] : []),
+    ...subsExtras.sort((a, b) => a.ordem - b.ordem),
+  ].map(({ ordem, raw }) => {
+    const a = ativoPrincipalDeSubs(raw);
+    if (a.alerta) alertasSubs.push(`SUBS ${String(ordem).padStart(2, "0")} "${raw}": ${a.alerta}`);
+    return {
+      rotulo: `${ordem}/${Math.max(totalSubs, ordem)}`,
+      nome: semAcento(limparTextoMensagem(a.nome)),
+      ...(a.dose ? { dose: a.dose } : {}),
+    };
+  });
+  const observacaoRefeicao = obs ? colarUnidades(limparTextoMensagem(sentenca(obs))) : undefined;
 
   // Campos gerados saem SEM acento (regra do CEO, 09/07/2026).
-  const montarItem = (per: PeriodoAntigo, posologia: string | undefined): ItemLembretePrescricao => ({
-    tipo: "formula",
-    nome: semAcento(nome),
-    ativoPrincipal: ativoPrincipal ? semAcento(ativoPrincipal) : undefined,
-    dose,
-    horario: horaFormatada(MAPA_PERIODO[per].inicio),
-    observacaoRefeicao: observacaoRefeicao ? semAcento(observacaoRefeicao) : undefined,
-    posologia: posologia ? semAcento(posologia) : undefined,
-    periodos: [per],
-  });
+  const montarItem = (
+    per: PeriodoAntigo,
+    posologia: string | undefined,
+    alertasPoso: string[] = [],
+  ): ItemLembretePrescricao => {
+    const alertas = [...alertasSubs, ...alertasPoso];
+    return {
+      tipo: "formula",
+      nome: semAcento(nome),
+      ativoPrincipal: ativoPrincipal ? semAcento(ativoPrincipal) : undefined,
+      dose,
+      substancias: listaSubs.length ? listaSubs : undefined,
+      horario: horaFormatada(MAPA_PERIODO[per].inicio),
+      observacaoRefeicao: observacaoRefeicao ? semAcento(observacaoRefeicao) : undefined,
+      posologia: posologia ? semAcento(posologia) : undefined,
+      periodos: [per],
+      ...(alertas.length ? { alertas } : {}),
+    };
+  };
 
   // UM item de lembrete por TOMADA (POSO): cada tomada vira um bloco no SEU período,
   // com SÓ a sua posologia (fim da duplicação). Duas tomadas no mesmo período viram
@@ -177,7 +147,8 @@ export async function enriquecerItemFormula(
   const itens: ItemLembretePrescricao[] = [];
   for (const poso of posologias) {
     const per = periodoDaPosologia(poso) ?? "manha";
-    itens.push(montarItem(per, linhaPosologia(poso, via)));
+    const l = linhaPosologia(poso, via);
+    itens.push(montarItem(per, l.linha || undefined, l.alertas));
   }
 
   // Fórmula sem nenhuma tomada cadastrada → cai no padrão da fórmula (manhã e noite),

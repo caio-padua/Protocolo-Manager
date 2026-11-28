@@ -98,6 +98,9 @@ vi.mock("../routes/collaborator", () => ({
 }));
 
 vi.mock("../lib/clinical-emitter", () => ({
+  ClinicalIdentityError: class ClinicalIdentityError extends Error {
+    constructor(public status: number, message: string) { super(message); }
+  },
   resolveClinicalMember: vi.fn(async (_req: unknown, clientId: number) => ({
     professional: { id: 999 },
     client: { id: clientId },
@@ -291,7 +294,10 @@ describe("C3: CINC + CSUB para GLP-1 (Tirzepatida / Semaglutida)", () => {
 // C4-C6 — HTTP route-level (DB real, mocks externos)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("C4-C6: POST /ras-fap/entregar-protocolo — cadernos e idempotência", () => {
+// A antiga rota consumia identidade e substâncias do navegador, não um protocolo
+// persistido. O fluxo foi encerrado com HTTP 410; não executar mais testes de
+// integração que usavam cadastro de demonstração e banco compartilhado.
+describe.skip("C4-C6: rota legada /ras-fap/entregar-protocolo encerrada", () => {
   const app = buildApp();
 
   // Payload com duas substâncias IV.

@@ -31,7 +31,7 @@ export interface RegistrarUsoParams {
   charsTexto?: number;
   /** Duração estimada em segundos (HeyGen). */
   duracaoSeg?: number;
-  contexto?:  "lembrete" | "manual" | "campanha" | "preview";
+  contexto?: string;
   status?:    "ok" | "erro";
   erro?:      string;
   /** Cloudflare Ray ID (header cf-ray da resposta da API). */

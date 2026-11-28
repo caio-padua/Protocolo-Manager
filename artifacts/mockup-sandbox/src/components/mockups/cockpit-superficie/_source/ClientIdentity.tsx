@@ -1,0 +1,174 @@
+import { useState } from "react";
+import { useQuery } from "./preview-deps";
+import type { Client } from "./preview-deps";
+import {
+  Activity, Camera, ChevronDown, ClipboardList, HeartPulse, Image,
+  MessageCircle, Ruler, ScanLine, Scale, Stethoscope, UserRound,
+} from "lucide-react";
+import { BASE, tituloProprio } from "./preview-deps";
+import { NomeClienteResponsivo } from "./NomeClienteResponsivo";
+import { formatarNascimento, idadeCompleta } from "./idadeCliente";
+
+type Pulso = {
+  data: string;
+  periodo: string;
+  pressaoSistolica: number | null;
+  pressaoDiastolica: number | null;
+  energia: number | null;
+};
+
+function formatarCpf(cpf?: string | null) {
+  if (!cpf) return "—";
+  const digitos = cpf.replace(/\D/g, "");
+  return digitos.length === 11
+    ? digitos.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
+    : cpf;
+}
+
+function iniciais(nome: string) {
+  const partes = nome.trim().split(/\s+/).filter(Boolean);
+  if (!partes.length) return "";
+  return (partes.length === 1
+    ? partes[0].slice(0, 2)
+    : `${partes[0][0]}${partes[partes.length - 1][0]}`).toUpperCase();
+}
+
+function ResumoRegistrado({ clientId }: { clientId: number }) {
+  const { data, isLoading, isError, refetch } = useQuery<Pulso[]>({
+    queryKey: ["pulso-diario", clientId],
+    queryFn: async ({ signal }) => {
+      const resposta = await fetch(`${BASE}/api/pulso-diario/${clientId}?dias=14`, { signal });
+      if (!resposta.ok) throw new Error("Falha ao carregar o acompanhamento.");
+      return resposta.json();
+    },
+    retry: false,
+  });
+  if (isLoading) return <p role="status">Carregando o acompanhamento…</p>;
+  if (isError) return (
+    <div role="alert">
+      <p>Não foi possível consultar o acompanhamento.</p>
+      <button type="button" className="cc-inline-action" onClick={() => void refetch()}>Tentar novamente</button>
+    </div>
+  );
+  const ultimo = [...(data ?? [])].sort((a, b) =>
+    b.data.localeCompare(a.data) ||
+    (["manha", "tarde", "noite"].indexOf(b.periodo) - ["manha", "tarde", "noite"].indexOf(a.periodo)),
+  )[0];
+  if (!ultimo) return <p>Nenhum registro de acompanhamento encontrado.</p>;
+  const pressao = ultimo.pressaoSistolica != null || ultimo.pressaoDiastolica != null
+    ? `${ultimo.pressaoSistolica ?? "—"}/${ultimo.pressaoDiastolica ?? "—"}`
+    : "Não informada";
+  return (
+    <div className="cc-summary-data">
+      <div><span>Último registro</span><strong>{formatarNascimento(ultimo.data) ?? ultimo.data}</strong></div>
+      <div><span>Período</span><strong>{({ manha: "Manhã", tarde: "Tarde", noite: "Noite" } as Record<string, string>)[ultimo.periodo] ?? ultimo.periodo}</strong></div>
+      <div><span>Pressão registrada</span><strong>{pressao}</strong></div>
+      <div><span>Energia registrada</span><strong>{ultimo.energia == null ? "Não informada" : `${ultimo.energia}/10`}</strong></div>
+    </div>
+  );
+}
+
+interface ClientIdentityProps {
+  client: Client;
+  onMensagens: () => void;
+}
+
+export default function ClientIdentity({ client, onMensagens }: ClientIdentityProps) {
+  const [aberto, setAberto] = useState<"resumo" | "imagem" | null>(null);
+  const idade = idadeCompleta(client.birthDate);
+  const campos = [
+    { label: "CPF", value: formatarCpf(client.cpf) },
+    { label: "NASCIMENTO", value: formatarNascimento(client.birthDate) ?? "—" },
+    { label: "TELEFONE", value: client.phone || "—" },
+    { label: "E-MAIL", value: client.email || "—" },
+    { label: "ENDEREÇO", value: client.address || "Não informado", address: true },
+  ];
+  const indisponiveis = [
+    { label: "BIOIMPEDÂNCIA", Icon: Scale },
+    { label: "ANTROPOMETRIA", Icon: Ruler },
+    { label: "DINAMOMETRIA", Icon: HeartPulse },
+    { label: "CALORIMETRIA", Icon: Activity },
+    { label: "ULTRASSOM", Icon: ScanLine },
+    { label: "OUTRAS AVALIAÇÕES", Icon: ClipboardList },
+  ];
+
+  return (
+    <section className="cc-identity" aria-label="Identificação do cliente">
+      <div className="cc-profile">
+        <div className="cc-portrait">
+          {client.photoUrl ? (
+            <img src={client.photoUrl} alt="" />
+          ) : (
+            <span aria-hidden="true">{iniciais(client.name) || <UserRound size={26} />}</span>
+          )}
+        </div>
+        <div className="cc-grade-plan" aria-label="Classificação e plano não disponíveis no cadastro consultado">
+          <span title="Classificação não disponível">—</span>
+          <span title="Plano não disponível">—</span>
+        </div>
+      </div>
+
+      <div className="cc-identity-information">
+        <div className="cc-client-code">CÓDIGO CLIENTE: {client.id}</div>
+        <NomeClienteResponsivo nome={tituloProprio(client.name)} />
+        <div className="cc-age">{idade ?? "Data de nascimento não informada ou inválida"}</div>
+        <dl className="cc-client-details">
+          {campos.map((campo) => (
+            <div key={campo.label} className={campo.address ? "cc-detail cc-detail-address" : "cc-detail"}>
+              <dt>{campo.label}</dt>
+              <dd title={campo.value}>{campo.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      <div className="cc-context">
+        <div className="cc-context-grid" role="group" aria-label="Informações do cliente">
+          <button type="button" className="cc-context-button" data-active={aberto === "resumo"}
+            aria-expanded={aberto === "resumo"} aria-controls="cc-resumo-cliente"
+            onClick={() => setAberto((atual) => atual === "resumo" ? null : "resumo")}>
+            <Stethoscope size={15} aria-hidden="true" />
+            <span><strong>RESUMO</strong><small>Acompanhamento</small></span>
+            <ChevronDown size={13} aria-hidden="true" />
+          </button>
+          <button type="button" className="cc-context-button" onClick={onMensagens}>
+            <MessageCircle size={15} aria-hidden="true" />
+            <span><strong>MENSAGENS</strong><small>Abrir Telegram</small></span>
+            <ChevronDown size={13} aria-hidden="true" />
+          </button>
+          <button type="button" className="cc-context-button" data-active={aberto === "imagem"}
+            aria-expanded={aberto === "imagem"} aria-controls="cc-imagem-cliente"
+            onClick={() => setAberto((atual) => atual === "imagem" ? null : "imagem")}>
+            <Image size={15} aria-hidden="true" />
+            <span><strong>IMAGENS</strong><small>Foto do cadastro</small></span>
+            <ChevronDown size={13} aria-hidden="true" />
+          </button>
+          {indisponiveis.map(({ label, Icon }) => (
+            <button key={label} type="button" className="cc-context-button"
+              disabled title="Ainda não conectado a uma fonte de dados real.">
+              <Icon size={15} aria-hidden="true" />
+              <span><strong>{label}</strong><small>Não conectado</small></span>
+            </button>
+          ))}
+        </div>
+        {aberto === "resumo" && (
+          <div id="cc-resumo-cliente" className="cc-context-content">
+            <ResumoRegistrado clientId={client.id} />
+          </div>
+        )}
+        {aberto === "imagem" && (
+          <div id="cc-imagem-cliente" className="cc-context-content cc-photo-content">
+            {client.photoUrl
+              ? <img src={client.photoUrl} alt={`Foto cadastrada de ${client.name}`} />
+              : <Camera size={23} aria-hidden="true" />}
+            <div>
+              <strong>Foto do cadastro</strong>
+              <p>{client.photoUrl ? "Imagem de identificação do cliente." : "Nenhuma foto de cadastro informada."}</p>
+              <p>A galeria de imagens clínicas ainda não está conectada.</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}

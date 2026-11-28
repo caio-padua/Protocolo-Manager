@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
-import { useListSubstances } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useListSubstances, getListSubstancesQueryKey } from "@workspace/api-client-react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -7,13 +9,16 @@ import { Input } from "@/components/ui/input";
 import {
   Beaker, AlertTriangle, Clock, Syringe, Star, ChevronDown, ChevronUp,
   Heart, Brain, Zap, Moon, Dumbbell, Shield, Sparkles, Leaf, Eye, FlaskRound, Info,
-  Pencil, Search, Activity,
+  Pencil, Search, Activity, Plus, Power,
 } from "lucide-react";
 import {
   BODY_SYSTEM_LABELS, getProcedureLabel, getProcedureColor, getCategoryStyle,
   BodySystemBar, BlendComposition, parseComposicao, CategoryMetersShowcase,
 } from "./shared";
 import { SubstanceEditForm } from "./SubstanceEditForm";
+import { FornecedoresPainel } from "./FornecedoresPainel";
+import { SubstanciaNova } from "./SubstanciaNova";
+import { ValoresPorFornecedor } from "./ValoresPorFornecedor";
 
 function BenefitItem({ icon: Icon, label, value, color }: {
   icon: typeof Heart;
@@ -39,6 +44,36 @@ export default function Substances() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [query, setQuery] = useState("");
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const qc = useQueryClient();
+  const [criando, setCriando] = useState(false);
+  const [mostrarInativas, setMostrarInativas] = useState(false);
+  const [confirmandoId, setConfirmandoId] = useState<number | null>(null);
+  const [salvandoAtivo, setSalvandoAtivo] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  // Desativar = disponivel:false (nunca apaga; a Matriz e os seletores já respeitam).
+  const alternarAtiva = async (substance: any) => {
+    const proxima = substance.disponivel === false;
+    setSalvandoAtivo(true);
+    setAviso(null);
+    try {
+      const r = await fetch(`/api/substances/${substance.id}`, {
+        method: "PATCH",
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ disponivel: proxima }),
+      });
+      if (!r.ok) {
+        throw new Error(r.status === 403 ? "Seu acesso não permite alterar substâncias." : r.status === 401 ? "Entre novamente para alterar." : "Não foi possível alterar a situação da substância.");
+      }
+      await qc.invalidateQueries({ queryKey: getListSubstancesQueryKey() });
+      setAviso(proxima ? "Substância reativada." : "Substância desativada. Todos os dados foram preservados.");
+      setConfirmandoId(null);
+    } catch (e) {
+      setAviso(e instanceof Error ? e.message : "Não foi possível alterar a situação da substância.");
+    } finally {
+      setSalvandoAtivo(false);
+    }
+  };
 
   // Gaveta vertical: abrir edicao fecha os detalhes (e vice-versa); so um por vez.
   // Ao abrir, rola a tela ate o card em edicao.
@@ -58,7 +93,9 @@ export default function Substances() {
   };
 
   const q = query.trim().toLowerCase();
+  const inativas = (substances ?? []).filter((s: any) => s.disponivel === false).length;
   const filtered = (substances ?? []).filter((s: any) => {
+    if (!mostrarInativas && s.disponivel === false) return false;
     if (!q) return true;
     return [s.name, s.category, s.categoryType, s.composicao]
       .filter(Boolean)
@@ -69,18 +106,40 @@ export default function Substances() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black tracking-tight uppercase">Substâncias</h1>
+          <h1 className="text-3xl font-black tracking-tight uppercase">Substâncias e Fornecedores — Cadastro</h1>
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
-            Informações completas — benefícios e sistemas corporais impactados.
+            Cadastre substâncias e fornecedores, veja os valores por fornecedor e os benefícios clínicos.
           </p>
         </div>
-        <div className="concave-3d px-3 py-1.5 flex items-center gap-2 self-start">
+        <div className="flex flex-wrap items-center gap-3 self-start">
+        <Button type="button" className="btn-3d min-h-11 gap-2" onClick={() => setCriando(true)} disabled={criando} data-testid="button-nova-substancia">
+          <Plus className="h-4 w-4" aria-hidden="true" /> Nova substância
+        </Button>
+        <div className="concave-3d px-3 py-1.5 flex items-center gap-2">
           <Beaker className="h-4 w-4 text-primary" />
           <span className="text-[10px] font-black uppercase tracking-widest text-primary">
-            {substances?.length || 0} substâncias
+            {substances?.length || 0} substâncias{inativas ? ` · ${inativas} ${inativas === 1 ? "desativada" : "desativadas"}` : ""}
           </span>
         </div>
+        </div>
       </div>
+
+      <FornecedoresPainel />
+
+      {criando && (
+        <SubstanciaNova
+          categorias={Array.from(new Set((substances ?? []).map((x: any) => x.category).filter(Boolean))) as string[]}
+          onClose={() => setCriando(false)}
+          onCriada={(id) => { setAviso("Substância cadastrada. Use Editar para completar os dados clínicos."); if (id) setQuery(""); }}
+        />
+      )}
+
+      {aviso && (
+        <div className="panel-3d-sub flex items-center gap-3 p-3 text-sm" role="status" data-testid="aviso-substancias">
+          <span>{aviso}</span>
+          <button type="button" className="ml-auto text-xs font-black uppercase" onClick={() => setAviso(null)}>Fechar</button>
+        </div>
+      )}
 
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -91,6 +150,10 @@ export default function Substances() {
           className="pl-9 field-engraved"
         />
       </div>
+      <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground cursor-pointer w-fit">
+        <input type="checkbox" checked={mostrarInativas} onChange={(e) => setMostrarInativas(e.target.checked)} className="h-4 w-4 accent-[#16284a]" data-testid="checkbox-mostrar-desativadas" />
+        Mostrar desativadas
+      </label>
 
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -156,6 +219,11 @@ export default function Substances() {
                                   <Syringe className="h-3 w-3" />
                                   {getProcedureLabel(substance.procedureType)}
                                 </span>
+                                {substance.disponivel === false && (
+                                  <span className="concave-3d px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground" data-testid={`badge-desativada-${substance.id}`}>
+                                    DESATIVADA
+                                  </span>
+                                )}
                                 {hasBlend && (
                                   <span className="concave-3d px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-primary">
                                     BLEND
@@ -219,7 +287,7 @@ export default function Substances() {
                         </div>
                         <div>
                           <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1 flex items-center gap-0.5"><Clock className="h-3 w-3" />Duração</span>
-                          <span className="font-black text-sm">{substance.durationMinutes ?? 30} min</span>
+                          <span className="font-black text-sm">{substance.durationMinutes == null ? "—" : new Intl.NumberFormat("pt-BR").format(substance.durationMinutes)} min</span>
                         </div>
                         <div>
                           <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Estoque</span>
@@ -236,7 +304,7 @@ export default function Substances() {
                     </CardContent>
                   </div>
 
-                  <div className="p-3">
+                  <div className="p-3 flex flex-col gap-2">
                     <Button
                       className="btn-3d-soft"
                       size="sm"
@@ -251,8 +319,31 @@ export default function Substances() {
                         <><Pencil className="h-3.5 w-3.5 mr-1.5" /> Editar</>
                       )}
                     </Button>
+                    <Button
+                      className="btn-3d-soft"
+                      size="sm"
+                      variant="outline"
+                      aria-expanded={confirmandoId === substance.id}
+                      onClick={() => setConfirmandoId(confirmandoId === substance.id ? null : substance.id)}
+                      disabled={salvandoAtivo}
+                      data-testid={`button-ativar-substancia-${substance.id}`}
+                    >
+                      <Power className="h-3.5 w-3.5 mr-1.5" /> {substance.disponivel === false ? "Reativar" : "Desativar"}
+                    </Button>
                   </div>
                 </div>
+
+                {confirmandoId === substance.id && (
+                  <div className="concave-3d mx-3 mb-3 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between" role="alert" data-testid={`confirmar-substancia-${substance.id}`}>
+                    <p className="text-sm font-semibold">
+                      {substance.disponivel === false ? "Reativar" : "Desativar"} “{substance.name}”? Nada é apagado; procedimentos e protocolos já ligados continuam preservados.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" className="btn-3d-soft min-h-10" onClick={() => setConfirmandoId(null)} disabled={salvandoAtivo}>Cancelar</Button>
+                      <Button type="button" className="btn-3d min-h-10" onClick={() => alternarAtiva(substance)} disabled={salvandoAtivo} data-testid={`button-confirmar-ativar-${substance.id}`}>Confirmar</Button>
+                    </div>
+                  </div>
+                )}
 
                 {isEditing && (
                   <div id={`subs-edit-${substance.id}`}>
@@ -265,6 +356,7 @@ export default function Substances() {
 
                 {isOpen && (
                   <div className="px-6 pb-6 space-y-5 animate-in fade-in slide-in-from-top-2 duration-300 border-t pt-5">
+                    <ValoresPorFornecedor substanceId={substance.id} />
                     <CategoryMetersShowcase meters={substance.categoryMeters} />
                      {hasBlend && (
                        <BlendComposition

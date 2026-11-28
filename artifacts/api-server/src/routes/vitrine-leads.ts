@@ -18,6 +18,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { requireCollaborator } from "./collaborator.js";
+import { isPlatformOwner } from "../lib/clinical-access";
 
 const router: IRouter = Router();
 
@@ -203,6 +204,10 @@ router.post("/vitrine-leads", async (req: Request, res: Response): Promise<void>
 
 router.get("/vitrine-leads", requireCollaborator, async (req: Request, res: Response): Promise<void> => {
   try {
+    if (!(await isPlatformOwner(Number(req.collaborator?.professionalId)))) {
+      res.status(403).json({ error: "Acesso restrito ao titular da plataforma." });
+      return;
+    }
     await ensureTables();
     const tipo = req.query.tipo === "paciente" || req.query.tipo === "clinica" ? String(req.query.tipo) : null;
     const rows = tipo
@@ -219,6 +224,10 @@ router.get("/vitrine-leads", requireCollaborator, async (req: Request, res: Resp
 
 router.patch("/vitrine-leads/:id/contato", requireCollaborator, async (req: Request, res: Response): Promise<void> => {
   try {
+    if (!(await isPlatformOwner(Number(req.collaborator?.professionalId)))) {
+      res.status(403).json({ error: "Acesso restrito ao titular da plataforma." });
+      return;
+    }
     await ensureTables();
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) {

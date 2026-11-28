@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { BASE, ConsoleShell, BlockTitle } from "../comunicacao/_shared";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
+import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 import { getCollabProfessional } from "@/lib/collab-auth";
 
 // ===========================================================================
@@ -224,7 +225,7 @@ export default function ConsultaProntuario() {
   );
 
   useEffect(() => {
-    fetch(`${BASE}/api/clients`)
+    fetch(`${BASE}/api/clients`, { headers: collabAuthHeaders() })
       .then((r) => r.json())
       .then((d: ClienteOption[]) =>
         setClientes([...d].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))),
@@ -361,7 +362,7 @@ export default function ConsultaProntuario() {
     }
     setCarregandoEvolucao(true);
     setErroEvolucao(false);
-    fetch(`${BASE}/api/exames-lab/evolucao/${cid}`)
+    fetch(`${BASE}/api/exames-lab/evolucao/${cid}`, { headers: collabAuthHeaders() })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("evolucao"))))
       .then((d: EvolucaoData) => setEvolucao(d))
       .catch(() => {
@@ -387,7 +388,7 @@ export default function ConsultaProntuario() {
     }
     setCarregandoCockpit(true);
     setErroCockpit(false);
-    fetch(`${BASE}/api/cockpit/${cid}`)
+    fetch(`${BASE}/api/cockpit/${cid}`, { headers: collabAuthHeaders() })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("cockpit"))))
       .then((d: CockpitData) => setCockpit(d))
       .catch(() => {
@@ -420,6 +421,8 @@ export default function ConsultaProntuario() {
       title="Consulta (Prontuário)"
       subtitle="Uma tela: prescrever exames · evolução antes/depois · acompanhamento do cliente"
     >
+      <ClinicalCertificateStatus scope="professional" />
+
       {/* ---- Seletor de cliente compartilhado ---- */}
       <section className="panel-3d p-4">
         <div className="flex flex-wrap items-center gap-3">

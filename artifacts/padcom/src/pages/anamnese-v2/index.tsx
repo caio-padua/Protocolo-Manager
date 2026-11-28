@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties, type ReactNode } from "react";
 import {
   Activity,
   AlertTriangle,
   Check,
   ChevronLeft,
+  ChevronDown,
+  ChevronUp,
   ChevronRight,
   Clock,
   Eye,
@@ -22,6 +24,7 @@ import {
   Sparkles,
   Volume2,
   Square,
+  HelpCircle,
 } from "lucide-react";
 import {
   useListAnamneseQuestions,
@@ -39,6 +42,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ControlRenderer } from "./controls";
 import { controlKind, isAnswered, isDiscrete, valorIncludesAny, type Valor } from "./types";
 import { PaxterLogo } from "@/components/branding/PaxterLogo";
+import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PaxterLockup } from "@/components/layout/paxter-fx/PaxterLockup";
 import { PadconWordmark } from "@/components/layout/paxter-fx/PadconWordmark";
 import { PaduaWordmark } from "@/components/layout/paxter-fx/PaduaWordmark";
@@ -54,14 +58,31 @@ const AREA_URL = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/area`;
 // senha de colaborador) com faixa visivel "MODO TESTE". Default DESLIGADO.
 const OPEN_ACCESS = import.meta.env.VITE_OPEN_ACCESS === "1";
 
+import RetornoPanel, { IDENTIDADE_IDS, SEXO_ID, type Retorno } from "./RetornoPanel";
+
 export default function AnamneseV2() {
   const { toast } = useToast();
   const { theme, toggle } = useScreenTheme();
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
+  // Link de consulta (?s=TOKEN): retoma a sessao aberta pelo medico (herdada da anterior), neste ou em outro aparelho.
+  const [token, setToken] = useState<string | null>(() => {
+    const s = new URLSearchParams(window.location.search).get("s");
+    if (s && /^[a-f0-9]{48}$/.test(s)) {
+      localStorage.setItem(TOKEN_KEY, s);
+      localStorage.setItem(DEMO_KEY, "0");
+      window.history.replaceState(null, "", window.location.pathname);
+      return s;
+    }
+    return localStorage.getItem(TOKEN_KEY);
+  });
   const [answers, setAnswers] = useState<Record<number, Valor>>({});
   const [refused, setRefused] = useState<Set<string>>(new Set());
   const [groupIdx, setGroupIdx] = useState(0);
   const [focusMode, setFocusMode] = useState(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [minimizado, setMinimizado] = useState<boolean>(() => localStorage.getItem("anamnese-header-min") === "1");
+  useEffect(() => {
+    localStorage.setItem("anamnese-header-min", minimizado ? "1" : "0");
+  }, [minimizado]);
   const [focusIdx, setFocusIdx] = useState(0);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -69,6 +90,10 @@ export default function AnamneseV2() {
   const [findings, setFindings] = useState<AnamneseFinding[]>([]);
   const [demo, setDemo] = useState<boolean>(() => localStorage.getItem(DEMO_KEY) === "1");
 
+  // Retomada: tela "Voce parou aqui" ao reabrir a pagina ou voltar de uma ligacao/outro aplicativo.
+  const [retomadaAberta, setRetomadaAberta] = useState(false);
+  const ultimaRespondidaRef = useRef<number | null>(null);
+  const saiuEmRef = useRef<number | null>(null);
   const startRef = useRef<number>(Date.now());
   const milestoneRef = useRef<Set<number>>(new Set());
   const saveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
@@ -121,6 +146,11 @@ export default function AnamneseV2() {
       if (a.valor && typeof a.valor === "object") map[a.questionRowId] = a.valor as Valor;
     }
     setAnswers(map);
+    const feitas = sessionState.answers
+      .filter((a) => a.valor && typeof a.valor === "object" && isAnswered(a.valor as Valor))
+      .sort((a, b) => String(a.respondidoEm ?? "").localeCompare(String(b.respondidoEm ?? "")));
+    ultimaRespondidaRef.current = feitas.length ? feitas[feitas.length - 1].questionRowId : null;
+    if (feitas.length > 0 && sessionState.session.status !== "concluida") setRetomadaAberta(true);
     setRefused(new Set(sessionState.refusals.map((r) => `${r.escopo}:${r.alvo}`)));
     if (sessionState.session.status === "concluida") {
       setFinished(true);
@@ -151,13 +181,33 @@ export default function AnamneseV2() {
   // agrupa por bloco preservando a ordem; aplica visibilidade condicional por
   // sexo biologico (A04) e por dependencia de outra resposta (dependeDe).
   // Recalcula quando as respostas mudam (revela/esconde perguntas dependentes).
+  const retorno = ((sessionState as unknown) as { retorno?: Retorno | null } | undefined)?.retorno ?? null;
+  // Dados cadastrais/cirurgias: aparecem uma vez (primeiro grupo); ao avancar, nao voltam mais nesta sessao.
+  const chaveRetorno = `anamnese-retorno-visto:${token ?? "s"}`;
+  const [retornoDispensado, setRetornoDispensado] = useState(() => { try { return sessionStorage.getItem(chaveRetorno) === "1"; } catch { return false; } });
+  useEffect(() => {
+    if ((groupIdx > 0 || focusIdx > 0) && !retornoDispensado) {
+      setRetornoDispensado(true);
+      try { sessionStorage.setItem(chaveRetorno, "1"); } catch { /* ignora */ }
+    }
+  }, [groupIdx, focusIdx, retornoDispensado, chaveRetorno]);
+  const ocultas = useMemo(() => {
+    const set = new Set<number>();
+    if (!retorno) return set;
+    for (const id of IDENTIDADE_IDS) set.add(id); // identidade vem do cadastro
+    if (retorno.identidade?.sexoBiologico) set.add(SEXO_ID); // sexo vem do cadastro e nao se muda
+    for (const k of Object.keys(retorno.bloqueados ?? {})) set.add(Number(k)); // fatos ja registrados: somente leitura
+    return set;
+  }, [retorno]);
   const groups = useMemo(() => {
     const byPid = new Map<string, AnamneseQuestion>();
     for (const q of questions ?? []) if (q.perguntaId) byPid.set(q.perguntaId, q);
     const sexoQ = byPid.get("A04");
     const sexoVal = sexoQ ? answers[sexoQ.id] : undefined;
+    // Sexo biologico: o CADASTRO manda; so sem cadastro vale a resposta unica da A04.
+    const sexoCadastro = retorno?.identidade?.sexoBiologico ?? undefined;
     const sexo =
-      sexoVal?.tipo === "single" ? String(sexoVal.valor ?? sexoVal.opcao) : undefined;
+      sexoCadastro ?? (sexoVal?.tipo === "single" ? String(sexoVal.valor ?? sexoVal.opcao) : undefined);
 
     const isVisible = (q: AnamneseQuestion): boolean => {
       const ap = q.aplicavelEm as { sexo?: "M" | "F" } | null | undefined;
@@ -177,6 +227,7 @@ export default function AnamneseV2() {
     const idx = new Map<string, number>();
     for (const q of questions ?? []) {
       if (!isVisible(q)) continue;
+      if (ocultas.has(q.id)) continue;
       const b = q.bloco || "Outros";
       if (!idx.has(b)) {
         idx.set(b, list.length);
@@ -185,7 +236,7 @@ export default function AnamneseV2() {
       list[idx.get(b)!].questions.push(q);
     }
     return list;
-  }, [questions, answers]);
+  }, [questions, answers, ocultas, retorno]);
 
   const isRefused = useCallback((bloco: string) => refused.has(`bloco:${bloco}`), [refused]);
 
@@ -203,6 +254,13 @@ export default function AnamneseV2() {
   const gruposCompletos = groups.filter(
     (g) => isRefused(g.bloco) || g.questions.every((q) => isAnswered(answers[q.id])),
   ).length;
+
+  // % de evolucao de cada titulo (grupo recusado conta como resolvido).
+  const grupoPct = (g: { bloco: string; questions: AnamneseQuestion[] }): number => {
+    if (isRefused(g.bloco)) return 100;
+    if (g.questions.length === 0) return 0;
+    return Math.round((g.questions.filter((q) => isAnswered(answers[q.id])).length / g.questions.length) * 100);
+  };
 
   // tempo medio por resposta + estimativa
   const elapsedSeg = Math.round((Date.now() - startRef.current) / 1000);
@@ -231,7 +289,7 @@ export default function AnamneseV2() {
   // NAO inclui `focusMode` nas dependencias: ligar/desligar o foco nao deve
   // provocar "pulo" de rolagem (requisito A7 da spec), so a troca de conteudo.
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    scrollRef.current?.scrollTo({ top: 0, behavior: "auto" }); // instantaneo: mais rapido
   }, [groupIdx, focusIdx]);
 
   // gravacao (upsert) com debounce p/ texto/numero, imediata p/ escolhas
@@ -266,6 +324,7 @@ export default function AnamneseV2() {
   const handleAnswer = useCallback(
     (q: AnamneseQuestion, v: Valor, opts?: { commit?: boolean }) => {
       setAnswers((prev) => ({ ...prev, [q.id]: v }));
+      if (isAnswered(v)) ultimaRespondidaRef.current = q.id;
       const kind = controlKind(q);
       const debounced = kind === "texto" || kind === "number";
       if (debounced) {
@@ -358,7 +417,13 @@ export default function AnamneseV2() {
 
   useEffect(() => {
     const onHide = () => {
-      if (document.visibilityState === "hidden") flushBeacon();
+      if (document.visibilityState === "hidden") {
+        saiuEmRef.current = Date.now();
+        flushBeacon();
+      } else if (saiuEmRef.current && Date.now() - saiuEmRef.current >= 15000) {
+        saiuEmRef.current = null;
+        setRetomadaAberta(true); // voltou de ligacao/outro aplicativo: mostra onde parou
+      }
     };
     window.addEventListener("pagehide", flushBeacon);
     document.addEventListener("visibilitychange", onHide);
@@ -378,7 +443,7 @@ export default function AnamneseV2() {
         onSuccess: (state) => {
           setFindings(state.findings);
           setFinished(true);
-          window.scrollTo({ top: 0, behavior: "smooth" });
+          scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
         },
       },
     );
@@ -423,7 +488,7 @@ export default function AnamneseV2() {
 
   return (
     <div
-      className={`${themeClass} anamnese-solo${theme !== "dark" ? " anamnese-light" : ""} relative min-h-screen pb-36 text-foreground`}
+      className={`${themeClass} anamnese-solo${theme !== "dark" ? " anamnese-light" : ""} fixed inset-0 flex flex-col text-foreground`}
       style={{ ["--brand" as any]: NAVY }}
     >
       {/* TECIDO TERNO — faixa sutil ao fundo de toda a tela (linho marinho no escuro,
@@ -431,7 +496,7 @@ export default function AnamneseV2() {
       <div className="leva-fabric" aria-hidden="true" />
       {/* Faixa ambar visivel (R1): MODO TESTE (VITE_OPEN_ACCESS) ou demonstracao */}
       {(demo || OPEN_ACCESS) && (
-        <div className="relative z-[1] flex items-center justify-center gap-2 bg-amber-400 px-4 py-1.5 text-center text-[11px] font-bold uppercase tracking-widest text-amber-950">
+        <div className="relative z-[1] flex shrink-0 items-center justify-center gap-2 bg-amber-400 px-4 py-1.5 text-center text-[11px] font-bold uppercase tracking-widest text-amber-950">
           <AlertTriangle className="h-3.5 w-3.5" />
           {OPEN_ACCESS
             ? "Modo teste — acesso aberto, respostas não são de um cliente real"
@@ -439,56 +504,98 @@ export default function AnamneseV2() {
         </div>
       )}
       {/* HEADER / TIMELINE — fiel ao canvas: marca centralizada -> blocos -> barra de barinhas */}
-      <header className="anamnese-solo sticky top-0 z-20 overflow-hidden border-b border-border px-4 py-4">
+      <header className={`anamnese-solo relative z-20 shrink-0 border-b border-border px-4 ${minimizado ? "pb-2 pt-4" : "py-4"}`}>
         {/* tecido terno CRISP sobre o painel do cabecalho (acima do bg, abaixo do conteudo).
             CEO confirmou em 24/06/2026: MANTER o tecido aqui (claro e escuro) e UNIFICAR com o das
             questoes — por isso a base do header e a MESMA .anamnese-solo da pagina (mesmo degrade/cor),
-            nao bg-background (que era navy mais escuro/chapado e destoava ao redor do PAXTER). Assim a
-            MESMA base + a MESMA .leva-fabric leem como um unico tecido. PAXTER por ultimo (z-[1]). */}
+            nao bg-background (que era navy mais escuro/chapado e destoava ao redor do PaxMed). Assim a
+            MESMA base + a MESMA .leva-fabric leem como um unico tecido. PaxMed por ultimo (z-[1]). */}
         <div className="leva-fabric" aria-hidden="true" />
         <div className="relative z-[1] mx-auto max-w-2xl">
           {/* controles verticais no canto superior direito (retangulos finos,
               texto girado 90 graus) — nao competem com a marca centralizada */}
-          <div className="absolute right-0 top-0 z-10 flex items-start gap-1.5">
-            <button
-              type="button"
-              onClick={() => setFocusMode((f) => !f)}
-              aria-label={focusMode ? "Sair do modo foco" : "Entrar no modo foco"}
-              title={focusMode ? "Sair do foco" : "Modo foco"}
-              className="btn-3d-soft flex w-7 flex-col items-center justify-center gap-1.5 rounded-md py-2"
-              style={focusMode ? { boxShadow: `0 0 0 2px ${GOLD}`, color: GOLD } : undefined}
-            >
-              {focusMode ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              <span
-                className="text-[10px] font-bold uppercase tracking-wider"
-                style={{ writingMode: "vertical-rl" }}
+          {(() => {
+            // Os 3 botoes: MESMO tamanho, MESMO alinhamento, relevo saliente (bevel-3d).
+            const cls = minimizado
+              ? "bevel-3d relative flex h-[46px] w-6 items-center justify-center rounded-[3px]"
+              : "bevel-3d relative flex h-5 w-[84px] items-center justify-center gap-1 whitespace-nowrap rounded-[3px] px-1.5";
+            const lbl = "text-[8.5px] font-bold uppercase tracking-wide";
+            const ic = "h-3 w-3 shrink-0";
+            return (
+              <div
+                className={`absolute right-0 z-30 flex ${minimizado ? "top-0 flex-row items-stretch gap-1" : "-top-2 flex-col items-stretch gap-1.5"}`}
               >
-                Foco
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={toggle}
-              aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
-              title={theme === "dark" ? "Tema claro" : "Tema escuro"}
-              className="btn-3d-soft flex w-7 flex-col items-center justify-center gap-1.5 rounded-md py-2"
-              style={{ color: GOLD }}
-            >
-              {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-              <span
-                className="text-[10px] font-bold uppercase tracking-wider"
-                style={{ writingMode: "vertical-rl" }}
-              >
-                Tema
-              </span>
-            </button>
-          </div>
+                <TipButton
+                  onClick={() => setFocusMode((f) => !f)}
+                  label={focusMode ? "Ver todas as perguntas" : "Uma pergunta por vez"}
+                  tip={focusMode ? "Volta a mostrar todas as perguntas do grupo juntas, na mesma tela." : "Mostra uma pergunta por vez, em tela cheia, para você responder com calma."}
+                  className={cls}
+                  style={focusMode ? { boxShadow: `0 0 0 2px ${GOLD}`, color: GOLD } : { color: GOLD }}
+                >
+                  {focusMode ? <EyeOff className={ic} /> : <Eye className={ic} />}
+                  {!minimizado && <span className={lbl}>{focusMode ? "Ver todas" : "Uma a uma"}</span>}
+                </TipButton>
+                <TipButton
+                  onClick={toggle}
+                  label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
+                  tip={theme === "dark" ? "Troca para o fundo claro, mais fácil de ler à luz do dia." : "Troca para o fundo escuro, mais confortável à noite."}
+                  className={cls}
+                  style={{ color: GOLD }}
+                >
+                  {theme === "dark" ? <Sun className={ic} /> : <Moon className={ic} />}
+                  {!minimizado && <span className={lbl}>Tema</span>}
+                </TipButton>
+                <TipButton
+                  onClick={() => setMinimizado((m) => !m)}
+                  label={minimizado ? "Expandir cabeçalho" : "Minimizar cabeçalho"}
+                  tip={minimizado ? "Abre o topo completo, com o resumo do seu progresso." : "Recolhe o topo para sobrar mais espaço para as perguntas."}
+                  expanded={!minimizado}
+                  className={cls}
+                  style={{ color: GOLD }}
+                >
+                  {minimizado ? <ChevronDown className={ic} /> : <ChevronUp className={ic} />}
+                  {!minimizado && <span className={lbl}>Minimizar</span>}
+                </TipButton>
+              </div>
+            );
+          })()}
 
+          {minimizado ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex h-[46px] items-stretch gap-2 pr-[5.6rem]">
+                <div className="flex shrink-0 items-start"><PaxterSymbolGlass size={40} tone={theme === "dark" ? "dark" : "light"} /></div>
+                <div className="flex min-w-0 flex-1 justify-center" aria-live="polite">
+                  <div className="bevel-3d flex h-full w-[11.5rem] max-w-full flex-col items-center justify-center gap-0.5 rounded-[3px] px-3 leading-none">
+                    <span className="flex items-baseline gap-1.5 text-[16px] font-extrabold tabular-nums" style={{ color: GOLD }}>
+                      <span>{pct}%</span><span>concluído</span>
+                    </span>
+                    <span className="text-[10.5px] font-medium text-muted-foreground">Tempo médio: {restanteMin} min</span>
+                  </div>
+                </div>
+              </div>
+              <Trilho ativoKey={groupIdx}>
+                {groups.map((g, i) => (
+                  <GrupoChip
+                    key={g.bloco}
+                    compact
+                    label={siglaBloco(g.bloco)}
+                    title={g.bloco}
+                    pct={grupoPct(g)}
+                    active={i === groupIdx}
+                    done={g.questions.every((q) => isAnswered(answers[q.id]))}
+                    refused={isRefused(g.bloco)}
+                    onClick={() => setGroupIdx(i)}
+                  />
+                ))}
+              </Trilho>
+            </div>
+          ) : (
+          <>
           {/* 1) marca centralizada — simbolo grande + PAXTER folgado na faixa navy */}
           <BrandMark tone={theme === "dark" ? "dark" : "light"} />
 
           {/* 2) blocos medidores */}
-          <div className="mt-4 grid grid-cols-4 gap-2">
+          <div className="mt-3 grid grid-cols-4 gap-2">
             <Meter icon={<ListChecks className="h-3.5 w-3.5" />} label="Concluído" value={`${pct}%`} />
             <Meter icon={<Check className="h-3.5 w-3.5" />} label="Perguntas" value={`${respondidas}/${totalAtivas}`} />
             <Meter icon={<Activity className="h-3.5 w-3.5" />} label="Grupos" value={`${gruposCompletos}/${gruposTotais}`} />
@@ -505,48 +612,55 @@ export default function AnamneseV2() {
                 {pct}%
               </span>
             </div>
-            <div className="flex gap-1.5">
-              {Array.from({ length: gruposTotais }).map((_, i) => (
-                <div key={i} className="paxter-bar-track h-3 flex-1">
-                  {i < gruposCompletos && (
-                    <div className="paxter-bar-fill" style={{ width: "100%" }} />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="relative z-[1] mx-auto max-w-2xl px-6 pt-4">
-        {/* MAPA DE GRUPOS (ordem livre) — escondido no modo foco */}
-        {!focusMode && (
-          <div className="leva-band -mx-6 -mt-4 mb-4 rounded-b-xl rounded-t-none px-6 pb-3 pt-4">
-            <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-              {groups.map((g, i) => {
-                const done = g.questions.every((q) => isAnswered(answers[q.id]));
-                const ref = isRefused(g.bloco);
-                const active = i === groupIdx;
-                const tag = siglaBloco(g.bloco);
+            <div className="flex gap-1.5" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Progresso da anamnese">
+              {Array.from({ length: 5 }).map((_, i) => {
+                const parte = Math.max(0, Math.min(100, (pct - i * 20) * 5));
                 return (
-                  <button
-                    key={g.bloco}
-                    type="button"
-                    onClick={() => setGroupIdx(i)}
-                    title={g.bloco}
-                    className="flex h-8 min-w-0 items-center justify-center gap-1 rounded-md px-1 text-[11px] font-bold tracking-tight transition-all"
-                    style={gchipStyle(active, done, ref, theme === "dark")}
-                  >
-                    {done && !active ? <Check className="h-3 w-3 shrink-0" /> : null}
-                    <span className="truncate">{tag}</span>
-                  </button>
+                  <div key={i} className="paxter-bar-track !rounded-[2px] h-4 flex-1">
+                    {parte > 0 && <div className="paxter-bar-fill !rounded-[1px]" style={{ width: `${parte}%` }} />}
+                  </div>
                 );
               })}
             </div>
           </div>
+          </>
+          )}
+        </div>
+      </header>
+
+      <div ref={scrollRef} className="relative z-[1] min-h-0 flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" }}>
+      <main className="relative z-[1] mx-auto max-w-2xl px-6 pb-8 pt-4">
+        {/* MAPA DE GRUPOS (ordem livre) — escondido no modo foco */}
+        {!focusMode && (
+          <div className="leva-band -mx-6 -mt-4 mb-4 rounded-b-xl rounded-t-none px-6 pb-3 pt-4">
+            <div className="grid grid-cols-4 gap-3 sm:grid-cols-7">
+              {groups.map((g, i) => (
+                <GrupoChip
+                  key={g.bloco}
+                  label={siglaBloco(g.bloco)}
+                  title={g.bloco}
+                  pct={grupoPct(g)}
+                  active={i === groupIdx}
+                  done={g.questions.every((q) => isAnswered(answers[q.id]))}
+                  refused={isRefused(g.bloco)}
+                  isDark={theme === "dark"}
+                  onClick={() => setGroupIdx(i)}
+                />
+              ))}
+            </div>
+          </div>
         )}
 
-        <div className="mx-auto max-w-xl">
+        <div className="mx-auto max-w-xl px-1.5">
+        {retorno && !retornoDispensado && (
+          <RetornoPanel
+            retorno={retorno}
+            token={token}
+            questions={questions}
+            answers={answers}
+            onAnswer={handleAnswer}
+          />
+        )}
         {/* CONTEUDO */}
         {focusMode ? (
           <FocusView
@@ -583,7 +697,7 @@ export default function AnamneseV2() {
               onClick={() => setGroupIdx((i) => Math.max(0, i - 1))}
               className="btn-3d-soft flex h-12 items-center gap-1.5 rounded-md px-5 text-sm font-bold disabled:opacity-40"
             >
-              <ChevronLeft className="h-4 w-4" /> Anterior
+              <ChevronLeft className="h-3 w-3" /> Anterior
             </button>
             {isLastGroup ? (
               <button
@@ -601,7 +715,7 @@ export default function AnamneseV2() {
                 onClick={() => setGroupIdx((i) => Math.min(groups.length - 1, i + 1))}
                 className="btn-3d flex h-12 items-center gap-2 rounded-md px-6 text-sm font-bold uppercase tracking-wide text-white"
               >
-                Próximo <ChevronRight className="h-4 w-4" />
+                Próximo <ChevronRight className="h-3 w-3" />
               </button>
             )}
           </div>
@@ -609,15 +723,16 @@ export default function AnamneseV2() {
         </div>
 
       </main>
+      </div>
 
       {/* BARRA INFERIOR FIXA — selo de salvamento + FAIXA DE MARCA continua, sempre visivel ao
           rolar (congelada no limite inferior). A faixa e LONGITUDINAL (full-bleed, sem cantos
           curvos), na MESMA COR do painel de questao (.footer-brand-band == cor do .leva-card)
           com relevo "up breve". A frase inglesa "Engineered by" fica EMBAIXO, centralizada sob
           o nome PADCON; a assinatura do diretor fica EM CIMA do wordmark Instituto Padua. */}
-      <div className="fixed inset-x-0 bottom-0 z-30">
+      <div className="relative z-30 shrink-0">
         {/* selo de salvamento — flutua centralizado ACIMA da faixa (sem sobrepor) */}
-        <div className="mb-2 flex justify-center px-3">
+        <div className="pointer-events-none absolute inset-x-0 -top-9 flex justify-center px-3">
           <div
             className="flex items-center gap-1.5 rounded-md bg-card px-3 py-1.5 text-xs font-medium text-primary"
             style={{ color: saving ? "#9ca3af" : undefined, boxShadow: "0 2px 10px rgba(0,0,0,.12)" }}
@@ -631,16 +746,16 @@ export default function AnamneseV2() {
         {/* paddingBottom respeita a AREA SEGURA do iPhone (env safe-area) p/ a faixa
             nao ser cortada pelo "chao"/indicador inferior do celular. */}
         <div
-          className="footer-brand-band px-6 pt-2.5"
-          style={{ paddingBottom: "calc(0.625rem + env(safe-area-inset-bottom, 0px))" }}
+          className="footer-brand-band px-6 pt-1.5"
+          style={{ paddingBottom: "calc(0.375rem + env(safe-area-inset-bottom, 0px))" }}
         >
           <div className="mx-auto flex max-w-2xl items-end justify-between gap-3">
             {/* ESQUERDA: wordmark Instituto Padua CENTRALIZADO sobre a assinatura (meio
                 do logo alinhado ao meio da frase). Contorno preto p/ nitidez. */}
             <div className="flex flex-col items-center">
-              <PaduaWordmark height={33} outlined />
+              <PaduaWordmark height={22} outlined />
               <span
-                className="footer-credit-padua mt-1 whitespace-nowrap text-center text-[10px] leading-none max-[380px]:whitespace-normal"
+                className="footer-credit-padua mt-0.5 whitespace-nowrap text-center text-[8px] leading-none"
                 style={{ fontFamily: "PaxmedNum, 'Lora', Georgia, serif", fontStyle: "italic" }}
               >
                 Dr. Caio Pádua — Medical Director
@@ -648,9 +763,9 @@ export default function AnamneseV2() {
             </div>
             {/* DIREITA: wordmark PADCON CENTRALIZADO sobre "Engineered by". Contorno preto. */}
             <div className="flex flex-col items-center">
-              <PadconWordmark height={20} outlined />
+              <PadconWordmark height={14} outlined />
               <span
-                className="footer-credit-padua mt-1 w-full whitespace-nowrap text-center text-[10px] leading-none"
+                className="footer-credit-padua mt-0.5 w-full whitespace-nowrap text-center text-[8px] leading-none"
                 style={{ fontFamily: "PaxmedNum, 'Lora', Georgia, serif", fontStyle: "italic" }}
               >
                 Engineered by
@@ -659,11 +774,150 @@ export default function AnamneseV2() {
           </div>
         </div>
       </div>
+      {retomadaAberta && respondidas > 0 && (() => {
+        const lastQ = (questions ?? []).find((q) => q.id === ultimaRespondidaRef.current) ?? null;
+        const idxLast = lastQ ? activeQuestions.findIndex((q) => q.id === lastQ.id) : -1;
+        const proxima =
+          activeQuestions.slice(idxLast + 1).find((q) => !isAnswered(answers[q.id])) ??
+          activeQuestions.find((q) => !isAnswered(answers[q.id])) ??
+          null;
+        const continuar = () => {
+          setRetomadaAberta(false);
+          if (!proxima) return;
+          const gi = groups.findIndex((g) => g.questions.some((q) => q.id === proxima.id));
+          if (gi >= 0) setGroupIdx(gi);
+          setFocusIdx(Math.max(0, activeQuestions.findIndex((q) => q.id === proxima.id)));
+        };
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-5"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Você parou aqui"
+            data-testid="anamnese-retomada"
+          >
+            <div className="bevel-3d w-full max-w-sm rounded-[4px] p-5 text-center">
+              <div className="relative z-[1] flex flex-col items-center gap-3">
+                <PaxterSymbolGlass size={44} tone={theme === "dark" ? "dark" : "light"} />
+                <h2 className="text-base font-extrabold uppercase tracking-wide" style={{ color: GOLD }}>Você parou aqui</h2>
+                {lastQ && (
+                  <p className="text-[13px] leading-snug text-foreground">
+                    Última pergunta respondida:
+                    <span className="mt-1 block font-semibold">{formatPergunta(lastQ.pergunta)}</span>
+                  </p>
+                )}
+                <p className="text-[12px] text-muted-foreground">{pct}% concluído · {respondidas} de {totalAtivas} perguntas</p>
+                <button
+                  type="button"
+                  onClick={continuar}
+                  className="btn-3d flex h-12 w-full items-center justify-center gap-2 rounded-md px-5 text-sm font-bold uppercase tracking-wide text-white"
+                  data-testid="anamnese-retomada-continuar"
+                >
+                  <Play className="h-4 w-4" /> Vamos recomeçar de onde parei
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
 
 // ---------- subcomponentes ----------
+
+// Botao com balaozinho explicativo: passar o mouse, focar ou tocar com o dedo abre a explicacao.
+function TipButton({
+  tip, label, onClick, className, style, expanded, children,
+}: {
+  tip: string; label: string; onClick: () => void; className: string; style?: CSSProperties; expanded?: boolean; children: ReactNode;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abrir = (auto: boolean) => {
+    if (timer.current) clearTimeout(timer.current);
+    setAberto(true);
+    if (auto) timer.current = setTimeout(() => setAberto(false), 1600);
+  };
+  const fechar = () => {
+    if (timer.current) clearTimeout(timer.current);
+    setAberto(false);
+  };
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-expanded={expanded}
+      className={className}
+      style={style}
+      onPointerEnter={(e) => { if (e.pointerType === "mouse") abrir(false); }}
+      onPointerLeave={(e) => { if (e.pointerType === "mouse") fechar(); }}
+      onPointerDown={(e) => { if (e.pointerType !== "mouse") abrir(true); }}
+      onFocus={() => abrir(true)}
+      onBlur={fechar}
+    >
+      {children}
+      {aberto && (
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute right-0 top-full z-50 mt-2 w-48 whitespace-normal rounded-md px-2.5 py-2 text-left text-[11.5px] font-medium normal-case leading-snug tracking-normal"
+          style={{ background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))", border: `1px solid ${GOLD}`, boxShadow: "0 6px 16px rgba(0,0,0,.18)" }}
+        >
+          {tip}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// Titulo de grupo: placa saliente (up bevel) retangular; a barra de evolucao e um trilho afundado
+// (inset bevel), retangular e mais alto; porcentagem nitida. O grupo atual NAO muda de cor: ganha moldura.
+function GrupoChip({
+  label, title, pct, active, done, refused, compact, onClick,
+}: {
+  label: string; title: string; pct: number; active: boolean; done: boolean; refused: boolean; isDark?: boolean; compact?: boolean; onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={`${title}: ${pct}% concluído`}
+      aria-current={active ? "true" : undefined}
+      data-grupo-ativo={active ? "true" : undefined}
+      className={`bevel-3d flex min-w-0 flex-col justify-center gap-1 rounded-[3px] px-1.5 text-foreground ${compact ? "h-[32px] w-[84px] shrink-0 !gap-0.5" : "h-[54px]"} ${refused ? "opacity-60" : ""}`}
+      style={active ? { transform: "translateY(2px)", boxShadow: `inset 0 3px 6px rgba(0,0,0,.35), inset 0 0 0 1.5px ${GOLD}` } : undefined}
+    >
+      <span className={`flex items-center justify-center gap-1 font-bold tracking-tight ${compact ? "text-[9.5px] leading-none" : "text-[11px]"}`}>
+        {done ? <Check className="h-3 w-3 shrink-0" aria-hidden /> : null}
+        <span className="truncate">{label}</span>
+      </span>
+      <span className="flex items-center gap-1">
+        <span className={`paxter-bar-track !rounded-[2px] ${compact ? "h-[7px]" : "h-[9px]"} flex-1`} style={{ boxShadow: "inset 0 2px 4px rgba(0,0,0,.45), inset 0 -1px 0 rgba(255,255,255,.35)" }}>
+          {pct > 0 && <span className="paxter-bar-fill !rounded-[1px] block h-full" style={{ width: `${pct}%` }} />}
+        </span>
+        <span className="w-8 shrink-0 text-right text-[10.5px] font-extrabold leading-none tabular-nums">{pct}%</span>
+      </span>
+    </button>
+  );
+}
+
+// Trilho rolavel: sem moldura nem relevo; os retangulos deslizam direto sobre o tecido. Deslizar com o dedo.
+function Trilho({ children, ativoKey }: { children: ReactNode; ativoKey: number }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>('[data-grupo-ativo="true"]')?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [ativoKey]);
+  return (
+    <div role="group" aria-label="Grupos de perguntas (deslize para os lados)" className="mt-2.5">
+      <div ref={ref} className="flex gap-2 overflow-x-auto px-0.5 pb-1.5 pt-0.5 [scrollbar-width:none]" style={{ scrollSnapType: "x proximity" }}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 // Siglas que devem permanecer em CAIXA-ALTA mesmo na exibicao em caixa-baixa.
 const PERGUNTA_SIGLAS = new Set([
@@ -791,6 +1045,15 @@ function BrandMark({ tone }: { tone: "dark" | "light" }) {
   );
 }
 
+function MiniMeter({ icon, value }: { icon: React.ReactNode; value: string }) {
+  return (
+    <div className="leva-kpi flex items-center justify-center gap-1 rounded-[4px] px-1 py-0.5">
+      <span className="leva-kpi-label">{icon}</span>
+      <span className="leva-kpi-value text-[10px] font-extrabold leading-none">{value}</span>
+    </div>
+  );
+}
+
 function Meter({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="leva-kpi flex flex-col items-center gap-0.5 rounded-md px-1 py-2">
@@ -816,6 +1079,9 @@ function QuestionCard({
 }) {
   const answered = isAnswered(value);
   const [showVideo, setShowVideo] = useState(false);
+  const [ajudaAberta, setAjudaAberta] = useState(false);
+  const referencia = (q as unknown as { referencia?: { titulo?: string; motivo?: string; fonte?: string; url?: string | null } | null }).referencia ?? null;
+  const temAjuda = !!q.observacao || !!referencia;
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
 
@@ -851,15 +1117,16 @@ function QuestionCard({
 
   return (
     <div
-      className="leva-card rounded-md p-3"
+      data-qid={q.id}
+      className="leva-card leva-card-calm scroll-mt-3 rounded-md p-3"
       style={q.eSinalAlarme ? { boxShadow: "0 0 0 2px #ef4444, 0 6px 16px rgba(0,0,0,.18)" } : undefined}
     >
-      <div className="relative z-[1] mb-3 flex items-start justify-between gap-2">
+      <div className="relative z-[1] mb-2 flex items-start justify-between gap-2">
         {(() => {
           const { main, notas } = splitNotas(formatPergunta(q.pergunta));
           return (
             <div className="min-w-0">
-              <p className="leva-q text-base leading-snug text-foreground">{main}</p>
+              <p className="leva-q text-[13.5px] leading-snug text-foreground">{main}</p>
               {notas.map((n, i) => (
                 <p
                   key={i}
@@ -882,16 +1149,6 @@ function QuestionCard({
         </div>
       </div>
 
-      {/* Ajuda em linguagem leiga (observacao) */}
-      {q.observacao && (
-        <div className="relative z-[1] mb-3 flex gap-2 rounded-md bg-muted px-3 py-2">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-          <p className="whitespace-pre-line text-[13px] leading-relaxed text-muted-foreground">
-            {q.observacao}
-          </p>
-        </div>
-      )}
-
       {/* Video explicativo opcional (player inline; toggle vive na fileira de acoes) */}
       {q.videoUrl && showVideo && (
         <div className="relative z-[1] mb-3">
@@ -912,31 +1169,69 @@ function QuestionCard({
       {/* Exemplo de preenchimento */}
       {q.exemplo && <p className="relative z-[1] mt-2 text-[12px] italic text-gray-400">{q.exemplo}</p>}
 
-      {/* Fileira de acoes da pergunta: Ouvir | Video — selos embutidos ciano.
-          Ouvir so com audioUrl (mp3 premium; Web Speech API proibida);
-          Video so com videoUrl. Gravar (voz) vive no controle de texto. */}
-      {(q.audioUrl || q.videoUrl) && (
-        <div className="relative z-[1] mt-3 flex flex-wrap items-center gap-2">
-          {q.audioUrl && (
+      {/* Fileira de acoes: Ouvir | Video a esquerda; "?" discreto a direita abre a explicacao detalhada
+          (o que significa, por que perguntamos e de onde vem). Menos texto fixo na tela. */}
+      {(q.audioUrl || q.videoUrl || temAjuda) && (
+        <div className="relative z-[1] mt-3 flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {q.audioUrl && (
+              <button
+                type="button"
+                onClick={toggleAudio}
+                aria-label={playing ? "Parar leitura da pergunta" : "Ouvir a pergunta"}
+                className="leva-action inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider"
+              >
+                {playing ? <Square className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                {playing ? "Parar" : "Ouvir"}
+              </button>
+            )}
+            {q.videoUrl && (
+              <button
+                type="button"
+                onClick={() => setShowVideo((v) => !v)}
+                aria-label={showVideo ? "Ocultar vídeo explicativo" : "Ver vídeo explicativo"}
+                className="leva-action inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider"
+              >
+                <Play className="h-3.5 w-3.5" /> Vídeo
+              </button>
+            )}
+          </div>
+          {temAjuda && (
             <button
               type="button"
-              onClick={toggleAudio}
-              aria-label={playing ? "Parar leitura da pergunta" : "Ouvir a pergunta"}
-              className="leva-action inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider"
+              onClick={() => setAjudaAberta((v) => !v)}
+              aria-expanded={ajudaAberta}
+              aria-label="Entender melhor esta pergunta"
+              data-testid="pergunta-ajuda"
+              className="btn-3d-soft ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+              style={{ color: GOLD }}
             >
-              {playing ? <Square className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-              {playing ? "Parar" : "Ouvir"}
+              <HelpCircle className="h-4 w-4" />
             </button>
           )}
-          {q.videoUrl && (
-            <button
-              type="button"
-              onClick={() => setShowVideo((v) => !v)}
-              aria-label={showVideo ? "Ocultar vídeo explicativo" : "Ver vídeo explicativo"}
-              className="leva-action inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider"
-            >
-              <Play className="h-3.5 w-3.5" /> Vídeo
-            </button>
+        </div>
+      )}
+      {temAjuda && ajudaAberta && (
+        <div className="relative z-[1] mt-2 flex flex-col gap-1.5 rounded-md bg-muted px-3 py-2 text-[12px] leading-snug text-muted-foreground" data-testid="pergunta-ajuda-painel">
+          {q.observacao && (
+            <p className="whitespace-pre-line"><span className="font-semibold text-foreground">O que significa: </span>{q.observacao}</p>
+          )}
+          {referencia?.motivo && (
+            <p><span className="font-semibold text-foreground">Por que perguntamos: </span>{referencia.motivo}</p>
+          )}
+          {referencia && (referencia.titulo || referencia.fonte) && (
+            <p>
+              <span className="font-semibold text-foreground">De onde vem: </span>
+              {[referencia.titulo, referencia.fonte].filter(Boolean).join(" — ")}
+              {referencia.url && (
+                <>
+                  {" "}
+                  <a href={referencia.url} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: GOLD }}>
+                    Abrir a fonte
+                  </a>
+                </>
+              )}
+            </p>
           )}
         </div>
       )}
@@ -958,8 +1253,19 @@ function GroupView({
   onToggleRefuse: () => void;
 }) {
   const podeRecusar = !group.questions.some((q) => q.eSinalAlarme);
+  // Ao escolher uma resposta (toque unico), a tela ja sobe ate a proxima pergunta sem resposta.
+  const responder = (q: AnamneseQuestion, v: Valor, opts?: { commit?: boolean }) => {
+    onAnswer(q, v, opts);
+    if (!opts?.commit) return;
+    const i = group.questions.findIndex((x) => x.id === q.id);
+    const proxima = group.questions.slice(i + 1).find((x) => !isAnswered(answers[x.id])) ?? group.questions[i + 1];
+    if (!proxima) return;
+    requestAnimationFrame(() => {
+      document.querySelector(`[data-qid="${proxima.id}"]`)?.scrollIntoView({ behavior: "auto", block: "start" });
+    });
+  };
   return (
-    <section className="flex flex-col gap-3">
+    <section className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-2">
         <h2 className="bevel-3d rounded-md px-3 py-2 text-sm font-bold uppercase tracking-wide text-primary">
           {group.bloco}
@@ -983,9 +1289,9 @@ function GroupView({
         </div>
       ) : (
         // gap-5 = mais RESPIRO vertical entre cartoes (o tecido creme aparece entre eles).
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-7">
           {group.questions.map((q) => (
-            <QuestionCard key={q.id} q={q} value={answers[q.id]} onAnswer={onAnswer} />
+            <QuestionCard key={q.id} q={q} value={answers[q.id]} onAnswer={responder} />
           ))}
         </div>
       )}
@@ -1028,7 +1334,7 @@ function FocusView({
           onClick={onPrev}
           className="btn-3d-soft flex h-12 items-center gap-1.5 rounded-md px-5 text-sm font-bold disabled:opacity-40"
         >
-          <ChevronLeft className="h-4 w-4" /> Voltar
+          <ChevronLeft className="h-3 w-3" /> Voltar
         </button>
         {last ? (
           <button
@@ -1046,7 +1352,7 @@ function FocusView({
             onClick={onNext}
             className="btn-3d flex h-12 items-center gap-2 rounded-md px-6 text-sm font-bold uppercase tracking-wide text-white"
           >
-            Próxima <ChevronRight className="h-4 w-4" />
+            Próxima <ChevronRight className="h-3 w-3" />
           </button>
         )}
       </div>
@@ -1259,7 +1565,7 @@ function IdentifyGate({
       });
       const data = await res.json();
       if (!res.ok || !data.token) {
-        setError("CPF ou data de nascimento incorretos");
+        setError(typeof data?.error === "string" && data.error ? data.error : "CPF ou data de nascimento incorretos");
         return;
       }
       onStart(data.token as string);
@@ -1361,7 +1667,7 @@ function IdentifyGate({
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
                   <>
-                    Começar <ChevronRight className="h-4 w-4" />
+                    Começar <ChevronRight className="h-3 w-3" />
                   </>
                 )}
               </button>

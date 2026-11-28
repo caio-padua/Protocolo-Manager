@@ -1,10 +1,13 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useListAgendaResources } from "@workspace/api-client-react";
+import { agendaResourcesFrescas } from "@/lib/agenda-propagacao";
 import { CalendarClock, Check, Loader2 } from "lucide-react";
+import { useClientAgendaOptions } from "./client-agenda-defaults";
 
 interface PreferredAgendasFieldProps {
   /** Clínica selecionada no formulário (string do Select). Filtra as agendas. */
   locationId?: string;
+  clinicaId?: string;
   /** Ids das agendas (agenda_resources) escolhidas. */
   value: number[];
   onChange: (ids: number[]) => void;
@@ -15,26 +18,25 @@ interface PreferredAgendasFieldProps {
  * Cada agenda é um agenda_resource (profissional × clínica). É só preferência do cliente;
  * não altera o motor de agenda. Data-bound: lista vem do backend, estado controlado.
  */
-export function PreferredAgendasField({ locationId, value, onChange }: PreferredAgendasFieldProps) {
-  const { data: resources, isLoading } = useListAgendaResources();
+export function PreferredAgendasField({ locationId, clinicaId, value, onChange }: PreferredAgendasFieldProps) {
+  const { data: resources, isLoading, isError } = useListAgendaResources(agendaResourcesFrescas);
+  const { data: authorizedOptions, query: authorizedQuery } = useClientAgendaOptions(clinicaId ?? "");
 
   const locId = locationId ? Number(locationId) : null;
+  const authorizedLocation = locId !== null && !!authorizedOptions?.locais.some(location => location.id === locId);
 
   const agendas = useMemo(() => {
-    const all = resources ?? [];
+    const all = authorizedLocation ? resources ?? [] : [];
     return all
-      .filter((r) => r.active && (locId == null || r.locationId === locId))
+      .filter((r) => r.active && r.locationId === locId &&
+        authorizedOptions?.agendas.some(a => a.id === r.id && a.locationId === locId))
       .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
-  }, [resources, locId]);
+  }, [resources, locId, authorizedLocation, authorizedOptions]);
 
-  // Data-bound: ao trocar de clínica, remove do estado as agendas que não existem mais na
-  // lista filtrada (senão IDs "fantasmas" continuariam no form e iriam no submit).
-  useEffect(() => {
-    if (isLoading || locId == null) return;
-    const allowed = new Set(agendas.map((a) => a.id));
-    const pruned = value.filter((id) => allowed.has(id));
-    if (pruned.length !== value.length) onChange(pruned);
-  }, [agendas, isLoading, locId, value, onChange]);
+  // Erro de rede ou mudança de local não pode apagar uma escolha em silêncio.
+  const unavailable = resources && authorizedLocation
+    ? value.filter((id) => !agendas.some((agenda) => agenda.id === id))
+    : [];
 
   const toggle = (id: number) => {
     if (value.includes(id)) {
@@ -51,15 +53,19 @@ export function PreferredAgendasField({ locationId, value, onChange }: Preferred
       </div>
 
       <div className="concave-3d p-3">
-        {isLoading ? (
+        {isLoading || authorizedQuery.isFetching ? (
           <div className="flex items-center gap-2 text-muted-foreground text-xs py-2">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando agendas...
           </div>
+        ) : isError || authorizedQuery.isError ? (
+          <p className="text-destructive text-xs py-2">
+            Não foi possível carregar as agendas. Suas seleções anteriores foram preservadas.
+          </p>
         ) : agendas.length === 0 ? (
           <p className="text-muted-foreground text-xs py-2">
             {locId == null
-              ? "Selecione a clínica de origem para listar as agendas."
-              : "Nenhuma agenda ativa para esta clínica."}
+              ? "Selecione um local da clínica para listar as agendas."
+              : "Nenhuma agenda disponível para este local da clínica."}
           </p>
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -82,6 +88,26 @@ export function PreferredAgendasField({ locationId, value, onChange }: Preferred
                 </button>
               );
             })}
+          </div>
+        )}
+        {unavailable.length > 0 && !isError && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-amber-700 dark:text-amber-300">
+            <span>Há {unavailable.length} seleção(ões) que não estão disponíveis neste local.</span>
+            <button
+              type="button"
+              className="btn-3d-soft px-2 py-1 font-semibold"
+              onClick={() => onChange(value.filter((id) => !unavailable.includes(id)))}
+            >
+              Remover seleções indisponíveis
+            </button>
+          </div>
+        )}
+        {value.length > 0 && !authorizedLocation && !authorizedQuery.isFetching && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-amber-700 dark:text-amber-300">
+            <span>As escolhas anteriores foram preservadas.</span>
+            <button type="button" className="btn-3d-soft px-2 py-1 font-semibold" onClick={() => onChange([])}>
+              Limpar agendas preferenciais anteriores
+            </button>
           </div>
         )}
       </div>

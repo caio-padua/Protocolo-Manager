@@ -1,5 +1,9 @@
-import { useMemo, useState } from "react";
+import "../matriz-fornecedores/matriz.css";
+import "../agenda/agenda-barra.css";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -41,10 +45,18 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
+import { type Atributos, AtributosDialog, BotaoAtivo, GestaoOpcoes, UploadManualExames, NaturezaChip, naturezaSugerida, useAtributos, useCores, NATUREZA_SIGLA } from "./ExamesAtributos";
 import {
   Search,
   Plus,
   Pencil,
+  Trash2,
+  FolderInput,
+  ChevronDown,
+  ArrowLeft,
+  ArrowRight,
+  MinusCircle,
   TestTube,
   Layers,
   Tags,
@@ -70,7 +82,7 @@ interface Exam {
 
 interface BlocoGrau {
   grau: string;
-  exames: Array<{ nomeExame: string; codigoPadcom: string | null; ordem: number | null }>;
+  exames: Array<{ id: number; nomeExame: string; codigoPadcom: string | null; ordem: number | null }>;
 }
 interface Bloco {
   codigoBloco: string;
@@ -79,14 +91,11 @@ interface Bloco {
   totalExames: number;
   graus: BlocoGrau[];
 }
-interface Categoria {
-  nome: string;
-  total: number;
-}
-
 type FormState = {
   id: number | null;
   codigoExame: string;
+  areaCodigo: string;
+  gradeCodigo: string;
   nomeExame: string;
   grupoPrincipal: string;
   subgrupo: string;
@@ -101,6 +110,8 @@ type FormState = {
 const EMPTY_FORM: FormState = {
   id: null,
   codigoExame: "",
+  areaCodigo: "",
+  gradeCodigo: "",
   nomeExame: "",
   grupoPrincipal: "",
   subgrupo: "",
@@ -118,14 +129,84 @@ function txt(v: unknown): string {
   return s.length ? s : "—";
 }
 
+interface Classificacao {
+  id: number;
+  nome: string;
+  ativo: boolean;
+  total: number;
+}
+type CampoClass = "categoria" | "subgrupo" | "modalidade" | "material_setor";
+const CAMPOS_CLASS: Array<{ campo: CampoClass; rotulo: string; plural: string; ajuda: string }> = [
+  { campo: "categoria", rotulo: "Grupo / Categoria", plural: "Categorias", ajuda: "Grande área clínica do exame. Ex.: HEMATOLOGICO, IMAGEM, ENDOCRINO." },
+  { campo: "subgrupo", rotulo: "Subgrupo", plural: "Subgrupos", ajuda: "Divisão dentro da categoria. Ex.: TIREOIDE, DST, LIPIDICO CARDIOMETABOLICO." },
+  { campo: "modalidade", rotulo: "Modalidade", plural: "Modalidades", ajuda: "Tipo de método. Ex.: LABORATORIAL, USG, TC, RM, RX." },
+  { campo: "material_setor", rotulo: "Setor / Especialidade", plural: "Setor / Especialidade", ajuda: "Setor executor ou especialidade. O material biológico (soro, plasma, urina...) fica em Opções > Materiais." },
+];
+const SEM_VALOR = "__none__";
+const FAIXA_MATIZES = [215, 160, 28, 275, 345, 190, 95, 40];
+
+function useClassificacoes(campo: CampoClass) {
+  return useQuery<Classificacao[]>({
+    queryKey: ["/api/cadastros/classificacoes", campo],
+    queryFn: async () => {
+      const r = await fetch(`/api/cadastros/classificacoes?campo=${campo}`);
+      if (!r.ok) throw new Error("Falha ao carregar classificações");
+      return r.json();
+    },
+  });
+}
+
+// Lista suspensa alimentada pelo cadastro de classificações. Valor antigo que
+// ainda não consta no cadastro continua visível (nunca é apagado ao editar).
+function ClassSelect({
+  campo,
+  value,
+  onChange,
+}: {
+  campo: CampoClass;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const { data } = useClassificacoes(campo);
+  const atuais = (data ?? []).filter((c) => c.ativo).map((c) => c.nome);
+  const legado = value && !atuais.some((n) => n.toUpperCase() === value.trim().toUpperCase()) ? value : null;
+  return (
+    <Select
+      value={value ? value : SEM_VALOR}
+      onValueChange={(v) => {
+        if (v === "") return;
+        onChange(v === SEM_VALOR ? "" : v);
+      }}
+    >
+      <SelectTrigger className="field-engraved" data-testid={`select-${campo}`}>
+        <SelectValue placeholder="Selecione" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={SEM_VALOR}>— Nenhum —</SelectItem>
+        {legado && <SelectItem value={legado}>{legado} (fora do cadastro)</SelectItem>}
+        {atuais.map((n) => (
+          <SelectItem key={n} value={n}>
+            {n}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 // ============================ ABA EXAMES =====================================
-function ExamesTab() {
+function ExamesTab({ slot }: { slot: HTMLElement | null }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [categoria, setCategoria] = useState("__all__");
+  const [naturezaFiltro, setNaturezaFiltro] = useState("__all__");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const criadoId = useRef<number | null>(null); // evita duplicar o exame se os atributos falharem e o médico tentar de novo
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [cloneAttr, setCloneAttr] = useState<Atributos | undefined>(undefined);
+  const { data: atributos } = useAtributos();
+  const attrPorId = useMemo(() => new Map((atributos ?? []).map((a) => [a.exameId, a])), [atributos]);
 
   const { data: exams, isLoading } = useQuery<Exam[]>({
     queryKey: ["/api/cadastros/exames"],
@@ -146,12 +227,36 @@ function ExamesTab() {
     const q = search.trim().toLowerCase();
     return (exams ?? []).filter((e) => {
       if (categoria !== "__all__" && (e.grupoPrincipal ?? "").trim() !== categoria) return false;
+      if (naturezaFiltro !== "__all__") {
+        const nat = (attrPorId.get(e.id)?.natureza ?? naturezaSugerida(e.modalidade) ?? "").toUpperCase();
+        if (nat !== naturezaFiltro) return false;
+      }
       if (!q) return true;
-      return [e.nomeExame, e.codigoExame, e.grupoPrincipal, e.subgrupo, e.modalidade]
+      const a = attrPorId.get(e.id);
+      return [e.nomeExame, e.codigoExame, e.grupoPrincipal, e.subgrupo, e.modalidade, a?.natureza, a?.metodo, a?.regiao, ...(a?.sinonimos ?? []), ...(a?.eixos ?? []), ...(a?.gatilhos ?? [])]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [exams, search, categoria]);
+  }, [exams, search, categoria, naturezaFiltro, attrPorId]);
+
+  const [fechados, setFechados] = useState<Set<string>>(new Set());
+  const coresNat = useCores();
+  const [agrupar, setAgrupar] = useState<"eixo" | "categoria">("eixo");
+  const gruposVisiveis = useMemo(() => {
+    const SEM = agrupar === "eixo" ? "SEM EIXO CLÍNICO DEFINIDO" : "SEM CATEGORIA";
+    const m = new Map<string, Exam[]>();
+    for (const e of filtered) {
+      // Eixo clínico: usa o primeiro eixo gravado (cada exame aparece uma só vez; a soma das faixas = total).
+      const k = (agrupar === "eixo" ? attrPorId.get(e.id)?.eixos?.[0]?.trim() : e.grupoPrincipal?.trim()) || SEM;
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(e);
+    }
+    return Array.from(m, ([nome, itens]) => ({ nome: agrupar === "eixo" && nome !== SEM ? nome.toUpperCase() : nome, itens })).sort((a, b) => {
+      const fa = a.nome.startsWith("SEM ") ? 1 : 0;
+      const fb = b.nome.startsWith("SEM ") ? 1 : 0;
+      return fa - fb || a.nome.localeCompare(b.nome, "pt-BR");
+    });
+  }, [filtered, agrupar, attrPorId]);
 
   const saveMutation = useMutation<Exam, Error>({
     mutationFn: async () => {
@@ -171,8 +276,8 @@ function ExamesTab() {
         : "/api/cadastros/exames";
       const r = await fetch(url, {
         method: form.id ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form.id ? body : { ...body, codigoExame: form.codigoExame }),
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(form.id ? body : { ...body, areaCodigo: form.areaCodigo, gradeCodigo: form.gradeCodigo }),
       });
       if (!r.ok) {
         const b = await r.json().catch(() => ({}));
@@ -183,8 +288,6 @@ function ExamesTab() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/cadastros/exames"] });
       qc.invalidateQueries({ queryKey: ["/api/catalogos/exames"] });
-      setDialogOpen(false);
-      toast({ title: form.id ? "Exame atualizado" : "Exame criado" });
     },
     onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
   });
@@ -193,7 +296,7 @@ function ExamesTab() {
     mutationFn: async ({ id, ativo }) => {
       const r = await fetch(`/api/cadastros/exames/${id}/ativo`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ ativo }),
       });
       if (!r.ok) throw new Error("Falha ao alterar status");
@@ -207,13 +310,27 @@ function ExamesTab() {
   });
 
   function openNew() {
+    setCloneAttr(undefined);
+    criadoId.current = null;
     setForm(EMPTY_FORM);
     setDialogOpen(true);
   }
+  function clonarAtual() {
+    // Cópia da ficha como exame NOVO: sem código (gerado pelo sistema) e sem vínculos de bloco.
+    const a = form.id ? attrPorId.get(form.id) : undefined;
+    criadoId.current = null;
+    setCloneAttr(a ? { ...a, exameId: 0 } : undefined);
+    setForm((f) => ({ ...f, id: null, codigoExame: "", areaCodigo: "", gradeCodigo: "", nomeExame: `${f.nomeExame} (CÓPIA)` }));
+    toast({ title: "Exame clonado", description: "Escolha a área e a grade do código novo. Os vínculos de bloco não são copiados." });
+  }
   function openEdit(e: Exam) {
+    setCloneAttr(undefined);
+    criadoId.current = null;
     setForm({
       id: e.id,
       codigoExame: e.codigoExame ?? "",
+      areaCodigo: "",
+      gradeCodigo: "",
       nomeExame: e.nomeExame ?? "",
       grupoPrincipal: e.grupoPrincipal ?? "",
       subgrupo: e.subgrupo ?? "",
@@ -227,46 +344,83 @@ function ExamesTab() {
     setDialogOpen(true);
   }
 
+  const opcoesCodigo = useQuery<{ areas: Array<{ codigo: string; rotulo: string }>; grades: Array<{ codigo: string; rotulo: string }> }>({
+    queryKey: ["/api/cadastros/exames/codigo/opcoes"],
+    queryFn: async () => {
+      const r = await fetch("/api/cadastros/exames/codigo/opcoes");
+      if (!r.ok) throw new Error("Falha ao carregar opções do código");
+      return r.json();
+    },
+    enabled: dialogOpen && form.id === null,
+  });
+  const previa = useQuery<{ semantico: string }, Error>({
+    queryKey: ["/api/cadastros/exames/codigo/previa", form.nomeExame.trim(), form.areaCodigo, form.gradeCodigo],
+    queryFn: async () => {
+      const r = await fetch("/api/cadastros/exames/codigo/previa", {
+        method: "POST",
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ nomeExame: form.nomeExame.trim(), areaCodigo: form.areaCodigo, gradeCodigo: form.gradeCodigo }),
+      });
+      const b = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(b.error ?? "Código inválido");
+      return b;
+    },
+    enabled: dialogOpen && form.id === null && form.nomeExame.trim().length > 0 && form.areaCodigo.length === 4 && form.gradeCodigo.length === 4,
+    retry: false,
+  });
+
   const canSave =
     form.nomeExame.trim().length > 0 &&
-    (form.id !== null || form.codigoExame.trim().length > 0) &&
+    (form.id !== null || (form.areaCodigo.length === 4 && form.gradeCodigo.length === 4 && !!previa.data)) &&
     !saveMutation.isPending;
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar exame..."
-            className="pl-9 field-engraved"
-          />
-        </div>
-        <div className="flex items-center gap-3">
+      {slot && createPortal(<div className="mx-ev !mt-0 !p-0" data-testid="filtros-exames">
+        <div className="grid items-center gap-2 md:grid-cols-[minmax(0,1fr)_220px_96px_150px]">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar exame..." className="h-10 pl-9 field-engraved" />
+          </div>
           <Select value={categoria} onValueChange={setCategoria}>
-            <SelectTrigger className="w-[220px] field-engraved">
-              <SelectValue placeholder="Categoria" />
-            </SelectTrigger>
+            <SelectTrigger className="h-10 w-full field-engraved"><SelectValue placeholder="Categoria" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">Todas as categorias</SelectItem>
-              {categorias.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
+              {categorias.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
             </SelectContent>
           </Select>
-          <div className="screen-3d px-3 py-1.5 text-xs font-black whitespace-nowrap tracking-wide">
+          <div className="screen-3d flex h-10 items-center justify-center text-xs font-black whitespace-nowrap tracking-wide">
             {isLoading ? "..." : `${filtered.length} de ${exams?.length ?? 0}`}
           </div>
-          <Button onClick={openNew} className="btn-3d">
-            <Plus className="mr-1.5 h-4 w-4" /> Novo exame
-          </Button>
+          <Button onClick={openNew} className="btn-3d h-10 w-full"><Plus className="mr-1.5 h-4 w-4" /> Novo exame</Button>
         </div>
-      </div>
-
+        <div className="mx-ev-duo" style={{ gridTemplateColumns: "1.8fr 1fr" }}>
+          <div>
+            <div className="mx-ev-l">Natureza</div>
+            <div className="mx-ev-g mx-ev-g6" role="group" aria-label="Natureza do exame" data-testid="pilulas-natureza" style={{ gridTemplateColumns: "repeat(6, minmax(0, 1fr))" }}>
+              {[{ chave: "__all__", rotulo: "Todos" }, ...["LABORATORIAL", "IMAGEM", "COMPOSICAO CORPORAL", "METODOS GRAFICOS", "ENDOSCOPICOS"].map((n) => ({ chave: n, rotulo: NATUREZA_SIGLA[n] }))].map((pl) => {
+                const sel = naturezaFiltro === pl.chave;
+                const cor = pl.chave === "__all__" ? null : coresNat.natureza(pl.chave);
+                return (
+                  <button key={pl.chave} type="button" aria-pressed={sel} onClick={() => setNaturezaFiltro(pl.chave)} title={pl.chave === "__all__" ? "Todas as naturezas" : pl.chave} data-testid={`pilula-${pl.rotulo}`}
+                    className={`evo-bevel mx-ev-b mx-ev-lab h56 ${sel ? "evo-bevel-ativo" : ""}`} style={{ ["--ev" as string]: cor ?? "#c9bfa6" }}>
+                    {pl.rotulo}
+                    <span className="ag-vidro w-full" aria-hidden />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <div className="mx-ev-l">Agrupar por</div>
+            <div className="mx-ev-g mx-ev-g2" role="group" aria-label="Agrupar a lista">
+              {([["eixo", "Eixo clínico"], ["categoria", "Categoria"]] as const).map(([k, rot]) => (
+                <button key={k} type="button" aria-pressed={agrupar === k} onClick={() => setAgrupar(k)} className={`evo-bevel mx-ev-b h40 ${agrupar === k ? "evo-bevel-ativo" : ""}`} data-testid={`agrupar-${k}`}>{rot}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>, slot)}
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -274,152 +428,277 @@ function ExamesTab() {
           ))}
         </div>
       ) : (
-        <div className="panel-3d overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-primary/10">
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Código</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Exame</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Grupo</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Modalidade</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Preparo</TableHead>
-                <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-primary">Ativo</TableHead>
-                <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-primary">Ação</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-sm text-muted-foreground">
-                    Nenhum exame encontrado.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((e) => (
-                  <TableRow key={e.id} className={`neon-hover ${e.ativo === false ? "opacity-50" : ""}`}>
-                    <TableCell className="align-top text-xs font-mono text-muted-foreground">{txt(e.codigoExame)}</TableCell>
-                    <TableCell className="align-top text-sm font-bold">{txt(e.nomeExame)}</TableCell>
-                    <TableCell className="align-top text-sm">{txt(e.grupoPrincipal)}</TableCell>
-                    <TableCell className="align-top text-sm">{txt(e.modalidade)}</TableCell>
-                    <TableCell className="align-top max-w-[280px] truncate text-sm text-muted-foreground">{txt(e.preparo)}</TableCell>
-                    <TableCell className="text-center align-top">
-                      <Switch
-                        checked={e.ativo !== false}
-                        onCheckedChange={(v) => toggleMutation.mutate({ id: e.id, ativo: v })}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right align-top">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(e)} aria-label="Editar">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+        <div className="flex flex-col gap-2" data-testid="lista-exames-faixas">
+          {gruposVisiveis.length === 0 ? (
+            <div className="h-24 flex items-center justify-center text-sm text-muted-foreground">Nenhum exame encontrado.</div>
+          ) : (
+            gruposVisiveis.map((g, gi) => {
+              const hue = FAIXA_MATIZES[gi % FAIXA_MATIZES.length];
+              const fechado = fechados.has(g.nome);
+              return (
+                <section key={g.nome} className="panel-3d-sub p-2" data-testid={`faixa-${g.nome}`}>
+                  <div className="sticky z-20 -mx-2 -mt-2 rounded-t-[6px] bg-[#fbfaf4] px-2 pb-1 pt-2" style={{ top: "var(--topo-off, 0px)" }}>
+                  <button
+                    type="button"
+                    onClick={() => setFechados((s) => { const n = new Set(s); if (n.has(g.nome)) n.delete(g.nome); else n.add(g.nome); return n; })}
+                    className="tecla-3d flex w-full items-center gap-3 px-3 py-1.5 text-left"
+                    aria-expanded={!fechado}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="bevel-3d inline-flex h-6 w-10 shrink-0"
+                      style={{
+                        borderRadius: 5,
+                        border: "1px solid",
+                        background: `linear-gradient(180deg, rgba(255,255,255,.30) 0%, rgba(255,255,255,0) 48%, rgba(0,0,0,.16) 100%), hsl(${hue} 60% 55%)`,
+                        borderColor: `color-mix(in srgb, hsl(${hue} 60% 55%) 55%, #b8924d)`,
+                      }}
+                    />
+                    <span className="concave-3d flex h-5 w-9 shrink-0 items-center justify-center text-[10px] font-bold tabular-nums text-primary/80">{g.itens.length}</span>
+                    <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-widest text-primary/80">{g.nome}</span>
+                    <ChevronDown className={`h-3.5 w-3.5 shrink-0 opacity-60 transition-transform ${fechado ? "-rotate-90" : ""}`} />
+                  </button>
+                  {!fechado && (
+                    <div className="hidden md:grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_112px_48px] gap-3 px-4 pb-0.5 pt-2 text-[9px] font-bold uppercase tracking-widest text-primary/70">
+                      <div>Exame</div>
+                      <div>Natureza / Modalidade</div>
+                      <div>Preparo</div>
+                      <div className="text-center">Ativo</div>
+                      <div className="text-right">Ação</div>
+                    </div>
+                  )}
+                  </div>
+                  {!fechado && (<div className="concave-3d overflow-hidden" style={{ background: `linear-gradient(180deg, hsl(${hue} 45% 90%) 0%, hsl(${hue} 35% 94%) 35%, hsl(${hue} 25% 97%) 100%)` }}>
+                  {g.itens.map((e, i) => {
+                    const nat = attrPorId.get(e.id)?.natureza;
+                    return (
+                      <div
+                        key={e.id}
+                        className={`neon-hover grid grid-cols-[minmax(0,1fr)_112px_48px] md:grid-cols-[minmax(0,2.6fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_112px_48px] items-center gap-3 px-4 py-2.5 ${e.ativo === false ? "opacity-50" : ""}`}
+                        style={{ background: i % 2 === 0 ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.18)" }}
+                      >
+                        <div className="min-w-0">
+                          <div className="break-words text-sm font-bold leading-tight text-[#1b2433]">{txt(e.nomeExame)}</div>
+                          <div className="mt-0.5 truncate font-mono text-[10px] tracking-wide text-[#5b6578]" title={txt(e.codigoExame)}>{txt(e.codigoExame)}</div>
+                        </div>
+                        <div className="hidden md:flex min-w-0 flex-col items-start gap-1">
+                          <div className="w-16 [&>span]:block [&>span]:text-center">{nat ? <NaturezaChip curto natureza={nat} /> : <NaturezaChip curto natureza={naturezaSugerida(e.modalidade)} sugerida />}</div>
+                          <span className="truncate text-[11px] text-[#5b6578]">{txt(attrPorId.get(e.id)?.metodo ?? e.modalidade)}</span>
+                        </div>
+                        <div className="hidden md:block min-w-0 text-xs text-[#5b6578] line-clamp-2">{txt(e.preparo)}</div>
+                        <div className="flex justify-center">
+                          <BotaoAtivo ativo={e.ativo !== false} rotulo={txt(e.nomeExame)} onChange={(v) => toggleMutation.mutate({ id: e.id, ativo: v })} />
+                        </div>
+                        <div className="flex justify-end">
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(e)} aria-label="Editar" title="Editar ficha completa do exame" data-testid={`button-editar-${e.id}`}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  </div>)}
+                </section>
+              );
+            })
+          )}
         </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{form.id ? "Editar exame" : "Novo exame"}</DialogTitle>
-          </DialogHeader>
+      <AtributosDialog
+        exame={dialogOpen ? { id: form.id, nome: form.nomeExame } : null}
+        atual={form.id ? attrPorId.get(form.id) : cloneAttr}
+        onClonar={form.id ? clonarAtual : undefined}
+        modalidade={form.modalidade}
+        titulo={form.id ? "Editar exame" : "Novo exame"}
+        podeSalvar={canSave}
+        antesDeSalvar={async () => {
+          if (form.id) return (await saveMutation.mutateAsync()).id;
+          if (criadoId.current) return criadoId.current;
+          criadoId.current = (await saveMutation.mutateAsync()).id;
+          return criadoId.current;
+        }}
+        onClose={() => setDialogOpen(false)}
+        topo={(
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Código *</label>
-              <Input
-                value={form.codigoExame}
-                disabled={form.id !== null}
-                onChange={(e) => setForm((f) => ({ ...f, codigoExame: e.target.value }))}
-                placeholder="EX: EXAMSANGUE0001"
-                className="field-engraved"
-              />
+              {form.id !== null ? (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Código</label>
+                  <Input value={form.codigoExame} disabled className="field-engraved" />
+                </div>
+              ) : (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Código (gerado pelo sistema) *</label>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <Select value={form.areaCodigo || SEM_VALOR} onValueChange={(v) => { if (v !== "") setForm((f) => ({ ...f, areaCodigo: v === SEM_VALOR ? "" : v })); }}>
+                      <SelectTrigger className="field-engraved" data-testid="select-area-codigo"><SelectValue placeholder="Área (bloco)" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SEM_VALOR}>— Escolha a área —</SelectItem>
+                        {(opcoesCodigo.data?.areas ?? []).map((a) => (
+                          <SelectItem key={a.codigo} value={a.codigo}>{a.codigo} — {a.rotulo}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={form.gradeCodigo || SEM_VALOR} onValueChange={(v) => { if (v !== "") setForm((f) => ({ ...f, gradeCodigo: v === SEM_VALOR ? "" : v })); }}>
+                      <SelectTrigger className="field-engraved" data-testid="select-grade-codigo"><SelectValue placeholder="Grade" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SEM_VALOR}>— Escolha a grade —</SelectItem>
+                        {(opcoesCodigo.data?.grades ?? []).map((g) => (
+                          <SelectItem key={g.codigo} value={g.codigo}>{g.codigo} — {g.rotulo}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="screen-3d px-3 py-1.5 text-xs font-black tracking-wide" data-testid="previa-codigo" role="status">
+                    {previa.isError
+                      ? previa.error.message
+                      : previa.data
+                        ? `Código: ${previa.data.semantico}`
+                        : "Digite o nome e escolha área e grade para ver o código."}
+                  </div>
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Nome do exame *</label>
+                <Input
+                  value={form.nomeExame}
+                  onChange={(e) => setForm((f) => ({ ...f, nomeExame: e.target.value }))}
+                  placeholder="Ex.: Hemograma completo"
+                  className="field-engraved"
+                />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Finalidade principal</label>
+                <Input
+                  value={form.finalidadePrincipal}
+                  onChange={(e) => setForm((f) => ({ ...f, finalidadePrincipal: e.target.value }))}
+                  className="field-engraved"
+                />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Preparo</label>
+                <Textarea
+                  rows={2}
+                  value={form.preparo}
+                  onChange={(e) => setForm((f) => ({ ...f, preparo: e.target.value }))}
+                  placeholder="Ex.: Jejum de 8 horas"
+                  className="field-engraved"
+                />
+              </div>
+              {form.id !== null && (
+                <div className="flex items-center gap-3 sm:col-span-2">
+                  <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Situação do exame</label>
+                  <BotaoAtivo
+                    ativo={exams?.find((x) => x.id === form.id)?.ativo !== false}
+                    rotulo={form.nomeExame}
+                    onChange={(v) => toggleMutation.mutate({ id: form.id as number, ativo: v })}
+                  />
+                </div>
+              )}
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Nome do exame *</label>
-              <Input
-                value={form.nomeExame}
-                onChange={(e) => setForm((f) => ({ ...f, nomeExame: e.target.value }))}
-                placeholder="Ex.: Hemograma completo"
-                className="field-engraved"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Grupo / Categoria</label>
-              <Input
-                value={form.grupoPrincipal}
-                onChange={(e) => setForm((f) => ({ ...f, grupoPrincipal: e.target.value }))}
-                placeholder="Ex.: HEMATOLOGICO"
-                className="field-engraved"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Subgrupo</label>
-              <Input
-                value={form.subgrupo}
-                onChange={(e) => setForm((f) => ({ ...f, subgrupo: e.target.value }))}
-                className="field-engraved"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Modalidade</label>
-              <Input
-                value={form.modalidade}
-                onChange={(e) => setForm((f) => ({ ...f, modalidade: e.target.value }))}
-                placeholder="Ex.: USG, TC, RM (vazio = sangue)"
-                className="field-engraved"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Material / Setor</label>
-              <Input
-                value={form.materialOuSetor}
-                onChange={(e) => setForm((f) => ({ ...f, materialOuSetor: e.target.value }))}
-                className="field-engraved"
-              />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Finalidade principal</label>
-              <Input
-                value={form.finalidadePrincipal}
-                onChange={(e) => setForm((f) => ({ ...f, finalidadePrincipal: e.target.value }))}
-                className="field-engraved"
-              />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Preparo</label>
-              <Textarea
-                rows={2}
-                value={form.preparo}
-                onChange={(e) => setForm((f) => ({ ...f, preparo: e.target.value }))}
-                placeholder="Ex.: Jejum de 8 horas"
-                className="field-engraved"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={() => saveMutation.mutate()}
-              disabled={!canSave}
-              className="btn-3d"
-            >
-              {saveMutation.isPending ? "Salvando..." : "Salvar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
+      />
     </div>
   );
 }
 
 // ============================ ABA BLOCOS =====================================
-function BlocosTab() {
+function BlocosTab({ slot }: { slot: HTMLElement | null }) {
+  const coresUi = useCores();
+  const { toast } = useToast();
+  const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  // mover: exame da grade -> outro bloco/grau; incluir: exame do catálogo -> bloco/grau
+  const [mover, setMover] = useState<{ id: number; nome: string; blocoId: string; grau: string } | null>(null);
+  const [incluir, setIncluir] = useState<{ blocoId: string; nomeBloco: string; grau: string; exameId: string } | null>(null);
+  const [buscaExame, setBuscaExame] = useState("");
+  const [abertos, setAbertos] = useState<string[]>([]);
+
+  const opcoes = useQuery<{ blocos: Array<{ codigoBloco: string; nomeBloco: string }>; graus: string[] }>({
+    queryKey: ["/api/cadastros/blocos/opcoes"],
+    queryFn: async () => {
+      const r = await fetch("/api/cadastros/blocos/opcoes");
+      if (!r.ok) throw new Error("Falha ao carregar blocos");
+      return r.json();
+    },
+  });
+  const catalogo = useQuery<Exam[]>({
+    queryKey: ["/api/cadastros/exames"],
+    queryFn: async () => {
+      const r = await fetch("/api/cadastros/exames");
+      if (!r.ok) throw new Error("Falha ao carregar exames");
+      return r.json();
+    },
+    enabled: incluir !== null,
+  });
+
+  const refazer = () => {
+    qc.invalidateQueries({ queryKey: ["/api/cadastros/blocos"] });
+    qc.invalidateQueries({ queryKey: ["/api/cadastros/blocos/opcoes"] });
+  };
+  const chamar = async (url: string, method: string, body: unknown, falha: string) => {
+    const r = await fetch(url, {
+      method,
+      headers: collabAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) {
+      const b = await r.json().catch(() => ({}));
+      throw new Error(b.error ?? falha);
+    }
+    return r.json();
+  };
+  const moverMut = useMutation<unknown, Error>({
+    mutationFn: () => chamar(`/api/cadastros/blocos/exames/${mover!.id}/mover`, "PATCH", { blocoId: mover!.blocoId, grau: mover!.grau }, "Falha ao mover"),
+    onSuccess: () => {
+      refazer();
+      setMover(null);
+      toast({ title: "Exame movido" });
+    },
+    onError: (err) => toast({ title: "Não foi possível mover", description: err.message, variant: "destructive" }),
+  });
+  const devolverMut = useMutation<unknown, Error, { id: number }>({
+    mutationFn: ({ id }) => chamar(`/api/cadastros/blocos/exames/${id}/ativo`, "PATCH", { ativo: true }, "Falha ao devolver ao bloco"),
+    onSuccess: () => {
+      refazer();
+      toast({ title: "Exame devolvido ao bloco" });
+    },
+    onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
+  });
+  const tirarMut = useMutation<unknown, Error, { id: number }>({
+    mutationFn: ({ id }) => chamar(`/api/cadastros/blocos/exames/${id}/ativo`, "PATCH", { ativo: false }, "Falha ao tirar do bloco"),
+    onSuccess: (_d, { id }) => {
+      refazer();
+      toast({
+        title: "Exame tirado do bloco",
+        description: "Continua no catálogo; só deixou de fazer parte deste bloco.",
+        action: <ToastAction altText="Desfazer" onClick={() => devolverMut.mutate({ id })} data-testid="button-desfazer-tirar">Desfazer</ToastAction>,
+      });
+    },
+    onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
+  });
+  const moverGrauMut = useMutation<unknown, Error, { id: number; blocoId: string; grau: string }>({
+    mutationFn: ({ id, blocoId, grau }) => chamar(`/api/cadastros/blocos/exames/${id}/mover`, "PATCH", { blocoId, grau }, "Falha ao mover"),
+    onSuccess: (_d, v) => {
+      refazer();
+      toast({ title: "Exame movido", description: `Agora em ${v.grau}.` });
+    },
+    onError: (err) => toast({ title: "Não foi possível mover", description: err.message, variant: "destructive" }),
+  });
+  const incluirMut = useMutation<unknown, Error>({
+    mutationFn: () => chamar("/api/cadastros/blocos/exames", "POST", { blocoId: incluir!.blocoId, grau: incluir!.grau, exameId: Number(incluir!.exameId) }, "Falha ao incluir"),
+    onSuccess: () => {
+      refazer();
+      setIncluir(null);
+      setBuscaExame("");
+      toast({ title: "Exame incluído no bloco" });
+    },
+    onError: (err) => toast({ title: "Não foi possível incluir", description: err.message, variant: "destructive" }),
+  });
+  const examesEscolha = (catalogo.data ?? [])
+    .filter((e) => e.ativo !== false && e.nomeExame)
+    .filter((e) => !buscaExame.trim() || (e.nomeExame ?? "").toLowerCase().includes(buscaExame.trim().toLowerCase()))
+    .slice(0, 60);
   const { data: blocos, isLoading } = useQuery<Bloco[]>({
     queryKey: ["/api/cadastros/blocos"],
     queryFn: async () => {
@@ -451,155 +730,500 @@ function BlocosTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="relative w-full sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar bloco..."
-            className="pl-9 field-engraved"
-          />
+      {slot && createPortal(<div className="mx-ev !mt-0 !p-0" data-testid="filtros-blocos">
+        <div className="grid items-center gap-2 md:grid-cols-[minmax(0,1fr)_150px]">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar bloco..." className="h-10 pl-9 field-engraved" />
+          </div>
+          <div className="screen-3d flex h-10 items-center justify-center text-xs font-black whitespace-nowrap tracking-wide">{filtered.length} blocos</div>
         </div>
-        <div className="screen-3d px-3 py-1.5 text-xs font-black whitespace-nowrap tracking-wide">
-          {filtered.length} blocos
+        <div className="grid items-center gap-2 md:grid-cols-[minmax(0,1fr)_150px_150px]">
+          <div className="concave-3d flex h-10 min-w-0 items-center gap-2 px-3 text-[11px] text-muted-foreground" title="No Prescritor de Exames você adiciona um painel inteiro de uma só vez.">
+            <Boxes className="h-4 w-4 shrink-0 text-primary" />
+            <span className="truncate">Cada bloco é um painel de exames com graus (Básica, Intermediária, Sofisticada).</span>
+          </div>
+          <button type="button" className="evo-bevel mx-ev-b h40" onClick={() => setAbertos(filtered.map((b) => b.codigoBloco))} data-testid="button-expandir-blocos">Expandir todos</button>
+          <button type="button" className="evo-bevel mx-ev-b h40" onClick={() => setAbertos([])} data-testid="button-recolher-blocos">Recolher todos</button>
         </div>
-      </div>
-      <div className="concave-3d flex items-start gap-2.5 px-3 py-2.5 text-sm text-muted-foreground">
-        <Boxes className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
-        <span>
-          Cada bloco é um painel de exames com graus (Básica, Intermediária, Sofisticada). No Prescritor de Exames você
-          adiciona um painel inteiro de uma só vez.
-        </span>
-      </div>
+      </div>, slot)}
 
-      <Accordion type="multiple" className="space-y-2">
-        {filtered.map((b) => (
-          <AccordionItem
-            key={b.codigoBloco}
-            value={b.codigoBloco}
-            className="panel-3d-sub border-l-4 border-primary/50 px-4"
-          >
-            <AccordionTrigger className="hover:no-underline neon-hover">
-              <div className="flex flex-1 items-center justify-between pr-3">
-                <span className="text-xs font-black uppercase tracking-wide">{b.nomeBloco}</span>
-                <div className="flex items-center gap-2">
-                  {b.tipoMacro && (
-                    <Badge variant="secondary" className="text-[10px] uppercase">
-                      {b.tipoMacro}
-                    </Badge>
-                  )}
-                  <Badge variant="outline" className="text-[10px]">
-                    {b.graus.length} graus
-                  </Badge>
-                </div>
-              </div>
+      <Accordion type="multiple" value={abertos} onValueChange={setAbertos} className="flex flex-col gap-2">
+        {filtered.map((b, bi) => {
+          const hue = FAIXA_MATIZES[bi % FAIXA_MATIZES.length];
+          const cor = `hsl(${hue} 60% 55%)`;
+          return (
+          <AccordionItem key={b.codigoBloco} value={b.codigoBloco} className="panel-3d-sub border-b-0 p-2">
+            <AccordionTrigger className="tecla-3d w-full gap-3 px-3 py-1.5 hover:no-underline [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60">
+              <span
+                aria-hidden="true"
+                className="bevel-3d inline-flex h-6 w-10 shrink-0"
+                style={{ borderRadius: 5, border: "1px solid", background: `linear-gradient(180deg, rgba(255,255,255,.30) 0%, rgba(255,255,255,0) 48%, rgba(0,0,0,.16) 100%), ${cor}`, borderColor: `color-mix(in srgb, ${cor} 55%, #b8924d)` }}
+              />
+              <span className="concave-3d flex h-6 w-9 shrink-0 items-center justify-center text-[11px] font-black tabular-nums text-[#1b2433]">{b.graus.length}</span>
+              <span className="min-w-0 flex-1 truncate text-left text-xs font-black uppercase tracking-widest text-[#1b2433]">{b.nomeBloco}</span>
+              <span className="concave-3d flex h-6 w-44 shrink-0 items-center justify-center truncate px-2 text-[10px] font-black uppercase tracking-wider text-[#1b2433]">{b.tipoMacro ?? "—"}</span>
             </AccordionTrigger>
-            <AccordionContent>
+            <AccordionContent className="pb-0">
+              <div className="concave-3d mt-2 p-3">
+              <div className="flex justify-end pb-2">
+                <Button
+                  size="sm"
+                  className="btn-3d"
+                  data-testid={`button-incluir-exame-${b.codigoBloco}`}
+                  onClick={() => setIncluir({ blocoId: b.codigoBloco, nomeBloco: b.nomeBloco ?? b.codigoBloco, grau: b.graus[0]?.grau ?? "GRADE BASICA", exameId: "" })}
+                >
+                  <Plus className="mr-1.5 h-4 w-4" /> Incluir exame neste bloco
+                </Button>
+              </div>
               <div className="grid grid-cols-1 gap-3 pb-2 md:grid-cols-3">
-                {b.graus.map((g) => (
-                  <div key={g.grau} className="panel-3d-sub p-3">
-                    <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-primary">
+                {b.graus.map((g, gi) => (
+                  <div key={g.grau} className="panel-3d-sub p-3 text-slate-900" style={{ ["--ev" as string]: coresUi.grade(g.grau) }} data-testid={`grade-${g.grau}`}>
+                    <div className="mb-1 text-[10px] font-black uppercase tracking-widest text-primary">
                       {g.grau} ({g.exames.length})
                     </div>
-                    <ul className="space-y-0.5">
+                    <span className="ag-vidro mb-2 block w-full" aria-hidden />
+                    <ul className="space-y-1">
                       {g.exames.map((ex, i) => (
-                        <li key={i} className="text-xs text-muted-foreground">
-                          {ex.nomeExame}
+                        <li key={ex.id ?? i} className="flex items-center justify-between gap-1 rounded-[4px] px-1.5 py-1 text-xs font-semibold text-[#1b2433]" style={{ background: i % 2 === 0 ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.25)" }}>
+                          <span className="min-w-0 flex-1">{ex.nomeExame}</span>
+                          <button
+                            type="button"
+                            aria-label={`Mover ${ex.nomeExame} para ${b.graus[gi - 1]?.grau ?? "grau anterior"}`}
+                            title={gi > 0 ? `Mover para ${b.graus[gi - 1].grau}` : "Já está no primeiro grau"}
+                            data-testid={`button-grau-anterior-${ex.id}`}
+                            className="evo-bevel inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] disabled:opacity-30"
+                            disabled={gi === 0 || moverGrauMut.isPending}
+                            onClick={() => moverGrauMut.mutate({ id: ex.id, blocoId: b.codigoBloco, grau: b.graus[gi - 1].grau })}
+                          >
+                            <ArrowLeft className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Mover ${ex.nomeExame} para ${b.graus[gi + 1]?.grau ?? "próximo grau"}`}
+                            title={gi < b.graus.length - 1 ? `Mover para ${b.graus[gi + 1].grau}` : "Já está no último grau"}
+                            data-testid={`button-grau-seguinte-${ex.id}`}
+                            className="evo-bevel inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] disabled:opacity-30"
+                            disabled={gi >= b.graus.length - 1 || moverGrauMut.isPending}
+                            onClick={() => moverGrauMut.mutate({ id: ex.id, blocoId: b.codigoBloco, grau: b.graus[gi + 1].grau })}
+                          >
+                            <ArrowRight className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Mover ${ex.nomeExame}`}
+                            title="Levar para outro bloco ou outra categoria (abre janela)"
+                            data-testid={`button-mover-exame-${ex.id}`}
+                            className="evo-bevel inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px]"
+                            onClick={() => setMover({ id: ex.id, nome: ex.nomeExame, blocoId: b.codigoBloco, grau: g.grau })}
+                          >
+                            <FolderInput className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Tirar ${ex.nomeExame} do bloco`}
+                            title="Tirar do bloco (não apaga o exame)"
+                            data-testid={`button-tirar-exame-${ex.id}`}
+                            className="evo-bevel inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] text-destructive"
+                            disabled={tirarMut.isPending}
+                            onClick={() => tirarMut.mutate({ id: ex.id })}
+                          >
+                            <MinusCircle className="h-3 w-3" />
+                          </button>
                         </li>
                       ))}
                     </ul>
                   </div>
                 ))}
               </div>
+              </div>
             </AccordionContent>
           </AccordionItem>
-        ))}
+          );
+        })}
       </Accordion>
+
+      <Dialog open={mover !== null} onOpenChange={(o) => !o && setMover(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mover exame</DialogTitle>
+          </DialogHeader>
+          {mover && (
+            <div className="space-y-3">
+              <div className="screen-3d px-3 py-1.5 text-xs font-black">{mover.nome}</div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Bloco de destino</label>
+                <Select value={mover.blocoId} onValueChange={(v) => v && setMover((m) => (m ? { ...m, blocoId: v } : m))}>
+                  <SelectTrigger className="field-engraved" data-testid="select-bloco-destino"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(opcoes.data?.blocos ?? []).map((o) => (
+                      <SelectItem key={o.codigoBloco} value={o.codigoBloco}>{o.nomeBloco}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Grau de destino</label>
+                <Select value={mover.grau} onValueChange={(v) => v && setMover((m) => (m ? { ...m, grau: v } : m))}>
+                  <SelectTrigger className="field-engraved" data-testid="select-grau-destino"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(opcoes.data?.graus ?? []).map((g) => (
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(() => {
+                // Prévia de impacto (só leitura, calculada a partir da grade já carregada).
+                const grauDe = (bid: string, gr: string) => (blocos ?? []).find((x) => x.codigoBloco === bid)?.graus.find((g) => g.grau === gr);
+                const nomeBloco = (bid: string) => (blocos ?? []).find((x) => x.codigoBloco === bid)?.nomeBloco ?? bid;
+                const origem = (blocos ?? []).flatMap((x) => x.graus.map((g) => ({ b: x.codigoBloco, g: g.grau, ex: g.exames }))).find((o) => o.ex.some((e) => e.id === mover.id));
+                const destino = grauDe(mover.blocoId, mover.grau);
+                const mesmo = !!origem && origem.b === mover.blocoId && origem.g === mover.grau;
+                const nomeAlvo = mover.nome.trim().toUpperCase();
+                const jaNoDestino = !mesmo && !!destino?.exames.some((e) => (e.nomeExame ?? "").trim().toUpperCase() === nomeAlvo);
+                return (
+                  <div className="concave-3d space-y-1 px-3 py-2 text-xs" data-testid="previa-impacto-mover" role="status">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-primary">Prévia de impacto</div>
+                    {mesmo ? <div>Origem e destino são iguais: nada muda.</div> : (
+                      <>
+                        {origem && <div>Sai de: {nomeBloco(origem.b)} / {origem.g} ({origem.ex.length} → {origem.ex.length - 1} exames)</div>}
+                        <div>Entra em: {nomeBloco(mover.blocoId)} / {mover.grau} ({destino?.exames.length ?? 0} → {(destino?.exames.length ?? 0) + 1} exames)</div>
+                        {jaNoDestino && <div className="font-bold text-destructive">Já existe um exame com este nome no destino; o servidor pode recusar.</div>}
+                        <div className="text-muted-foreground">Muda quais exames o cérebro sugere para este bloco e grade.</div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+              <p className="text-xs text-muted-foreground">O código do exame não muda. O exame entra no fim da lista do destino.</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMover(null)}>Cancelar</Button>
+            <Button className="btn-3d" disabled={moverMut.isPending} onClick={() => moverMut.mutate()} data-testid="button-confirmar-mover">
+              {moverMut.isPending ? "Movendo..." : "Mover"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={incluir !== null} onOpenChange={(o) => !o && setIncluir(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Incluir exame no bloco</DialogTitle>
+          </DialogHeader>
+          {incluir && (
+            <div className="space-y-3">
+              <div className="screen-3d px-3 py-1.5 text-xs font-black">{incluir.nomeBloco}</div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Grau</label>
+                <Select value={incluir.grau} onValueChange={(v) => v && setIncluir((m) => (m ? { ...m, grau: v } : m))}>
+                  <SelectTrigger className="field-engraved"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(opcoes.data?.graus ?? []).map((g) => (
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Exame</label>
+                <Input value={buscaExame} onChange={(e) => setBuscaExame(e.target.value)} placeholder="Buscar exame..." className="field-engraved" />
+                <Select value={incluir.exameId} onValueChange={(v) => v && setIncluir((m) => (m ? { ...m, exameId: v } : m))}>
+                  <SelectTrigger className="field-engraved" data-testid="select-exame-incluir"><SelectValue placeholder="Escolha o exame" /></SelectTrigger>
+                  <SelectContent>
+                    {examesEscolha.map((e) => (
+                      <SelectItem key={e.id} value={String(e.id)}>{e.nomeExame}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIncluir(null)}>Cancelar</Button>
+            <Button className="btn-3d" disabled={!incluir?.exameId || incluirMut.isPending} onClick={() => incluirMut.mutate()} data-testid="button-confirmar-incluir">
+              {incluirMut.isPending ? "Incluindo..." : "Incluir"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 // ============================ ABA CATEGORIAS =================================
-function CategoriasTab() {
-  const { data, isLoading } = useQuery<Categoria[]>({
-    queryKey: ["/api/cadastros/categorias"],
-    queryFn: async () => {
-      const r = await fetch("/api/cadastros/categorias");
-      if (!r.ok) throw new Error("Falha ao carregar categorias");
+// Sub-tela de cadastro das classificações usadas nos menus suspensos do exame.
+function ClassificacaoPainel({ item }: { item: (typeof CAMPOS_CLASS)[number] }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [novo, setNovo] = useState("");
+  const [busca, setBusca] = useState("");
+  const { data, isLoading } = useClassificacoes(item.campo);
+
+  const criar = useMutation<unknown, Error>({
+    mutationFn: async () => {
+      const r = await fetch("/api/cadastros/classificacoes", {
+        method: "POST",
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ campo: item.campo, nome: novo }),
+      });
+      if (!r.ok) {
+        const b = await r.json().catch(() => ({}));
+        throw new Error(b.error ?? "Falha ao cadastrar");
+      }
       return r.json();
     },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/cadastros/classificacoes", item.campo] });
+      setNovo("");
+      toast({ title: `${item.rotulo} cadastrado(a)` });
+    },
+    onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
   });
 
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        {Array.from({ length: 12 }).map((_, i) => (
-          <Skeleton key={i} className="h-16 w-full" />
-        ))}
-      </div>
-    );
-  }
+  const alternar = useMutation<unknown, Error, { id: number; ativo: boolean }>({
+    mutationFn: async ({ id, ativo }) => {
+      const r = await fetch(`/api/cadastros/classificacoes/${id}/ativo`, {
+        method: "PATCH",
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ ativo }),
+      });
+      if (!r.ok) throw new Error("Falha ao alterar status");
+      return r.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/cadastros/classificacoes", item.campo] }),
+    onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
+  });
+
+  const excluir = useMutation<unknown, Error, { id: number }>({
+    mutationFn: async ({ id }) => {
+      const r = await fetch(`/api/cadastros/classificacoes/${id}`, {
+        method: "DELETE",
+        headers: collabAuthHeaders(),
+      });
+      if (!r.ok) {
+        const b = await r.json().catch(() => ({}));
+        throw new Error(b.error ?? "Falha ao excluir");
+      }
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/cadastros/classificacoes", item.campo] });
+      toast({ title: "Cadastro excluído" });
+    },
+    onError: (err) => toast({ title: "Não foi possível excluir", description: err.message, variant: "destructive" }),
+  });
+
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editNome, setEditNome] = useState("");
+  const renomear = useMutation<{ exames_atualizados: number }, Error, { id: number }>({
+    mutationFn: async ({ id }) => {
+      const r = await fetch(`/api/cadastros/classificacoes/${id}`, {
+        method: "PATCH",
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ nome: editNome }),
+      });
+      if (!r.ok) {
+        const b = await r.json().catch(() => ({}));
+        throw new Error(b.error ?? "Falha ao renomear");
+      }
+      return r.json();
+    },
+    onSuccess: (d) => {
+      qc.invalidateQueries({ queryKey: ["/api/cadastros/classificacoes"] });
+      qc.invalidateQueries({ queryKey: ["/api/cadastros/exames"] });
+      setEditId(null);
+      toast({ title: "Nome atualizado", description: `${d.exames_atualizados} exame(s) acompanharam a mudança.` });
+    },
+    onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
+  });
+
+  const q = busca.trim().toLowerCase();
+  const lista = (data ?? []).filter((c) => !q || c.nome.toLowerCase().includes(q));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="concave-3d flex items-start gap-2.5 px-3 py-2.5 text-sm text-muted-foreground">
         <Tags className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
         <span>
-          Categorias são o campo "Grupo" de cada exame. Para mover um exame de categoria, edite o exame na aba Exames.
+          {item.ajuda} Desativar remove a opção da lista suspensa sem apagar nada. Editar o nome atualiza também os exames que usam esse nome.
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-        {(data ?? []).map((c) => (
-          <div
-            key={c.nome}
-            className="panel-3d-sub p-3 border-l-4 border-primary/50 neon-hover"
-          >
-            <div className="text-xs font-black uppercase tracking-wide">{c.nome}</div>
-            <div className="mt-1 screen-3d text-xs font-black px-2 py-0.5 inline-block">{c.total} exames</div>
-          </div>
-        ))}
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          value={novo}
+          onChange={(e) => setNovo(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && novo.trim() && !criar.isPending) criar.mutate();
+          }}
+          placeholder={`Novo(a) ${item.rotulo.toLowerCase()}...`}
+          className="field-engraved sm:max-w-sm"
+          data-testid={`input-nova-${item.campo}`}
+        />
+        <Button
+          onClick={() => criar.mutate()}
+          disabled={!novo.trim() || criar.isPending}
+          className="btn-3d"
+          data-testid={`button-cadastrar-${item.campo}`}
+        >
+          <Plus className="mr-1.5 h-4 w-4" /> Cadastrar
+        </Button>
+        <div className="relative sm:ml-auto sm:w-56">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar..." className="pl-9 field-engraved" />
+        </div>
       </div>
+      {isLoading ? (
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {lista.map((c) => (
+            <div
+              key={c.id}
+              className={`panel-3d-sub flex items-center justify-between gap-2 border-l-4 border-primary/50 p-3 ${c.ativo ? "" : "opacity-50"}`}
+            >
+              <div className="min-w-0 flex-1">
+                {editId === c.id ? (
+                  <div className="flex gap-1">
+                    <Input
+                      value={editNome}
+                      onChange={(e) => setEditNome(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && editNome.trim()) renomear.mutate({ id: c.id });
+                        if (e.key === "Escape") setEditId(null);
+                      }}
+                      className="field-engraved h-8"
+                      autoFocus
+                    />
+                    <Button size="sm" className="btn-3d h-8" disabled={!editNome.trim() || renomear.isPending} onClick={() => renomear.mutate({ id: c.id })}>
+                      OK
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="truncate text-xs font-black uppercase tracking-wide">{c.nome}</div>
+                )}
+                <div className="mt-1 screen-3d inline-block px-2 py-0.5 text-xs font-black">{c.total} exames</div>
+              </div>
+              {editId !== c.id && (
+                <button
+                  type="button"
+                  aria-label={`Editar ${c.nome}`}
+                  data-testid={`button-editar-classificacao-${c.id}`}
+                  className="btn-3d-soft rounded-[6px] p-1.5"
+                  onClick={() => {
+                    setEditId(c.id);
+                    setEditNome(c.nome);
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {c.total === 0 && editId !== c.id && (
+                <button
+                  type="button"
+                  aria-label={`Excluir ${c.nome}`}
+                  title="Excluir (só aparece quando nenhum exame usa este nome)"
+                  data-testid={`button-excluir-classificacao-${c.id}`}
+                  className="btn-3d-soft rounded-[6px] p-1.5 text-destructive"
+                  disabled={excluir.isPending}
+                  onClick={() => excluir.mutate({ id: c.id })}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+<BotaoAtivo ativo={c.ativo} rotulo={c.nome} onChange={(v) => alternar.mutate({ id: c.id, ativo: v })} />
+            </div>
+          ))}
+          {lista.length === 0 && <div className="text-sm text-muted-foreground">Nada cadastrado ainda.</div>}
+        </div>
+      )}
     </div>
   );
 }
 
 // ============================ PÁGINA =========================================
-export default function CadastroExames() {
+// Bloco independente: cadastro das classificações (usado como seção própria da tela unificada).
+export function ClassificacoesCadastro() {
   return (
-    <div className="space-y-6">
-      <div className="panel-3d p-4 flex items-center gap-4 border-l-4 border-primary/60">
-        <div className="bevel-3d w-12 h-12 flex items-center justify-center text-primary shrink-0">
-          <FolderTree className="h-6 w-6" />
-        </div>
-        <div className="min-w-0">
-          <h1 className="text-2xl md:text-3xl font-black tracking-tight uppercase">Cadastro de Exames</h1>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
-            Cadastre e organize exames, blocos e categorias do sistema.
-          </p>
-        </div>
-      </div>
+    <Tabs defaultValue="categoria" className="space-y-4">
+      <TabsList className="h-auto flex-wrap justify-start gap-2 bg-transparent p-0">
+        {CAMPOS_CLASS.map((c) => (
+          <TabsTrigger key={c.campo} value={c.campo} className="paxter-seletor h-9 px-4 text-[11px] font-black uppercase tracking-wide">
+            {c.plural}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {CAMPOS_CLASS.map((c) => (
+        <TabsContent key={c.campo} value={c.campo}>
+          <ClassificacaoPainel item={c} />
+        </TabsContent>
+      ))}
+    </Tabs>
+  );
+}
 
+// As 4 listas legadas (Categorias, Subgrupos, Modalidades, Material/Setor) ficam ocultas na tela; o código e os dados continuam.
+const MOSTRAR_CLASSIFICACOES_LEGADAS = false;
+
+export default function CadastroExames({ comClassificacoes = MOSTRAR_CLASSIFICACOES_LEGADAS }: { comClassificacoes?: boolean }) {
+  // Topo congelado e compacto: título + abas + envio de PDF numa faixa só. A altura medida vira a variável
+  // --topo-off, que as barras de baixo (busca/filtros/títulos das colunas) usam para congelar logo abaixo.
+  const topoRef = useRef<HTMLDivElement>(null);
+  const raizRef = useRef<HTMLDivElement>(null);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const el = topoRef.current;
+    const raiz = raizRef.current;
+    if (!el || !raiz) return;
+    const medir = () => {
+      const pad = window.matchMedia("(min-width: 768px)").matches ? 24 : 16;
+      raiz.style.setProperty("--topo-off", `${el.offsetHeight - pad}px`);
+    };
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    window.addEventListener("resize", medir);
+    return () => { ro.disconnect(); window.removeEventListener("resize", medir); };
+  }, []);
+
+  return (
+    <div ref={raizRef} className="space-y-4">
       <Tabs defaultValue="exames" className="space-y-4">
-        <TabsList className="concave-3d p-1">
-          <TabsTrigger value="exames" className="gap-1.5 text-xs font-black uppercase tracking-wide">
-            <TestTube className="h-4 w-4" /> Exames
-          </TabsTrigger>
-          <TabsTrigger value="blocos" className="gap-1.5 text-xs font-black uppercase tracking-wide">
-            <Layers className="h-4 w-4" /> Blocos
-          </TabsTrigger>
-          <TabsTrigger value="categorias" className="gap-1.5 text-xs font-black uppercase tracking-wide">
-            <Tags className="h-4 w-4" /> Categorias
-          </TabsTrigger>
-        </TabsList>
+        {/* Painel único congelado: título, abas, PDF e (embaixo, via portal) busca e filtros da aba ativa. */}
+        <div ref={topoRef} className="sticky -top-4 z-40 -mx-4 bg-background px-4 pb-2 md:-top-6 md:-mx-8 md:px-8" data-testid="topo-cadastro-exames">
+          <div className="panel-3d space-y-2 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <h1 className="text-sm font-black uppercase leading-none tracking-wide md:text-base">Cadastro de Exames</h1>
+              <TabsList className="h-auto flex-wrap justify-start gap-2 bg-transparent p-0">
+                <TabsTrigger value="exames" className="paxter-seletor h-8 gap-1.5 px-3 text-[11px] font-black uppercase tracking-wide">
+                  <TestTube className="h-3.5 w-3.5" /> Catálogo
+                </TabsTrigger>
+                <TabsTrigger value="blocos" className="paxter-seletor h-8 gap-1.5 px-3 text-[11px] font-black uppercase tracking-wide">
+                  <Layers className="h-3.5 w-3.5" /> Blocos e grades
+                </TabsTrigger>
+                <TabsTrigger value="opcoes" className="paxter-seletor h-8 gap-1.5 px-3 text-[11px] font-black uppercase tracking-wide">
+                  <Tags className="h-3.5 w-3.5" /> Opções
+                </TabsTrigger>
+              </TabsList>
+              <div className="ml-auto"><UploadManualExames /></div>
+            </div>
+            <div ref={setSlot} className="border-t border-border/60 pt-2 empty:hidden" />
+          </div>
+        </div>
         <TabsContent value="exames">
-          <ExamesTab />
+          <ExamesTab slot={slot} />
         </TabsContent>
         <TabsContent value="blocos">
-          <BlocosTab />
+          <BlocosTab slot={slot} />
         </TabsContent>
-        <TabsContent value="categorias">
-          <CategoriasTab />
+        <TabsContent value="opcoes" className="space-y-6">
+          <GestaoOpcoes extras={comClassificacoes ? CAMPOS_CLASS.map((c) => ({ chave: `class-${c.campo}`, rotulo: c.plural, conteudo: <ClassificacaoPainel item={c} /> })) : []} />
         </TabsContent>
       </Tabs>
     </div>

@@ -19,6 +19,7 @@ import { sendWhatsapp } from "../lib/whatsapp.js";
 import { sendTelegram } from "../lib/telegram.js";
 import { z } from "zod";
 import { resolveOnboardingClinic } from "../lib/onboarding-clinic.js";
+import { brandBaseUrl } from "../lib/messaging/base-url.js";
 
 export const onboardingRouter = Router();
 
@@ -131,7 +132,17 @@ onboardingRouter.post("/enviar-guia", async (req: Request, res: Response): Promi
     res.status(403).json({ ok: false, error: "Clínica não autorizada para este colaborador." });
     return;
   }
+  // O endereco do link e decidido AQUI, pelo dominio oficial da marca (PUBLIC_BASE_URL).
+  // O host que veio da tela nunca e usado: endereco de teste (replit.dev) jamais sai ao cliente.
+  const baseOficial = brandBaseUrl();
+  if (!baseOficial) {
+    res.status(503).json({ ok: false, error: "Endereço oficial do aplicativo não configurado neste ambiente. Envio bloqueado para não enviar link de teste." });
+    return;
+  }
   const guiaLink = new URL(guiaUrl);
+  const guiaOficial = new URL(`${guiaLink.pathname}${guiaLink.search}`, baseOficial);
+  guiaLink.protocol = guiaOficial.protocol;
+  guiaLink.host = guiaOficial.host;
   const linkTenant = guiaLink.searchParams.get("tenant");
   if (linkTenant && linkTenant !== clinic.slug) {
     res.status(403).json({ ok: false, error: "O link do guia pertence a outra clínica." });
@@ -200,7 +211,7 @@ Qualquer dúvida, estamos à disposição! 😊`;
   if (canais.includes("TELEGRAM")) {
     const chatId = cliente.telegramChatId;
     if (!chatId) {
-      resultados.push({ canal: "TELEGRAM", ok: false, mensagem: "Paciente não tem Telegram vinculado. Use WhatsApp primeiro." });
+      resultados.push({ canal: "TELEGRAM", ok: false, mensagem: "Cliente ainda não vinculou o Telegram. Envie o link de ativação pelo Cockpit ou use outro canal." });
     } else {
       try {
         const r = await sendTelegram(chatId, mensagem.replace(/\*/g, ""));
@@ -215,6 +226,15 @@ Qualquer dúvida, estamos à disposição! 😊`;
     if (!r.ok) {
       const reserva = canaisReservados.find((c) => c.canal === r.canal);
       if (reserva) await liberarReservaQuota(clientId, r.canal, reserva.diaBrt);
+    }
+  }
+
+  // Convite entregue: a área do cliente passa a exigir o pré-cadastro completo.
+  if (resultados.some((r) => r.ok)) {
+    try {
+      await db.update(clientsTable).set({ preCadastroExigido: true }).where(and(eq(clientsTable.id, clientId), eq(clientsTable.empresaId, clinic.id)));
+    } catch (err) {
+      console.error("[Onboarding] Falha ao marcar pré-cadastro exigido:", err instanceof Error ? err.message : err);
     }
   }
 
@@ -320,34 +340,32 @@ onboardingRouter.get("/stats", async (req: Request, res: Response): Promise<void
     return;
   }
   try {
-    const [totalRow, porDevice, porSecao, pacientesRow, pacientesLista] = await Promise.all([
+    const [totalRow, porDevice, porSecao, pacientesLista] = await Promise.all([
       db.execute(sqlRaw`SELECT COUNT(*)::int AS total FROM onboarding_eventos WHERE ts > NOW() - INTERVAL '30 days' AND empresa_id = ${empresaId}`),
       db.execute(sqlRaw`SELECT device, COUNT(*)::int AS total FROM onboarding_eventos WHERE ts > NOW() - INTERVAL '30 days' AND empresa_id = ${empresaId} GROUP BY device ORDER BY total DESC`),
       db.execute(sqlRaw`SELECT secao, COUNT(*)::int AS total FROM onboarding_eventos WHERE ts > NOW() - INTERVAL '30 days' AND empresa_id = ${empresaId} GROUP BY secao ORDER BY total DESC`),
-      db.execute(sqlRaw`SELECT COUNT(DISTINCT client_id)::int AS pacientes_unicos FROM onboarding_eventos WHERE ts > NOW() - INTERVAL '30 days' AND empresa_id = ${empresaId} AND client_id IS NOT NULL`),
       db.execute(sqlRaw`
         SELECT e.client_id, c.name AS nome, MAX(e.ts)::text AS ultimo_acesso
         FROM onboarding_eventos e
-        JOIN clients c ON c.id = e.client_id
+        JOIN clients c ON c.id = e.client_id AND c.empresa_id = e.empresa_id
         WHERE e.ts > NOW() - INTERVAL '30 days'
           AND e.empresa_id = ${empresaId}
           AND e.client_id IS NOT NULL
         GROUP BY e.client_id, c.name
-        ORDER BY MAX(e.ts) DESC
-        LIMIT 50
+        ORDER BY MAX(e.ts) DESC, e.client_id
       `),
     ]);
 
     const total = (totalRow.rows?.[0] as { total: number } | undefined)?.total ?? 0;
-    const pacientesUnicos = (pacientesRow.rows?.[0] as { pacientes_unicos: number } | undefined)?.pacientes_unicos ?? 0;
+    const pacientes = (pacientesLista.rows ?? []) as { client_id: number; nome: string; ultimo_acesso: string }[];
 
     res.json({
       ok: true,
       total,
-      pacientesUnicos,
+      pacientesUnicos: pacientes.length,
       porDevice:  (porDevice.rows  ?? []) as { device: string; total: number }[],
       porSecao:   (porSecao.rows   ?? []) as { secao:  string; total: number }[],
-      pacientes:  (pacientesLista.rows ?? []) as { client_id: number; nome: string; ultimo_acesso: string }[],
+      pacientes,
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: String(err) });

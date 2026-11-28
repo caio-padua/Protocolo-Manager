@@ -1,7 +1,10 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, locationsTable, locationProfessionalsTable, professionalsTable, sessionsTable } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
+import { db, agendaResourcesTable, locationsTable, locationProfessionalsTable, professionalsTable, sessionsTable, empresasTable } from "@workspace/db";
 import { requireCollaborator } from "./collaborator";
+import { requirePlatformOwner } from "../middleware/tenantContext";
+import { validarLocalParaProfissional } from "../lib/professional-empresas";
+import { mayWriteLocation } from "../lib/location-write-access";
 
 const router: IRouter = Router();
 
@@ -127,24 +130,100 @@ function normalizePhone(raw: unknown): string | null {
   return "+" + digits;
 }
 
-function serializeLocation(loc: typeof locationsTable.$inferSelect) {
+type EmpresaEndereco = {
+  nome: string; endereco: string | null; cep: string | null; bairro: string | null;
+  cidade: string | null; estado: string | null; zona: string | null; telefone: string | null;
+};
+
+// "Rua X, 327" -> { logradouro: "Rua X", numero: "327" }; sem numero -> so logradouro.
+function splitEndereco(raw: string | null): { logradouro: string | null; numero: string | null } {
+  if (!raw) return { logradouro: null, numero: null };
+  const m = raw.match(/^(.*?),\s*(\d[\w./-]*)\s*$/);
+  return m ? { logradouro: m[1].trim(), numero: m[2] } : { logradouro: raw.trim(), numero: null };
+}
+
+function textoEndereco(parts: { logradouro: string | null; numero: string | null; bairro: string | null; cidade: string | null; estado: string | null; cep: string | null }): string | null {
+  const t = [
+    [parts.logradouro, parts.numero].filter(Boolean).join(", "),
+    parts.bairro,
+    parts.cidade ? `${parts.cidade}${parts.estado ? " - " + parts.estado : ""}` : parts.estado,
+    parts.cep ? `CEP ${parts.cep}` : "",
+  ].filter(Boolean);
+  return t.length ? t.join(", ") : null;
+}
+
+// Campos de endereco que o local herda da empresa quando e a SEDE.
+function enderecoDaEmpresa(emp: EmpresaEndereco) {
+  const { logradouro, numero } = splitEndereco(emp.endereco);
+  const campos = {
+    logradouro, numero, complemento: null as string | null, bairro: emp.bairro ?? null,
+    cidade: emp.cidade ?? null, estado: emp.estado ?? null, cep: emp.cep ?? null,
+    zona: emp.zona || deriveZona(emp.bairro ?? null, emp.cidade ?? null, emp.estado ?? null, emp.cep ?? null),
+  };
+  return { ...campos, address: textoEndereco(campos) };
+}
+
+/**
+ * Endereço da SEDE para exibição em outras telas (ex.: nuvenzinha da Agenda): só quando o local é presencial no mesmo
+ * endereço da empresa. Online, externo e home care nunca herdam endereço (nada é presumido). Sempre o endereço ATUAL da empresa.
+ */
+export function enderecoDaSede(
+  loc: { mesmoEnderecoEmpresa: boolean; modalidade: string | null },
+  emp: EmpresaEndereco | null | undefined,
+): string | null {
+  if (!loc.mesmoEnderecoEmpresa || loc.modalidade !== "presencial" || !emp) return null;
+  return enderecoDaEmpresa(emp).address;
+}
+
+async function carregarEmpresa(empresaId: number | null): Promise<EmpresaEndereco | null> {
+  if (!empresaId) return null;
+  const [emp] = await db.select({
+    nome: empresasTable.nome, endereco: empresasTable.endereco, cep: empresasTable.cep,
+    bairro: empresasTable.bairro, cidade: empresasTable.cidade, estado: empresasTable.estado,
+    zona: empresasTable.zona, telefone: empresasTable.telefone,
+  }).from(empresasTable).where(eq(empresasTable.id, empresaId));
+  return emp ?? null;
+}
+
+function modalidadeValida(v: unknown): "presencial" | "online" | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null || v === "") return null;
+  return v === "presencial" || v === "online" ? v : undefined;
+}
+
+const PAPEIS_AGENDA = ["local", "online", "externo", "home_care", "pessoal", "geral"] as const;
+function papelValido(v: unknown): (typeof PAPEIS_AGENDA)[number] | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null || v === "") return null;
+  return (PAPEIS_AGENDA as readonly string[]).includes(String(v)) ? (v as (typeof PAPEIS_AGENDA)[number]) : undefined;
+}
+function textoOpcional(v: unknown, max = 500): string | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  const t = String(v).trim();
+  return t ? t.slice(0, max) : null;
+}
+
+function serializeLocation(loc: typeof locationsTable.$inferSelect, emp?: EmpresaEndereco | null) {
+  // Sede: o endereco exibido e SEMPRE o atual da empresa (nao fica velho se a empresa mudar).
+  const herda = loc.mesmoEnderecoEmpresa && (loc.modalidade === "presencial" || loc.modalidade === "online") && emp ? enderecoDaEmpresa(emp) : null;
   return {
     id: loc.id,
     name: loc.name,
-    address: loc.address ?? null,
+    address: herda ? herda.address : (loc.address ?? null),
     type: loc.type,
     color: loc.color,
     active: loc.active === "true",
     googleCalendarId: loc.googleCalendarId ?? null,
     phone: loc.phone ?? null,
-    cep: loc.cep ?? null,
-    logradouro: loc.logradouro ?? null,
-    numero: loc.numero ?? null,
-    complemento: loc.complemento ?? null,
-    bairro: loc.bairro ?? null,
-    cidade: loc.cidade ?? null,
-    estado: loc.estado ?? null,
-    zona: loc.zona ?? null,
+    cep: herda ? herda.cep : (loc.cep ?? null),
+    logradouro: herda ? herda.logradouro : (loc.logradouro ?? null),
+    numero: herda ? herda.numero : (loc.numero ?? null),
+    complemento: herda ? herda.complemento : (loc.complemento ?? null),
+    bairro: herda ? herda.bairro : (loc.bairro ?? null),
+    cidade: herda ? herda.cidade : (loc.cidade ?? null),
+    estado: herda ? herda.estado : (loc.estado ?? null),
+    zona: herda ? herda.zona : (loc.zona ?? null),
     createdAt: loc.createdAt.toISOString(),
     cnpj: loc.cnpj ?? null,
     razaoSocial: loc.razaoSocial ?? null,
@@ -152,11 +231,25 @@ function serializeLocation(loc: typeof locationsTable.$inferSelect) {
     certTitular: loc.certTitular ?? null,
     certTipo: loc.certTipo ?? null,
     certValidade: loc.certValidade ?? null,
+    empresaId: loc.empresaId ?? null,
+    empresaNome: emp?.nome ?? null,
+    modalidade: loc.modalidade === "presencial" || loc.modalidade === "online" ? loc.modalidade : null,
+    mesmoEnderecoEmpresa: loc.mesmoEnderecoEmpresa,
+    enderecoEmpresa: emp ? textoEndereco(enderecoDaEmpresa(emp)) : null,
+    agendaPapel: loc.agendaPapel ?? null,
+    observacaoLocal: loc.observacaoLocal ?? null,
+    nomeEspaco: loc.nomeEspaco ?? null,
   };
 }
 
 router.get("/locations", async (_req, res): Promise<void> => {
   const locations = await db.select().from(locationsTable).orderBy(locationsTable.name);
+  const empresas = await db.select({
+    id: empresasTable.id, nome: empresasTable.nome, endereco: empresasTable.endereco, cep: empresasTable.cep,
+    bairro: empresasTable.bairro, cidade: empresasTable.cidade, estado: empresasTable.estado,
+    zona: empresasTable.zona, telefone: empresasTable.telefone,
+  }).from(empresasTable);
+  const empresaPorId = new Map(empresas.map((e) => [e.id, e]));
 
   const result = await Promise.all(locations.map(async (loc) => {
     const links = await db.select().from(locationProfessionalsTable)
@@ -169,7 +262,7 @@ router.get("/locations", async (_req, res): Promise<void> => {
     }));
 
     return {
-      ...serializeLocation(loc),
+      ...serializeLocation(loc, loc.empresaId ? empresaPorId.get(loc.empresaId) : null),
       professionals: professionals.filter(Boolean),
     };
   }));
@@ -181,6 +274,22 @@ router.post("/locations", requireCollaborator, async (req, res): Promise<void> =
   const { name, address, type, color, googleCalendarId, phone, cep, logradouro, numero, complemento, bairro, cidade, estado, zona } = req.body;
   if (!name) {
     res.status(400).json({ error: "name is required" });
+    return;
+  }
+  const modalidadeBody = modalidadeValida(req.body.modalidade);
+  if (req.body.modalidade !== undefined && modalidadeBody === undefined) {
+    res.status(422).json({ error: "modalidade deve ser 'presencial' ou 'online'." });
+    return;
+  }
+  const modalidadeFinal = modalidadeBody ?? null;
+  const mesmoEndereco = req.body.mesmoEnderecoEmpresa === true && modalidadeFinal !== null;
+  if (req.body.mesmoEnderecoEmpresa === true && modalidadeFinal === null) {
+    res.status(422).json({ error: "O sinalizador de mesmo endereço da empresa exige definir a modalidade (presencial ou online)." });
+    return;
+  }
+  const papelBody = papelValido(req.body.agendaPapel);
+  if (req.body.agendaPapel !== undefined && papelBody === undefined) {
+    res.status(422).json({ error: "agendaPapel deve ser local, online, externo, home_care, pessoal ou geral." });
     return;
   }
   if (!req.tenantContext.empresaId) {
@@ -206,6 +315,13 @@ router.post("/locations", requireCollaborator, async (req, res): Promise<void> =
   // Auto-derivação de zona: só aplica quando não veio zona manual no body
   const geoZona = zona ?? deriveZona(geoBairro, geoCidade, geoEstado, cep ?? null);
 
+  const sede = mesmoEndereco ? await carregarEmpresa(req.tenantContext.empresaId) : null;
+  if (mesmoEndereco && !sede) {
+    res.status(422).json({ error: "Não foi possível ler o endereço da empresa. Nenhum local foi criado." });
+    return;
+  }
+  const herdado = sede ? enderecoDaEmpresa(sede) : null;
+
   const [loc] = await db.insert(locationsTable).values({
     name,
     address: address ?? null,
@@ -223,14 +339,20 @@ router.post("/locations", requireCollaborator, async (req, res): Promise<void> =
     zona: geoZona,
     // Empresa vem da identidade autenticada, nunca do corpo enviado pelo navegador.
     empresaId: req.tenantContext.empresaId,
+    modalidade: modalidadeFinal,
+    mesmoEnderecoEmpresa: mesmoEndereco,
+    agendaPapel: papelBody ?? null,
+    observacaoLocal: textoOpcional(req.body.observacaoLocal) ?? null,
+    nomeEspaco: textoOpcional(req.body.nomeEspaco, 200) ?? null,
+    ...(herdado ?? {}),
   }).returning();
 
-  res.status(201).json(serializeLocation(loc));
+  res.status(201).json(serializeLocation(loc, sede ?? await carregarEmpresa(loc.empresaId)));
 });
 
-router.put("/locations/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) {
+router.put("/locations/:id", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
@@ -252,8 +374,54 @@ router.put("/locations/:id", async (req, res): Promise<void> => {
   if (estado !== undefined) updates.estado = estado ?? null;
   if (zona !== undefined) updates.zona = zona ?? null;
 
+  // Modalidade e sinalizador "mesmo endereco da empresa".
+  const [atual] = await db.select().from(locationsTable).where(eq(locationsTable.id, id));
+  if (!atual) {
+    res.status(404).json({ error: "Location not found" });
+    return;
+  }
+  if (!(await mayWriteLocation(req,atual))) {
+    res.status(403).json({error:"Selecione a empresa proprietária do local e use um acesso autorizado para alterá-lo."});
+    return;
+  }
+  const modalidadeBody = modalidadeValida(req.body.modalidade);
+  if (req.body.modalidade !== undefined && modalidadeBody === undefined) {
+    res.status(422).json({ error: "modalidade deve ser 'presencial' ou 'online'." });
+    return;
+  }
+  const modalidadeFinal = req.body.modalidade !== undefined ? (modalidadeBody ?? null) : (atual.modalidade ?? null);
+  let mesmoFinal = req.body.mesmoEnderecoEmpresa !== undefined ? req.body.mesmoEnderecoEmpresa === true : atual.mesmoEnderecoEmpresa;
+  if (mesmoFinal && modalidadeFinal === null) {
+    if (req.body.mesmoEnderecoEmpresa === true) {
+      res.status(422).json({ error: "O sinalizador de mesmo endereço da empresa exige definir a modalidade (presencial ou online)." });
+      return;
+    }
+    mesmoFinal = false; // modalidade voltou a "a definir": deixa de herdar (o endereco antigo fica guardado)
+  }
+  const papelBody = papelValido(req.body.agendaPapel);
+  if (req.body.agendaPapel !== undefined && papelBody === undefined) {
+    res.status(422).json({ error: "agendaPapel deve ser local, online, externo, home_care, pessoal ou geral." });
+    return;
+  }
+  if (req.body.agendaPapel !== undefined) updates.agendaPapel = papelBody ?? null;
+  const obs = textoOpcional(req.body.observacaoLocal);
+  if (obs !== undefined) updates.observacaoLocal = obs;
+  const espaco = textoOpcional(req.body.nomeEspaco, 200);
+  if (espaco !== undefined) updates.nomeEspaco = espaco;
+  if (req.body.modalidade !== undefined) updates.modalidade = modalidadeFinal;
+  if (req.body.mesmoEnderecoEmpresa !== undefined || mesmoFinal !== atual.mesmoEnderecoEmpresa) updates.mesmoEnderecoEmpresa = mesmoFinal;
+  let empresaDoLocal: EmpresaEndereco | null = null;
+  if (mesmoFinal) {
+    empresaDoLocal = await carregarEmpresa(atual.empresaId ?? null);
+    if (!empresaDoLocal) {
+      res.status(422).json({ error: "Não foi possível ler o endereço da empresa. Nada foi alterado." });
+      return;
+    }
+    Object.assign(updates, enderecoDaEmpresa(empresaDoLocal));
+  }
+
   // Auto-preenchimento via ViaCEP: se CEP foi enviado e campos geo estão ausentes/nulos no body
-  if (cep && (!bairro || !cidade || !estado)) {
+  if (!mesmoFinal && cep && (!bairro || !cidade || !estado)) {
     const geo = await lookupCep(cep);
     if (geo) {
       if (!updates.bairro && geo.bairro)         updates.bairro  = geo.bairro;
@@ -264,7 +432,7 @@ router.put("/locations/:id", async (req, res): Promise<void> => {
   }
 
   // Auto-derivação de zona: só deriva se zona não foi enviada manualmente no body
-  if (zona === undefined && !updates.zona) {
+  if (!mesmoFinal && zona === undefined && !updates.zona) {
     const finalBairro = (updates.bairro as string | null) ?? null;
     const finalCidade = (updates.cidade as string | null) ?? null;
     const finalEstado = (updates.estado as string | null) ?? null;
@@ -283,18 +451,26 @@ router.put("/locations/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Location not found" });
     return;
   }
-  res.json(serializeLocation(updated));
+  // Cor unica: as agendas ligadas a este local passam a ter a mesma cor.
+  if (typeof updates.color === "string") {
+    await db.update(agendaResourcesTable).set({ color: updates.color }).where(eq(agendaResourcesTable.locationId, id));
+  }
+  res.json(serializeLocation(updated, empresaDoLocal ?? await carregarEmpresa(updated.empresaId)));
 });
 
-router.delete("/locations/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) {
+router.delete("/locations/:id", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
   const [loc] = await db.select().from(locationsTable).where(eq(locationsTable.id, id));
   if (!loc) {
     res.status(404).json({ error: "Location not found" });
+    return;
+  }
+  if (!(await mayWriteLocation(req,loc))) {
+    res.status(403).json({error:"A exclusão exige acesso autorizado à empresa proprietária deste local."});
     return;
   }
   // Trava: não apagar clínica com sessões vinculadas (vínculo por nome em sessions.unit)
@@ -312,17 +488,39 @@ router.delete("/locations/:id", async (req, res): Promise<void> => {
   res.json({ ok: true, deleted: id });
 });
 
-router.post("/locations/:id/professionals", async (req, res): Promise<void> => {
-  const locationId = parseInt(req.params.id);
-  const { professionalId, role } = req.body;
-  if (!professionalId) {
+// Libera a agenda do profissional neste local. Exige colaborador + dono da plataforma e
+// só aceita local de empresa em que o profissional está cadastrado (vínculo empresarial).
+router.post("/locations/:id/professionals", requireCollaborator, requirePlatformOwner, async (req, res): Promise<void> => {
+  const locationId = Number(req.params.id);
+  const professionalId = Number(req.body?.professionalId);
+  const role = typeof req.body?.role === "string" && req.body.role.trim() ? req.body.role.trim() : "executor";
+  if (!Number.isSafeInteger(locationId) || locationId <= 0) {
+    res.status(400).json({ error: "Id de clínica inválido" });
+    return;
+  }
+  if (!Number.isSafeInteger(professionalId) || professionalId <= 0) {
     res.status(400).json({ error: "professionalId is required" });
+    return;
+  }
+  const [existing] = await db.select().from(locationProfessionalsTable)
+    .where(and(
+      eq(locationProfessionalsTable.locationId, locationId),
+      eq(locationProfessionalsTable.professionalId, professionalId),
+    ))
+    .limit(1);
+  if (existing) {
+    res.status(200).json(existing);
+    return;
+  }
+  const decision = await validarLocalParaProfissional(professionalId, locationId);
+  if (!decision.permitido) {
+    res.status(decision.status).json({ error: decision.erro, ...(decision.code ? { code: decision.code } : {}) });
     return;
   }
   const [link] = await db.insert(locationProfessionalsTable).values({
     locationId,
-    professionalId: parseInt(professionalId),
-    role: role ?? "executor",
+    professionalId,
+    role,
   }).returning();
   res.status(201).json(link);
 });

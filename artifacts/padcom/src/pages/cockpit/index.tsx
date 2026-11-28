@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -179,7 +180,7 @@ export default function Cockpit() {
   const { data: clientes } = useQuery<ClienteOpt[]>({
     queryKey: ["cockpit-clientes"],
     queryFn: async () => {
-      const r = await fetch("/api/clients");
+      const r = await fetch("/api/clients", { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("falha ao listar clientes");
       const rows = await r.json();
       return (rows as { id: number; name: string; cpf?: string | null; phone?: string | null; photoUrl?: string | null }[]).map((c) => ({ id: c.id, name: c.name, cpf: c.cpf, phone: c.phone, photoUrl: c.photoUrl }));
@@ -190,7 +191,7 @@ export default function Cockpit() {
     queryKey: ["cockpit", clienteId],
     enabled: clienteId != null,
     queryFn: async () => {
-      const r = await fetch(`/api/cockpit/${clienteId}`);
+      const r = await fetch(`/api/cockpit/${clienteId}`, { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("falha ao carregar cockpit");
       return r.json();
     },
@@ -599,7 +600,7 @@ export default function Cockpit() {
               Cadernos da Entrega
             </h2>
             <span className="ml-auto text-xs text-slate-400">
-              Consentimentos enviados via RAS FAP neste paciente
+              Consentimentos enviados via RASP FAP neste paciente
             </span>
           </div>
 

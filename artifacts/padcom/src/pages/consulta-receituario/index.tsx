@@ -109,7 +109,7 @@ export default function ConsultaReceituario() {
       setLoading(false);
       return;
     }
-    fetch(`/api/receituario/consulta?token=${encodeURIComponent(token)}`)
+    fetch(`/api/receituario/consulta`, { headers: { "X-Link-Token": token } })
       .then(r => r.ok ? r.json() as Promise<ConsultaData> : Promise.reject(r.status))
       .then(d  => { setData(d); setLoading(false); })
       .catch(() => {
@@ -148,7 +148,7 @@ export default function ConsultaReceituario() {
       style={{ background: bgBase }}
     >
       {/* ── Tecido terno de alfaiataria (absoluto, z=0) ──────────── */}
-      <div className="leva-fabric" />
+      <div className="leva-fabric leva-fabric-fixo" />
 
       {/* ── CONTEÚDO sobre o terno (z=10) ────────────────────────── */}
       <div className="relative z-10 flex flex-col min-h-screen">

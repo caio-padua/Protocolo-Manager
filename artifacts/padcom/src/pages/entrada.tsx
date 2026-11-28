@@ -55,12 +55,22 @@ export default function Entrada() {
   const [, setLocation] = useLocation();
   const [fase, setFase] = useState<"splash" | "escolha">("splash");
 
+  // App instalado (tela inicial do celular): entra direto na Area do cliente, sem splash nem escolha.
+  // A escolha continua existindo no navegador comum.
+  const instalado = typeof window !== "undefined" && (
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    (navigator as unknown as { standalone?: boolean }).standalone === true
+  );
+  useEffect(() => { if (instalado) setLocation("/area", { replace: true }); }, [instalado, setLocation]);
+
   // Auto-avanca para a escolha apos a abertura. Tocar na tela pula na hora.
   useEffect(() => {
-    if (fase !== "splash") return;
+    if (instalado || fase !== "splash") return;
     const t = setTimeout(() => setFase("escolha"), 2800);
     return () => clearTimeout(t);
-  }, [fase]);
+  }, [fase, instalado]);
+
+  if (instalado) return null;
 
   return (
     <div className="entrada-bg min-h-[100dvh] w-full text-white flex flex-col items-center justify-center px-5 py-10 overflow-hidden">
@@ -115,7 +125,7 @@ export default function Entrada() {
 
           <div className="text-center">
             <div className="text-3xl sm:text-4xl font-bold tracking-[0.35em] text-[#f1dca6] pl-[0.35em]">
-              PAXTER
+              PAXMED
             </div>
             <div className="mt-2 text-[11px] sm:text-xs uppercase tracking-[0.45em] text-[#8aa0c4] pl-[0.45em]">
               Clinical Intelligence System
@@ -141,7 +151,7 @@ export default function Entrada() {
         <div className="entrada-fade w-full max-w-2xl flex flex-col items-center gap-8">
           <div className="flex flex-col items-center gap-2">
             <PaxterSymbolGlass size={48} tone="dark" />
-            <div className="text-xl font-bold tracking-[0.3em] text-[#f1dca6] pl-[0.3em]">PAXTER</div>
+            <div className="text-xl font-bold tracking-[0.3em] text-[#f1dca6] pl-[0.3em]">PaxMed</div>
             <div className="text-[10px] uppercase tracking-[0.4em] text-[#8aa0c4] pl-[0.4em]">
               Welcome · Selecione seu acesso
             </div>
@@ -159,7 +169,7 @@ export default function Entrada() {
                 <UserRound className="h-6 w-6" />
               </div>
               <div className="mt-4 text-base font-bold uppercase tracking-widest text-white">
-                Área do Paciente
+                PaxCare — Área do Paciente
               </div>
               <div className="mt-1 text-sm text-[#9fb2d2] leading-relaxed">
                 Acompanhe seu protocolo, agenda, documentos e envie exames.

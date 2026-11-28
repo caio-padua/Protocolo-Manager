@@ -1,3 +1,4 @@
+import { nomeEhSensivel } from "./redact.js";
 import crypto from "crypto";
 import { eq } from "drizzle-orm";
 import { db, secureSettingsTable, appSettingsTable } from "@workspace/db";
@@ -130,8 +131,9 @@ export async function getSecret(key: string): Promise<string | null> {
 // o próprio valor num relance; o restante continua oculto). Valor muito curto
 // (<= 6) fica totalmente mascarado para não vazar quase tudo.
 function mask(value: string): string {
-  if (value.length <= 6) return "••••";
-  return "••••" + value.slice(-6);
+  // Etapa 0: nenhum caractere do segredo e exibido (nem o final).
+  void value;
+  return "••••••••";
 }
 
 export interface SecretStatus {
@@ -223,6 +225,11 @@ export async function getJsonSetting<T>(key: string): Promise<T | null> {
 }
 
 export async function setSetting(key: string, value: string): Promise<void> {
+  // Etapa 0: configuracao em texto legivel NUNCA guarda credencial; elas vivem
+  // so no cofre cifrado (setSecret).
+  if (nomeEhSensivel(key) && !/\.(active|enabled|modo|baseUrl)$/i.test(key)) {
+    throw new Error(`Chave sensivel "${key}" nao pode ser gravada em texto legivel; use o cofre.`);
+  }
   await db
     .insert(appSettingsTable)
     .values({ key, value })
@@ -232,3 +239,7 @@ export async function setSetting(key: string, value: string): Promise<void> {
 export async function setJsonSetting(key: string, value: unknown): Promise<void> {
   await setSetting(key, JSON.stringify(value));
 }
+
+/** Cifra/decifra texto avulso com a mesma chave do cofre (AES-256-GCM). Usado por dados pessoais de cadastros documentais. */
+export const cifrarTexto = encrypt;
+export const decifrarTexto = decrypt;

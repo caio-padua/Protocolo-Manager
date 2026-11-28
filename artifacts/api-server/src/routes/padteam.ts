@@ -12,6 +12,7 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { nomeProcessoExibido } from "../lib/padteam-nome-processo";
 
 const router: IRouter = Router();
 
@@ -679,7 +680,12 @@ router.patch("/padteam/email-aliases/:id", async (req, res): Promise<void> => {
 
 router.get("/padteam/process-responsibilities", async (_req, res): Promise<void> => {
   const r = await db.execute(sql`SELECT * FROM process_responsibilities ORDER BY categoria, processo`);
-  res.json(rows(r));
+  res.json(rows(r).map((registro) => ({
+    ...registro,
+    processo: typeof registro.processo === "string"
+      ? nomeProcessoExibido(registro.processo)
+      : registro.processo,
+  })));
 });
 
 router.patch("/padteam/process-responsibilities/:id", async (req, res): Promise<void> => {

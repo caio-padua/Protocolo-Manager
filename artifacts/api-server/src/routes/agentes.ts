@@ -380,7 +380,7 @@ const CAPACIDADES_SEED = [
 const FRASES_SEED = [
   // Aurora ADM (idx 0) — sample
   { codigo: "agente_adm_01", frases: [
-    { tipo_frase: "abertura",     texto: "Bom dia! Sou Aurora da equipe PAXTER. Como posso te ajudar hoje?" },
+    { tipo_frase: "abertura",     texto: "Bom dia! Sou Aurora da equipe PaxMed. Como posso te ajudar hoje?" },
     { tipo_frase: "encerramento", texto: "Perfeito! Tudo registrado. Qualquer dúvida, estamos à disposição." },
     { tipo_frase: "escalada",     texto: "Vou acionar nossa equipe especializada agora mesmo. Aguarde." },
     { tipo_frase: "confirmacao",  texto: "Confirmado! Você receberá um e-mail com todos os detalhes." },
@@ -412,7 +412,7 @@ const FRASES_SEED = [
   ]},
   // Ana OUVIDORIA (idx 16)
   { codigo: "ouvidor01", frases: [
-    { tipo_frase: "abertura",     texto: "Olá! Sou Ana, da Ouvidoria PAXTER. Pode me contar o que aconteceu?" },
+    { tipo_frase: "abertura",     texto: "Olá! Sou Ana, da Ouvidoria PaxMed. Pode me contar o que aconteceu?" },
     { tipo_frase: "empatia",      texto: "Escutei tudo. Sinto muito pelo transtorno. Vamos resolver." },
     { tipo_frase: "encerramento", texto: "Protocolo aberto. Você receberá retorno em até 48 horas." },
     { tipo_frase: "escalada",     texto: "Esse caso foi escalado para a supervisão com prioridade máxima." },
@@ -423,7 +423,7 @@ const FRASES_SEED = [
 const MOTOR_SEED = [
   { codigo: "agente_adm_01", templates: [
     { tipo_template: "whatsapp_lembrete", template_texto: "Olá {{nome}}! Lembrete da sua sessão amanhã, {{data}} às {{hora}} na {{clinica}}. Confirme com um ✅", max_chars: 160, estilo: "informal_cordial" },
-    { tipo_template: "email_pre_sessao",  template_texto: "Prezado(a) {{nome}},\n\nSua sessão está confirmada para {{data}} às {{hora}}.\n\nSubstâncias: {{substancias}}\n\nQualquer dúvida, responda este e-mail.\n\nEquipe PAXTER", max_chars: 500, estilo: "formal" },
+    { tipo_template: "email_pre_sessao",  template_texto: "Prezado(a) {{nome}},\n\nSua sessão está confirmada para {{data}} às {{hora}}.\n\nSubstâncias: {{substancias}}\n\nQualquer dúvida, responda este e-mail.\n\nEquipe PaxMed", max_chars: 500, estilo: "formal" },
     { tipo_template: "alerta_interno",    template_texto: "[ALERTA ADM] Cliente {{nome}} | Motivo: {{motivo}} | Ação requerida: {{acao}}", max_chars: 200, estilo: "tecnico" },
   ]},
   { codigo: "agente_med_01", templates: [
@@ -433,7 +433,7 @@ const MOTOR_SEED = [
   ]},
   { codigo: "agente_fin_01", templates: [
     { tipo_template: "whatsapp_lembrete", template_texto: "Olá {{nome}}! Lembrete: parcela de R$ {{valor}} vence em {{data}}. PIX: {{chave_pix}}", max_chars: 160, estilo: "neutro_direto" },
-    { tipo_template: "email_pre_sessao",  template_texto: "Demonstrativo Financeiro — {{nome}}\n\nTotal do protocolo: R$ {{total}}\nPago: R$ {{pago}}\nPendente: R$ {{pendente}}\nPróximo vencimento: {{vencimento}}\n\nÍris FIN — Financeiro PAXTER", max_chars: 500, estilo: "formal" },
+    { tipo_template: "email_pre_sessao",  template_texto: "Demonstrativo Financeiro — {{nome}}\n\nTotal do protocolo: R$ {{total}}\nPago: R$ {{pago}}\nPendente: R$ {{pendente}}\nPróximo vencimento: {{vencimento}}\n\nÍris FIN — Financeiro PaxMed", max_chars: 500, estilo: "formal" },
     { tipo_template: "alerta_interno",    template_texto: "[FIN ALERTA] Cliente {{nome}} | Débito: R${{valor}} | Vencimento: {{data}} | Status: {{status}}", max_chars: 200, estilo: "tecnico" },
   ]},
 ];

@@ -10,10 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, User, Phone, Mail, MapPin, Calendar, Activity, CreditCard, Clock, FileText, CheckCircle2, FolderOpen, Loader2, Pencil, Plus, DollarSign, Banknote, QrCode, Receipt, ExternalLink, Zap, Home } from "lucide-react";
 import { ClientServiceAddresses } from "@/components/ClientServiceAddresses";
+import { ClientComunicacao } from "@/components/ClientComunicacao";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatCivilDate } from "@/lib/civil-date";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import { useState } from "react";
 
@@ -290,6 +292,7 @@ export default function ClientDetail() {
               <TabsTrigger value="protocols" className="bevel-3d rounded-none data-[state=active]:panel-3d-active data-[state=active]:text-primary px-6 py-2.5 text-[10px] font-black uppercase tracking-widest shadow-none">Protocolos</TabsTrigger>
               <TabsTrigger value="sessions" className="bevel-3d rounded-none data-[state=active]:panel-3d-active data-[state=active]:text-primary px-6 py-2.5 text-[10px] font-black uppercase tracking-widest shadow-none">Sessões</TabsTrigger>
               <TabsTrigger value="financial" className="bevel-3d rounded-none data-[state=active]:panel-3d-active data-[state=active]:text-primary px-6 py-2.5 text-[10px] font-black uppercase tracking-widest shadow-none">Financeiro</TabsTrigger>
+              <TabsTrigger value="comunicacao" className="bevel-3d rounded-none data-[state=active]:panel-3d-active data-[state=active]:text-primary px-6 py-2.5 text-[10px] font-black uppercase tracking-widest shadow-none">Comunicação</TabsTrigger>
               <TabsTrigger value="enderecos" className="bevel-3d rounded-none data-[state=active]:panel-3d-active data-[state=active]:text-primary px-6 py-2.5 text-[10px] font-black uppercase tracking-widest shadow-none flex items-center gap-1.5">
                 <Home className="h-3 w-3" />
                 Endereços
@@ -318,7 +321,7 @@ export default function ClientDetail() {
                             <div className="flex items-center gap-2 mt-1">
                               <Calendar className="w-3 h-3 text-muted-foreground" />
                               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                Início: {format(new Date(protocol.startDate), "dd/MM/yyyy")}
+                                Início: {formatCivilDate(protocol.startDate, "dd/MM/yyyy")}
                               </span>
                             </div>
                           </div>
@@ -371,10 +374,10 @@ export default function ClientDetail() {
                         <div className="flex items-center gap-6">
                           <div className="concave-3d flex flex-col items-center justify-center w-16 h-16 shrink-0 shadow-sm border-none">
                             <div className="text-[10px] uppercase font-black text-muted-foreground/60 leading-none mb-1">
-                              {format(new Date(session.scheduledDate), "MMM", { locale: ptBR })}
+                              {formatCivilDate(session.scheduledDate, "MMM", { locale: ptBR })}
                             </div>
                             <div className="text-xl font-black text-primary leading-none tabular-nums">
-                              {format(new Date(session.scheduledDate), "dd")}
+                              {formatCivilDate(session.scheduledDate, "dd")}
                             </div>
                           </div>
                           <div>
@@ -635,6 +638,10 @@ export default function ClientDetail() {
                   </div>
                 </div>
               )}
+            </TabsContent>
+
+            <TabsContent value="comunicacao" className="focus:outline-none">
+              <ClientComunicacao clientId={client.id} />
             </TabsContent>
 
             <TabsContent value="enderecos" className="focus:outline-none">

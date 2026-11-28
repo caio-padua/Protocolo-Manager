@@ -15,6 +15,7 @@
  * GET  /api/receituario/alertas              — slots próximos (Cockpit)
  */
 import { Router } from "express";
+import { lerTokenDeLink, protegerRespostaLink, auditarAcessoLink, excedeuLimiteLink } from "../lib/link-acesso.js";
 import { z } from "zod";
 import { SignVisualPrescriptionBody } from "@workspace/api-zod";
 import {
@@ -39,6 +40,7 @@ import { sql } from "drizzle-orm";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { requireCollaborator } from "./collaborator";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
+import { IdentidadeEmpresa2bError } from "../lib/documentos/paxmed-2b-identidade-clinica";
 import { ClinicalAccessError, clinicalToolAccess } from "../lib/clinical-access";
 
 const router = Router();
@@ -48,8 +50,11 @@ router.use(moduleGuard("protocolos"));
 // GET /api/receituario/consulta?token=12C9AA79
 // Usada pela página /consulta-receituario (QR code da receita aponta para ela)
 router.get("/receituario/consulta", async (req, res): Promise<void> => {
-  const { token } = req.query;
-  if (!token || typeof token !== "string") {
+  protegerRespostaLink(res);
+  const { token: tokenLido, via } = lerTokenDeLink(req);
+  const token = tokenLido || undefined;
+  if (excedeuLimiteLink(req, "receituario")) { res.status(429).json({ error: "Muitas tentativas. Aguarde um minuto." }); return; }
+  if (!token) {
     res.status(400).json({ error: "Parâmetro token obrigatório" });
     return;
   }
@@ -64,6 +69,7 @@ router.get("/receituario/consulta", async (req, res): Promise<void> => {
     const row = (rows as unknown as { rows: Record<string, unknown>[] }).rows?.[0]
       ?? (Array.isArray(rows) ? rows[0] : null);
 
+    await auditarAcessoLink(req, "receituario", via, row ? "aceito" : "recusado");
     if (!row) {
       res.status(404).json({ error: "Documento não encontrado" });
       return;
@@ -481,7 +487,7 @@ router.get("/receituario/alertas", async (req, res): Promise<void> => {
 });
 
 // ── P7: Gerar receita demo assinada + upload ao Drive ─────────────────────────
-const DEMO_DRIVE_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep"; // pasta PAXTER compartilhada
+const DEMO_DRIVE_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep"; // pasta PaxMed compartilhada
 
 // ── POST /api/receituario/gerar-demo ─────────────────────────────────────────
 // MOTOR ÚNICO — gera receita de demonstração usando o modelo ativo do banco.
@@ -581,7 +587,7 @@ router.post("/receituario/emitir-prescricao", requireCollaborator, async (req, r
       tipoMotor: result.tipoMotor,
     });
   } catch (err) {
-    if (err instanceof ClinicalIdentityError || err instanceof ClinicalAccessError) {
+    if (err instanceof ClinicalIdentityError || err instanceof ClinicalAccessError || err instanceof IdentidadeEmpresa2bError) {
       res.status(err.status).json({ error: err.message });
       return;
     }
@@ -619,7 +625,7 @@ router.post("/receituario/assinar-imagem-pdf", requireCollaborator, async (req, 
     res.json({ ok: true, pdfBase64: Buffer.from(result.pdf).toString("base64"),
       fileName: result.fileName, driveUrl: result.driveUrl, driveId: result.driveId, emailSent: false });
   } catch (err) {
-    if (err instanceof ClinicalIdentityError || err instanceof ClinicalAccessError) {
+    if (err instanceof ClinicalIdentityError || err instanceof ClinicalAccessError || err instanceof IdentidadeEmpresa2bError) {
       res.status(err.status).json({ error: err.message }); return;
     }
     req.log.error({ err }, "assinar-imagem-pdf: falha na assinatura");
@@ -675,7 +681,7 @@ router.post("/receituario/assinar-imagem-pdf", async (req, res): Promise<void> =
       const emailHtml = `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
           <div style="background:#16284a;padding:20px 24px;text-align:center">
-            <h1 style="color:#c9a24e;margin:0;font-size:24px;letter-spacing:2px">PAXTER</h1>
+            <h1 style="color:#c9a24e;margin:0;font-size:24px;letter-spacing:2px">PAXMED</h1>
             <p style="color:#45B8CC;margin:4px 0 0;font-size:13px">Motor Clínico — Receituário Assinado</p>
           </div>
           <div style="padding:24px;background:#f8fafc">
@@ -690,7 +696,7 @@ router.post("/receituario/assinar-imagem-pdf", async (req, res): Promise<void> =
             <p style="color:#64748b;font-size:12px;margin-top:16px">PDF gerado pelo motor visual completo (ReceituarioPreview + arabescos) — captura fiel do layout exibido na tela.</p>
           </div>
           <div style="background:#16284a;padding:12px 24px;text-align:center">
-            <p style="color:#45B8CC;font-size:11px;margin:0">Documento assinado digitalmente via ICP-Brasil/PAdES — PAXTER Clinical Intelligence System</p>
+            <p style="color:#45B8CC;font-size:11px;margin:0">Documento assinado digitalmente via ICP-Brasil/PAdES — PaxMed Clinical Intelligence System</p>
           </div>
         </div>
       `;
@@ -699,7 +705,7 @@ router.post("/receituario/assinar-imagem-pdf", async (req, res): Promise<void> =
 
       const mailResult = await sendGmailMessage({
         to: toAddresses.join(", "),
-        subject: `PAXTER | Receituário | ${patientName} | ${d}/${m}/${y}`,
+        subject: `PAXMED | Receituário | ${patientName} | ${d}/${m}/${y}`,
         html: emailHtml,
         attachments: [{
           filename: safeFileName,
@@ -738,7 +744,7 @@ router.get("/receituario/preview-html", async (req, res): Promise<void> => {
     const html = buildPrescricaoHtml({
       medicoNome: identity.professional.name,
       medicoCrm:  crmRqe,
-      clinicaNome: clinica?.name ?? "Instituto Padua",
+      clinicaNome: clinica?.name ?? "Instituto Pádua",
       clinicaEndereco: (clinica as any)?.address ?? "Av. Brigadeiro Faria Lima, 3000 — São Paulo / SP",
       pacienteNome: identity.client.name,
       pacienteCpf:  cliente?.cpf ?? "",
@@ -836,7 +842,7 @@ router.post("/receituario/emitir-cliente", requireCollaborator, async (req, res)
       tipoMotor:   result.tipoMotor,
     });
   } catch (err) {
-    if (err instanceof ClinicalIdentityError || err instanceof ClinicalAccessError) {
+    if (err instanceof ClinicalIdentityError || err instanceof ClinicalAccessError || err instanceof IdentidadeEmpresa2bError) {
       res.status(err.status).json({ error: err.message });
       return;
     }

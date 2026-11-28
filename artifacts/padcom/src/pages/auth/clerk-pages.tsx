@@ -23,19 +23,19 @@ function safeReturnTo(): string {
   ) {
     return value;
   }
-  return "/";
+  return "/dashboard";
 }
 
 function AuthFrame({ children }: { children: ReactNode }) {
   return (
     <main className="relative isolate min-h-[100dvh] overflow-hidden bg-[#f3ecdd] px-4 py-8 text-[#16284a]">
-      <div className="leva-fabric pointer-events-none" aria-hidden="true" />
+      <div className="leva-fabric leva-fabric-fixo pointer-events-none" aria-hidden="true" />
       <div className="relative z-10 flex min-h-[calc(100dvh-4rem)] flex-col items-center justify-center">
         <div className="mb-7 flex flex-col items-center gap-3 select-none">
           <PaxterSymbolGlass size={52} tone="dark" sharp />
           <div className="text-center">
             <p className="text-[24px] font-bold tracking-[0.18em] text-[#16284a] uppercase leading-none">
-              PAXTER
+              PAXMED
             </p>
             <p className="text-[10px] tracking-[0.22em] text-[#916f32] uppercase mt-1">
               Clinical Intelligence System
@@ -187,7 +187,7 @@ function GoogleLoginReturnFlow() {
           throw new Error("O servidor não confirmou a identidade do profissional.");
         }
         setCollabSession(data.token, data.professional as CollabProfessional);
-        navigate(returnTo === "/" ? data.destino || "/" : returnTo, { replace: true });
+        navigate(returnTo === "/dashboard" ? data.destino || "/dashboard" : returnTo, { replace: true });
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : "Falha ao validar o acesso.");
       }

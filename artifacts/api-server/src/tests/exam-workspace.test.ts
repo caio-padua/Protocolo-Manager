@@ -7,7 +7,7 @@ import { isolatedPostgres } from "./helpers/isolated-postgres";
 
 const mock = vi.hoisted(() => ({
   rows: [] as any[][], insert: vi.fn(), update: vi.fn(), send: vi.fn(), generate: vi.fn(), identity: vi.fn(),
-  writes: [] as any[], nextId: 1, execute: vi.fn(),
+  writes: [] as any[], nextId: 1, execute: vi.fn(), settings: {} as Record<string, string>,
 }));
 vi.mock("@workspace/db", async () => ({
   ...await import("../../../../lib/db/src/schema"),
@@ -24,14 +24,33 @@ vi.mock("@workspace/db", async () => ({
 }));
 vi.mock("../routes/collaborator", () => ({
   requireCollaborator: (req: any, res: any, next: any) =>
-    req.get("Authorization") === "Bearer synthetic-test" ? next() : res.status(401).json({ error: "Login obrigatório" }),
+    req.get("Authorization") === "Bearer synthetic-test"
+      ? (req.collaborator = { professionalId: 1, role: "medico", credentialVersion: 0 }, next())
+      : res.status(401).json({ error: "Login obrigatório" }),
 }));
+// A sessão sintética agora é completa (req.collaborator preenchido, como no requireCollaborator real).
+// A decisão de acesso clínico (matriz x concessão local) é SIMULADA aqui como "direto": ela tem testes
+// próprios; o que este arquivo prova é a emissão. Sem colaborador na requisição a recusa 401 real continua.
+vi.mock("../lib/clinical-access", async () => {
+  const actual = await vi.importActual<any>("../lib/clinical-access");
+  return {
+    ...actual,
+    clinicalToolAccess: vi.fn(async (req: any) => {
+      if (!req.collaborator) throw new actual.ClinicalAccessError(401, "Faça login de colaborador.");
+      return { mode: "direto", member: {} };
+    }),
+  };
+});
 vi.mock("../lib/clinical-emitter", async () => {
   const actual = await vi.importActual<any>("../lib/clinical-emitter");
   return { ...actual, resolveClinicalEmitter: mock.identity };
 });
 vi.mock("../lib/exam-request-pdf", () => ({ generateExamRequestPdf: mock.generate }));
 vi.mock("../lib/messaging/index.js", () => ({ enviarMensagemPaxter: mock.send }));
+vi.mock("../lib/secure-settings", async () => {
+  const actual = await vi.importActual<any>("../lib/secure-settings");
+  return { ...actual, getSetting: vi.fn(async (key: string) => mock.settings[key] ?? null) };
+});
 vi.mock("../lib/prescription-signing", () => ({
   resolvePrescriptionSigner: vi.fn().mockResolvedValue({}),
   signExistingClinicalPdf: vi.fn(async (bytes: Uint8Array) => bytes),
@@ -58,6 +77,7 @@ beforeAll(async () => {
 afterAll(async () => { await postgres?.stop(); });
 beforeEach(() => {
   vi.clearAllMocks(); mock.rows = []; mock.writes = []; mock.nextId = 1;
+  mock.settings = {};
   mock.execute.mockImplementation(postgres.execute);
   mock.identity.mockResolvedValue({
     client: { id: 101, name: "Cliente Sintetico", email: "synthetic@example.invalid", phone: "00000000000", cpf: null },
@@ -117,6 +137,45 @@ it("sends existing documents to confirmed channels and audits metadata without c
   expect(JSON.stringify(mock.writes)).not.toContain("synthetic@example.invalid");
   expect(mock.update).toHaveBeenCalledTimes(2);
 });
+it("creates one Telegram follow-up only after the provider accepts the complete original message", async () => {
+  mock.nextId = 901;
+  mock.settings["telegram.examFollowup.intervalHours.404"] = "8";
+  mock.rows = [[document], [{ telegramChatId: "chat-sintetico" }]];
+  mock.send.mockResolvedValue({ resultados: [{ canal: "TELEGRAM", sent: true, mock: false, via: "telegram" }] });
+  const response = await request(app).post("/api/exam-requests/send").set(authorization)
+    .send({ ...payload, operationKey: "synthetic-followup-accepted-901", channels: ["TELEGRAM"] });
+  expect(response.status).toBe(200);
+  expect(mock.send).toHaveBeenCalledTimes(1);
+  const rows = await postgres.pool.query(
+    "SELECT state, interval_hours, provider_accepted_at, receipt_due_at, booking_due_at FROM telegram_exam_followups WHERE source_dispatch_audit_id=901",
+  );
+  expect(rows.rows[0]).toMatchObject({ state: "receipt_pending", interval_hours: 8 });
+  expect(rows.rows[0].provider_accepted_at).toBeInstanceOf(Date);
+  expect(rows.rows[0].receipt_due_at).toBeInstanceOf(Date);
+  expect(rows.rows[0].booking_due_at).toBeInstanceOf(Date);
+});
+it.each([
+  ["simulated", { canal: "TELEGRAM", sent: true, mock: true, via: "mock" }, "cancelled"],
+  ["uncertain", { canal: "TELEGRAM", sent: false, mock: false, via: "telegram" }, "needs_review"],
+])("does not activate a follow-up after a %s original dispatch", async (_label, outcome, expectedState) => {
+  const auditId = expectedState === "cancelled" ? 902 : 903;
+  mock.nextId = auditId;
+  mock.settings["telegram.examFollowup.intervalHours.404"] = "8";
+  mock.rows = [[document], [{ telegramChatId: "chat-sintetico" }]];
+  mock.send.mockResolvedValue({ resultados: [outcome] });
+  const response = await request(app).post("/api/exam-requests/send").set(authorization)
+    .send({ ...payload, operationKey: `synthetic-followup-${auditId}`, channels: ["TELEGRAM"] });
+  expect(response.status).toBe(200);
+  const rows = await postgres.pool.query(
+    "SELECT state, receipt_due_at, booking_due_at FROM telegram_exam_followups WHERE source_dispatch_audit_id=$1",
+    [auditId],
+  );
+  expect(rows.rows[0]).toMatchObject({
+    state: expectedState,
+    receipt_due_at: null,
+    booking_due_at: null,
+  });
+});
 it("refuses provider contact if the initial audit cannot be stored", async () => {
   mock.rows = [[document], [{ telegramChatId: "synthetic-chat" }]];
   mock.insert.mockImplementationOnce(() => { throw new Error("synthetic unavailable audit"); });
@@ -157,6 +216,42 @@ it("returns persisted dispatch history without revealing recipient addresses or 
   expect(response.body.dispatches[0]).toMatchObject({ id: 808, channel: "TELEGRAM", documentIds: [91] });
   expect(response.body.dispatches[0]).not.toHaveProperty("detail");
   expect(JSON.stringify(response.body)).not.toContain("private-internal");
+});
+it("shows a safe follow-up summary and lets the authorized team close it", async () => {
+  mock.identity.mockResolvedValue({
+    client: { id: 101, name: "Cliente Sintetico", email: "synthetic@example.invalid", phone: "00000000000", cpf: null },
+    professional: { id: 202, name: "Medico Sintetico", crm: "000", uf: "SP" },
+    clinic: { id: 777, empresaId: 999 }, canPrescribe: true, issue: null,
+  });
+  const created = await postgres.pool.query(`
+    INSERT INTO telegram_exam_followups
+      (source_dispatch_audit_id,empresa_id,cliente_id,chat_id,operation_key,interval_hours,
+       provider_accepted_at,receipt_due_at,booking_due_at,state,receipt_delivery_state,receipt_sent_at)
+    VALUES (99001,999,101,'private-chat-must-not-leak','private-operation-key',8,
+       NOW(),NOW(),NOW()+interval '4 days','receipt_waiting','accepted',NOW())
+    RETURNING id
+  `);
+  mock.rows = [[], []];
+  const history = await request(app).get("/api/exam-requests/101/history").set(authorization);
+  expect(history.status).toBe(200);
+  expect(history.body.followups[0]).toMatchObject({
+    id: Number(created.rows[0].id),
+    state: "receipt_waiting",
+    receiptDeliveryState: "accepted",
+    requiresReview: false,
+  });
+  expect(history.body.followups[0]).not.toHaveProperty("chatId");
+  expect(history.body.followups[0]).not.toHaveProperty("operationKey");
+  expect(history.body.followups[0]).not.toHaveProperty("errorCode");
+
+  const closed = await request(app).post(`/api/exam-requests/101/followups/${created.rows[0].id}/close`)
+    .set(authorization).send({ reason: "pedido_cancelado" });
+  expect(closed.status).toBe(200);
+  const stored = await postgres.pool.query(
+    "SELECT state, close_reason, closed_by FROM telegram_exam_followups WHERE id=$1",
+    [created.rows[0].id],
+  );
+  expect(stored.rows[0]).toEqual({ state: "closed", close_reason: "pedido_cancelado", closed_by: 202 });
 });
 it("shows an unaudited reservation and partial results without selection, including on older document pages", async () => {
   const identity = await mock.identity();
@@ -241,6 +336,8 @@ it("preserves every link in a large Telegram batch rather than truncating the ca
 });
 it("generates one file per selected exam in one request without messaging", async () => {
   const items = ["Holter 24 horas", "Mapa 24 horas"].map(nomeExame => ({ nomeExame, tipo: "OUTROS" }));
+  // Catálogo ativo sintético: a rota recusa (422) exame fora do catálogo; a leitura é a 1ª consulta ao banco.
+  mock.rows = [items.map((item, i) => ({ codigoExame: `SINT-${i}`, nomeExame: item.nomeExame, grupoPrincipal: "OUTROS", ativo: true }))];
   const response = await request(app).post("/api/exam-requests/emit").set(authorization)
     .send({ clientId: 101, individualDocuments: true, items });
   expect(response.status).toBe(200);

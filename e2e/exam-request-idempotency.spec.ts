@@ -94,7 +94,7 @@ for (const mount of ["cockpit", "mesma-instancia"] as const) {
           if (/^\/api\/clinical-context\/(42|43)$/.test(path)) return reply(route, {
             professional: activeProfessional, client: patient,
             clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
-            canPrescribe: true, issue: null,
+            canPrescribe: true, canRequestExams: true, issue: null,
           });
           if (/^\/api\/exam-requests\/(42|43)\/history$/.test(path)) {
             if (switched) currentReads++;
@@ -103,7 +103,7 @@ for (const mount of ["cockpit", "mesma-instancia"] as const) {
               dispatches: [], pendingOperations: [], nextOffset: null,
             });
           }
-          return reply(route, []);
+          return reply(route, new URL(route.request().url()).pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
         });
         await page.goto("/cockpit/42/exames");
         const panel = await selectAndConfirm(page);
@@ -294,7 +294,7 @@ for (const scenario of ["duas-janelas", "resposta-perdida", "resultado-desconhec
       if (path === "/api/clients/42") return json(client);
       if (path === "/api/clinical-context/42") return json({
         professional, client, clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
-        canPrescribe: true, issue: null,
+        canPrescribe: true, canRequestExams: true, issue: null,
       });
       if (path === "/api/exam-requests/42/history") return json({ documents: [document], dispatches: [], pendingOperations: [], nextOffset: null });
       if (path === "/api/exam-requests/send") {
@@ -315,7 +315,7 @@ for (const scenario of ["duas-janelas", "resposta-perdida", "resultado-desconhec
             ...(needsReview ? { error: "Falha de comunicação; confira o provedor." } : {}) }],
         });
       }
-      return json([]);
+      return json(new URL(route.request().url()).pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
     });
     await page.goto("/cockpit/42/exames");
     let panel = await selectAndConfirm(page);
@@ -359,7 +359,7 @@ test("Pedidos: pendências visíveis após recarga sem selecionar arquivos ou ca
     if (path === "/api/clients/42") return json(client);
     if (path === "/api/clinical-context/42") return json({
       professional, client, clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
-      canPrescribe: true, issue: null,
+      canPrescribe: true, canRequestExams: true, issue: null,
     });
     if (path === "/api/exam-requests/42/history") {
       const older = new URL(route.request().url()).searchParams.get("offset") === "20";
@@ -374,7 +374,7 @@ test("Pedidos: pendências visíveis após recarga sem selecionar arquivos ou ca
         }] : [],
       });
     }
-    return json([]);
+    return json(new URL(route.request().url()).pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
   });
   await page.goto("/cockpit/42/exames");
   const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
@@ -433,7 +433,7 @@ for (const transition of ["paciente", "medico"] as const) {
       if (/^\/api\/clinical-context\/(42|43)$/.test(path)) return json({
         professional: activeProfessional, client: patient,
         clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
-        canPrescribe: true, issue: null,
+        canPrescribe: true, canRequestExams: true, issue: null,
       });
       if (/^\/api\/exam-requests\/(42|43)\/history$/.test(path)) {
         expect(request.headers().authorization).toBe(
@@ -447,7 +447,7 @@ for (const transition of ["paciente", "medico"] as const) {
           dispatches: [], pendingOperations: [], nextOffset: null,
         });
       }
-      return json([]);
+      return json(new URL(route.request().url()).pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
     });
     await page.goto("/cockpit/42/exames");
     const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
@@ -596,7 +596,7 @@ for (const transition of ["paciente", "medico"] as const) {
       if (/^\/api\/clinical-context\/(42|43)$/.test(path)) return json({
         professional: activeProfessional, client: patient,
         clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
-        canPrescribe: true, issue: null,
+        canPrescribe: true, canRequestExams: true, issue: null,
       });
       if (path === "/api/catalogos/exames") return json(["Alfa", "Beta"].map((name, index) => ({
         id: 701 + index, nomeExame: `Exame sintético ${name}`, codigoExame: `SYN-${index}`,
@@ -610,7 +610,7 @@ for (const transition of ["paciente", "medico"] as const) {
           dispatches: [], pendingOperations: [], nextOffset: null,
         });
       }
-      return json([]);
+      return json(new URL(route.request().url()).pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
     });
     await page.goto("/cockpit/42/exames");
     const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
@@ -708,7 +708,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     });
     const replyIdentity = (route: Route) => route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ professional, client, clinic: activeClinic, canPrescribe: true, issue: null }),
+      body: JSON.stringify({ professional, client, clinic: activeClinic, canPrescribe: true, canRequestExams: true, issue: null }),
     });
     await context.addInitScript(() => {
       localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
@@ -735,7 +735,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         documents: [document, { ...document, id: 92, fileName: "Outro pedido sintético.pdf" }],
         dispatches: [], pendingOperations: [], nextOffset: null,
       });
-      return json([]);
+      return json(new URL(route.request().url()).pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
     });
     await page.goto("/cockpit/42/exames");
     const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
@@ -813,7 +813,7 @@ test("Pedidos: clínica recusada com 403 bloqueia envio e nova clínica exige au
     status, contentType: "application/json", body: JSON.stringify(body),
   });
   const identityBody = (clinic: typeof originalClinic) => ({
-    professional, client, clinic, canPrescribe: true, issue: null,
+    professional, client, clinic, canPrescribe: true, canRequestExams: true, issue: null,
   });
   await context.addInitScript(() => {
     localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
@@ -836,7 +836,7 @@ test("Pedidos: clínica recusada com 403 bloqueia envio e nova clínica exige au
       documents: [document, { ...document, id: 92, fileName: "Outro pedido sintético.pdf" }],
       dispatches: [], pendingOperations: [], nextOffset: null,
     });
-    return reply(route, []);
+    return reply(route, new URL(route.request().url()).pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
   });
   await page.goto("/cockpit/42/exames");
   const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
@@ -969,7 +969,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       status, contentType: "application/json", body: JSON.stringify(body),
     });
     const identityBody = (clinic: typeof originalClinic) => ({
-      professional, client, clinic, canPrescribe: true, issue: null,
+      professional, client, clinic, canPrescribe: true, canRequestExams: true, issue: null,
     });
     const historyBody = (operationKey: string, id: number, nextOffset: number | null = null) => ({
       documents: [{ ...document, id, fileName: `${operationKey}.pdf` }],
@@ -1041,7 +1041,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         if (mode === "paginacao" && offset === 20) return reply(route, historyBody(oldPageKey, 93, 40));
         return reply(route, historyBody(oldKey, 91, mode === "paginacao" ? 20 : null));
       }
-      return reply(route, []);
+      return reply(route, new URL(route.request().url()).pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
     });
     await page.goto("/cockpit/42/exames");
     const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
@@ -1343,7 +1343,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         status, contentType: "application/json", body: JSON.stringify(body),
       });
       const identityBody = (index: number) => ({
-        professional, client, clinic: clinic(index), canPrescribe: true, issue: null,
+        professional, client, clinic: clinic(index), canPrescribe: true, canRequestExams: true, issue: null,
       });
       const historyBody = (key: string, id: number, nextOffset: number | null) => ({
         documents: [{ ...document, id, fileName: `${key}.pdf` }], dispatches: [], nextOffset,
@@ -1407,7 +1407,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           return reply(route, offset === 20
             ? historyBody(markers.pageC, 95, null) : historyBody(markers.C, 94, 20));
         }
-        return reply(route, []);
+        return reply(route, new URL(route.request().url()).pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
       });
       await page.goto("/cockpit/42/exames");
       const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
@@ -1572,7 +1572,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         }],
       });
       const identityBody = (clinic: typeof clinicA) => ({
-        professional, client, clinic, canPrescribe: true, issue: null,
+        professional, client, clinic, canPrescribe: true, canRequestExams: true, issue: null,
       });
       page.on("request", request => {
         if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
@@ -1634,7 +1634,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           return reply(route, offset === 20
             ? historyBody(markers.page20, 93, 40) : historyBody(markers.first, 91, 20));
         }
-        return reply(route, []);
+        return reply(route, new URL(route.request().url()).pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
       });
       await page.clock.install();
       await page.goto("/cockpit/42/exames");
@@ -1877,10 +1877,12 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
 
 // Keep valid-empty revalidation independent of the tab-resume/polling journey:
 // stale pages must be consumed after the empty response, not while hidden.
+// An empty document list does not imply that pending dispatches are empty.
 for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
   for (const [delivery, outcome] of [
     ["em-B", "preenchido"], ["em-B", "vazio"],
     ["apos-retorno-A", "preenchido"], ["apos-retorno-A", "vazio"],
+    ["em-B", "vazio-com-pendencia"], ["apos-retorno-A", "vazio-com-pendencia"],
   ] as const) {
     test(`Pedidos: voltar à clínica em cache reinicia histórico A → B → A → B — ${transition} — ${delivery} — ${outcome}`, async ({ context, page }, testInfo) => {
       const clinicA = { id: 303, empresaId: 404, name: "Clínica A sintética" };
@@ -1916,7 +1918,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         }],
       });
       const identityBody = (clinic: typeof clinicA) => ({
-        professional, client, clinic, canPrescribe: true, issue: null,
+        professional, client, clinic, canPrescribe: true, canRequestExams: true, issue: null,
       });
       page.on("request", request => {
         if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
@@ -1978,7 +1980,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           return reply(route, offset === 20
             ? historyBody(markers.page20, 93, 40) : historyBody(markers.first, 91, 20));
         }
-        return reply(route, []);
+        return reply(route, new URL(route.request().url()).pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
       });
       await page.goto("/cockpit/42/exames");
       const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
@@ -2135,16 +2137,34 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       const emptyHistory = async () => {
         await expect(panel.getByText("Nenhum pedido registrado para este cliente.", { exact: true })).toBeVisible();
         await expect(panel.getByRole("checkbox", { name: /^Selecionar documento / })).toHaveCount(0);
-        await expect(panel.getByRole("alert")).toHaveCount(0);
-        for (const marker of Object.values(markers)) await expect(panel).not.toContainText(marker);
+        await expect(panel.locator("tbody tr")).toHaveCount(0);
+        if (outcome === "vazio-com-pendencia") {
+          const pending = panel.getByRole("alert");
+          await expect(pending).toHaveCount(1);
+          await expect(pending).toBeVisible();
+          await expect(pending.getByRole("listitem")).toHaveCount(1);
+          await expect(pending).toContainText(`Operação: ${markers.bFresh}`);
+          await expect(pending).toContainText("Envios pendentes de conferência");
+          await expect(pending).toContainText("Requer conferência");
+          await expect(pending).toContainText("Confira o provedor antes de repetir.");
+          await expect(pending).toContainText("Sem confirmação de resultado; confira antes de repetir.");
+        } else {
+          await expect(panel.getByRole("alert")).toHaveCount(0);
+        }
+        for (const marker of Object.values(markers)) {
+          if (outcome === "vazio-com-pendencia" && marker === markers.bFresh) continue;
+          await expect(panel).not.toContainText(marker);
+        }
         await cleared();
         await expect(panel.getByRole("button", { name: "Mais antigos", exact: true })).toBeDisabled();
         // Neither button may restore an old page while the result is empty.
         await expect(panel.getByRole("button", { name: "Atualizar histórico", exact: true })).toBeEnabled();
       };
-      if (outcome === "vazio") {
+      if (outcome !== "preenchido") {
         await reply(held.secondB!, {
-          documents: [], dispatches: [], pendingOperations: [], nextOffset: null,
+          documents: [], dispatches: [], nextOffset: null,
+          pendingOperations: outcome === "vazio-com-pendencia"
+            ? historyBody(markers.bFresh, 98).pendingOperations : [],
         });
         await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(6);
         await emptyHistory();
@@ -2159,10 +2179,10 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       // to be consumed after returning to B, including the old B scope itself.
       await reply(held.bPage!, historyBody(markers.bLate, 96));
       await reply(held.aReturnPage!, historyBody(markers.aLate, 97));
-      await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(outcome === "vazio" ? 8 : 7);
+      await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(outcome !== "preenchido" ? 8 : 7);
       await page.evaluate(() => new Promise<void>(resolve =>
         requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-      if (outcome === "vazio") {
+      if (outcome !== "preenchido") {
         await emptyHistory();
       } else {
         await expect(doc(92)).toBeVisible();
@@ -2199,7 +2219,9 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
 for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
   for (const delivery of ["em-B", "apos-retorno-A"] as const) {
     for (const currentOutcome of [
-      "sucesso", "401-atual", "500-atual", "500-atual-recuperacao-automatica", "rede-atual",
+      "sucesso", "401-atual", "500-atual", "500-atual-recuperacao-automatica", "rede-atual", "rede-atual-troca-B",
+      "500-atual-recuperacao-automatica-sem-pendencias",
+      "json-invalido-recuperacao-automatica",
       "500-recuperacao-troca-B-sucesso", "500-recuperacao-troca-B-401-atrasado",
       "500-recuperacao-troca-B-recusada",
     ] as const) {
@@ -2215,12 +2237,21 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       const offsets: Record<"initial" | "B" | "return", number[]> = { initial: [], B: [], return: [] };
       const methods: string[] = [];
       const posts: string[] = [];
+      const switchAfterTransportFailure = currentOutcome === "rede-atual-troca-B";
+      const transportFailure = currentOutcome === "rede-atual" || switchAfterTransportFailure;
       const switchDuringRecovery = currentOutcome.startsWith("500-recuperacao-troca-B");
-      const automaticRecovery = currentOutcome === "500-atual-recuperacao-automatica" || switchDuringRecovery;
+      const invalidJson = currentOutcome === "json-invalido-recuperacao-automatica";
+      const resolvedPending = currentOutcome === "500-atual-recuperacao-automatica-sem-pendencias";
+      const automaticRecovery = currentOutcome === "500-atual-recuperacao-automatica" || resolvedPending || invalidJson || switchDuringRecovery;
+      const manualRecovery = currentOutcome === "rede-atual";
       const held: { identity?: Route; oldPage?: Route; historyB?: Route; returned?: Route; recovery?: Route } = {};
       let navigations = 0;
       const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
         status, contentType: "application/json", body: JSON.stringify(body),
+      });
+      // A successful HTTP status must not make an unreadable body authoritative.
+      const replyInvalidJson = (route: Route) => route.fulfill({
+        status: 200, contentType: "application/json", body: '{"documents":',
       });
       const historyBody = (key: string, id: number, nextOffset: number | null = null) => ({
         documents: [{ ...document, id, fileName: `${key}.pdf` }],
@@ -2231,7 +2262,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         }],
       });
       const identityBody = (clinic: typeof clinicA) => ({
-        professional, client, clinic, canPrescribe: true, issue: null,
+        professional, client, clinic, canPrescribe: true, canRequestExams: true, issue: null,
       });
       page.on("request", request => {
         if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
@@ -2248,9 +2279,12 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           const response = await originalFetch(input, { ...init, signal: undefined });
           const originalJson = response.json.bind(response);
           response.json = async () => {
-            const data = await originalJson();
-            (window as any).__roundtripParsed++;
-            return data;
+            try {
+              return await originalJson();
+            } finally {
+              // Count settled parsing attempts, including malformed JSON.
+              (window as any).__roundtripParsed++;
+            }
           };
           return response;
         };
@@ -2277,7 +2311,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           offsets[stage].push(offset);
           if (stage === "B") { held.historyB = route; return; }
           if (stage === "return") {
-            if (automaticRecovery && offsets.return.length > 1) held.recovery = route;
+            if ((automaticRecovery || manualRecovery) && offsets.return.length > 1) held.recovery = route;
             else held.returned = route;
             return;
           }
@@ -2285,9 +2319,9 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           return reply(route, offset === 20
             ? historyBody(markers.page20, 93, 40) : historyBody(markers.first, 91, 20));
         }
-        return reply(route, []);
+        return reply(route, new URL(route.request().url()).pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
       });
-      if (automaticRecovery) await page.clock.install();
+      if (automaticRecovery || switchAfterTransportFailure) await page.clock.install();
       await page.goto("/cockpit/42/exames");
       const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
       const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
@@ -2396,10 +2430,13 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       // Fail the NEW offset-zero request, not the old offset-40 response.
       const currentError = currentOutcome === "401-atual"
         ? "Sessão atual sem autorização para atualizar o histórico de A."
-        : currentOutcome === "rede-atual" ? "Failed to fetch"
+        : invalidJson ? "JSON"
+        : transportFailure ? "Failed to fetch"
         : "Servidor indisponível ao atualizar o histórico atual de A.";
-      if (currentOutcome === "rede-atual") {
+      if (transportFailure) {
         await held.returned!.abort("failed");
+      } else if (invalidJson) {
+        await replyInvalidJson(held.returned!);
       } else {
         await reply(held.returned!, currentOutcome === "sucesso"
           ? historyBody(markers.fresh, 95, 20) : { error: currentError },
@@ -2407,7 +2444,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       }
       // A transport failure has no JSON body; the old page still parsed normally.
       await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed))
-        .toBe(currentOutcome === "rede-atual" ? 4 : 5);
+        .toBe(transportFailure ? 4 : 5);
       if (currentOutcome === "sucesso") {
         await expect(doc(95)).toBeVisible();
         await expect(panel.getByRole("alert")).toContainText(markers.fresh);
@@ -2431,6 +2468,43 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       }
       await cleared();
       expect(offsets).toEqual({ initial: [0, 20, 40], B: [0], return: [0] });
+      if (switchAfterTransportFailure) {
+        const currentAlert = panel.getByRole("alert").filter({ hasText: "Não foi possível atualizar o histórico:" });
+        const knownPending = panel.getByRole("alert").filter({ hasText: "Envios pendentes de conferência" });
+        const staleWarning = "Últimas pendências conhecidas; não foi possível reconfirmar a situação atual.";
+        held.historyB = undefined;
+        await revalidate("B", clinicB, [
+          markers.first, markers.page20, markers.page40, markers.fresh, currentError, staleWarning,
+        ]);
+        await expect.poll(() => !!held.historyB).toBe(true);
+        expect(offsets).toEqual({ initial: [0, 20, 40], B: [0, 0], return: [0] });
+        // Inspect cached B BEFORE releasing its own offset-zero GET. Neither
+        // A's transport error/pending operations nor B's old consent may flash.
+        await expect(doc(92)).toBeVisible();
+        await expect(knownPending).toContainText(markers.b);
+        await expect(currentAlert).toHaveCount(0);
+        await expect(knownPending).not.toContainText(staleWarning);
+        for (const id of [91, 93, 94, 95]) await expect(doc(id)).toHaveCount(0);
+        await cleared();
+        expect(await page.evaluate(() => (window as any).__roundtripLeaks)).toEqual([]);
+        expect(posts).toEqual([]);
+
+        await reply(held.historyB!, historyBody("B-atual-apos-falha-de-rede-A", 96));
+        // The aborted A GET has no JSON; only B's new response increments this.
+        await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(5);
+        await expect(doc(96)).toBeVisible();
+        await expect(knownPending).toContainText("B-atual-apos-falha-de-rede-A");
+        await expect(knownPending).not.toContainText(markers.b);
+        await expect(currentAlert).toHaveCount(0);
+        await expect(panel).not.toContainText(currentError);
+        await expect(panel).not.toContainText(staleWarning);
+        for (const marker of [markers.first, markers.page20, markers.page40, markers.fresh]) {
+          await expect(panel).not.toContainText(marker);
+        }
+        for (const id of [91, 92, 93, 94, 95]) await expect(doc(id)).toHaveCount(0);
+        await cleared();
+        expect(offsets).toEqual({ initial: [0, 20, 40], B: [0, 0], return: [0] });
+      }
       if (automaticRecovery) {
         // Only the panel's 10-second pending-operation interval may recover A.
         // No refresh/pagination click, focus event, or navigation triggers it.
@@ -2450,7 +2524,8 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           await expect(knownPending).toContainText(markers.first);
           await expect(knownPending).toContainText(staleWarning);
           await cleared();
-          await reply(held.recovery!, { error: currentError }, 500);
+          if (invalidJson) await replyInvalidJson(held.recovery!);
+          else await reply(held.recovery!, { error: currentError }, 500);
           await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(5 + cycle);
           await expect(currentAlert).toContainText(currentError);
           await expect(currentAlert).toContainText("Isso não confirma falha no envio nem libera as reservas.");
@@ -2537,13 +2612,25 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           }
           expect(offsets).toEqual({ initial: [0, 20, 40], B: [0, 0], return: [0, 0] });
         } else {
-          await reply(held.recovery!, historyBody(markers.fresh, 95, 20));
+          const recoveredHistory = historyBody(markers.fresh, 95, 20);
+          // Documents still exist, but another actor has resolved all reservations.
+          // An explicit empty list must replace, not merge with, cached pendencies.
+          if (resolvedPending) recoveredHistory.pendingOperations = [];
+          await reply(held.recovery!, recoveredHistory);
           await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(8);
           await expect(doc(95)).toBeVisible();
           await expect(doc(95)).not.toBeChecked();
           await expect(currentAlert).toHaveCount(0);
-          await expect(knownPending).toContainText(markers.fresh);
-          await expect(knownPending).not.toContainText("Últimas pendências conhecidas");
+          if (resolvedPending) {
+            await expect(knownPending).toHaveCount(0);
+            await expect(panel.getByRole("alert")).toHaveCount(0);
+            await expect(panel).not.toContainText(staleWarning);
+            await expect(panel.getByRole("checkbox", { name: "E-mail", exact: true })).not.toBeChecked();
+            await expect(panel.getByRole("checkbox", { name: "Telegram", exact: true })).not.toBeChecked();
+          } else {
+            await expect(knownPending).toContainText(markers.fresh);
+            await expect(knownPending).not.toContainText("Últimas pendências conhecidas");
+          }
           for (const marker of [markers.first, markers.b, markers.page20, markers.page40]) {
             await expect(panel).not.toContainText(marker);
           }
@@ -2594,7 +2681,7 @@ for (const currentOutcome of ["sucesso", "401"] as const) {
       });
       const identityBody = () => ({
         professional: switched ? nextProfessional : professional, client, clinic,
-        canPrescribe: true, issue: null,
+        canPrescribe: true, canRequestExams: true, issue: null,
       });
       page.on("request", request => {
         if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
@@ -2642,7 +2729,7 @@ for (const currentOutcome of ["sucesso", "401"] as const) {
           held.recovery = route;
           return;
         }
-        return reply(route, []);
+        return reply(route, url.pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
       });
       await page.clock.install();
       await page.goto("/cockpit/42/exames");
@@ -2760,8 +2847,6 @@ for (const currentOutcome of ["sucesso", "401"] as const) {
   }
 }
 
-||||||| base
-
 // Unlike manual refresh and clinic revalidation, this race holds the interval's
 // recovery GET after a 500 with cached pending operations, then changes patient.
 for (const outcome of ["sucesso-atrasado", "401-atrasado", "401-atual"] as const) {
@@ -2821,7 +2906,7 @@ for (const outcome of ["sucesso-atrasado", "401-atrasado", "401-atual"] as const
       if (/^\/api\/clients\/(42|43)$/.test(url.pathname)) return reply(route, patient);
       if (/^\/api\/clinical-context\/(42|43)$/.test(url.pathname)) return reply(route, {
         professional, client: patient, clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
-        canPrescribe: true, issue: null,
+        canPrescribe: true, canRequestExams: true, issue: null,
       });
       const match = url.pathname.match(/^\/api\/exam-requests\/(42|43)\/history$/);
       if (match) {
@@ -2834,7 +2919,7 @@ for (const outcome of ["sucesso-atrasado", "401-atrasado", "401-atual"] as const
         held.recovery = route;
         return;
       }
-      return reply(route, []);
+      return reply(route, url.pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
     });
     await page.clock.install();
     await page.goto("/cockpit/42/exames");
@@ -2952,6 +3037,236 @@ for (const outcome of ["sucesso-atrasado", "401-atrasado", "401-atual"] as const
   });
 }
 
+// Revisit the SAME doctor/cache scope while its old interval recovery is in flight.
+// Patient and clinic never change; only the doctor goes A -> B -> A. The cockpit's
+// history panel starts collapsed and is remounted per doctor, so each visit must
+// reopen it, and only the cache (never the old open form state) may come back.
+for (const returnedOutcome of ["sucesso", "401"] as const) {
+  for (const lateOutcome of ["sucesso", "401"] as const) {
+    test(`Pedidos: retornar ao médico durante recuperação automática — retorno ${returnedOutcome} — anterior ${lateOutcome}`, async ({ context, page }, testInfo) => {
+      const doctorB = { ...professional, id: 203, name: "Médico B Sintético" };
+      const clinic = { id: 303, empresaId: 404, name: "Clínica Sintética" };
+      const markers = { initial: "A-pendencia-inicial", b: "B-pendencia-exclusiva",
+        fresh: "A-pendencia-revalidada", late: "A-recuperacao-obsoleta" };
+      const errors = { initial: "Falha 500 inicial de A.", fresh: "Retorno de A recusado por 401.",
+        late: "Recuperação obsoleta de A recusada por 401." };
+      let stage: "initial" | "B" | "return" = "initial";
+      const offsets: Record<"initial" | "B" | "return", number[]> = { initial: [], B: [], return: [] };
+      const methods: string[] = [];
+      let navigations = 0;
+      const held: { identity?: Route; recovery?: Route; returned?: Route } = {};
+      const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
+        status, contentType: "application/json", body: JSON.stringify(body),
+      });
+      const followup = (id: number) => ({
+        id, state: "receipt_pending", intervalHours: 24, providerAcceptedAt: null,
+        receiptDueAt: "2026-10-30T15:00:00Z", bookingDueAt: null, receiptSentAt: null, bookingSentAt: null,
+        receiptAnswer: null, bookingAnswer: null, receiptDeliveryState: "not_sent",
+        bookingDeliveryState: "not_sent", receiptAckState: "not_sent", bookingAckState: "not_sent",
+        teamAlertState: "not_sent", closeReason: null, requiresReview: false,
+        createdAt: document.createdAt, closedAt: null,
+      });
+      const historyBody = (key: string, id: number, followupId: number | null) => ({
+        documents: [{ ...document, id, fileName: `${key}.pdf` }],
+        dispatches: [], nextOffset: null,
+        followups: followupId === null ? [] : [followup(followupId)],
+        pendingOperations: [{
+          operationKey: key, state: "needs_review", createdAt: document.createdAt,
+          documentIds: [id], channels: ["EMAIL"], results: [],
+        }],
+      });
+      const identityBody = () => ({
+        professional: stage === "B" ? doctorB : professional, client, clinic,
+        canPrescribe: true, canRequestExams: true, canPrepareExamRequest: true, issue: null,
+      });
+      page.on("request", request => {
+        if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
+      });
+      await context.addInitScript(() => {
+        localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
+        localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
+        const originalFetch = window.fetch.bind(window);
+        (window as any).__doctorReturnParsed = 0;
+        window.fetch = async (input, init) => {
+          const url = input instanceof Request ? input.url : String(input);
+          if (!/\/exam-requests\/42\/history/.test(url)) return originalFetch(input, init);
+          // Cancellation alone must not make this isolation test pass.
+          const response = await originalFetch(input, { ...init, signal: undefined });
+          const originalJson = response.json.bind(response);
+          response.json = async () => {
+            const data = await originalJson();
+            (window as any).__doctorReturnParsed++;
+            return data;
+          };
+          return response;
+        };
+      });
+      await context.route("**/api/**", async route => {
+        const request = route.request();
+        const url = new URL(request.url());
+        methods.push(request.method());
+        // Never allow a write or an unhandled request through to real services.
+        if (request.method() !== "GET") return reply(route, { error: "Somente GET permitido." }, 405);
+        if (url.pathname === "/api/collaborator/me") return reply(route, { professional: identityBody().professional });
+        if (url.pathname === "/api/clients") return reply(route, [client]);
+        if (url.pathname === "/api/clients/42") return reply(route, client);
+        if (url.pathname === "/api/clinical-context/42") {
+          if (stage !== "initial") { held.identity = route; return; }
+          return reply(route, identityBody());
+        }
+        if (url.pathname === "/api/exam-requests/42/history") {
+          expect(request.headers().authorization).toBe(stage === "B"
+            ? "Bearer synthetic-next-token" : "Bearer synthetic-ui-token");
+          offsets[stage].push(Number(url.searchParams.get("offset")));
+          if (stage === "B") return reply(route, historyBody(markers.b, 92, null));
+          if (stage === "return") { held.returned = route; return; }
+          if (offsets.initial.length === 1) return reply(route, historyBody(markers.initial, 91, 501));
+          if (offsets.initial.length === 2) return reply(route, { error: errors.initial }, 500);
+          expect(offsets.initial).toEqual([0, 0, 0]);
+          held.recovery = route;
+          return;
+        }
+        if (url.pathname.endsWith("/fotos-corpo")) return reply(route, { series: [] });
+        return reply(route, []);
+      });
+      await page.clock.install();
+      await page.goto("/cockpit/42/exames");
+      const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
+      const toggle = panel.getByRole("switch", { name: "Histórico de pedidos de exames" });
+      const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
+      const openForm = panel.getByTestId("abrir-encerrar-followup-501");
+      const closeForm = panel.getByTestId("motivo-encerrar-followup-501");
+      const error = panel.getByRole("alert").filter({ hasText: /Falha 500|Retorno de A|Recuperação obsoleta/ });
+      const pending = panel.getByRole("alert").filter({ hasText: "Envios anteriores pendentes de conferência" });
+      const openHistory = async () => {
+        await expect(panel).toBeVisible();
+        await expect(toggle).not.toBeChecked();
+        await toggle.click();
+        await expect(toggle).toBeChecked();
+      };
+      await openHistory();
+      await expect(pending).toContainText(markers.initial);
+      await openForm.click();
+      await expect(closeForm).toBeVisible();
+      await panel.getByRole("button", { name: "Atualizar histórico", exact: true }).click();
+      await expect(error).toContainText(errors.initial);
+      await expect(pending).toContainText(markers.initial);
+      await expect.poll(() => page.evaluate(() => (window as any).__doctorReturnParsed)).toBe(2);
+      expect(offsets.initial).toEqual([0, 0]);
+      // The only new trigger is the pending-operation timer, not focus/refresh.
+      await page.clock.fastForward(10_001);
+      await expect.poll(() => !!held.recovery).toBe(true);
+      expect(offsets.initial).toEqual([0, 0, 0]);
+
+      const watch = (forbidden: string[]) => page.evaluate(forbidden => {
+        (window as any).__doctorReturnLeaks ??= [];
+        (window as any).__doctorReturnForbidden = forbidden;
+        if ((window as any).__doctorReturnObserver) return;
+        (window as any).__doctorReturnObserver = new MutationObserver(records => {
+          const names: string[] = (window as any).__doctorReturnForbidden;
+          const region = document.querySelector('[aria-label="Histórico de pedidos de exames"]');
+          const leaked = (node: Node) => {
+            const element = node instanceof Element ? node : node.parentElement;
+            return !!element?.closest('[aria-label="Histórico de pedidos de exames"]')
+              && names.some(key => node.textContent?.includes(key));
+          };
+          if ((region && names.some(key => region.textContent?.includes(key)))
+            || records.some(record => [...record.addedNodes].some(leaked)
+              || (record.type === "characterData" && leaked(record.target)))) {
+            (window as any).__doctorReturnLeaks.push("histórico fora do contexto atual");
+          }
+          if (region?.querySelector('[data-testid="motivo-encerrar-followup-501"]')
+            && (window as any).__doctorReturnFormForbidden) {
+            (window as any).__doctorReturnLeaks.push("formulário de encerramento restaurado");
+          }
+        });
+        (window as any).__doctorReturnObserver.observe(document.body,
+          { subtree: true, childList: true, characterData: true, attributes: true });
+      }, forbidden);
+      const revalidate = async (next: "B" | "return") => {
+        stage = next;
+        held.identity = undefined;
+        await page.evaluate(({ prof, token }) => {
+          localStorage.setItem("padcom_collab_token", token);
+          localStorage.setItem("padcom_collab_prof", JSON.stringify(prof));
+          window.dispatchEvent(new Event("collab-auth-changed"));
+        }, { prof: next === "B" ? doctorB : professional,
+          token: next === "B" ? "synthetic-next-token" : "synthetic-ui-token" });
+        await expect.poll(() => !!held.identity).toBe(true);
+        await expect(panel).toBeHidden();
+        await reply(held.identity!, identityBody());
+        await expect(draft).toContainText(next === "B" ? doctorB.name : professional.name);
+        await expect(draft).toContainText(client.name);
+        await expect(draft).toContainText(clinic.name);
+      };
+      await watch([markers.b, markers.late, errors.late]);
+      await page.evaluate(() => { (window as any).__doctorReturnForbidden = [
+        "A-pendencia-inicial", "A-pendencia-revalidada", "A-recuperacao-obsoleta",
+        "Falha 500 inicial de A.", "Retorno de A recusado por 401.", "Recuperação obsoleta de A recusada por 401.",
+      ]; (window as any).__doctorReturnFormForbidden = true; });
+      await revalidate("B");
+      // B starts closed: nothing from A may render before B opens its own history.
+      await expect(toggle).not.toBeChecked();
+      await openHistory();
+      await expect(pending).toContainText(markers.b);
+      await expect(openForm).toHaveCount(0);
+      await expect(closeForm).toHaveCount(0);
+      await expect.poll(() => page.evaluate(() => (window as any).__doctorReturnParsed)).toBe(3);
+
+      await page.evaluate(() => { (window as any).__doctorReturnForbidden = [
+        "B-pendencia-exclusiva", "A-recuperacao-obsoleta", "Recuperação obsoleta de A recusada por 401.",
+      ]; });
+      await revalidate("return");
+      await expect(panel).not.toContainText(markers.initial);
+      await expect(toggle).not.toBeChecked();
+      await openHistory();
+      await expect.poll(() => !!held.returned).toBe(true);
+      // Reusing A's cache is legitimate but not required; B's data and A's
+      // previously open closing form must never appear before A's fresh answer.
+      await expect(panel).not.toContainText(markers.b);
+      await expect(closeForm).toHaveCount(0);
+      await page.evaluate(() => { (window as any).__doctorReturnFormForbidden = false; });
+      await reply(held.returned!, returnedOutcome === "401"
+        ? { error: errors.fresh } : historyBody(markers.fresh, 95, 502), returnedOutcome === "401" ? 401 : 200);
+      await expect.poll(() => page.evaluate(() => (window as any).__doctorReturnParsed)).toBe(4);
+      if (returnedOutcome === "401") {
+        await expect(error).toContainText(errors.fresh);
+        await expect(panel).not.toContainText(markers.b);
+        await expect(closeForm).toHaveCount(0);
+      } else {
+        await expect(pending).toContainText(markers.fresh);
+        await expect(panel).not.toContainText(markers.initial);
+        await expect(error).toHaveCount(0);
+        await expect(panel.getByTestId("abrir-encerrar-followup-502")).toBeVisible();
+        await expect(openForm).toHaveCount(0);
+      }
+      const snapshot = () => panel.evaluate(element => ({
+        text: element.textContent,
+        inputs: [...element.querySelectorAll("input,select")].map(input => ({
+          label: input.getAttribute("aria-label") ?? input.id, checked: (input as HTMLInputElement).checked,
+        })),
+        buttons: [...element.querySelectorAll("button")].map(button => ({
+          text: button.textContent, disabled: button.disabled,
+        })),
+      }));
+      const beforeLate = await snapshot();
+      await reply(held.recovery!, lateOutcome === "401"
+        ? { error: errors.late } : historyBody(markers.late, 94, 503), lateOutcome === "401" ? 401 : 200);
+      await expect.poll(() => page.evaluate(() => (window as any).__doctorReturnParsed)).toBe(5);
+      // Run scheduled query notifications and DOM mutations without another poll.
+      await page.clock.runFor(100);
+      expect(await snapshot()).toEqual(beforeLate);
+      expect(await page.evaluate(() => (window as any).__doctorReturnLeaks)).toEqual([]);
+      await expect(panel.getByTestId("abrir-encerrar-followup-503")).toHaveCount(0);
+      expect(offsets).toEqual({ initial: [0, 0, 0], B: [0], return: [0] });
+      expect([...new Set(methods)]).toEqual(["GET"]);
+      expect(navigations).toBe(1);
+      await expect(page).toHaveURL(/\/cockpit\/42\/exames$/);
+      await panel.screenshot({ path: testInfo.outputPath("retorno-medico-recuperacao-isolada.png") });
+    });
+  }
+}
+
 // Transition contract: render A's pending operation, hold a refresh, switch scope
 // without reloading, then settle B before releasing A (success or 401). B must
 // never render A's cached/late data or error, including when B itself returns 401.
@@ -3005,7 +3320,7 @@ for (const transition of ["paciente", "medico"] as const) {
         if (/^\/api\/clinical-context\/(42|43)$/.test(path)) return reply(route, {
           professional: activeProfessional, client: patient,
           clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
-          canPrescribe: true, issue: null,
+          canPrescribe: true, canRequestExams: true, issue: null,
         });
         if (/^\/api\/exam-requests\/(42|43)\/history$/.test(path)) {
           expect(request.headers().authorization).toBe(
@@ -3015,7 +3330,7 @@ for (const transition of ["paciente", "medico"] as const) {
           if (refreshing) { held.old = route; return; }
           return reply(route, historyBody(oldKey, 91));
         }
-        return reply(route, []);
+        return reply(route, new URL(route.request().url()).pathname.endsWith("/fotos-corpo") ? { series: [] } : []);
       });
       await page.goto("/cockpit/42/exames");
       const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
@@ -3084,4 +3399,340 @@ for (const transition of ["paciente", "medico"] as const) {
       await panel.screenshot({ path: testInfo.outputPath("historico-contexto-isolado.png") });
     });
   }
+}
+// Histórico incompleto (HTTP 200 sem documents/pendingOperations) no segundo B de
+// A → B → A → B: erro explícito, últimas pendências conhecidas, sem POST.
+for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
+  for (const invalid of [
+    "documents-ausente", "documents-null", "pendingOperations-ausente", "pendingOperations-null",
+  ] as const) {
+    test(`Pedidos: histórico incompleto preserva pendências ao voltar à clínica — ${transition} — ${invalid}`, async ({ context, page }, testInfo) => {
+      const clinicA = { id: 303, empresaId: 404, name: "Clínica A sintética" };
+      const clinicB = {
+        id: transition === "empresa" ? 303 : 304,
+        empresaId: transition === "clinica" ? 404 : 405,
+        name: "Clínica B sintética",
+      };
+      const field = invalid.startsWith("documents") ? "documents" : "pendingOperations";
+      const expectedError = field === "documents" ? "O histórico retornou um formato inesperado."
+        : "Não foi possível conferir as operações pendentes. Atualize o histórico.";
+      const keys = { a: "A-pendencia", aOld: "A-antiga-40", b: "B-pendencia", aBack: "A-retorno", bLate: "B-atrasada", aLate: "A-retorno-atrasada" };
+      type Stage = "initial" | "B" | "return" | "secondB";
+      let stage: Stage = "initial";
+      const methods: string[] = [];
+      const posts: string[] = [];
+      const offsets: Record<Stage, number[]> = { initial: [], B: [], return: [], secondB: [] };
+      const heldPages: Route[] = [];
+      const held: { identity?: Route; secondB?: Route } = {};
+      let navigations = 0;
+      const reply = (route: Route, body: unknown) => route.fulfill({
+        contentType: "application/json", body: JSON.stringify(body),
+      });
+      const body = (key: string, id: number, nextOffset: number | null = null) => ({
+        documents: [{ ...document, id, fileName: `${key}.pdf` }], dispatches: [], followups: [], nextOffset,
+        pendingOperations: [{
+          operationKey: key, state: "needs_review", createdAt: document.createdAt,
+          documentIds: [id], channels: ["EMAIL"], results: [],
+        }],
+      });
+      const identityBody = (clinic: typeof clinicA) => ({
+        professional, client, clinic, canPrescribe: true, canRequestExams: true, issue: null,
+      });
+      page.on("request", request => {
+        if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
+      });
+      await context.addInitScript(() => {
+        localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
+        localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
+      });
+      await context.route("**/api/**", async route => {
+        const request = route.request();
+        const url = new URL(request.url());
+        methods.push(request.method());
+        if (request.method() !== "GET") {
+          if (request.method() === "POST") posts.push(url.pathname);
+          return route.fulfill({
+            status: 405, contentType: "application/json",
+            body: JSON.stringify({ error: "Somente GET autorizado neste cenário." }),
+          });
+        }
+        if (url.pathname === "/api/collaborator/me") return reply(route, { professional });
+        if (url.pathname === "/api/clients") return reply(route, [client]);
+        if (url.pathname === "/api/clients/42") return reply(route, client);
+        if (url.pathname.endsWith("/fotos-corpo")) return reply(route, { series: [] });
+        if (url.pathname === "/api/clinical-context/42") {
+          if (stage !== "initial") { held.identity = route; return; }
+          return reply(route, identityBody(clinicA));
+        }
+        if (url.pathname === "/api/exam-requests/42/history") {
+          const offset = Number(url.searchParams.get("offset"));
+          offsets[stage].push(offset);
+          if (stage === "initial") {
+            if (offset === 40) { heldPages.push(route); return; }
+            return reply(route, offset === 20 ? body(keys.aOld, 93, 40) : body(keys.a, 91, 20));
+          }
+          if (offset !== 0) { heldPages.push(route); return; }
+          if (stage === "B") return reply(route, body(keys.b, 92, 20));
+          if (stage === "return") return reply(route, body(keys.aBack, 95, 20));
+          held.secondB = route;
+          return;
+        }
+        return reply(route, []);
+      });
+      await page.goto("/cockpit/42/exames");
+      const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
+      const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
+      const toggle = panel.getByRole("switch", { name: "Histórico de pedidos de exames" });
+      const ensureOpen = async () => {
+        await expect(toggle).toBeVisible();
+        if ((await toggle.getAttribute("aria-checked")) !== "true") await toggle.click();
+      };
+      const pendingAlert = () => panel.getByRole("alert").filter({ hasText: "Envios anteriores pendentes de conferência" });
+      const older = panel.getByRole("button", { name: "Mais antigos", exact: true });
+      const revalidate = async (next: Exclude<Stage, "initial">, clinic: typeof clinicA) => {
+        stage = next;
+        held.identity = undefined;
+        await page.evaluate(() => window.dispatchEvent(new Event("collab-auth-changed")));
+        await expect.poll(() => !!held.identity).toBe(true);
+        await expect(panel).toBeHidden();
+        await reply(held.identity!, identityBody(clinic));
+        await expect(draft).toContainText(clinic.name);
+        await ensureOpen();
+      };
+
+      await ensureOpen();
+      await expect(panel.getByText(`${keys.a}.pdf`)).toBeVisible();
+      await older.click();
+      await expect(panel.getByText(`${keys.aOld}.pdf`)).toBeVisible();
+      await older.click();
+      await expect.poll(() => heldPages.length).toBe(1);
+
+      await revalidate("B", clinicB);
+      await expect(panel.getByText(`${keys.b}.pdf`)).toBeVisible();
+      await expect(pendingAlert()).toContainText(`Operação ${keys.b}`);
+      await older.click();
+      await expect.poll(() => heldPages.length).toBe(2);
+
+      await revalidate("return", clinicA);
+      await expect(panel.getByText(`${keys.aBack}.pdf`)).toBeVisible();
+      await older.click();
+      await expect.poll(() => heldPages.length).toBe(3);
+
+      await revalidate("secondB", clinicB);
+      await expect.poll(() => !!held.secondB).toBe(true);
+      const incomplete: Record<string, unknown> = {
+        documents: [], dispatches: [], followups: [], pendingOperations: [], nextOffset: null,
+      };
+      if (invalid.endsWith("-null")) incomplete[field] = null; else delete incomplete[field];
+      await reply(held.secondB!, incomplete);
+
+      const expectKnownPending = async () => {
+        await expect(panel.getByRole("alert").filter({ hasText: expectedError })).toBeVisible();
+        await expect(pendingAlert()).toHaveCount(0);
+        await expect(panel.getByText("Nenhum pedido registrado para este cliente.")).toHaveCount(0);
+        // Sem documentos listados não há envio nem reenvio possível; nada selecionado.
+        await expect(panel.getByRole("button", { name: /Reenviar|Confirmar envio|Enviar/ })).toHaveCount(0);
+        await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
+        for (const key of [keys.a, keys.aOld, keys.aBack]) await expect(panel).not.toContainText(key);
+      };
+      await expectKnownPending();
+
+      // Libera as três páginas antigas retidas (A, B e retorno a A) após o erro.
+      const late = [body(keys.aOld, 94), body(keys.bLate, 96), body(keys.aLate, 97)];
+      for (const [index, route] of heldPages.entries()) await reply(route, late[index]);
+      await page.evaluate(() => new Promise<void>(resolve =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      await expectKnownPending();
+      for (const key of [keys.bLate, keys.aLate]) await expect(panel).not.toContainText(key);
+
+      expect([...new Set(methods)]).toEqual(["GET"]);
+      expect(posts).toEqual([]);
+      expect(navigations).toBe(1);
+      await expect(page).toHaveURL(/\/cockpit\/42\/exames$/);
+      await panel.screenshot({ path: testInfo.outputPath(`historico-incompleto-${invalid}.png`) });
+    });
+  }
+}
+// Task 649: after a network failure while returning to clinic A, a manual
+// refresh recovers A's own history and never restores a previous send choice.
+for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
+  test(`Pedidos: atualizar histórico após queda de conexão ao voltar à clínica — ${transition}`, async ({ context, page }, testInfo) => {
+    const clinicA = { id: 303, empresaId: 404, name: "Clínica A sintética" };
+    const clinicB = {
+      id: transition === "empresa" ? 303 : 304,
+      empresaId: transition === "clinica" ? 404 : 405,
+      name: "Clínica B sintética",
+    };
+    const markers = { first: "A-inicial", b: "B-exclusiva", fresh: "A-revalidada" };
+    let stage: "initial" | "B" | "return" = "initial";
+    const offsets: Record<"initial" | "B" | "return", number[]> = { initial: [], B: [], return: [] };
+    const methods: string[] = [];
+    const posts: string[] = [];
+    const held: { identity?: Route; historyB?: Route; returned?: Route; recovery?: Route } = {};
+    let navigations = 0;
+    const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
+      status, contentType: "application/json", body: JSON.stringify(body),
+    });
+    const historyBody = (key: string, id: number) => ({
+      documents: [{ ...document, id, fileName: `${key}.pdf` }],
+      dispatches: [], followups: [], nextOffset: null,
+      pendingOperations: [{
+        operationKey: key, state: "needs_review", createdAt: document.createdAt,
+        documentIds: [id], channels: ["EMAIL"], results: [],
+      }],
+    });
+    const identityBody = (clinic: typeof clinicA) => ({
+      professional, client, clinic, canPrescribe: true, canRequestExams: true, issue: null,
+    });
+    page.on("request", request => {
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
+    });
+    await context.addInitScript(() => {
+      localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
+      localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
+      // The history starts closed and closes again whenever the clinic scope remounts it.
+      new MutationObserver(() => {
+        const toggle = document.querySelector<HTMLElement>('[role="switch"][aria-label="Histórico de pedidos de exames"]');
+        if (toggle && toggle.getAttribute("aria-checked") === "false") toggle.click();
+      }).observe(document, { subtree: true, childList: true, attributes: true });
+    });
+    await context.route("**/api/**", async route => {
+      const request = route.request();
+      const url = new URL(request.url());
+      methods.push(request.method());
+      if (request.method() !== "GET") {
+        if (request.method() === "POST") posts.push(url.pathname);
+        return reply(route, { error: "Somente GET autorizado neste cenário." }, 405);
+      }
+      if (url.pathname === "/api/collaborator/me") return reply(route, { professional });
+      if (url.pathname === "/api/clients") return reply(route, [client]);
+      if (url.pathname === "/api/clients/42") return reply(route, client);
+      if (url.pathname === "/api/clients/42/fotos-corpo") return reply(route, { angulos: [], series: [] });
+      if (url.pathname === "/api/clinical-context/42") {
+        expect(request.headers().authorization).toBe("Bearer synthetic-ui-token");
+        if (stage !== "initial") { held.identity = route; return; }
+        return reply(route, identityBody(clinicA));
+      }
+      if (url.pathname === "/api/clinical-documents/delivery-targets/42") return reply(route, {
+        targets: [
+          { channel: "EMAIL", recipient: "synthetic@example.invalid" },
+          { channel: "TELEGRAM", recipient: "synthetic-telegram" },
+        ],
+        manual: {},
+      });
+      if (url.pathname.startsWith("/api/clinical-documents/delivery-history/")) return reply(route, { deliveries: [] });
+      if (url.pathname === "/api/exam-requests/42/history") {
+        expect(request.headers().authorization).toBe("Bearer synthetic-ui-token");
+        offsets[stage].push(Number(url.searchParams.get("offset")));
+        if (stage === "B") { held.historyB = route; return; }
+        if (stage === "return") {
+          if (offsets.return.length > 1) held.recovery = route; else held.returned = route;
+          return;
+        }
+        return reply(route, historyBody(markers.first, 91));
+      }
+      return reply(route, []);
+    });
+    await page.clock.install();
+    await page.goto("/cockpit/42/exames");
+    const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
+    const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
+    const row = (id: number) => panel.getByRole("row").filter({ hasText: `${id === 91 ? markers.first : id === 92 ? markers.b : markers.fresh}.pdf` });
+    const channel = (name: "E-mail" | "Telegram") => panel.getByRole("checkbox", { name: new RegExp(`^${name}:`) });
+    const consent = panel.getByRole("checkbox", { name: /Conferi o documento e o destinatário|Marque ao menos um canal/ });
+    const send = panel.getByRole("button", { name: /^Enviar por/ });
+    const pending = panel.getByRole("alert").filter({ hasText: "Envios anteriores pendentes de conferência" });
+    const refreshError = panel.getByRole("alert").filter({ hasText: "Failed to fetch" });
+    const refresh = panel.getByRole("button", { name: "Atualizar histórico", exact: true });
+    const openSend = async (id: number) => {
+      await row(id).getByRole("button", { name: /Encaminhar/ }).click();
+      await expect(channel("E-mail")).toBeEnabled();
+    };
+    const revalidate = async (nextStage: "B" | "return", clinic: typeof clinicA) => {
+      stage = nextStage;
+      held.identity = undefined;
+      await page.evaluate(() => window.dispatchEvent(new Event("collab-auth-changed")));
+      await expect.poll(() => !!held.identity).toBe(true);
+      await expect(panel).toBeHidden();
+      await reply(held.identity!, identityBody(clinic));
+      await expect(draft).toContainText(clinic.name);
+    };
+    const expectNoSendChoice = async () => {
+      await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
+      await expect(consent).toHaveCount(0);
+      await expect(send).toHaveCount(0);
+    };
+
+    // A: the doctor starts a send choice that must never survive the round trip.
+    await expect(row(91)).toBeVisible();
+    await openSend(91);
+    await channel("E-mail").check();
+    await consent.check();
+    await expect(send).toBeEnabled();
+
+    await revalidate("B", clinicB);
+    await expect.poll(() => !!held.historyB).toBe(true);
+    await reply(held.historyB!, historyBody(markers.b, 92));
+    await expect(row(92)).toBeVisible();
+    await expectNoSendChoice();
+    await openSend(92);
+    await channel("Telegram").check();
+    await consent.check();
+
+    await revalidate("return", clinicA);
+    await expect.poll(() => !!held.returned).toBe(true);
+    await expect(panel.getByRole("status")).toHaveText("Carregando histórico…");
+    await expect(panel).not.toContainText(markers.b);
+    await expect(panel).not.toContainText(markers.first);
+    await expectNoSendChoice();
+    // The new offset-zero read fails at the network layer: no JSON, no HTTP status.
+    await held.returned!.abort("failed");
+    await expect(refreshError).toBeVisible();
+    await expect(panel.getByRole("status")).toHaveCount(0);
+    await expect(pending).toHaveCount(0);
+    await expect(panel.getByRole("row").filter({ hasText: ".pdf" })).toHaveCount(0);
+    await expect(refresh).toBeEnabled();
+    await expectNoSendChoice();
+    expect(offsets).toEqual({ initial: [0], B: [0], return: [0] });
+
+    // Manual refresh: the clock stays frozen, so the interval cannot be the trigger.
+    await refresh.click();
+    await expect.poll(() => !!held.recovery).toBe(true);
+    expect(offsets).toEqual({ initial: [0], B: [0], return: [0, 0] });
+    await expect(refresh).toBeDisabled();
+    await expect(panel).not.toContainText(markers.first);
+    await expectNoSendChoice();
+    expect(posts).toEqual([]);
+    await reply(held.recovery!, historyBody(markers.fresh, 95));
+
+    await expect(refreshError).toHaveCount(0);
+    await expect(panel).not.toContainText("Failed to fetch");
+    await expect(row(95)).toBeVisible();
+    await expect(panel.getByRole("row").filter({ hasText: ".pdf" })).toHaveCount(1);
+    await expect(pending).toContainText(markers.fresh);
+    for (const old of [markers.first, markers.b]) await expect(panel).not.toContainText(old);
+    await expect(draft).toContainText(clinicA.name);
+    await expect(draft).toContainText(client.name);
+    await expect(refresh).toBeEnabled();
+    // Consent and channels are empty; sending needs a new, explicit authorization.
+    await expectNoSendChoice();
+    await openSend(95);
+    await expect(channel("E-mail")).not.toBeChecked();
+    await expect(channel("Telegram")).not.toBeChecked();
+    await expect(consent).not.toBeChecked();
+    await expect(consent).toBeDisabled();
+    await expect(send).toBeDisabled();
+    await channel("E-mail").check();
+    await expect(consent).not.toBeChecked();
+    await expect(send).toBeDisabled();
+    await consent.check();
+    await expect(send).toBeEnabled();
+
+    expect(offsets).toEqual({ initial: [0], B: [0], return: [0, 0] });
+    expect([...new Set(methods)]).toEqual(["GET"]);
+    expect(posts).toEqual([]);
+    expect(navigations).toBe(1);
+    await expect(page).toHaveURL(/\/cockpit\/42\/exames$/);
+    await panel.screenshot({ path: testInfo.outputPath("recuperacao-apos-queda.png") });
+  });
 }

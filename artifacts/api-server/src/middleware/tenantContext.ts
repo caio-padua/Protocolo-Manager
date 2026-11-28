@@ -21,6 +21,7 @@ import {
   empresasTable,
   locationProfessionalsTable,
   locationsTable,
+  professionalEmpresasTable,
   professionalsTable,
 } from "@workspace/db";
 import { verifyCollaboratorToken } from "../lib/collaborator-auth.js";
@@ -53,7 +54,27 @@ export function tenantContextMiddleware(req: Request, res: Response, next: NextF
     .catch(next);
 }
 
+/**
+ * Verificação de disponibilidade: responde sem consultar banco nem exigir clínica.
+ * Antes, uma sessão de profissional sem clínica ativa (ou com clínica selecionada sem vínculo) recebia 403 aqui,
+ * porque o contexto da clínica era resolvido antes da rota. Só estes dois caminhos exatos; nenhuma outra rota é afetada.
+ */
+export function ehVerificacaoDeSaude(path: string): boolean {
+  const p = path.length > 1 ? path.replace(/\/+$/, "") : path;
+  return p === "/api/healthz" || p === "/api/health";
+}
+
 async function resolveTenantContext(req: Request, res: Response): Promise<void> {
+  if (ehVerificacaoDeSaude(req.path)) {
+    req.tenantContext = {
+      empresaId: 5,
+      isPlatformOwner: false,
+      perfilPlataforma: "recepcionista",
+      authenticated: false,
+      professionalId: null,
+    };
+    return;
+  }
   const authorization = req.headers.authorization;
   const bearer = authorization?.startsWith("Bearer ")
     ? authorization.slice("Bearer ".length).trim()
@@ -130,6 +151,13 @@ async function resolveTenantContext(req: Request, res: Response): Promise<void> 
   for (const location of linkedLocations) {
     if (location.empresaId && location.empresaId > 0) memberships.add(location.empresaId);
   }
+
+  // Vínculo empresarial adicional (posições 2 a 5) também é vínculo de acesso.
+  const additionalCompanies = await db
+    .select({ empresaId: professionalEmpresasTable.empresaId })
+    .from(professionalEmpresasTable)
+    .where(eq(professionalEmpresasTable.professionalId, professional.id));
+  for (const company of additionalCompanies) memberships.add(company.empresaId);
 
   let empresaId: number | null = null;
   if (professional.isPlatformOwner && requestedCompany.value !== null) {

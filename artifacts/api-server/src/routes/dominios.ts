@@ -4,6 +4,10 @@ import { sql } from "drizzle-orm";
 
 const router: IRouter = Router();
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 // ── helpers ────────────────────────────────────────────────────────────────
 
 async function checkRdap(domain: string): Promise<"disponivel" | "registrado" | "erro"> {
@@ -328,7 +332,12 @@ router.post("/dominios/comprar", async (req, res): Promise<void> => {
         body: JSON.stringify({ domain: dominio, period: 1, renewAuto: true, privacy: false }),
         signal: AbortSignal.timeout(15000),
       });
-      const json = await r.json();
+      const payload: unknown = await r.json();
+      if (!isRecord(payload)) {
+        res.status(502).json({ error: "Resposta inválida do GoDaddy" });
+        return;
+      }
+      const json = payload;
       if (r.ok) {
         res.json({ ok: true, registrador: "godaddy", dominio, orderId: json.orderId });
       } else {
@@ -355,7 +364,12 @@ router.post("/dominios/comprar", async (req, res): Promise<void> => {
         body: JSON.stringify({ years: 1, privacy_available: false }),
         signal: AbortSignal.timeout(15000),
       });
-      const json = await r.json();
+      const payload: unknown = await r.json();
+      if (!isRecord(payload)) {
+        res.status(502).json({ error: "Resposta inválida do Cloudflare" });
+        return;
+      }
+      const json = payload;
       if (json.success) {
         res.json({ ok: true, registrador: "cloudflare", dominio, resultado: json.result });
       } else {

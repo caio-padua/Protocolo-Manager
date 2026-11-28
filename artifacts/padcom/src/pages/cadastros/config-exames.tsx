@@ -8,6 +8,7 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface ExamesConfig {
   exigirValidacaoHumana: boolean;
+  exibirResultadosPreliminaresAreaCliente: boolean;
   triagemAtiva: boolean;
   autoCriarDescoberto: boolean;
   autoAbsorverApelidoAltaConfianca: boolean;
@@ -29,11 +30,11 @@ interface Interruptor {
 const INTERRUPTORES: Interruptor[] = [
   {
     chave: "exigirValidacaoHumana",
-    titulo: "Exigir conferência humana na Evolução",
+    titulo: "Exigir conferência humana na Evolução da equipe",
     ligado:
-      "A Evolução do cliente só mostra resultados já CONFERIDOS por uma pessoa. Mais seguro.",
+      "A evolução da equipe só mostra resultados conferidos clinicamente. O PaxCare usa o interruptor independente abaixo.",
     desligado:
-      "A Evolução mostra tudo que a inteligência artificial já leu, sem esperar conferência.",
+      "A equipe pode consultar resultados lidos pela inteligência artificial antes da conferência. Isso não libera o PaxCare.",
   },
   {
     chave: "triagemAtiva",
@@ -165,7 +166,7 @@ export default function ConfigExames() {
     <ConsoleShell
       icon={FlaskConical}
       title="Configuração de Exames"
-      subtitle="Os interruptores que o motor de triagem de exames obedece. Ligue a chave dourada para ativar; desligue para mandar tudo à fila de conferência humana."
+      subtitle="Configure a triagem e a visibilidade da evolução. A exibição preliminar é independente da conferência humana."
     >
       {!permLoading && !podeConfig ? (
         <section className="panel-3d px-5 py-8 text-center">
@@ -205,6 +206,38 @@ export default function ConfigExames() {
                 </div>
               );
             })}
+          </div>
+        )}
+      </section>
+
+      <section className="panel-3d mt-4 px-5 py-4">
+        <BlockTitle icon={ShieldCheck}>Visibilidade no PaxCare</BlockTitle>
+        {carregando || !cfg ? (
+          <div className="py-4 text-center text-[12px] text-[#647c97]">Carregando configuração…</div>
+        ) : (
+          <div className="concave-3d flex items-start gap-4 px-4 py-3">
+            <div className="pt-0.5">
+              <Toggle
+                on={cfg.exibirResultadosPreliminaresAreaCliente}
+                onClick={() => void flip("exibirResultadosPreliminaresAreaCliente")}
+                disabled={salvando}
+                label="Exibir resultados preliminares no PaxCare"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-bold text-[#16294a]">
+                Exibir resultados preliminares no PaxCare
+              </div>
+              <p className="mt-0.5 text-[11.5px] leading-relaxed text-[#647c97]">
+                {cfg.exibirResultadosPreliminaresAreaCliente
+                  ? "Inclui resultados já extraídos e salvos nos estados recebido e conferido_1, somente após confirmação da identidade e do vínculo com esta clínica."
+                  : "Desligado, mantém a regra atual: a evolução do cliente mostra somente resultados conferidos pela equipe clínica."}
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-[#647c97]">
+                Quarentena, identidade não confirmada, falhas e resultados sem conversão reconhecida continuam ocultos.
+                O aviso de preliminar permanece visível; este interruptor não libera relatório final nem substitui a conferência médica.
+              </p>
+            </div>
           </div>
         )}
       </section>

@@ -1,3 +1,5 @@
+import { pool as cockpitPool } from "@workspace/db";
+import { registrarEventoOrcamento } from "../lib/comercial-politica";
 import { Router } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { requireCollaborator } from "./collaborator";
@@ -30,6 +32,11 @@ import { enriquecerItemFormula } from "../lib/formula-manipulada";
 import { registrarLogMensagem } from "../lib/whatsapp";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
 import { sendTelegram } from "../lib/telegram";
+import { logger } from "../lib/logger";
+import { itensLembreteDeMedicacoes, mesclarItensSemDuplicar } from "../lib/cliente-medicacoes.js";
+import { brtISODate as brtHojeMedicacoes } from "../lib/brt";
+import { pausarParaHumano } from "../lib/atendimento-telegram-store";
+import { vinculoTelegramAtualUnico } from "../lib/telegram-vinculo-atual";
 import { inboxRouter } from "./telegram-inbox";
 const router = Router();
 router.use(moduleGuard("cockpit"));
@@ -82,7 +89,7 @@ function itensPorTipo(rows: (typeof itemDoencaTable.$inferSelect)[], tipo: strin
 }
 
 // 1) GET /cockpit/:clientId — monta o DTO consolidado das 3 colunas.
-router.get("/cockpit/:clientId", async (req, res): Promise<void> => {
+router.get("/cockpit/:clientId", requireCollaborator, async (req, res): Promise<void> => {
   const clienteId = Number(req.params.clientId);
   if (!Number.isInteger(clienteId)) {
     res.status(400).json({ error: "clientId invalido" });
@@ -212,7 +219,7 @@ router.get("/cockpit/:clientId", async (req, res): Promise<void> => {
 });
 
 // 2) GET /cockpit/:clientId/pdf — PDF consolidado da consulta (passado/presente/futuro).
-router.get("/cockpit/:clientId/pdf", async (req, res): Promise<void> => {
+router.get("/cockpit/:clientId/pdf", requireCollaborator, async (req, res): Promise<void> => {
   const clienteId = Number(req.params.clientId);
   if (!Number.isInteger(clienteId)) {
     res.status(400).json({ error: "clientId invalido" });
@@ -250,7 +257,7 @@ router.get("/cockpit/:clientId/pdf", async (req, res): Promise<void> => {
   };
 
   page.drawRectangle({ x: 0, y: 802, width: 595, height: 40, color: navy });
-  page.drawText("PAXTER — RESUMO DA CONSULTA", { x: 50, y: 814, size: 16, font: bold, color: gold });
+  page.drawText("PAXMED — RESUMO DA CONSULTA", { x: 50, y: 814, size: 16, font: bold, color: gold });
   y = 770;
   linha(`Cliente: ${cliente.name}`, bold, 13, navy);
   linha(`Data: ${new Date().toLocaleDateString("pt-BR")}`);
@@ -310,6 +317,9 @@ router.post("/cockpit/:clientId/emitir", requireCollaborator, async (req, res): 
       .update(budgetsTable)
       .set({ status: "accepted", acceptedAt: now, updatedAt: now })
       .where(eq(budgetsTable.id, b.id));
+    // Trilha: esta aprovação é automática do Cockpit (não é aprovação de exceção por gerente).
+    await registrarEventoOrcamento(cockpitPool, { empresaId: b.empresaId ?? 0, budgetId: b.id, tipo: "aprovacao_automatica_cockpit", de: "presented", para: "accepted", usuarioId: null })
+      .catch((e) => req.log.error({ err: String(e) }, "[cockpit] falha ao registrar evento do orçamento"));
     aprovados += 1;
   }
 
@@ -323,6 +333,16 @@ router.post("/cockpit/:clientId/emitir", requireCollaborator, async (req, res): 
     itensLembrete.push({ tipo: "injetavel", nome: inj.itemNome ?? inj.itemRef ?? "Injetavel" });
   for (const ex of presente.exames.slice(0, 10))
     itensLembrete.push({ tipo: "exame", nome: ex });
+
+  // Medicações validadas do cliente (PaxCare) entram no mesmo motor, sem duplicar a prescrição da clínica.
+  // Falha aqui (ex.: tabela ainda não criada) nunca impede a finalização.
+  try {
+    const extras = await itensLembreteDeMedicacoes(cockpitPool, clienteId, brtHojeMedicacoes());
+    const mesclados = mesclarItensSemDuplicar(itensLembrete, extras);
+    itensLembrete.splice(0, itensLembrete.length, ...mesclados);
+  } catch (e) {
+    logger.warn({ errorType: e instanceof Error ? e.constructor.name : typeof e }, "[cockpit] medicações do cliente não incluídas no lembrete");
+  }
 
   // Preparar o conteúdo não autoriza a agenda nem deve impedir a finalização.
   let lembretes = { formulas: 0, periodos: 0, horarios: [] as string[], ativo: false };
@@ -374,7 +394,7 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, req
     return;
   }
 
-  const texto: string = (req.body?.texto ?? "").trim();
+  const texto = typeof req.body?.texto === "string" ? req.body.texto.trim() : "";
   if (!texto) {
     res.status(400).json({ error: "texto obrigatorio" });
     return;
@@ -404,6 +424,11 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, req
     return;
   }
 
+  if (!await vinculoTelegramAtualUnico(db, { clienteId, empresaId, chatId })) {
+    res.status(409).json({ error: "Vínculo do Telegram alterado ou ambíguo; confira o cadastro antes de enviar." });
+    return;
+  }
+
   const resultado = await sendTelegram(chatId, texto);
 
   // Persiste saúde do chatId do paciente: true = entregue, false = falhou.
@@ -414,7 +439,8 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, req
     try {
       await db.execute(sql`UPDATE clients SET telegram_last_test_ok = ${testOk} WHERE id = ${clienteId} AND empresa_id = ${empresaId}`);
     } catch (e: unknown) {
-      console.warn("[cockpit/enviar] falha ao persistir telegram_last_test_ok:", e);
+      logger.warn({ errorType: e instanceof Error ? e.constructor.name : typeof e },
+        "[cockpit/enviar] falha ao persistir telegram_last_test_ok");
     }
   }
 
@@ -428,6 +454,14 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, req
     INSERT INTO telegram_inbox_messages (empresa_id, cliente_id, chat_id, texto, recebida_em, direcao, lida_em)
     VALUES (${empresaId}, ${clienteId}, ${chatId}, ${texto}, NOW(), 'saida', NOW())
   `);
+
+  // Profissional assumiu a conversa: pausa as respostas automáticas da IA para este paciente.
+  try {
+    await pausarParaHumano(db, clienteId, "profissional_assumiu", null);
+  } catch (e: unknown) {
+    logger.warn({ errorType: e instanceof Error ? e.constructor.name : typeof e },
+      "[cockpit/enviar] falha ao pausar atendimento automatico");
+  }
 
   // Registra no log unificado de mensagens (via='telegram') para o cockpit
   // poder exibir "último contato Telegram". Só loga quando enviado com sucesso.

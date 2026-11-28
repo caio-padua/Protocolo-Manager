@@ -1,19 +1,12 @@
-import { createRoot } from "react-dom/client";
-import App from "./App";
-import "./index.css";
+import { vitrineDoEndereco } from "./lib/host-vitrine";
 
-createRoot(document.getElementById("root")!).render(<App />);
+const vitrine = vitrineDoEndereco(window.location.hostname, window.location.pathname);
 
-// PWA: registra o service worker (app instalavel) SO em build de producao
-// (import.meta.env.PROD). Em desenvolvimento (vite dev) nao registra, para nao
-// cachear o app shell e atrapalhar o hot-reload (R16 da spec).
-if (import.meta.env.PROD && "serviceWorker" in navigator) {
-  const base = import.meta.env.BASE_URL || "/";
-  window.addEventListener("load", () => {
-    navigator.serviceWorker
-      .register(`${base}sw.js`, { scope: base })
-      .catch(() => {
-        /* registro best-effort: o app funciona normalmente sem PWA */
-      });
-  });
+if (vitrine === "paxcare") {
+  // Vitrine pública: pacote próprio (carregado só neste domínio), sem o Manager e sem o service worker do aplicativo.
+  void import("./vitrines/paxcare/main").then((m) => m.montarVitrinePaxcare());
+} else if (vitrine === "paxmed") {
+  void import("./vitrines/paxmed/main").then((m) => m.montarVitrinePaxmed());
+} else {
+  void import("./boot-manager");
 }

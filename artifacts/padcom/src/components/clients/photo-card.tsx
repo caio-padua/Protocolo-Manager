@@ -16,8 +16,10 @@ import {
   Send,
   History,
   X,
+  Link as LinkIcon,
   type LucideIcon,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
@@ -198,6 +200,57 @@ export function ClientPhotoCard({ clientId, photoUrl, clientEmail, onUpdated }: 
   const [lastResultados, setLastResultados] = useState<CanalResultado[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Telegram: estado real do vínculo + link individual de liberação (uso único, 7 dias)
+  const [tgVinculado, setTgVinculado] = useState<boolean | null>(null);
+  const [tgErro, setTgErro] = useState(false);
+  const [tgLink, setTgLink] = useState<{ url: string; expiraEm: string } | null>(null);
+  const [tgGerando, setTgGerando] = useState(false);
+  const authHeaders = (): Record<string, string> => {
+    const t = getCollabToken();
+    return t ? { Authorization: `Bearer ${t}` } : {};
+  };
+  const carregarTelegram = async () => {
+    if (!ready) return;
+    try {
+      const res = await fetch(`${apiBase}/clients/${clientId as number}/comunicacao`, { headers: authHeaders() });
+      if (!res.ok) throw new Error(String(res.status));
+      const d = (await res.json()) as { telegram?: { vinculado?: boolean } };
+      setTgVinculado(d.telegram?.vinculado === true);
+      setTgErro(false);
+    } catch {
+      setTgVinculado(null);
+      setTgErro(true);
+    }
+  };
+  useEffect(() => {
+    if (ready) void carregarTelegram();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
+
+  const liberarTelegram = async () => {
+    setTgGerando(true);
+    try {
+      const res = await fetch(`${apiBase}/clients/${clientId as number}/telegram-link`, { method: "POST", headers: authHeaders() });
+      if (res.status === 409) {
+        await carregarTelegram();
+        toast.message("Este cliente já está com o Telegram liberado ou o cadastro está inativo.");
+        return;
+      }
+      if (!res.ok) { toast.error("Não foi possível gerar o link do Telegram."); return; }
+      setTgLink((await res.json()) as { url: string; expiraEm: string });
+    } catch {
+      toast.error("Erro ao gerar o link do Telegram.");
+    } finally {
+      setTgGerando(false);
+    }
+  };
+
+  const copiarTelegram = async () => {
+    if (!tgLink) return;
+    try { await navigator.clipboard.writeText(tgLink.url); toast.success("Link do Telegram copiado."); }
+    catch { toast.error("Não foi possível copiar."); }
+  };
+
   // Histórico de fotos
   const [historyPhotos, setHistoryPhotos] = useState<PhotoHistory[]>([]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
@@ -306,9 +359,57 @@ export function ClientPhotoCard({ clientId, photoUrl, clientEmail, onUpdated }: 
     }
   };
 
-  const canaisConhecidos = lastResultados.filter((r) => CANAL_LABEL[r.canal]);
+  const resultadoDe = (canal: string) => lastResultados.find((r) => r.canal === canal);
   const historyCount = historyPhotos.length;
   const hasHistory = historyLoaded && historyCount > 0;
+
+  /** Texto + ícone + cor (legíveis no tema claro e no escuro) do último envio de um canal. */
+  const estadoEnvio = (canal: string): { texto: string; cor: string; Icone: LucideIcon } | null => {
+    const r = resultadoDe(canal);
+    if (!r) return null;
+    if (r.sent && !r.skipped) return { texto: "Enviado agora", cor: "text-emerald-700 dark:text-emerald-400", Icone: CheckCircle2 };
+    if (r.skipped) return { texto: "Sem canal para enviar", cor: "text-muted-foreground", Icone: MinusCircle };
+    return { texto: r.error ? `Falhou — ${truncarErro(r.error)}` : "Falhou", cor: "text-amber-700 dark:text-amber-400", Icone: XCircle };
+  };
+
+  const linhaCanal = (canal: "EMAIL" | "WHATSAPP" | "TELEGRAM") => {
+    const Icone = CANAL_ICON[canal] ?? Mail;
+    const envio = estadoEnvio(canal);
+    const r = resultadoDe(canal);
+    let fixo: string;
+    if (canal === "EMAIL") fixo = clientEmail ? clientEmail : "Sem e-mail cadastrado";
+    else if (canal === "WHATSAPP") fixo = "Usa o celular do cadastro";
+    else fixo = tgErro ? "Não foi possível consultar" : tgVinculado === null ? "Consultando…" : tgVinculado ? "Telegram vinculado" : "Ainda não vinculado";
+    return (
+      <li key={canal} className="flex flex-col items-start gap-1 py-2.5 first:pt-0 last:pb-0 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3" data-testid={`canal-${canal.toLowerCase()}`}>
+        <span className="flex items-center gap-2 w-28 shrink-0 text-xs font-bold">
+          <Icone className="w-4 h-4 text-primary" /> {CANAL_LABEL[canal]}
+        </span>
+        <span className="text-[11px] text-muted-foreground w-full min-w-0 break-all sm:w-auto sm:flex-1">{fixo}</span>
+        {envio && (
+          <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${envio.cor}`}>
+            <envio.Icone className="w-3.5 h-3.5 shrink-0" /> {envio.texto}
+          </span>
+        )}
+        {canal === "WHATSAPP" && r && !r.sent && r.link && (
+          <a href={r.link} target="_blank" rel="noopener noreferrer" className="btn-3d-soft inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded-[6px]">
+            <ExternalLink className="w-3 h-3" /> Abrir WhatsApp
+          </a>
+        )}
+        {canal === "TELEGRAM" && ready && tgVinculado === true && (
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+            <CheckCircle2 className="w-3.5 h-3.5" /> Liberado
+          </span>
+        )}
+        {canal === "TELEGRAM" && ready && tgVinculado === false && (
+          <Button type="button" size="sm" onClick={liberarTelegram} disabled={tgGerando} className="btn-3d h-8 px-3 text-[11px]" data-testid="liberar-telegram">
+            {tgGerando ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
+            {tgLink ? "GERAR NOVO LINK" : "LIBERAR TELEGRAM"}
+          </Button>
+        )}
+      </li>
+    );
+  };
 
   return (
     <>
@@ -316,153 +417,119 @@ export function ClientPhotoCard({ clientId, photoUrl, clientEmail, onUpdated }: 
         <HistoryModal photos={historyPhotos} onClose={() => setShowHistory(false)} />
       )}
 
-      <div className="panel-3d-sub p-5 space-y-5 relative overflow-visible">
+      <div className="panel-3d-sub p-5 pt-7 space-y-5 relative overflow-visible">
         <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
-          <Camera className="h-3 w-3 text-primary" /> Foto do Cliente
+          <Camera className="h-3 w-3 text-primary" /> Foto e Contato do Cliente
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-6 pt-2">
-          {/* Foto atual */}
-          <div className="concave-3d rounded-[10px] p-1.5 shrink-0">
-            <div className="w-28 h-28 rounded-[6px] overflow-hidden bg-muted flex items-center justify-center">
-              {photoUrl ? (
-                <img src={photoUrl} alt="Foto do cliente" className="w-full h-full object-cover" />
-              ) : (
-                <Camera className="w-10 h-10 text-muted-foreground/50" />
-              )}
+        <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+          {/* Foto atual + histórico */}
+          <div className="flex flex-col items-center gap-3 shrink-0">
+            <div className="concave-3d rounded-[10px] p-1.5">
+              <div className="w-28 h-28 rounded-[6px] overflow-hidden bg-muted flex items-center justify-center">
+                {photoUrl ? (
+                  <img src={photoUrl} alt="Foto do cliente" className="w-full h-full object-cover" />
+                ) : (
+                  <Camera className="w-10 h-10 text-muted-foreground/50" />
+                )}
+              </div>
             </div>
+            {ready && (
+              <div className="relative">
+                <Button
+                  type="button"
+                  onClick={() => setShowHistory(true)}
+                  className={`btn-3d-soft h-8 px-3 text-[11px] ${!hasHistory ? "opacity-50" : ""}`}
+                  title={!hasHistory ? "Nenhuma foto anterior registrada" : `${historyCount} foto(s) anterior(es)`}
+                >
+                  <History className="w-3.5 h-3.5 mr-1.5" /> HISTÓRICO
+                </Button>
+                {hasHistory && (
+                  <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] bg-[#C9A227] text-[#0d1830] text-[10px] font-black rounded-full flex items-center justify-center px-1 shadow-md pointer-events-none">
+                    {historyCount > 9 ? "9+" : historyCount}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
-          <div className="flex-1 w-full space-y-3">
+          <div className="flex-1 w-full min-w-0 space-y-4">
             <p className="text-[11px] text-muted-foreground leading-relaxed">
               {ready
-                ? "Envie um link para o cliente subir a foto pelo próprio celular, ou anexe uma foto agora pelo computador."
-                : "Salve o cadastro primeiro. Depois de criado, abra o cliente em EDITAR para enviar o link da foto ou anexar a foto."}
+                ? "Envie ao cliente o link para ele mesmo completar o cadastro (dados, foto e rubrica) pelo celular, ou anexe a foto agora pelo computador."
+                : "Salve o cadastro primeiro. Depois de criado, abra o cliente em EDITAR para enviar o link ou anexar a foto."}
             </p>
 
-            {/* Botões de ação */}
-            <div className="flex flex-wrap gap-3">
-              <Button type="button" onClick={sendRegistrationLink} disabled={!ready || sendingReg} className="btn-3d">
+            {/* 1. Ações de envio — três botões do mesmo tamanho */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <Button type="button" onClick={sendRegistrationLink} disabled={!ready || sendingReg} className="btn-3d h-11 text-[11px] px-2">
                 {sendingReg ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
-                ENVIAR LINK DE CADASTRO
+                LINK DE CADASTRO
               </Button>
-
-              <Button type="button" onClick={sendLink} disabled={!ready || sending} className="btn-3d">
-                {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
-                ENVIAR LINK DE FOTO
+              <Button type="button" onClick={sendLink} disabled={!ready || sending} className="btn-3d h-11 text-[11px] px-2">
+                {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Camera className="w-4 h-4 mr-2" />}
+                LINK DE FOTO
               </Button>
-
-              <Button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={!ready || uploading}
-                className="btn-3d"
-              >
+              <Button type="button" onClick={() => fileRef.current?.click()} disabled={!ready || uploading} className="btn-3d h-11 text-[11px] px-2">
                 {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                ENVIAR FOTO AGORA
+                FOTO AGORA
               </Button>
-
-              {/* ── Botão HISTÓRICO — sempre visível quando ready ───────── */}
-              {ready && (
-                <div className="relative">
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      setShowHistory(true);
-                    }}
-                    className={`btn-3d-soft ${!hasHistory ? "opacity-50" : ""}`}
-                    title={!hasHistory ? "Nenhuma foto anterior registrada" : `${historyCount} foto(s) anterior(es)`}
-                  >
-                    <History className="w-4 h-4 mr-2" />
-                    HISTÓRICO
-                  </Button>
-                  {/* Badge dourado com contagem */}
-                  {hasHistory && (
-                    <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] bg-[#C9A227] text-[#0d1830] text-[10px] font-black rounded-full flex items-center justify-center px-1 shadow-md pointer-events-none">
-                      {historyCount > 9 ? "9+" : historyCount}
-                    </span>
-                  )}
-                </div>
-              )}
-
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickFile} />
             </div>
 
-            {/* Bloco do link copiável */}
+            {/* Link gerado (copiável) */}
             {lastLink && (
-              <div className="concave-3d p-2 flex items-center gap-2">
+              <div className="concave-3d p-2 flex items-center gap-2 min-w-0">
                 <Link2 className="w-4 h-4 text-primary shrink-0" />
-                <span className="text-[10px] text-muted-foreground truncate flex-1">{lastLink}</span>
-                <Button type="button" size="sm" onClick={copyLink} className="btn-3d h-7 px-2">
+                <span className="text-[10px] text-muted-foreground truncate min-w-0 flex-1">{lastLink}</span>
+                <Button type="button" size="sm" onClick={copyLink} className="btn-3d h-7 px-2 shrink-0">
                   <Check className="w-3 h-3 mr-1" /> COPIAR
                 </Button>
               </div>
             )}
 
-            {/* ── Status de canais ─────────────────────────────────────────── */}
-            {canaisConhecidos.length > 0 && (
-              <div className="bevel-3d p-3 space-y-1.5">
-                <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold mb-1.5">
-                  Canais de entrega
+            {/* 2. Canais do cliente — sempre visíveis */}
+            {ready && (
+              <div className="bevel-3d p-3">
+                <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-extrabold mb-2">
+                  Canais de contato do cliente
                 </p>
-                {canaisConhecidos.map((r) => {
-                  const label = CANAL_LABEL[r.canal];
-                  const CanalIcon = CANAL_ICON[r.canal] ?? Mail;
-
-                  if (r.sent && !r.skipped) {
-                    return (
-                      <div key={r.canal} className="flex items-center gap-2">
-                        <CanalIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                        <span className="text-[11px] text-emerald-400 font-semibold">{label}</span>
-                        <span className="text-[10px] text-muted-foreground">Enviado</span>
-                      </div>
-                    );
-                  }
-                  if (r.skipped) {
-                    return (
-                      <div key={r.canal} className="flex items-center gap-2">
-                        <CanalIcon className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />
-                        <MinusCircle className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
-                        <span className="text-[11px] text-muted-foreground">{label}</span>
-                        <span className="text-[10px] text-muted-foreground/60">Não vinculado</span>
-                      </div>
-                    );
-                  }
-                  return (
-                    <div key={r.canal} className="flex flex-wrap items-center gap-2">
-                      <CanalIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <XCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <span className="text-[11px] text-amber-400 font-semibold">{label}</span>
-                      <span className="text-[10px] text-amber-400/80">Falhou</span>
-                      {r.error && (
-                        <span className="text-[10px] text-muted-foreground">— {truncarErro(r.error)}</span>
-                      )}
-                      {r.canal === "WHATSAPP" && r.link && (
-                        <a
-                          href={r.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn-3d-soft inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-[6px]"
-                        >
-                          <ExternalLink className="w-3 h-3" /> Abrir WhatsApp
-                        </a>
-                      )}
-                    </div>
-                  );
-                })}
+                <ul className="divide-y divide-border/30">
+                  {(["EMAIL", "WHATSAPP", "TELEGRAM"] as const).map(linhaCanal)}
+                </ul>
+                {!clientEmail && (
+                  <p className="mt-2 text-[10px] text-amber-700 dark:text-amber-400">
+                    Cliente sem e-mail cadastrado — use o link copiado.
+                  </p>
+                )}
               </div>
             )}
 
-            {/* E-mail do cliente */}
-            {clientEmail ? (
-              <p className="text-[10px] text-muted-foreground/70">
-                E-mail do cliente: <span className="font-semibold">{clientEmail}</span>
-              </p>
-            ) : (
-              <p className="text-[10px] text-amber-600">
-                Cliente sem e-mail cadastrado — use o link copiado.
-              </p>
+            {/* 3. Link individual do Telegram + QR */}
+            {ready && tgVinculado === false && tgLink && (
+              <div className="concave-3d p-3 flex flex-col sm:flex-row items-center gap-4" data-testid="telegram-link-painel">
+                <div className="bg-white p-2 rounded-[6px] shrink-0">
+                  <QRCodeSVG value={tgLink.url} size={112} />
+                </div>
+                <div className="min-w-0 flex-1 space-y-2 w-full">
+                  <p className="text-xs font-bold flex items-center gap-1.5"><LinkIcon className="w-3.5 h-3.5 text-primary" /> Link individual do Telegram</p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    O cliente aponta a câmera do celular para o QR ou toca no link, abre o bot e fica vinculado sozinho. Vale para um único toque e expira em {formatDate(tgLink.expiraEm)}.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" onClick={copiarTelegram} className="btn-3d h-8 px-3 text-[11px]">
+                      <Check className="w-3.5 h-3.5 mr-1.5" /> COPIAR LINK
+                    </Button>
+                    <a
+                      href={`https://wa.me/?text=${encodeURIComponent(`Olá! Para receber seus lembretes e falar com a clínica pelo Telegram, toque neste link e depois em INICIAR: ${tgLink.url}`)}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="btn-3d-soft inline-flex items-center gap-1.5 px-3 h-8 text-[11px] font-bold rounded-[6px]"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> ENVIAR PELO WHATSAPP
+                    </a>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>

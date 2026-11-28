@@ -9,4 +9,5 @@ import type { AgendaWindowInput } from "./agendaWindowInput";
 
 export interface ReplaceAgendaWindowsBody {
   windows: AgendaWindowInput[];
+  expectedWindows?: AgendaWindowInput[];
 }

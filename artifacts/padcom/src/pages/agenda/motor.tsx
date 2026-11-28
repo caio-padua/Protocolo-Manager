@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { tituloProprio } from "@/lib/utils";
 import {
   useListAgendaResources,
   useCreateAgendaResource,
   useUpdateAgendaResource,
   useListAgendaWindows,
+  getListAgendaWindowsQueryKey,
+  getGetAgendaSlotsQueryKey,
+  type CreateAgendaExceptionBodyKind,
   useReplaceAgendaWindows,
   useListAgendaExceptions,
   useCreateAgendaException,
@@ -14,7 +18,9 @@ import {
   useGetAgendaSlots,
   useBookAgendaSession,
   useListClients,
+  useGetClient,
   useListProtocols,
+  useListProfessionalAreas,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +28,24 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { updateAgendaResource } from "@workspace/api-client-react";
+import { COLLAB_EVENT } from "@/lib/collab-auth";
+import { ComRegistro, LegendaRegistros } from "@/components/MarcadorVinculo";
+import { ListaAgendas } from "./ListaAgendas";
+import { SeletorCorVidro } from "@/components/VidroCor";
+import { SeletorLocalExterno } from "./SeletorLocalExterno";
+import { EnderecoExternoCampos, ENDERECO_VAZIO, enderecoCompleto, type EnderecoExternoForm } from "@/components/EnderecoExternoCampos";
+import { sugerirApelido } from "./apelido-agenda";
+import { PreviaBotaoAgenda } from "./PreviaBotaoAgenda";
+import { rotuloDaEquipe } from "./filtro-agendas";
+import { profissionaisParaNovaAgenda } from "@/lib/agenda-profissionais";
+import { AgendaIntegrationPanel } from "./AgendaIntegrationPanel";
+import { JanelasAtendimento, type JanelasRascunho } from "./JanelasAtendimento";
+import { dataInicialValida, exigeDataInicial } from "@/lib/agenda-repeticao";
+import { AgendaChangeRequests } from "./AgendaChangeRequests";
+import { useAgendaIntegration, useCollabIdentity, describeError } from "./agenda-integration-api";
+import { agendaResourcesFrescas, propagarMudancaDeAgenda } from "@/lib/agenda-propagacao";
+import { ROTULO_ORIGEM, useProfissionaisVinculadosDaAgenda } from "@/lib/agenda-vinculos-api";
 import {
   CalendarCog,
   Save,
@@ -36,21 +60,29 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-type Win = { startTime: string; endTime: string };
-type WindowsDraft = Record<number, Win[]>;
+type WindowsDraft = JanelasRascunho;
 
 const WEEK_LABEL = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 const KIND_LABEL: Record<string, string> = {
   enfermagem: "Enfermagem",
   medico: "Médico",
+  categoria: "Categoria profissional",
 };
-const MODALITY_LABEL: Record<string, string> = {
-  domiciliar: "Domiciliar",
-  local: "Local (clínica)",
-  online: "Online",
+
+// Apenas apresentação: o servidor deriva e valida o tipo legado a partir da categoria.
+type CategoriaOpcao = { id: number; name: string; slug: string; professionalType: string };
+function classeDaCategoria(c: Pick<CategoriaOpcao, "slug" | "professionalType">): string {
+  if (c.professionalType === "medico") return "medico";
+  return c.slug === "enfermagem" ? "enfermagem" : "categoria";
+}
+// Papel gravado no registro do local (campo agenda_papel). Nada é deduzido do nome.
+const PAPEL_LABEL: Record<string, string> = {
+  local: "Sede", online: "Online", externo: "Local externo", home_care: "Home Care", pessoal: "Pessoal", geral: "Geral",
 };
+const PAPEIS_QUE_ATENDEM = ["local", "online", "externo", "home_care"];
+const enderecoDoRecurso = (r: { externalAddress?: { cep: string; logradouro: string; bairro: string; cidade: string; uf: string; numero: string; complemento?: string | null } | null } | null | undefined): EnderecoExternoForm =>
+  r?.externalAddress ? { ...r.externalAddress, complemento: r.externalAddress.complemento ?? "" } : ENDERECO_VAZIO;
 
 function BlockTitle({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
   return (
@@ -58,6 +90,63 @@ function BlockTitle({ icon: Icon, children }: { icon: LucideIcon; children: Reac
       <Icon className="h-4 w-4" />
       {children}
     </span>
+  );
+}
+
+function Campo({ titulo, children, className = "" }: { titulo: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`space-y-1.5 ${className}`}>
+      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{titulo}</Label>
+      {children}
+    </div>
+  );
+}
+
+/** Bloco do cadastro: título pequeno em relevo + campos, para a tela não virar uma sopa de campos. */
+function Secao({ titulo, dica, children }: { titulo: string; dica?: string; children: React.ReactNode }) {
+  return (
+    <div className="panel-3d-sub space-y-3 p-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+        <span className="bevel-3d inline-flex px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">{titulo}</span>
+        {dica && <span className="text-[11px] leading-snug text-muted-foreground">{dica}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Campo com uma linha pequena embaixo (altura fixa, para os campos empilhados ficarem alinhados). */
+function CampoComLinha({ titulo, linha, children }: { titulo: string; linha: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Campo titulo={titulo}>
+      {children}
+      <div className="flex min-h-6 items-center text-[10px] leading-snug text-muted-foreground">{linha}</div>
+    </Campo>
+  );
+}
+
+/**
+ * Apelido da agenda: o nome que aparece na segunda linha do botão da agenda (embaixo da profissão).
+ * Já nasce preenchido com a sugestão feita a partir do nome; se a pessoa digitar o seu, o sistema respeita.
+ * O nome da agenda não muda: continua sendo a referência do Google.
+ */
+function CampoApelido({ nome, valor, onChange, testId }: {
+  nome: string; valor: string; onChange: (valor: string, tocado: boolean) => void; testId: string;
+}) {
+  const sugestao = sugerirApelido(nome);
+  const igual = valor.trim() === sugestao;
+  return (
+    <CampoComLinha titulo="Apelido: o nome que aparece na segunda linha"
+      linha={!igual && sugestao ? (
+        <button type="button" className="btn-3d-soft px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest"
+          onClick={() => onChange(sugestao, false)} data-testid="usar-sugestao-apelido">
+          Usar sugestão: {sugestao}
+        </button>
+      ) : "Sugerido a partir do nome da agenda"}>
+      <Input className="field-engraved" value={valor} maxLength={80} placeholder={sugestao || "Ex.: CAIO PADUA - SEDE"}
+        aria-label="Apelido da agenda" data-testid={testId}
+        onChange={(e) => onChange(e.target.value, true)} />
+    </CampoComLinha>
   );
 }
 
@@ -98,16 +187,22 @@ function slotColor(state: string, reason: string | null): string {
 
 export default function AgendaMotor() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  // Mudou aqui, mudou em tudo: toda gravação desta tela recarrega TODAS as consultas que dependem de agenda
+  // (lista de agendas, integração, cadastro do profissional, Pit Stop, clientes, locais da empresa).
+  const propagar = () => propagarMudancaDeAgenda(queryClient);
 
-  const { data: resources, refetch: refetchResources } = useListAgendaResources();
-  const { data: settings, refetch: refetchSettings } = useGetAgendaSettings();
-  const { data: exceptions, refetch: refetchExceptions } = useListAgendaExceptions();
+  const { data: resources } = useListAgendaResources(agendaResourcesFrescas);
+  const { data: settings } = useGetAgendaSettings();
+  const { data: exceptions } = useListAgendaExceptions();
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   useEffect(() => {
     if (resources && resources.length > 0 && selectedId === null) {
-      setSelectedId(resources[0].id);
+      // Link vindo do cadastro da empresa: /agenda/motor?agenda=ID abre essa agenda (se existir).
+      const pedido = Number(new URLSearchParams(window.location.search).get("agenda"));
+      setSelectedId(resources.find((r) => r.id === pedido)?.id ?? resources[0].id);
     }
   }, [resources, selectedId]);
 
@@ -116,25 +211,62 @@ export default function AgendaMotor() {
     [resources, selectedId],
   );
 
-  // ---- Identidade do recurso (draft) ----
+  // ---- Autorizacao por local (somente apresentacao; o backend recusa de qualquer forma) ----
+  const integration = useAgendaIntegration();
+  const agendaByLocation = useMemo(() => {
+    const map = new Map<number, { canManage: boolean; enabled: boolean | null }>();
+    for (const a of integration.data?.agendas ?? []) map.set(a.id, { canManage: a.canManage, enabled: a.enabled });
+    return map;
+  }, [integration.data]);
+  // Agenda nova não tem registro de local: a autorização vem calculada pelo servidor (canManage da própria agenda).
+  const canManageResource = (r: { locationId?: number | null; canManage?: boolean } | null | undefined) =>
+    r?.locationId ? !!agendaByLocation.get(r.locationId)?.canManage : r?.canManage === true;
+  const canManageSelected = canManageResource(selected);
+  const anyCanManage = Array.from(agendaByLocation.values()).some((a) => a.canManage)
+    || (resources ?? []).some((r) => r.canManage === true) || integration.data?.canManageGlobalSettings === true;
+  const globalLocked = !integration.data?.canManageGlobalSettings;
+  const { data: categoriasData } = useListProfessionalAreas();
+  const categorias: CategoriaOpcao[] = useMemo(
+    () => (categoriasData ?? []).map((c) => ({ id: c.id, name: c.name, slug: c.slug ?? "", professionalType: c.professionalType })),
+    [categoriasData],
+  );
+  // Registros que podem ser o local de uma agenda: papel local, online ou externo (o servidor valida de novo).
+  const manageableAgendas = (integration.data?.agendas ?? []).filter(
+    (a) => a.canManage && PAPEIS_QUE_ATENDEM.includes(a.role ?? ""),
+  );
+  const localDoSelecionado = selected?.locationId
+    ? (integration.data?.agendas ?? []).find((a) => a.id === selected.locationId) ?? null
+    : null;
+  // Ping-pong com o cadastro: quem o cadastro do profissional liga a esta agenda aparece aqui.
+  const vinculados = useProfissionaisVinculadosDaAgenda(selectedId);
+
+  // ---- Identidade da agenda (draft) ----
   const [resDraft, setResDraft] = useState<{
     name: string;
-    kind: string;
+    displayName: string;
+    apelidoTocado: boolean;
+    categoryId: number | null;
     modality: string;
     color: string;
     slotMinutes: number;
     active: boolean;
+    endereco: EnderecoExternoForm;
   } | null>(null);
 
   useEffect(() => {
     if (selected) {
+      const sugerido = sugerirApelido(selected.name);
       setResDraft({
         name: selected.name,
-        kind: selected.kind,
+        displayName: selected.displayName?.trim() || sugerido,
+        // Apelido que a clínica já escolheu (diferente da sugestão) nunca é sobrescrito pelo nome.
+        apelidoTocado: !!selected.displayName?.trim() && selected.displayName.trim() !== sugerido,
+        categoryId: selected.categoryId ?? null,
         modality: selected.modality,
         color: selected.color,
         slotMinutes: selected.slotMinutes,
         active: selected.active,
+        endereco: enderecoDoRecurso(selected),
       });
     } else {
       setResDraft(null);
@@ -142,29 +274,42 @@ export default function AgendaMotor() {
   }, [selected]);
 
   // ---- Janelas ----
-  const { data: windows, refetch: refetchWindows } = useListAgendaWindows(selectedId ?? 0, {
-    query: { enabled: !!selectedId },
+  const { data: windows } = useListAgendaWindows(selectedId ?? 0, {
+    query: { queryKey: getListAgendaWindowsQueryKey(selectedId ?? 0), enabled: !!selectedId },
   });
   const [windowsDraft, setWindowsDraft] = useState<WindowsDraft>({});
+  const [windowsDirty, setWindowsDirty] = useState(false);
+  const [windowsSnapshot, setWindowsSnapshot] = useState<{ weekday: number; startTime: string; endTime: string; repeatWeeks: number; anchorDate: string | null }[] | null>(null);
+  const draftResource = useRef<number | null>(null);
 
   useEffect(() => {
-    if (windows) {
+    if (windows && selectedId && !(draftResource.current === selectedId && windowsDirty)) {
       const draft: WindowsDraft = {};
       for (const w of windows) {
-        (draft[w.weekday] ||= []).push({ startTime: w.startTime, endTime: w.endTime });
+        (draft[w.weekday] ||= []).push({
+          startTime: w.startTime, endTime: w.endTime,
+          repeatWeeks: Number(w.repeatWeeks) || 1, anchorDate: w.anchorDate ?? "",
+        });
       }
       for (const k of Object.keys(draft)) {
         draft[Number(k)].sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
       }
       setWindowsDraft(draft);
+      setWindowsSnapshot(windows.map(w => ({
+        weekday: w.weekday, startTime: w.startTime, endTime: w.endTime,
+        repeatWeeks: Number(w.repeatWeeks) || 1, anchorDate: w.anchorDate ?? null,
+      })));
+      draftResource.current = selectedId;
+      setWindowsDirty(false);
     }
-  }, [windows]);
+  }, [windows, selectedId, windowsDirty]);
 
   // ---- Settings (motor) ----
   const [setDraft, setSetDraft] = useState<{
     blockMinutes: number;
     triggerPercent: number;
     minLeadHours: number;
+    internalLeadMinutes: number;
   } | null>(null);
 
   useEffect(() => {
@@ -173,12 +318,13 @@ export default function AgendaMotor() {
         blockMinutes: settings.blockMinutes,
         triggerPercent: settings.triggerPercent,
         minLeadHours: settings.minLeadHours,
+        internalLeadMinutes: settings.internalLeadMinutes ?? 5,
       });
     }
   }, [settings]);
 
   // ---- Nova exceção ----
-  const [newExc, setNewExc] = useState({ date: "", kind: "feriado", description: "", resourceId: "" });
+  const [newExc, setNewExc] = useState<{ date: string; kind: CreateAgendaExceptionBodyKind; description: string; resourceId: string }>({ date: "", kind: "feriado", description: "", resourceId: "" });
 
   // ---- Prova viva ----
   const [slotResource, setSlotResource] = useState<number | null>(null);
@@ -195,13 +341,14 @@ export default function AgendaMotor() {
     setOccupied(new Set());
   }, [slotResource, slotDate]);
 
+  const slotsParams = {
+    resourceId: slotResource ?? 0,
+    date: slotDate,
+    occupied: occupied.size ? Array.from(occupied).join(",") : undefined,
+  };
   const { data: slotsData, isFetching: slotsFetching, refetch: refetchSlots } = useGetAgendaSlots(
-    {
-      resourceId: slotResource ?? 0,
-      date: slotDate,
-      occupied: occupied.size ? Array.from(occupied).join(",") : undefined,
-    },
-    { query: { enabled: !!slotResource && !!slotDate } },
+    slotsParams,
+    { query: { queryKey: getGetAgendaSlotsQueryKey(slotsParams), enabled: !!slotResource && !!slotDate } },
   );
 
   // ---- Marcacao real (F2.3 recepcao) ----
@@ -211,11 +358,36 @@ export default function AgendaMotor() {
   const [bookSimulate, setBookSimulate] = useState<boolean>(true);
   const [bookSync, setBookSync] = useState<boolean>(true);
 
-  const { data: clients } = useListClients();
+  const identity = useCollabIdentity();
+  const [sessionEpoch, setSessionEpoch] = useState(0);
+  useEffect(() => {
+    const sessionChanged = () => setSessionEpoch(epoch => epoch + 1);
+    const storageChanged = (event: StorageEvent) => {
+      if (!event.key || event.key === "padcom_collab_token" || event.key === "padcom_collab_prof") sessionChanged();
+    };
+    window.addEventListener(COLLAB_EVENT, sessionChanged);
+    window.addEventListener("storage", storageChanged);
+    return () => {
+      window.removeEventListener(COLLAB_EVENT, sessionChanged);
+      window.removeEventListener("storage", storageChanged);
+    };
+  }, []);
+  const { data: clients, isError: clientsError, isPending: clientsLoading } = useListClients(undefined, {
+    query: { enabled: identity !== "anonimo", queryKey: ["agenda-booking-clients", identity, sessionEpoch] },
+  });
+  const { data: preferredClient, isError: preferencesError } = useGetClient(bookClient ?? 0, {
+    query: { enabled: !!bookClient, queryKey: ["agenda-client-preferences", identity, sessionEpoch, bookClient] },
+  });
   const { data: bookProtocols } = useListProtocols(
     { clientId: bookClient ?? 0 },
-    { query: { enabled: !!bookClient } },
+    { query: { enabled: !!bookClient, queryKey: ["agenda-booking-protocols", identity, sessionEpoch, bookClient] } },
   );
+
+  useEffect(() => {
+    setBookClient(null);
+    setBookProtocol(null);
+    setBookTime("");
+  }, [identity, sessionEpoch]);
 
   useEffect(() => {
     setBookProtocol(null);
@@ -225,9 +397,17 @@ export default function AgendaMotor() {
     setBookTime("");
   }, [slotResource, slotDate]);
 
+  // A consulta da marcação nunca recebe a ocupação simulada da Prova Viva.
+  const { data: bookingSlots, isFetching: bookingSlotsFetching, isError: bookingSlotsError,
+    refetch: refetchBookingSlots } = useGetAgendaSlots(
+    { resourceId: slotResource ?? 0, date: slotDate },
+    { query: { enabled: !!slotResource && !!slotDate && identity !== "anonimo",
+      queryKey: ["agenda-booking-real-slots", identity, sessionEpoch, slotResource, slotDate] } },
+  );
   const openTimes = useMemo(
-    () => (slotsData?.slots ?? []).filter((s) => s.state === "aberto").map((s) => s.time),
-    [slotsData],
+    () => bookingSlotsError || bookingSlotsFetching ? [] :
+      (bookingSlots?.slots ?? []).filter((s) => s.state === "aberto").map((s) => s.time),
+    [bookingSlots, bookingSlotsError, bookingSlotsFetching],
   );
 
   const bookSession = useBookAgendaSession({
@@ -238,6 +418,7 @@ export default function AgendaMotor() {
         toast({ title: "Cliente marcado", description: desc, variant: warn ? "destructive" : undefined });
         setBookTime("");
         refetchSlots();
+        refetchBookingSlots();
       },
       onError: (err: unknown) => {
         const msg =
@@ -246,13 +427,29 @@ export default function AgendaMotor() {
         toast({ title: "Marcação recusada", description: msg, variant: "destructive" });
         // 409 e afins: a régua pode ter mudado (slot encheu/cadeia). Recarrega.
         refetchSlots();
+        refetchBookingSlots();
       },
     },
   });
 
+  const bookResource = resources?.find((r) => r.id === slotResource);
+  const bookReadOff = !!bookResource?.locationId && agendaByLocation.get(bookResource.locationId)?.enabled === false;
+  const preferenceKind = bookResource?.kind === "medico" ? "medical" :
+    bookResource?.kind === "enfermagem" ? "nursing" : null;
+  const weekday = /^\d{4}-\d{2}-\d{2}$/.test(slotDate)
+    ? new Date(`${slotDate}T12:00:00Z`).getUTCDay() : null;
+  const preference = !preferencesError && preferenceKind && preferredClient?.id === bookClient
+    ? preferredClient.visitPreferences?.[preferenceKind] : undefined;
+  const preferredTimes = new Set(preference?.times.filter(t => t.weekday === weekday).map(t => t.time) ?? []);
+  const preferredOrder = new Map((preference?.priority ?? [])
+    .map((entry, index) => ({ ...entry, rank: index + 1 }))
+    .filter(entry => entry.weekday === weekday)
+    .map(entry => [entry.time, entry.rank]));
+  const preferredDay = weekday !== null && !!preference?.weekdays.includes(weekday);
+
   function confirmBooking() {
-    if (!slotResource || !slotDate || !bookClient || !bookProtocol || !bookTime) {
-      toast({ title: "Faltam dados", description: "Escolha recurso, data, cliente, protocolo e horário.", variant: "destructive" });
+    if (!slotResource || !slotDate || !bookClient || !bookProtocol || !bookTime || !openTimes.includes(bookTime)) {
+      toast({ title: "Faltam dados", description: "Escolha agenda, data, cliente, protocolo e horário.", variant: "destructive" });
       return;
     }
     bookSession.mutate({
@@ -282,26 +479,27 @@ export default function AgendaMotor() {
   const createResource = useCreateAgendaResource({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Recurso criado" });
-        refetchResources();
+        toast({ title: "Agenda criada" });
+        void propagar();
       },
-      onError: () => toast({ title: "Erro ao criar recurso", variant: "destructive" }),
+      onError: (err: unknown) => toast({ title: "Agenda não criada", description: describeError(err, "Confira categoria, profissional e, se for externa, o endereço."), variant: "destructive" }),
     },
   });
   const updateResource = useUpdateAgendaResource({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Recurso salvo" });
-        refetchResources();
+        toast({ title: "Agenda salva" });
+        void propagar();
       },
-      onError: () => toast({ title: "Erro ao salvar recurso", variant: "destructive" }),
+      onError: (err: unknown) => toast({ title: "Agenda não salva", description: describeError(err, "Confira os dados e tente novamente."), variant: "destructive" }),
     },
   });
   const replaceWindows = useReplaceAgendaWindows({
     mutation: {
       onSuccess: () => {
         toast({ title: "Janelas salvas" });
-        refetchWindows();
+        setWindowsDirty(false);
+        void propagar();
       },
       onError: () => toast({ title: "Erro ao salvar janelas", variant: "destructive" }),
     },
@@ -311,7 +509,7 @@ export default function AgendaMotor() {
       onSuccess: () => {
         toast({ title: "Exceção adicionada" });
         setNewExc({ date: "", kind: "feriado", description: "", resourceId: "" });
-        refetchExceptions();
+        void propagar();
       },
       onError: () => toast({ title: "Erro ao adicionar exceção", variant: "destructive" }),
     },
@@ -320,7 +518,7 @@ export default function AgendaMotor() {
     mutation: {
       onSuccess: () => {
         toast({ title: "Exceção removida" });
-        refetchExceptions();
+        void propagar();
       },
       onError: () => toast({ title: "Erro ao remover exceção", variant: "destructive" }),
     },
@@ -329,64 +527,147 @@ export default function AgendaMotor() {
     mutation: {
       onSuccess: () => {
         toast({ title: "Parâmetros do motor salvos" });
-        refetchSettings();
+        void propagar();
       },
       onError: () => toast({ title: "Erro ao salvar parâmetros", variant: "destructive" }),
     },
   });
 
+  // ---- Ordem das agendas (clique, setas e arraste) ----
+  const [ordemLocal, setOrdemLocal] = useState<number[] | null>(null);
+  const [salvandoOrdem, setSalvandoOrdem] = useState(false);
+  const listaAgendas = useMemo(() => {
+    const base = resources ?? [];
+    if (!ordemLocal) return base;
+    const porId = new Map(base.map((r) => [r.id, r]));
+    const ordenadas = ordemLocal.filter((id) => porId.has(id)).map((id) => porId.get(id)!);
+    return [...ordenadas, ...base.filter((r) => !ordemLocal.includes(r.id))];
+  }, [resources, ordemLocal]);
+
+  async function moverAgenda(id: number, paraIndice: number) {
+    const atual = listaAgendas;
+    const de = atual.findIndex((r) => r.id === id);
+    if (de < 0 || paraIndice < 0 || paraIndice >= atual.length || de === paraIndice || salvandoOrdem) return;
+    const novaOrdem = [...atual];
+    const [movida] = novaOrdem.splice(de, 1);
+    novaOrdem.splice(paraIndice, 0, movida);
+    // Reaproveita os valores de ordem já existentes (em ordem crescente e sem repetição),
+    // para que só mudem as agendas cuja posição mudou e nada colida com agendas ocultas.
+    const valores = atual.map((r) => r.sortOrder).sort((x, y) => x - y);
+    for (let i = 1; i < valores.length; i++) if (valores[i] <= valores[i - 1]) valores[i] = valores[i - 1] + 1;
+    const mudancas = novaOrdem
+      .map((r, i) => ({ r, sortOrder: valores[i] }))
+      .filter(({ r, sortOrder }) => r.sortOrder !== sortOrder);
+    const semPermissao = mudancas.find(({ r }) => !canManageResource(r));
+    if (semPermissao) {
+      toast({ title: "Ordem não alterada", description: `Você não administra a agenda “${semPermissao.r.name}”, que mudaria de posição.`, variant: "destructive" });
+      return;
+    }
+    setOrdemLocal(novaOrdem.map((r) => r.id));
+    setSalvandoOrdem(true);
+    try {
+      for (const { r, sortOrder } of mudancas) await updateAgendaResource(r.id, { sortOrder });
+      toast({ title: "Ordem das agendas salva" });
+    } catch (err) {
+      toast({ title: "Ordem não salva", description: describeError(err, "Tente novamente."), variant: "destructive" });
+    } finally {
+      await propagar();
+      setOrdemLocal(null);
+      setSalvandoOrdem(false);
+    }
+  }
+
   // ---- Handlers ----
-  const [newRes, setNewRes] = useState({ name: "", kind: "enfermagem", modality: "local", color: "#16284a" });
+  const EMPTY_NEW = { name: "", displayName: "", apelidoTocado: false, categoryId: "", professionalId: "", modality: "local", color: "#16284a", endereco: ENDERECO_VAZIO };
+  const [newRes, setNewRes] = useState(EMPTY_NEW);
+  // Corpo Clínico ativo da clínica, comparado pelo id da categoria gravada (nunca pelo rótulo da profissão).
+  const professionalsOfCategory = useMemo(
+    () => profissionaisParaNovaAgenda(
+      (integration.data?.professionals ?? []).map((p) => ({ id: p.id, name: p.name, active: true, areaId: p.categoryId ?? null })),
+      newRes.categoryId === "" ? null : Number(newRes.categoryId),
+    ),
+    [integration.data, newRes.categoryId],
+  );
 
   function addResource() {
     if (!newRes.name.trim()) {
-      toast({ title: "Informe o nome do recurso", variant: "destructive" });
+      toast({ title: "Informe o nome da agenda", variant: "destructive" });
       return;
     }
-    createResource.mutate({
-      data: {
-        name: newRes.name.trim(),
-        kind: newRes.kind,
-        modality: newRes.modality,
-        color: newRes.color,
-        sortOrder: resources?.length ?? 0,
+    if (!newRes.categoryId) {
+      toast({ title: "Faltam dados", description: "Escolha a categoria profissional.", variant: "destructive" });
+      return;
+    }
+    if (newRes.modality === "externo" && !enderecoCompleto(newRes.endereco)) {
+      toast({ title: "Endereço incompleto", description: "Agenda externa exige CEP e número (rua, bairro, cidade e UF vêm do CEP).", variant: "destructive" });
+      return;
+    }
+    createResource.mutate(
+      {
+        data: {
+          name: newRes.name.trim(),
+          displayName: newRes.displayName.trim() || sugerirApelido(newRes.name),
+          categoryId: Number(newRes.categoryId),
+          professionalId: newRes.professionalId ? Number(newRes.professionalId) : null,
+          modality: newRes.modality,
+          ...(newRes.modality === "externo"
+            ? { externalAddress: { ...newRes.endereco, complemento: newRes.endereco.complemento.trim() || null } }
+            : {}),
+          color: newRes.color,
+          sortOrder: resources?.length ?? 0,
+        },
       },
-    });
-    setNewRes({ name: "", kind: "enfermagem", modality: "local", color: "#16284a" });
+      // O formulário só é limpo depois da gravação confirmada pelo servidor.
+      { onSuccess: () => setNewRes(EMPTY_NEW) },
+    );
   }
 
   function saveResource() {
-    if (!selectedId || !resDraft) return;
-    updateResource.mutate({ id: selectedId, data: resDraft });
+    if (!selectedId || !resDraft || !selected) return;
+    const { categoryId, endereco, apelidoTocado: _tocado, displayName, ...rest } = resDraft;
+    void _tocado;
+    const virouExterno = rest.modality === "externo" && selected.modality !== "externo";
+    const enderecoMudou = JSON.stringify(endereco) !== JSON.stringify(enderecoDoRecurso(selected));
+    if (rest.modality === "externo" && (virouExterno || enderecoMudou) && !enderecoCompleto(endereco)) {
+      toast({ title: "Endereço incompleto", description: "Agenda externa exige CEP e número.", variant: "destructive" });
+      return;
+    }
+    updateResource.mutate({
+      id: selectedId,
+      data: {
+        ...rest,
+        // Vazio volta ao padrão sugerido (o servidor guarda nulo).
+        displayName: displayName.trim() || null,
+        ...(categoryId != null && categoryId !== selected.categoryId ? { categoryId } : {}),
+        ...(rest.modality === "externo" && (virouExterno || enderecoMudou)
+          ? { externalAddress: { ...endereco, complemento: endereco.complemento.trim() || null } }
+          : {}),
+      },
+    });
   }
 
-  function addWindow(weekday: number) {
-    setWindowsDraft((d) => ({
-      ...d,
-      [weekday]: [...(d[weekday] ?? []), { startTime: "08:00", endTime: "12:00" }],
-    }));
-  }
-  function removeWindow(weekday: number, idx: number) {
-    setWindowsDraft((d) => ({
-      ...d,
-      [weekday]: (d[weekday] ?? []).filter((_, i) => i !== idx),
-    }));
-  }
-  function setWindowField(weekday: number, idx: number, field: keyof Win, value: string) {
-    setWindowsDraft((d) => ({
-      ...d,
-      [weekday]: (d[weekday] ?? []).map((w, i) => (i === idx ? { ...w, [field]: value } : w)),
-    }));
+  function changeWindows(next: WindowsDraft) {
+    setWindowsDirty(true);
+    setWindowsDraft(next);
   }
   function saveWindows() {
-    if (!selectedId) return;
-    const flat: { weekday: number; startTime: string; endTime: string }[] = [];
+    if (!selectedId || draftResource.current !== selectedId || !windowsSnapshot) return;
+    const flat: { weekday: number; startTime: string; endTime: string; repeatWeeks: number; anchorDate: string | null }[] = [];
     for (const wd of Object.keys(windowsDraft)) {
       for (const w of windowsDraft[Number(wd)]) {
-        flat.push({ weekday: Number(wd), startTime: w.startTime, endTime: w.endTime });
+        if (w.endTime <= w.startTime) {
+          toast({ title: "Confira o horário", description: `${WEEK_LABEL[Number(wd)]}: o fim precisa ser depois do início.`, variant: "destructive" });
+          return;
+        }
+        if (exigeDataInicial(w.repeatWeeks) && !dataInicialValida(w.anchorDate, Number(wd))) {
+          toast({ title: "Confira a data inicial", description: `Escolha uma data válida no dia ${WEEK_LABEL[Number(wd)]}.`, variant: "destructive" });
+          return;
+        }
+        flat.push({ weekday: Number(wd), startTime: w.startTime, endTime: w.endTime,
+          repeatWeeks: w.repeatWeeks, anchorDate: exigeDataInicial(w.repeatWeeks) ? w.anchorDate : null });
       }
     }
-    replaceWindows.mutate({ id: selectedId, data: { windows: flat } });
+    replaceWindows.mutate({ id: selectedId, data: { windows: flat, expectedWindows: windowsSnapshot } });
   }
 
   function addException() {
@@ -411,252 +692,381 @@ export default function AgendaMotor() {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <header className="flex flex-col gap-1">
+      <header className="panel-3d-hero flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="flex items-center gap-3">
-          <span className="bevel-3d inline-flex h-10 w-10 items-center justify-center text-primary">
+          <span className="bevel-3d inline-flex h-11 w-11 items-center justify-center text-primary">
             <CalendarCog className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold uppercase tracking-wide text-foreground">Motor de Agenda</h1>
+            <h1 className="text-2xl font-bold uppercase tracking-wide text-foreground">Agenda Configuração</h1>
             <p className="text-sm text-muted-foreground">
-              Recursos, janelas de atendimento e liberação inteligente anti-ilha de horários.
+              Agendas de atendimento por profissional, janelas de atendimento e liberação inteligente anti-ilha de horários.
             </p>
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="concave-3d inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted-foreground">
+            <Layers className="h-3.5 w-3.5 text-primary" />
+            {listaAgendas.length} {listaAgendas.length === 1 ? "agenda ativa" : "agendas ativas"}
+          </span>
+          <LegendaRegistros />
+        </div>
       </header>
 
-      {/* RECURSOS + IDENTIDADE + JANELAS */}
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-        {/* Coluna recursos */}
-        <div className="panel-3d p-4 space-y-4">
-          <BlockTitle icon={Layers}>Recursos</BlockTitle>
-          <div className="space-y-2">
-            {(resources ?? []).map((r) => {
-              const isSel = r.id === selectedId;
-              return (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => setSelectedId(r.id)}
-                  className={`concave-3d flex w-full items-center gap-3 px-3 py-2.5 text-left transition ${
-                    isSel ? "ring-2 ring-primary" : "opacity-90 hover:opacity-100"
-                  }`}
-                >
-                  <span
-                    className="h-7 w-2 shrink-0"
-                    style={{ backgroundColor: r.color, borderRadius: "2px" }}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-foreground">{r.name}</span>
-                    <span className="block text-[11px] uppercase tracking-wide text-muted-foreground">
-                      {KIND_LABEL[r.kind] ?? r.kind} · {MODALITY_LABEL[r.modality] ?? r.modality}
-                    </span>
-                  </span>
-                  {!r.active && (
-                    <span className="text-[10px] font-semibold uppercase text-amber-600">inativo</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+      {/* AGENDAS + IDENTIDADE + JANELAS */}
+      <div className="grid gap-6 lg:grid-cols-[400px_minmax(0,1fr)] xl:grid-cols-[520px_minmax(0,1fr)]">
+        {/* Coluna agendas */}
+        <div className="panel-3d space-y-4 p-4 lg:self-start">
+          <BlockTitle icon={Layers}>Agendas de atendimento</BlockTitle>
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            Clique para abrir a agenda no painel ao lado. Arraste o item, ou use as setas, para mudar a ordem; a ordem fica gravada.
+          </p>
+          <ListaAgendas
+            itens={listaAgendas.map((r) => ({
+              id: r.id, name: r.name, color: r.color, categoryName: r.categoryName,
+              forma: r.modality, active: r.active,
+            }))}
+            selecionadaId={selectedId}
+            onSelecionar={setSelectedId}
+            onMover={moverAgenda}
+            ocupado={salvandoOrdem}
+          />
 
-          <div className="panel-3d-sub p-3 space-y-2.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Novo recurso
+          <div className="panel-3d-sub space-y-3 p-3">
+            <span className="bevel-3d inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">
+              <Plus className="h-3.5 w-3.5" /> Nova agenda de atendimento
             </span>
-            <Input
-              className="field-engraved"
-              placeholder="Nome"
-              value={newRes.name}
-              onChange={(e) => setNewRes((s) => ({ ...s, name: e.target.value }))}
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <Select value={newRes.kind} onValueChange={(v) => setNewRes((s) => ({ ...s, kind: v }))}>
-                <SelectTrigger className="field-engraved">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="enfermagem">Enfermagem</SelectItem>
-                  <SelectItem value="medico">Médico</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={newRes.modality} onValueChange={(v) => setNewRes((s) => ({ ...s, modality: v }))}>
-                <SelectTrigger className="field-engraved">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="local">Local</SelectItem>
-                  <SelectItem value="domiciliar">Domiciliar</SelectItem>
-                  <SelectItem value="online">Online</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <CampoComLinha titulo="Nome da agenda" linha="Referência do Google">
+              <ComRegistro codigo="A1">
+                <Input className="field-engraved" placeholder="Ex.: AGENDA MEDICO - CAIO PADUA - SEDE" value={newRes.name}
+                  onChange={(e) => setNewRes((s) => ({
+                    ...s, name: e.target.value,
+                    // Enquanto a pessoa não digitou o apelido, ele acompanha o nome.
+                    ...(s.apelidoTocado ? {} : { displayName: sugerirApelido(e.target.value) }),
+                  }))} />
+              </ComRegistro>
+            </CampoComLinha>
+            <CampoApelido nome={newRes.name} valor={newRes.displayName} testId="campo-apelido-agenda-nova"
+              onChange={(displayName, apelidoTocado) => setNewRes((s) => ({ ...s, displayName, apelidoTocado }))} />
+            <Campo titulo="Categoria profissional">
+              <ComRegistro codigo="C1">
+                <Select value={newRes.categoryId} onValueChange={(v) => v && setNewRes((s) => ({ ...s, categoryId: v, professionalId: "" }))}>
+                  <SelectTrigger className="field-engraved" aria-label="Categoria profissional">
+                    <SelectValue placeholder="Categoria profissional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categorias.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </ComRegistro>
+            </Campo>
+            <Campo titulo="Profissional (Corpo Clínico)">
+              <ComRegistro codigo="P1">
+                <Select
+                  value={newRes.professionalId}
+                  onValueChange={(v) => v && setNewRes((s) => ({ ...s, professionalId: v === "nenhum" ? "" : v }))}
+                  disabled={!newRes.categoryId}
+                >
+                  <SelectTrigger className="field-engraved" aria-label="Profissional do Corpo Clínico">
+                    <SelectValue placeholder={newRes.categoryId ? "Profissional (opcional)" : "Escolha a categoria primeiro"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nenhum">Sem profissional definido (agenda compartilhada)</SelectItem>
+                    {professionalsOfCategory.map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </ComRegistro>
+            </Campo>
+            {newRes.categoryId && professionalsOfCategory.length === 0 && (
+              <p className="text-[10px] leading-snug text-amber-600" role="status">
+                Nenhum profissional ativo do Corpo Clínico tem esta categoria. A agenda pode ser criada sem profissional.
+              </p>
+            )}
+            <Campo titulo="Forma de atendimento">
+              <ComRegistro codigo="L1">
+                <Select value={newRes.modality} onValueChange={(v) => setNewRes((s) => ({ ...s, modality: v }))}>
+                  <SelectTrigger className="field-engraved" aria-label="Forma de atendimento">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="local">Sede</SelectItem>
+                    <SelectItem value="externo">Local externo (outro endereço)</SelectItem>
+                    <SelectItem value="online">Online</SelectItem>
+                    <SelectItem value="home_care">Home Care (no endereço do paciente)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </ComRegistro>
+            </Campo>
+            {newRes.modality === "externo" && (
+              <>
+                <SeletorLocalExterno onEscolher={(endereco) => setNewRes((s) => ({ ...s, endereco }))} />
+                <EnderecoExternoCampos value={newRes.endereco} onChange={(endereco) => setNewRes((s) => ({ ...s, endereco }))} />
+              </>
+            )}
+            <Campo titulo="Como fica o botão">
+              <PreviaBotaoAgenda profissao={rotuloDaEquipe(categorias.find((c) => String(c.id) === newRes.categoryId)?.name ?? "Sem categoria")}
+                apelido={newRes.displayName.trim() || sugerirApelido(newRes.name)} cor={newRes.color} testId="previa-botao-agenda-nova" />
+            </Campo>
             <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={newRes.color}
-                onChange={(e) => setNewRes((s) => ({ ...s, color: e.target.value }))}
-                className="h-9 w-12 cursor-pointer border-0 bg-transparent p-0"
-                aria-label="Cor do recurso"
-              />
-              <Button className="btn-3d flex-1" onClick={addResource} disabled={createResource.isPending}>
-                <Plus className="mr-1 h-4 w-4" /> Adicionar
-              </Button>
+              <div className="w-[8.5rem] shrink-0">
+                <SeletorCorVidro rotulo="Cor da agenda" valor={newRes.color}
+                  onChange={(cor) => setNewRes((s) => ({ ...s, color: cor }))} />
+              </div>
+              <ComRegistro codigo="A1" className="flex-1">
+                <Button className="btn-3d w-full" onClick={addResource} disabled={!anyCanManage || createResource.isPending}>
+                  <Plus className="mr-1 h-4 w-4" /> Adicionar
+                </Button>
+              </ComRegistro>
             </div>
           </div>
         </div>
 
         {/* Coluna identidade + janelas */}
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           {/* Identidade */}
-          <div className="panel-3d p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <BlockTitle icon={SlidersHorizontal}>Identidade do Recurso</BlockTitle>
-              <Button className="btn-3d" onClick={saveResource} disabled={!resDraft || updateResource.isPending}>
-                <Save className="mr-1 h-4 w-4" /> Salvar
-              </Button>
+          <div className="panel-3d space-y-4 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <BlockTitle icon={SlidersHorizontal}>Identidade da Agenda</BlockTitle>
+              <div className="flex flex-wrap items-center gap-2.5">
+                {resDraft && (
+                  <ComRegistro codigo="A1" nota="ativa ou inativa">
+                    <label
+                      htmlFor="agenda-ativa"
+                      className="concave-3d flex cursor-pointer items-center gap-2.5 px-3 py-1.5"
+                      data-testid="toggle-agenda-ativa"
+                    >
+                      <Switch
+                        id="agenda-ativa"
+                        checked={resDraft.active}
+                        onCheckedChange={(v) => setResDraft((d) => (d ? { ...d, active: v } : d))}
+                      />
+                      <span className="text-xs font-bold uppercase tracking-wide">
+                        {resDraft.active ? "Agenda ativa" : "Agenda inativa"}
+                      </span>
+                    </label>
+                  </ComRegistro>
+                )}
+                <ComRegistro codigo="A1" nota="salvar identidade">
+                  <Button className="btn-3d" onClick={saveResource} disabled={!resDraft || !canManageSelected || updateResource.isPending}>
+                    <Save className="mr-1 h-4 w-4" /> Salvar
+                  </Button>
+                </ComRegistro>
+              </div>
             </div>
             {resDraft ? (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Nome</Label>
-                  <Input
-                    className="field-engraved"
-                    value={resDraft.name}
-                    onChange={(e) => setResDraft((d) => (d ? { ...d, name: e.target.value } : d))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Tipo</Label>
-                  <Select
-                    value={resDraft.kind}
-                    onValueChange={(v) => setResDraft((d) => (d ? { ...d, kind: v } : d))}
-                  >
-                    <SelectTrigger className="field-engraved">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="enfermagem">Enfermagem</SelectItem>
-                      <SelectItem value="medico">Médico</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Modalidade</Label>
-                  <Select
-                    value={resDraft.modality}
-                    onValueChange={(v) => setResDraft((d) => (d ? { ...d, modality: v } : d))}
-                  >
-                    <SelectTrigger className="field-engraved">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="local">Local</SelectItem>
-                      <SelectItem value="domiciliar">Domiciliar</SelectItem>
-                      <SelectItem value="online">Online</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                    Slot (minutos)
-                  </Label>
-                  <Input
-                    type="number"
-                    min={5}
-                    step={5}
-                    className="field-engraved"
-                    value={resDraft.slotMinutes}
-                    onChange={(e) =>
-                      setResDraft((d) => (d ? { ...d, slotMinutes: Number(e.target.value) || 0 } : d))
-                    }
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Cor</Label>
-                  <input
-                    type="color"
-                    value={resDraft.color}
-                    onChange={(e) => setResDraft((d) => (d ? { ...d, color: e.target.value } : d))}
-                    className="h-9 w-full cursor-pointer border-0 bg-transparent p-0"
-                    aria-label="Cor"
-                  />
-                </div>
-                <div className="concave-3d flex items-center gap-3 px-3 py-2 sm:col-span-2 lg:col-span-1">
-                  <Switch
-                    checked={resDraft.active}
-                    onCheckedChange={(v) => setResDraft((d) => (d ? { ...d, active: v } : d))}
-                  />
-                  <Label className="text-sm">Recurso ativo</Label>
+              <div className="space-y-4">
+                <Secao titulo="Nome">
+                  <div className="space-y-3">
+                    <CampoComLinha titulo="Nome da agenda" linha="Referência do Google">
+                      <ComRegistro codigo="A1" nota={`id ${selected?.id}`}>
+                        <Input className="field-engraved" value={resDraft.name} data-testid="campo-nome-agenda"
+                          onChange={(e) => setResDraft((d) => (d ? {
+                            ...d, name: e.target.value,
+                            ...(d.apelidoTocado ? {} : { displayName: sugerirApelido(e.target.value) }),
+                          } : d))} />
+                      </ComRegistro>
+                    </CampoComLinha>
+                    <CampoApelido nome={resDraft.name} valor={resDraft.displayName} testId="campo-apelido-agenda"
+                      onChange={(displayName, apelidoTocado) => setResDraft((d) => (d ? { ...d, displayName, apelidoTocado } : d))} />
+                  </div>
+                </Secao>
+                <Secao titulo="Onde e quem atende">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                  <Campo titulo="Categoria profissional" className="sm:col-span-1">
+                    <ComRegistro codigo="C1" pendente={selected?.categoryStatus === "pendente"}>
+                      <Select
+                        value={resDraft.categoryId != null ? String(resDraft.categoryId) : ""}
+                        onValueChange={(v) => v && setResDraft((d) => (d ? { ...d, categoryId: Number(v) } : d))}
+                      >
+                        <SelectTrigger className="field-engraved" aria-label="Categoria profissional da agenda">
+                          <SelectValue placeholder="Categoria pendente de conferência" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categorias
+                            .filter((c) => !selected || classeDaCategoria(c) === selected.kind)
+                            .map((c) => (
+                              <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </ComRegistro>
+                  </Campo>
+                  <Campo titulo="Forma de atendimento" className="sm:col-span-1">
+                    <ComRegistro codigo="L1">
+                      <Select value={resDraft.modality} onValueChange={(v) => setResDraft((d) => (d ? { ...d, modality: v } : d))}>
+                        <SelectTrigger className="field-engraved">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="local">Sede</SelectItem>
+                          <SelectItem value="externo">Local externo (outro endereço)</SelectItem>
+                          <SelectItem value="online">Online</SelectItem>
+                          <SelectItem value="home_care">Home Care (no endereço do paciente)</SelectItem>
+                          {(selected?.modality === "domiciliar" || resDraft.modality === "domiciliar") && (
+                            <SelectItem value="domiciliar">Domiciliar (legado)</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </ComRegistro>
+                  </Campo>
+                  </div>
+                {resDraft.modality === "externo" && (
+                  <div className="space-y-3">
+                    <SeletorLocalExterno onEscolher={(endereco) => setResDraft((d) => (d ? { ...d, endereco } : d))} />
+                    <EnderecoExternoCampos value={resDraft.endereco}
+                      onChange={(endereco) => setResDraft((d) => (d ? { ...d, endereco } : d))} />
+                  </div>
+                )}
+                </Secao>
+                <Secao titulo="Duração, cor e botão">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Campo titulo="Duração do atendimento (min)">
+                      <ComRegistro codigo="S1">
+                        <Input type="number" min={5} step={5} className="field-engraved" value={resDraft.slotMinutes}
+                          onChange={(e) => setResDraft((d) => (d ? { ...d, slotMinutes: Number(e.target.value) || 0 } : d))} />
+                      </ComRegistro>
+                    </Campo>
+                    <Campo titulo="Cor">
+                      <SeletorCorVidro rotulo="Cor" valor={resDraft.color}
+                        onChange={(cor) => setResDraft((d) => (d ? { ...d, color: cor } : d))} />
+                    </Campo>
+                  </div>
+                  <Campo titulo="Como fica o botão na Agenda Diária">
+                    <PreviaBotaoAgenda
+                      profissao={rotuloDaEquipe(categorias.find((c) => c.id === resDraft.categoryId)?.name ?? selected?.categoryName ?? "Sem categoria")}
+                      apelido={resDraft.displayName.trim() || sugerirApelido(resDraft.name)} cor={resDraft.color} testId="previa-botao-agenda" />
+                  </Campo>
+                </Secao>
+                {selected?.categoryStatus === "pendente" && (
+                  <p className="paxter-alert paxter-alert-amber px-3 py-2 text-xs font-semibold">
+                    Categoria pendente de conferência: nada foi deduzido do nome nem do tipo antigo desta agenda.
+                  </p>
+                )}
+                <div className="grid gap-3 md:grid-cols-3">
+                  <ComRegistro codigo="P1" pendente={vinculados.isError || vinculados.isPending}
+                    nota={vinculados.isError ? "falha ao consultar o cadastro" : "profissionais ligados no cadastro do profissional"}>
+                    <div className="concave-3d h-full space-y-1.5 px-3 py-2.5" data-testid="card-profissionais-da-agenda">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Profissional</span>
+                      {vinculados.isPending ? (
+                        <span className="block text-sm text-muted-foreground">Consultando o cadastro…</span>
+                      ) : vinculados.isError ? (
+                        <span role="alert" className="block text-sm font-semibold text-amber-600">
+                          Não foi possível consultar o cadastro: {vinculados.error instanceof Error ? vinculados.error.message : "erro desconhecido"}
+                        </span>
+                      ) : vinculados.data.profissionais.length === 0 ? (
+                        <span className="block text-sm font-semibold">Nenhum profissional ligado no cadastro</span>
+                      ) : (
+                        <ul className="space-y-1">
+                          {vinculados.data.profissionais.map((p) => (
+                            <li key={p.id} className="text-sm font-semibold leading-tight" data-testid={`profissional-vinculado-${p.id}`}>
+                              {p.name}
+                              {!p.active && <span className="ml-1 text-[10px] font-bold uppercase text-amber-600">inativo</span>}
+                              <span className="block text-[10px] font-normal text-muted-foreground">
+                                {p.categoriaNome ?? "sem categoria"} · {p.origens.map((o) => ROTULO_ORIGEM[o]).join(" + ")}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <span className="block text-[10px] text-muted-foreground">
+                        {selected?.sharing === "individual" ? "Agenda individual (um titular)" : "Agenda compartilhada"}. Ligações são feitas no cadastro do profissional, aba Vínculos.
+                      </span>
+                    </div>
+                  </ComRegistro>
+                  <ComRegistro codigo="L1" pendente={!!selected?.locationId && !localDoSelecionado}>
+                    <div className="concave-3d h-full space-y-1 px-3 py-2.5">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Agenda ligada</span>
+                      <span className="block text-sm font-semibold">
+                        {selected?.locationId
+                          ? (localDoSelecionado
+                            ? `${localDoSelecionado.name} (${PAPEL_LABEL[localDoSelecionado.role ?? ""] ?? "sem papel"})`
+                            : integration.isError
+                              ? "Não foi possível consultar os locais agora. Recarregue a tela."
+                              : integration.isPending
+                                ? "Consultando os locais…"
+                                : "Sede vinculada (legado) não identificada nos locais que você administra")
+                          : "Agenda própria da clínica"}
+                      </span>
+                      {selected?.modality === "home_care" && (
+                        <span className="block text-[11px] text-muted-foreground">Home Care: o endereço é o da visita, informado no agendamento (Pit Stop). Esta agenda não tem local fixo.</span>
+                      )}
+                      {selected?.modality === "externo" && (
+                        selected.externalAddressText ? (
+                          <span className="block text-[11px] text-muted-foreground">
+                            {selected.externalAddressText}{" "}
+                            {selected.mapsUrl && <a className="underline" href={selected.mapsUrl} target="_blank" rel="noreferrer">Google Maps</a>}
+                            {selected.wazeUrl && <> · <a className="underline" href={selected.wazeUrl} target="_blank" rel="noreferrer">Waze</a></>}
+                          </span>
+                        ) : (
+                          <span className="block text-[11px] font-semibold text-amber-600">Agenda externa sem endereço completo: pendente.</span>
+                        )
+                      )}
+                    </div>
+                  </ComRegistro>
+                  <ComRegistro codigo="C2" pendente={!integration.data?.companyName}
+                    nota={integration.data?.companyName ? "clínica da sessão, lida do cadastro de empresas" : "clínica não retornada pelo servidor"}>
+                    <div className="concave-3d h-full space-y-1 px-3 py-2.5" data-testid="card-clinica-da-sessao">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Clínica da sessão</span>
+                      {integration.data?.companyName ? (
+                        <span className="block text-sm font-semibold">{integration.data.companyName}</span>
+                      ) : integration.isError ? (
+                        <span className="block text-sm font-semibold text-amber-600">Não foi possível consultar a clínica agora.</span>
+                      ) : integration.isPending ? (
+                        <span className="block text-sm text-muted-foreground">Consultando a clínica…</span>
+                      ) : (
+                        <span className="block text-sm font-semibold text-amber-600">Clínica sem nome cadastrado</span>
+                      )}
+                    </div>
+                  </ComRegistro>
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Selecione um recurso à esquerda.</p>
+              <p className="text-sm text-muted-foreground">Selecione uma agenda à esquerda.</p>
             )}
           </div>
 
           {/* Janelas */}
-          <div className="panel-3d p-4 space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="panel-3d space-y-4 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <BlockTitle icon={Clock}>Janelas de Atendimento</BlockTitle>
-              <Button
-                className="btn-3d"
-                onClick={saveWindows}
-                disabled={!selectedId || replaceWindows.isPending}
-              >
-                <Save className="mr-1 h-4 w-4" /> Salvar Janelas
-              </Button>
+              <ComRegistro codigo="J1" nota="salvar janelas">
+                <Button
+                  className="btn-3d"
+                  onClick={saveWindows}
+                  disabled={!selectedId || draftResource.current !== selectedId || !windowsSnapshot || !canManageSelected || replaceWindows.isPending}
+                >
+                  <Save className="mr-1 h-4 w-4" /> Salvar Janelas
+                </Button>
+              </ComRegistro>
             </div>
             <p className="text-xs text-muted-foreground">
-              Horários em que o recurso atende, por dia da semana. Várias faixas por dia (manhã/tarde).
+              Horários em que esta agenda atende, por dia da semana. Várias faixas por dia (manhã/tarde) e repetição semanal, por várias semanas ou por posição no mês.
+              {windowsDirty && <b className="paxter-alert paxter-alert-amber ml-2 px-2 py-0.5 text-[10px] uppercase">Alterações não salvas</b>}
             </p>
-            <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-4">
-              {WEEK_ORDER.map((wd) => (
-                <div key={wd} className="panel-3d-sub p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-foreground">
-                      {WEEK_LABEL[wd]}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => addWindow(wd)}
-                      className="text-primary hover:opacity-70"
-                      aria-label={`Adicionar faixa em ${WEEK_LABEL[wd]}`}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
-                  {(windowsDraft[wd] ?? []).length === 0 && (
-                    <span className="block text-[11px] text-muted-foreground">Fechado</span>
-                  )}
-                  {(windowsDraft[wd] ?? []).map((w, idx) => (
-                    <div key={idx} className="flex items-center gap-1">
-                      <Input
-                        type="time"
-                        className="field-engraved h-8 px-1 text-xs"
-                        value={w.startTime}
-                        onChange={(e) => setWindowField(wd, idx, "startTime", e.target.value)}
-                      />
-                      <span className="text-muted-foreground">–</span>
-                      <Input
-                        type="time"
-                        className="field-engraved h-8 px-1 text-xs"
-                        value={w.endTime}
-                        onChange={(e) => setWindowField(wd, idx, "endTime", e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeWindow(wd, idx)}
-                        className="text-destructive hover:opacity-70"
-                        aria-label="Remover faixa"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
+            {selected && !canManageSelected && integration.isError && (
+              <p role="alert" className="paxter-alert paxter-alert-amber px-3 py-2 text-xs" data-testid="text-windows-auth-unknown">
+                Não foi possível confirmar sua autorização sobre esta agenda (a consulta dos locais falhou). Recarregue a tela; nada foi alterado.
+              </p>
+            )}
+            {selected && !canManageSelected && !integration.isError && !integration.isPending && (
+              <p role="note" className="paxter-alert paxter-alert-amber px-3 py-2 text-xs" data-testid="text-windows-locked">
+                Você não administra a sede ou a clínica desta agenda: identidade e janelas não podem ser gravadas aqui.
+                Use "Mudança de expediente" abaixo para enviar uma solicitação com justificativa.
+              </p>
+            )}
+            <JanelasAtendimento
+              rascunho={windowsDraft}
+              onChange={changeWindows}
+              desabilitado={replaceWindows.isPending}
+              onSalvar={saveWindows}
+              podeSalvar={!!selectedId && draftResource.current === selectedId && !!windowsSnapshot && canManageSelected}
+              salvando={replaceWindows.isPending}
+              sujo={windowsDirty}
+            />
           </div>
         </div>
       </div>
@@ -667,10 +1077,15 @@ export default function AgendaMotor() {
         <div className="panel-3d p-4 space-y-4">
           <div className="flex items-center justify-between">
             <BlockTitle icon={Gauge}>Parâmetros do Motor</BlockTitle>
-            <Button className="btn-3d" onClick={saveSettings} disabled={!setDraft || updateSettings.isPending}>
+            <Button className="btn-3d" onClick={saveSettings} disabled={!setDraft || globalLocked || updateSettings.isPending}>
               <Save className="mr-1 h-4 w-4" /> Salvar
             </Button>
           </div>
+          {globalLocked && (
+            <p role="note" className="paxter-alert paxter-alert-amber px-3 py-2 text-xs" data-testid="text-settings-locked">
+              Parâmetros globais do motor são exclusivos do proprietário. Para mudar o expediente de uma agenda, envie uma solicitação.
+            </p>
+          )}
           {setDraft ? (
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-3">
@@ -719,6 +1134,29 @@ export default function AgendaMotor() {
                   />
                 </div>
               </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5 sm:col-span-1">
+                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground" htmlFor="antecedencia-encaixe">
+                    Antecedência do encaixe interno (min)
+                  </Label>
+                  <Input
+                    id="antecedencia-encaixe"
+                    data-testid="antecedencia-encaixe"
+                    type="number"
+                    min={0}
+                    max={1440}
+                    className="field-engraved"
+                    value={setDraft.internalLeadMinutes}
+                    onChange={(e) =>
+                      setSetDraft((d) => (d ? { ...d, internalLeadMinutes: Math.min(1440, Math.max(0, Math.trunc(Number(e.target.value) || 0))) } : d))
+                    }
+                  />
+                </div>
+                <p className="concave-3d px-3 py-2.5 text-xs leading-relaxed text-muted-foreground sm:col-span-2">
+                  Vale só para o <b>encaixe rápido interno</b> da equipe autorizada (sem liberação em cadeia). Paciente, protocolo,
+                  Pit Stop e concierge continuam com a antecedência em horas acima. Sugerido: 5 minutos.
+                </p>
+              </div>
               <div className="concave-3d px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
                 O dia é fatiado em sub-blocos de <b>{setDraft.blockMinutes} minutos</b>. O primeiro abre
                 sempre; cada bloco seguinte só abre quando o anterior atinge <b>{setDraft.triggerPercent}%</b>{" "}
@@ -736,13 +1174,16 @@ export default function AgendaMotor() {
           <BlockTitle icon={CalendarOff}>Exceções / Feriados</BlockTitle>
           <div className="panel-3d-sub p-3 space-y-2.5">
             <div className="grid grid-cols-2 gap-2">
+              <ComRegistro codigo="X1">
               <Input
                 type="date"
                 className="field-engraved"
                 value={newExc.date}
                 onChange={(e) => setNewExc((s) => ({ ...s, date: e.target.value }))}
               />
-              <Select value={newExc.kind} onValueChange={(v) => setNewExc((s) => ({ ...s, kind: v }))}>
+              </ComRegistro>
+              <ComRegistro codigo="X1" nota="tipo">
+              <Select value={newExc.kind} onValueChange={(v) => setNewExc((s) => ({ ...s, kind: v === "bloqueio" ? "bloqueio" : "feriado" }))}>
                 <SelectTrigger className="field-engraved">
                   <SelectValue />
                 </SelectTrigger>
@@ -751,6 +1192,7 @@ export default function AgendaMotor() {
                   <SelectItem value="bloqueio">Bloqueio</SelectItem>
                 </SelectContent>
               </Select>
+              </ComRegistro>
             </div>
             <Input
               className="field-engraved"
@@ -758,6 +1200,7 @@ export default function AgendaMotor() {
               value={newExc.description}
               onChange={(e) => setNewExc((s) => ({ ...s, description: e.target.value }))}
             />
+            <ComRegistro codigo="A1" nota="agenda atingida pela exceção">
             <Select
               value={newExc.resourceId || "all"}
               onValueChange={(v) => setNewExc((s) => ({ ...s, resourceId: v === "all" ? "" : v }))}
@@ -766,7 +1209,7 @@ export default function AgendaMotor() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os recursos</SelectItem>
+                <SelectItem value="all">Todas as agendas</SelectItem>
                 {(resources ?? []).map((r) => (
                   <SelectItem key={r.id} value={String(r.id)}>
                     {r.name}
@@ -774,10 +1217,18 @@ export default function AgendaMotor() {
                 ))}
               </SelectContent>
             </Select>
-            <Button className="btn-3d w-full" onClick={addException} disabled={createException.isPending}>
+            </ComRegistro>
+            <ComRegistro codigo="X1" nota="adicionar exceção">
+            <Button className="btn-3d w-full" onClick={addException} disabled={!(newExc.resourceId ? canManageResource(resources?.find((r) => String(r.id) === newExc.resourceId)) : !globalLocked) || createException.isPending}>
               <Plus className="mr-1 h-4 w-4" /> Adicionar exceção
             </Button>
+            </ComRegistro>
           </div>
+          {!(newExc.resourceId ? canManageResource(resources?.find((r) => String(r.id) === newExc.resourceId)) : !globalLocked) && (
+            <p role="note" className="text-[11px] text-muted-foreground">
+              Exceção para todas as agendas exige o proprietário; para uma agenda, exige administrar o local dela.
+            </p>
+          )}
           <div className="space-y-2">
             {(exceptions ?? []).length === 0 && (
               <p className="text-sm text-muted-foreground">Nenhuma exceção cadastrada.</p>
@@ -793,17 +1244,17 @@ export default function AgendaMotor() {
                       <span className="uppercase">{ex.kind}</span>
                     </span>
                     <span className="block truncate text-[11px] text-muted-foreground">
-                      {res ? res.name : "Todos os recursos"}
+                      {res ? res.name : "Todas as agendas"}
                       {ex.description ? ` — ${ex.description}` : ""}
                     </span>
                   </span>
                   <button
                     type="button"
                     onClick={() => deleteException.mutate({ id: ex.id })}
-                    className="text-destructive hover:opacity-70"
+                    className="btn-3d-soft inline-flex h-8 items-center gap-1.5 px-2.5 text-[11px] font-bold uppercase tracking-wide text-destructive"
                     aria-label="Remover exceção"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" /> Remover
                   </button>
                 </div>
               );
@@ -813,11 +1264,12 @@ export default function AgendaMotor() {
       </div>
 
       {/* PROVA VIVA */}
-      <div className="panel-3d p-4 space-y-4">
+      <div className="panel-3d p-4 space-y-4" data-testid="agenda-simulacao">
         <BlockTitle icon={CalendarCog}>Prova Viva — Liberação Anti-Ilha</BlockTitle>
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1.5">
-            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Recurso</Label>
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Agenda</Label>
+            <ComRegistro codigo="A1" nota="agenda da prova viva">
             <Select
               value={slotResource ? String(slotResource) : ""}
               onValueChange={(v) => setSlotResource(Number(v))}
@@ -833,6 +1285,7 @@ export default function AgendaMotor() {
                 ))}
               </SelectContent>
             </Select>
+            </ComRegistro>
           </div>
           <div className="space-y-1.5">
             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Data</Label>
@@ -891,7 +1344,7 @@ export default function AgendaMotor() {
                           disabled={!clickable}
                           className={`px-2 py-1 text-xs font-medium tabular-nums transition ${slotColor(
                             s.state,
-                            s.reason,
+                            s.reason ?? null,
                           )} ${clickable ? "cursor-pointer hover:brightness-110" : "cursor-default"}`}
                           style={{ borderRadius: "3px" }}
                         >
@@ -908,40 +1361,47 @@ export default function AgendaMotor() {
             )}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">{slotsFetching ? "Calculando…" : "Selecione recurso e data."}</p>
+          <p className="text-sm text-muted-foreground">{slotsFetching ? "Calculando…" : "Selecione a agenda e a data."}</p>
         )}
       </div>
 
       {/* MARCAR CLIENTE (F2.3 — recepção) */}
-      <div className="panel-3d p-4 space-y-4 paxter-underglow">
+      <div className="panel-3d p-4 space-y-4 paxter-underglow" data-testid="agenda-marcacao-real">
         <BlockTitle icon={CalendarDays}>Marcar Cliente</BlockTitle>
         <p className="text-[11px] text-muted-foreground">
-          Usa o recurso e a data escolhidos acima. Só horários <strong>abertos</strong> pelo motor podem ser
+          Usa a agenda e a data escolhidas acima. Só horários <strong>abertos</strong> pelo motor podem ser
           marcados — a cadeia anti-ilha continua valendo.
         </p>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="panel-3d-sub p-3 space-y-1.5">
             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Cliente</Label>
+            <ComRegistro codigo="K1">
             <Select
               value={bookClient ? String(bookClient) : ""}
               onValueChange={(v) => setBookClient(Number(v))}
+              disabled={clientsError || clientsLoading || identity === "anonimo"}
             >
               <SelectTrigger className="field-engraved w-full">
                 <SelectValue placeholder="Selecione o cliente" />
               </SelectTrigger>
               <SelectContent>
-                {(clients ?? []).map((c) => (
+                {(clientsError ? [] : clients ?? []).map((c) => (
                   <SelectItem key={c.id} value={String(c.id)}>
                     {tituloProprio(c.name)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            </ComRegistro>
+            {(clientsError || identity === "anonimo") && <p role="alert" className="text-xs text-red-700 dark:text-red-300">
+              Não foi possível carregar os clientes para este acesso. Confira a sessão e tente novamente.
+            </p>}
           </div>
 
           <div className="panel-3d-sub p-3 space-y-1.5">
             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Protocolo</Label>
+            <ComRegistro codigo="T1">
             <Select
               value={bookProtocol ? String(bookProtocol) : ""}
               onValueChange={(v) => setBookProtocol(Number(v))}
@@ -958,13 +1418,22 @@ export default function AgendaMotor() {
                 ))}
               </SelectContent>
             </Select>
+            </ComRegistro>
           </div>
         </div>
 
         <div className="panel-3d-sub p-3 space-y-2">
           <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Horário aberto</Label>
+          {bookingSlotsError && <p role="alert" className="text-xs text-red-700 dark:text-red-300">
+            Não foi possível consultar horários reais. Nenhum horário será oferecido até a consulta funcionar.
+          </p>}
+          {bookingSlotsFetching && <p role="status" className="text-xs">Conferindo horários reais…</p>}
+          {bookClient && preferencesError && <p role="alert" className="text-xs text-red-700 dark:text-red-300">
+            Não foi possível consultar as preferências do cliente. Confira o cadastro antes de decidir.
+          </p>}
+          {preferredDay && <p className="text-xs text-primary">Dia preferido pelo cliente. Preferência não garante disponibilidade.</p>}
           {openTimes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum horário aberto para este recurso/data.</p>
+            <p className="text-sm text-muted-foreground">Nenhum horário aberto para esta agenda/data.</p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {openTimes.map((t) => (
@@ -972,14 +1441,19 @@ export default function AgendaMotor() {
                   key={t}
                   type="button"
                   onClick={() => setBookTime(t)}
+                  aria-label={preferredTimes.has(t) ? `${t}, horário preferido${preferredOrder.has(t) ? `, preferência ${preferredOrder.get(t)}` : ""}` : t}
                   className={`px-2.5 py-1 text-xs font-medium tabular-nums transition ${
                     bookTime === t
                       ? "bg-cyan-500 text-white ring-2 ring-cyan-300"
-                      : "bg-emerald-500 text-white hover:brightness-110"
+                      : preferredTimes.has(t)
+                        ? "bg-emerald-700 text-white ring-2 ring-amber-400 hover:brightness-110"
+                        : "bg-emerald-500 text-white hover:brightness-110"
                   }`}
                   style={{ borderRadius: "3px" }}
                 >
-                  {t}
+                  {t}{preferredTimes.has(t) && <span className="ml-1 text-[9px]">
+                    {preferredOrder.has(t) ? `${preferredOrder.get(t)}ª PREFERÊNCIA` : "PREFERIDO"}
+                  </span>}
                 </button>
               ))}
             </div>
@@ -1001,15 +1475,25 @@ export default function AgendaMotor() {
           </div>
         </div>
 
+        <ComRegistro codigo="A1" nota="marcação na agenda escolhida" className="inline-block w-full sm:w-auto">
         <Button
           className="btn-3d w-full sm:w-auto"
           onClick={confirmBooking}
-          disabled={bookSession.isPending || !bookTime}
+          disabled={bookSession.isPending || !bookTime || bookReadOff}
         >
           <CalendarDays className="mr-2 h-4 w-4" />
           {bookSession.isPending ? "Marcando…" : "Confirmar marcação"}
         </Button>
+        </ComRegistro>
+        {bookReadOff && (
+          <p role="alert" className="paxter-alert paxter-alert-amber px-3 py-2 text-xs" data-testid="text-booking-blocked">
+            Leitura do Google desligada neste local: marcações bloqueadas até os dados serem atualizados.
+          </p>
+        )}
       </div>
+      {/* GOOGLE (somente leitura) + SOLICITACOES DE EXPEDIENTE */}
+      <AgendaIntegrationPanel />
+      <AgendaChangeRequests />
     </div>
   );
 }

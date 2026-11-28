@@ -26,14 +26,23 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 const mockDbExecute = vi.fn<() => Promise<{ rows: unknown[] }>>();
 const mockDbInsertReturning = vi.fn<() => Promise<{ id: number }[]>>();
 
+// A camada de reivindicação por (bot, update_id) é testada à parte (telegram-claim-*.test.ts,
+// SQL real em banco descartável). Aqui ela fica transparente para isolar o fluxo testado.
+vi.mock("../lib/telegram-update-claim", async (orig) => ({
+  ...(await orig<typeof import("../lib/telegram-update-claim")>()),
+  reivindicarUpdate: vi.fn().mockResolvedValue("reivindicado"),
+  concluirUpdate: vi.fn().mockResolvedValue(undefined),
+  liberarUpdate: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@workspace/db", () => {
   function makeSelectChain(resolvedValue: unknown[] = []) {
+    const result = Promise.resolve(resolvedValue);
     const chain: Record<string, unknown> & PromiseLike<unknown[]> = {
       from:  vi.fn(() => chain),
       where: vi.fn(() => chain),
       limit: vi.fn().mockResolvedValue(resolvedValue),
-      then:  (resolve: (v: unknown[]) => unknown, reject?: (e: unknown) => unknown) =>
-        Promise.resolve(resolvedValue).then(resolve, reject),
+      then: result.then.bind(result),
     };
     return chain;
   }
@@ -50,7 +59,15 @@ vi.mock("@workspace/db", () => {
     db: {
       select:  () => makeSelectChain([CLIENTE_VINCULADO]),
       insert:  () => makeInsertChain(),
-      execute: (...args: unknown[]) => mockDbExecute(...(args as [])),
+      // A gravação do inbox agora é um INSERT ... ON CONFLICT via execute (dedupe por update_id);
+      // as demais consultas (histórico de saída para o Slack) seguem em mockDbExecute.
+      execute: (...args: unknown[]) => {
+        const q = args[0] as { strings?: readonly string[] } | undefined;
+        if (q?.strings?.join("?").includes("INSERT INTO telegram_inbox_messages")) {
+          return mockDbInsertReturning().then((rows) => ({ rows }));
+        }
+        return mockDbExecute(...(args as []));
+      },
     },
     clientsTable:                {},
     telegramInboxTable:          {},

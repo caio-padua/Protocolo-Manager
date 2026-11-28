@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useCreateProtocol,
-  useValidateProtocol,
   useListSubstances,
-  useListProfessionals,
   useListClients,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,6 +23,13 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays } from "date-fns";
+import { collabAuthHeaders, getCollabToken } from "@/lib/collab-auth";
+import { toCivilDate } from "@/lib/civil-date";
+import { ProtocolSchedulingDialog } from "@/components/ProtocolSchedulingDialog";
+import { ProtocolGoogleSyncDialog } from "@/components/ProtocolGoogleSyncDialog";
+import { PlanoPitStopDialog } from "@/components/pit-stop/PlanoPitStopDialog";
+import { SeletorProcedimentos, type ProcedimentoEscolhido } from "@/components/pit-stop/SeletorProcedimentos";
+import { criarPlanoDoProtocolo } from "@/lib/pit-stop-api";
 
 // ===========================================================================
 // LANÇADOR INLINE (T004) — mini-lançador de protocolo dentro do Cockpit da
@@ -71,12 +76,21 @@ function emptySlot(): SubstanceSlot {
   };
 }
 
-interface Location {
-  id: number;
-  name: string;
-  type: string;
-  color: string;
-  address: string | null;
+interface AgendaOption {
+  id: number; name: string; kind: string; modality: string; professionalId: number | null;
+  locationId: number; locationName: string; locationType: string; locationColor: string; locationAddress: string | null;
+}
+interface AgendaProfessional { id: number; name: string; crm: string | null }
+interface ProtocolAgendaOptions {
+  clinic: { id: number; name: string };
+  nursingAgendaId: number;
+  medicalAgendaId: number;
+  nursingAgendas: AgendaOption[];
+  medicalAgendas: AgendaOption[];
+  nursingAgenda: AgendaOption;
+  medicalAgenda: AgendaOption;
+  nurses: AgendaProfessional[];
+  doctors: AgendaProfessional[];
 }
 
 const MAX_SLOTS = 5;
@@ -92,15 +106,24 @@ export default function LancadorInline({
   const queryClient = useQueryClient();
   const { data: clients } = useListClients();
   const { data: substances } = useListSubstances();
-  const { data: professionals } = useListProfessionals();
 
-  const [locations, setLocations] = useState<Location[]>([]);
+  const [agendaOptions, setAgendaOptions] = useState<ProtocolAgendaOptions | null>(null);
+  const [agendaOptionsError, setAgendaOptionsError] = useState("");
+  const [agendaOptionsLoading, setAgendaOptionsLoading] = useState(false);
   const [professionalId, setProfessionalId] = useState("");
-  const [locationId, setLocationId] = useState("");
   const [slots, setSlots] = useState<SubstanceSlot[]>([emptySlot()]);
   const [title, setTitle] = useState("");
   const [semAnamnese, setSemAnamnese] = useState(false);
   const [validando, setValidando] = useState(false);
+  const [protocolToSchedule, setProtocolToSchedule] = useState<number | null>(null);
+  const [schedulingOpen, setSchedulingOpen] = useState(false);
+  const [googleSyncOpen, setGoogleSyncOpen] = useState(false);
+  // Caminho B (Pit Stop): procedimentos reais do catálogo; o plano compartilhado é aberto logo após lançar.
+  const [procs, setProcs] = useState<ProcedimentoEscolhido[]>([]);
+  const [planoAberto, setPlanoAberto] = useState<number | null>(null);
+  const procsValidos = procs.filter((p) => p.procedimentoId > 0);
+  const procsIncompletos = procs.length !== procsValidos.length;
+  const schedulingConfirmedRef = useRef(false);
 
   const cliente = useMemo(
     () => (clients ?? []).find((c) => c.id === clientId) ?? null,
@@ -108,16 +131,34 @@ export default function LancadorInline({
   );
 
   useEffect(() => {
-    fetch(`${import.meta.env.BASE_URL}api/locations`)
-      .then((r) => r.json())
-      .then(setLocations)
-      .catch(() => {});
-  }, []);
+    const controller = new AbortController();
+    setAgendaOptions(null);
+    setAgendaOptionsError("");
+    setAgendaOptionsLoading(true);
+    fetch(`${import.meta.env.BASE_URL}api/clients/${clientId}/protocol-agenda-options`, {
+      headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+      signal: controller.signal,
+    }).then(async response => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error ?? "Não foi possível carregar as agendas vinculadas ao cliente.");
+      return data as ProtocolAgendaOptions;
+    }).then(data => {
+      if (!controller.signal.aborted) {
+        setAgendaOptions(data);
+        setProfessionalId(data.doctors.length === 1 ? String(data.doctors[0].id) : "");
+      }
+    }).catch(error => {
+      if (!controller.signal.aborted) setAgendaOptionsError(error instanceof Error ? error.message : "Falha ao carregar as agendas do cliente.");
+    }).finally(() => {
+      if (!controller.signal.aborted) setAgendaOptionsLoading(false);
+    });
+    return () => controller.abort();
+  }, [clientId]);
 
   // Aviso âmbar: cliente sem anamnese registrada (só aviso, não bloqueia).
   useEffect(() => {
     let ativo = true;
-    fetch(`${import.meta.env.BASE_URL}api/cockpit/${clientId}`)
+    fetch(`${import.meta.env.BASE_URL}api/cockpit/${clientId}`, { headers: collabAuthHeaders() })
       .then((r) => (r.ok ? r.json() : null))
       .then((dto) => {
         if (!ativo || !dto) return;
@@ -136,13 +177,18 @@ export default function LancadorInline({
     return lista.filter((s) => s.procedureType === "iv" || s.procedureType === "im" || s.procedureType === "sc");
   }, [substances, tipo]);
 
-  const selectedProfessional = professionals?.find((p) => String(p.id) === professionalId);
-  const selectedLocation = locations.find((l) => String(l.id) === locationId);
+  const availableDoctors = agendaOptions?.doctors ?? [];
+  const selectedProfessional = availableDoctors.find((p) => String(p.id) === professionalId);
+  const selectedLocation = agendaOptions ? {
+    id: agendaOptions.nursingAgenda.locationId,
+    name: agendaOptions.nursingAgenda.locationName,
+    type: agendaOptions.nursingAgenda.locationType,
+    color: agendaOptions.nursingAgenda.locationColor,
+    address: agendaOptions.nursingAgenda.locationAddress,
+  } : null;
   const filledSlots = slots.filter((s) => s.substanceId > 0 && s.dose);
 
   const createMutation = useCreateProtocol();
-  const validateMutation = useValidateProtocol();
-
   const isBusy = createMutation.isPending || validando;
 
   const addSlot = () => {
@@ -168,22 +214,23 @@ export default function LancadorInline({
     });
   };
 
-  const canLaunch = professionalId && locationId && filledSlots.length > 0;
+  const canLaunch = Boolean(
+    professionalId && availableDoctors.some(doctor => String(doctor.id) === professionalId) &&
+    agendaOptions && !agendaOptionsLoading && !agendaOptionsError && (filledSlots.length > 0 || procsValidos.length > 0) && !procsIncompletos
+  );
 
   const buildPayload = () => {
     const autoTitle =
       title ||
-      `Protocolo ${cliente?.name?.split(" ")[0] ?? ""} — ${filledSlots
+      `Protocolo ${cliente?.name?.split(" ")[0] ?? ""}${filledSlots.length > 0 ? ` — ${filledSlots
         .map((s) => s.substanceName)
-        .join(", ")}`;
+        .join(", ")}` : ""}`;
     return {
       clientId,
       title: autoTitle,
       status: "suggested" as const,
-      startDate: filledSlots[0]?.startDate ?? format(new Date(), "yyyy-MM-dd"),
-      serviceType: (selectedLocation?.type === "homecare" ? "homecare" : "clinic") as
-        | "homecare"
-        | "clinic",
+      startDate: filledSlots[0]?.startDate ?? procsValidos.find((p) => p.dataInicio)?.dataInicio ?? format(new Date(), "yyyy-MM-dd"),
+      serviceType: "clinic" as const,
       professionalId: parseInt(professionalId),
       unit: selectedLocation?.name ?? null,
       totalValue: 0,
@@ -203,6 +250,7 @@ export default function LancadorInline({
   };
 
   const resetForm = () => {
+    setProcs([]);
     setSlots([emptySlot()]);
     setTitle("");
   };
@@ -213,13 +261,37 @@ export default function LancadorInline({
     });
   };
 
+  /**
+   * Caminho B: cria o plano compartilhado do Pit Stop (sem reservar nada) e abre a tela de gerenciamento para o médico.
+   * Se o plano falhar, o protocolo já existe: o aviso diz isso e o Caminho A continua disponível para ele.
+   */
+  const abrirPlanoPitStop = async (protocoloId: number) => {
+    try {
+      const r = await criarPlanoDoProtocolo(protocoloId, procsValidos.map(({ chave: _c, ...p }) => p), true);
+      setPlanoAberto(r.planoId ?? r.plano.id);
+      return true;
+    } catch (e) {
+      toast({
+        title: "Protocolo criado, mas o plano do Pit Stop não foi criado",
+        description: `${e instanceof Error ? e.message : "Erro inesperado."} Nenhum horário foi reservado.`,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
   const handleLancar = async () => {
     if (!canLaunch || isBusy) return;
     try {
-      await createMutation.mutateAsync({ data: buildPayload() });
+      const created = await createMutation.mutateAsync({ data: buildPayload() });
+      if (procsValidos.length > 0) {
+        invalidarLista();
+        if (await abrirPlanoPitStop(created.id)) resetForm();
+        return;
+      }
       toast({
         title: "Protocolo lançado!",
-        description: "Criado com status sugerido. Sessões após validação.",
+        description: "Criado como sugerido. Use Agendar protocolo para prévia e reserva.",
       });
       invalidarLista();
       resetForm();
@@ -233,22 +305,50 @@ export default function LancadorInline({
     setValidando(true);
     try {
       const created = await createMutation.mutateAsync({ data: buildPayload() });
-      await validateMutation.mutateAsync({ id: created.id });
-      toast({
-        title: "Protocolo lançado e validado!",
-        description: "Sessões geradas a partir do protocolo.",
-      });
       invalidarLista();
+      if (procsValidos.length > 0) {
+        if (await abrirPlanoPitStop(created.id)) resetForm();
+        setValidando(false);
+        return;
+      }
       resetForm();
+      schedulingConfirmedRef.current = false;
+      setProtocolToSchedule(created.id);
+      setSchedulingOpen(true);
     } catch {
       toast({
-        title: "Erro ao lançar e validar",
+        title: "Erro ao criar protocolo",
         description: "Verifique o protocolo e tente novamente.",
         variant: "destructive",
       });
-    } finally {
       setValidando(false);
     }
+  };
+
+  const handleSchedulingComplete = () => {
+    schedulingConfirmedRef.current = true;
+    setSchedulingOpen(false);
+    setGoogleSyncOpen(true);
+    setValidando(false);
+    invalidarLista();
+  };
+
+  const handleSchedulingDialogChange = (open: boolean) => {
+    setSchedulingOpen(open);
+    if (!open && protocolToSchedule && !schedulingConfirmedRef.current) {
+      setProtocolToSchedule(null);
+      setValidando(false);
+      invalidarLista();
+      toast({
+        title: "Protocolo criado, mas ainda não agendado",
+        description: "Nenhum horário foi reservado. O protocolo continua disponível para agendamento.",
+      });
+    }
+  };
+
+  const handleGoogleSyncDialogChange = (open: boolean) => {
+    setGoogleSyncOpen(open);
+    if (!open) setProtocolToSchedule(null);
   };
 
   const TipoIcon = tipo === "implante" ? Gem : Syringe;
@@ -292,7 +392,7 @@ export default function LancadorInline({
                 <SelectValue placeholder="Selecione o profissional" />
               </SelectTrigger>
               <SelectContent>
-                {professionals?.map((p) => (
+                {availableDoctors.map((p) => (
                   <SelectItem key={p.id} value={String(p.id)}>
                     {p.name}
                     {p.crm ? ` — ${p.crm}` : ""}
@@ -305,24 +405,22 @@ export default function LancadorInline({
             <Label className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#647c97]">
               <MapPin className="h-3 w-3" /> Local *
             </Label>
-            <Select value={locationId} onValueChange={setLocationId}>
-              <SelectTrigger className="field-engraved h-10">
-                <SelectValue placeholder="Selecione o local" />
-              </SelectTrigger>
-              <SelectContent>
-                {locations.map((l) => (
-                  <SelectItem key={l.id} value={String(l.id)}>
-                    <div className="flex items-center gap-2">
-                      <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: l.color }} />
-                      <span>{l.name}</span>
-                      <span className="text-xs text-[#647c97]">
-                        {l.type === "homecare" ? "Domiciliar" : "Clínica"}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="field-engraved rounded-md px-3 py-2.5 text-sm space-y-1" aria-readonly="true">
+              {agendaOptionsLoading ? (
+                <span role="status">Carregando vínculo do cliente…</span>
+              ) : agendaOptionsError ? (
+                <span className="text-destructive" role="alert">{agendaOptionsError}</span>
+              ) : agendaOptions ? (
+                <>
+                  <p><strong>Clínica:</strong> {agendaOptions.clinic.name}</p>
+                  <p><strong>Agenda de enfermagem:</strong> {agendaOptions.nursingAgenda.name}</p>
+                  <p><strong>Agenda médica:</strong> {agendaOptions.medicalAgenda.name}</p>
+                  <p><strong>Local:</strong> {selectedLocation?.name}</p>
+                </>
+              ) : (
+                <span className="text-[#647c97]">Vínculos do cliente indisponíveis.</span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -508,6 +606,8 @@ export default function LancadorInline({
           ))}
         </div>
 
+        <SeletorProcedimentos valor={procs} onChange={setProcs} />
+
         {/* Ações */}
         <div className="mt-5 flex flex-wrap justify-end gap-3">
           <button
@@ -535,10 +635,43 @@ export default function LancadorInline({
             ) : (
               <ShieldCheck className="h-4 w-4" />
             )}
-            Lançar e validar
+            Lançar e agendar
           </button>
         </div>
       </div>
+      <ProtocolSchedulingDialog
+        protocolId={protocolToSchedule ?? 0}
+        clientId={clientId}
+        open={schedulingOpen}
+        onOpenChange={open => {
+          setSchedulingOpen(open);
+          if (!open && protocolToSchedule && !schedulingConfirmedRef.current) {
+            setProtocolToSchedule(null);
+            setValidando(false);
+            invalidarLista();
+            toast({
+              title: "Protocolo criado, mas ainda não agendado",
+              description: "Nenhum horário foi reservado. O protocolo continua disponível para agendamento.",
+            });
+          }
+        }}
+        onScheduled={() => {
+          schedulingConfirmedRef.current = true;
+          setSchedulingOpen(false);
+          setGoogleSyncOpen(true);
+          setValidando(false);
+          invalidarLista();
+        }}
+      />
+      <PlanoPitStopDialog planoId={planoAberto} open={planoAberto !== null} onOpenChange={(open) => { if (!open) { setPlanoAberto(null); invalidarLista(); } }} />
+      <ProtocolGoogleSyncDialog
+        protocolId={protocolToSchedule ?? 0}
+        open={googleSyncOpen}
+        onOpenChange={open => {
+          setGoogleSyncOpen(open);
+          if (!open) setProtocolToSchedule(null);
+        }}
+      />
     </div>
   );
 }
@@ -548,5 +681,5 @@ export function getEndDate(startDate: string, frequency: string, customDays: num
   const freq = FREQUENCY_OPTIONS.find((f) => f.value === frequency);
   const days = frequency === "custom" ? customDays : freq?.days ?? 7;
   const totalDays = days * (totalSessions - 1);
-  return format(addDays(new Date(startDate), totalDays), "dd/MM/yyyy");
+  return format(addDays(toCivilDate(startDate), totalDays), "dd/MM/yyyy");
 }

@@ -1,0 +1,661 @@
+import { Router, type IRouter } from "express";
+import { db } from "@workspace/db";
+import { sinapsesClinicasPropostasTable } from "@workspace/db/schema";
+import { sql } from "drizzle-orm";
+import { z } from "zod/v4";
+import { gerarPropostasSinapsesIniciais, type CategoriaSinapse } from "../lib/sinapses-propostas-iniciais";
+
+// =============================================================================
+// SINAPSES CLINICAS: liga pergunta da Anamnese -> saida clinica.
+// ADITIVO: tabela propria; nenhuma tabela existente e alterada.
+// "Excluir" = desativar (Regra de Ouro). Escritas ficam sob /cadastros, que ja
+// passa pelo portao do colaborador (login obrigatorio + auditoria).
+// NAO liga nada ao Cockpit da Consulta: esta tela so cadastra as ligacoes.
+// =============================================================================
+const router: IRouter = Router();
+
+export const CATEGORIAS_SINAPSE = [
+  "EXAME",
+  "PRESCRICAO",
+  "INJETAVEL_IM",
+  "INJETAVEL_SC",
+  "INJETAVEL_EV",
+  "IMPLANTE",
+] as const;
+type Categoria = (typeof CATEGORIAS_SINAPSE)[number];
+
+const TIPOS_POR_CATEGORIA: Record<Categoria, string[]> = {
+  EXAME: ["exame", "bloco_exames"],
+  PRESCRICAO: ["formula"],
+  INJETAVEL_IM: ["injetavel"],
+  INJETAVEL_SC: ["injetavel"],
+  INJETAVEL_EV: ["injetavel"],
+  IMPLANTE: ["implante"],
+};
+
+let pronta: Promise<void> | null = null;
+function garantir(): Promise<void> {
+  if (!pronta) {
+    pronta = (async () => {
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS sinapses_clinicas (
+          id SERIAL PRIMARY KEY,
+          pergunta_id TEXT NOT NULL,
+          categoria TEXT NOT NULL CHECK (categoria IN ('EXAME','PRESCRICAO','INJETAVEL_IM','INJETAVEL_SC','INJETAVEL_EV','IMPLANTE')),
+          destino_tipo TEXT NOT NULL CHECK (destino_tipo IN ('exame','bloco_exames','formula','injetavel','implante')),
+          destino_id INTEGER NOT NULL,
+          ativo BOOLEAN NOT NULL DEFAULT TRUE,
+          clone_de INTEGER,
+          criado_por INTEGER,
+          criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          CONSTRAINT sinapses_clinicas_uk UNIQUE (pergunta_id, categoria, destino_tipo, destino_id)
+        )`);
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS sinapses_clinicas_pergunta_idx ON sinapses_clinicas (pergunta_id)`);
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS anamnese_blocos_cor (bloco TEXT PRIMARY KEY, cor TEXT NOT NULL, atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    })().catch((e) => {
+      pronta = null;
+      throw e;
+    });
+  }
+  return pronta;
+}
+
+function viasDe(via: string | null): Set<"IM" | "SC" | "EV"> {
+  const s = new Set<"IM" | "SC" | "EV">();
+  for (const t of (via ?? "").toUpperCase().split("/")) {
+    const v = t.trim();
+    if (v.startsWith("IM")) s.add("IM");
+    else if (v === "SC") s.add("SC");
+    else if (v.startsWith("EV")) s.add("EV");
+  }
+  return s;
+}
+
+async function carregarBasePropostas(): Promise<{
+  perguntas: Array<{ perguntaId: string; pergunta: string }>;
+  destinos: Record<CategoriaSinapse, Array<{ tipo: string; id: number; nome: string; detalhe?: string | null; incompleto?: boolean }>>;
+  injetaveisSemVia: number;
+}> {
+  const [perguntas, blocos, exames, formulas, injetaveis, implantes] = await Promise.all([
+    db.execute(sql`SELECT pergunta_id, pergunta FROM anamnese_questionario ORDER BY ordem NULLS LAST, id`),
+    db.execute(sql`
+      SELECT b.id, b.nome_bloco,
+        (SELECT COUNT(*) FROM catalogo_bloco_exames x WHERE x.bloco_id = b.codigo_bloco AND x.ativo IS NOT FALSE)::int AS total_exames
+      FROM catalogo_blocos b WHERE b.ativo IS NOT FALSE ORDER BY b.nome_bloco`),
+    db.execute(sql`SELECT id, nome_exame, grupo_principal FROM catalogo_exames WHERE ativo IS NOT FALSE ORDER BY nome_exame`),
+    db.execute(sql`
+      SELECT id, conteudo AS nome, area FROM catalogo_formulas
+      WHERE tipo_linha IN ('FORMULA','MASTER') AND identificador = 'TITL' AND status = 'ATIVO' ORDER BY conteudo`),
+    db.execute(sql`SELECT id, nome_ampola, via FROM catalogo_injetaveis WHERE tipo_linha = 'AMPOLA' AND ativo IS NOT FALSE ORDER BY nome_ampola`),
+    db.execute(sql`SELECT id, nome_implante, substancia_ativa FROM catalogo_implantes WHERE ativo IS NOT FALSE ORDER BY nome_implante`),
+  ]);
+  const destinos: Record<CategoriaSinapse, Array<{ tipo: string; id: number; nome: string; detalhe?: string | null; incompleto?: boolean }>> = {
+    EXAME: [],
+    PRESCRICAO: [],
+    INJETAVEL_IM: [],
+    INJETAVEL_SC: [],
+    INJETAVEL_EV: [],
+    IMPLANTE: [],
+  };
+  let injetaveisSemVia = 0;
+  for (const b of blocos.rows as any[]) {
+    destinos.EXAME.push({
+      tipo: "bloco_exames",
+      id: Number(b.id),
+      nome: b.nome_bloco ?? "",
+      incompleto: Number(b.total_exames) === 0,
+    });
+  }
+  for (const e of exames.rows as any[]) destinos.EXAME.push({ tipo: "exame", id: Number(e.id), nome: e.nome_exame, detalhe: e.grupo_principal });
+  for (const f of formulas.rows as any[]) destinos.PRESCRICAO.push({ tipo: "formula", id: Number(f.id), nome: f.nome, detalhe: f.area });
+  for (const i of injetaveis.rows as any[]) {
+    const vias = viasDe(i.via);
+    if (vias.size === 0) injetaveisSemVia++;
+    const item = { tipo: "injetavel", id: Number(i.id), nome: i.nome_ampola as string, detalhe: i.via as string | null };
+    if (vias.has("IM")) destinos.INJETAVEL_IM.push(item);
+    if (vias.has("SC")) destinos.INJETAVEL_SC.push(item);
+    if (vias.has("EV")) destinos.INJETAVEL_EV.push(item);
+  }
+  for (const item of implantes.rows as any[]) destinos.IMPLANTE.push({ tipo: "implante", id: Number(item.id), nome: item.nome_implante, detalhe: item.substancia_ativa });
+  return {
+    perguntas: (perguntas.rows as any[]).map((p) => ({ perguntaId: p.pergunta_id, pergunta: p.pergunta })),
+    destinos,
+    injetaveisSemVia,
+  };
+}
+
+// Tudo o que a tela precisa, numa leitura so.
+// Resumo de um destino (formula, injetavel, implante, exame) para a tela expandir a linha.
+router.get("/cadastros/sinapses/resumo/:tipo/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: "id inválido" }); return; }
+  const L = (rotulo: string, valor: unknown) => (valor === null || valor === undefined || String(valor).trim() === "" ? null : { rotulo, valor: String(valor) });
+  const limpo = (a: Array<{ rotulo: string; valor: string } | null>) => a.filter((x): x is { rotulo: string; valor: string } => x !== null);
+  const tipo = req.params.tipo;
+  if (tipo === "formula") {
+    const t = (await db.execute(sql`SELECT id, conteudo FROM catalogo_formulas WHERE id = ${id} AND identificador = 'TITL'`)).rows[0] as any;
+    if (!t) { res.status(404).json({ error: "fórmula não encontrada" }); return; }
+    const prox = (await db.execute(sql`SELECT MIN(id) AS id FROM catalogo_formulas WHERE identificador = 'TITL' AND id > ${id}`)).rows[0] as any;
+    const linhas = (await db.execute(sql`
+      SELECT identificador, conteudo FROM catalogo_formulas
+      WHERE id > ${id} AND id < ${prox?.id ?? 2147483647} AND status = 'ATIVO' ORDER BY id`)).rows as any[];
+    const por = (pref: string) => linhas.filter((l) => String(l.identificador).startsWith(pref)).map((l) => l.conteudo as string);
+    res.json({ titulo: t.conteudo, itens: por("SUBS"), linhas: limpo([L("Via", por("VIA").join(", ")), L("Apresentação", por("APRE").join(", ")), L("Posologia", por("POSO").join(" · ")), L("Observação", por("OBS").join(" · "))]) });
+    return;
+  }
+  if (tipo === "injetavel") {
+    const i = (await db.execute(sql`SELECT nome_ampola, dosagem, volume, via, substancia_base, classificacao, eixo_integrativo FROM catalogo_injetaveis WHERE id = ${id}`)).rows[0] as any;
+    if (!i) { res.status(404).json({ error: "injetável não encontrado" }); return; }
+    res.json({ titulo: i.nome_ampola, itens: [], linhas: limpo([L("Substância", i.substancia_base), L("Dosagem", i.dosagem), L("Volume", i.volume), L("Via", i.via), L("Classificação", i.classificacao), L("Eixo", i.eixo_integrativo)]) });
+    return;
+  }
+  if (tipo === "implante") {
+    const m = (await db.execute(sql`SELECT nome_implante, substancia_ativa, dosagem, unidade, liberacao_diaria, dose_recomendada, tempo_acao, indicacao, via, trocarte FROM catalogo_implantes WHERE id = ${id}`)).rows[0] as any;
+    if (!m) { res.status(404).json({ error: "implante não encontrado" }); return; }
+    res.json({ titulo: m.nome_implante, itens: [], linhas: limpo([L("Substância", m.substancia_ativa), L("Dosagem", [m.dosagem, m.unidade].filter(Boolean).join(" ")), L("Liberação diária", m.liberacao_diaria), L("Dose recomendada", m.dose_recomendada), L("Tempo de ação", m.tempo_acao), L("Indicação", m.indicacao), L("Via", m.via), L("Trocarte", m.trocarte)]) });
+    return;
+  }
+  if (tipo === "exame") {
+    const e = (await db.execute(sql`SELECT nome_exame, grupo_principal FROM catalogo_exames WHERE id = ${id}`)).rows[0] as any;
+    if (!e) { res.status(404).json({ error: "exame não encontrado" }); return; }
+    res.json({ titulo: e.nome_exame, itens: [], linhas: limpo([L("Grupo", e.grupo_principal)]) });
+    return;
+  }
+  if (tipo === "bloco_exames") {
+    const b = (await db.execute(sql`SELECT codigo_bloco, nome_bloco FROM catalogo_blocos WHERE id = ${id}`)).rows[0] as any;
+    if (!b) { res.status(404).json({ error: "bloco não encontrado" }); return; }
+    const ex = (await db.execute(sql`SELECT nome_exame FROM catalogo_bloco_exames WHERE bloco_id = ${b.codigo_bloco} AND ativo IS NOT FALSE ORDER BY ordem_no_bloco NULLS LAST, nome_exame LIMIT 60`)).rows as any[];
+    res.json({ titulo: b.nome_bloco, itens: ex.map((r) => r.nome_exame), linhas: [] });
+    return;
+  }
+  res.status(400).json({ error: "tipo inválido" });
+});
+
+router.get("/cadastros/sinapses/bloco-cores", async (_req, res): Promise<void> => {
+  await garantir();
+  const r = await db.execute(sql`SELECT bloco, cor FROM anamnese_blocos_cor`);
+  res.json(Object.fromEntries((r.rows as any[]).map((c) => [c.bloco, c.cor])));
+});
+
+// Cor de cada categoria (bloco) de perguntas: cadastro persistente; a tela usa uma paleta padrao quando nao ha cor salva.
+router.put("/cadastros/sinapses/bloco-cor", async (req, res): Promise<void> => {
+  await garantir();
+  const p = z.object({ bloco: z.string().min(1).max(200), cor: z.string().regex(/^#[0-9a-fA-F]{6}$/) }).safeParse(req.body);
+  if (!p.success) { res.status(400).json({ error: "bloco e cor (#RRGGBB) são obrigatórios" }); return; }
+  const existe = await db.execute(sql`SELECT 1 FROM anamnese_questionario WHERE bloco = ${p.data.bloco} LIMIT 1`);
+  if (!existe.rows.length) { res.status(404).json({ error: "categoria de perguntas não encontrada" }); return; }
+  await db.execute(sql`INSERT INTO anamnese_blocos_cor (bloco, cor) VALUES (${p.data.bloco}, ${p.data.cor.toLowerCase()}) ON CONFLICT (bloco) DO UPDATE SET cor = EXCLUDED.cor, atualizado_em = NOW()`);
+  res.json({ ok: true });
+});
+
+router.get("/cadastros/sinapses/painel", async (_req, res): Promise<void> => {
+  await garantir();
+  const [perguntas, exames, blocos, formulas, injetaveis, implantes, sinapses, propostas, coresBloco] = await Promise.all([
+    db.execute(sql`SELECT pergunta_id, pergunta, bloco, e_sinal_alarme, ordem, opcoes FROM anamnese_questionario ORDER BY ordem NULLS LAST, id`),
+    db.execute(sql`SELECT id, nome_exame, grupo_principal FROM catalogo_exames WHERE ativo IS NOT FALSE ORDER BY nome_exame`),
+    db.execute(sql`
+      SELECT b.id, b.codigo_bloco, b.nome_bloco,
+        (SELECT COUNT(*) FROM catalogo_bloco_exames x WHERE x.bloco_id = b.codigo_bloco AND x.ativo IS NOT FALSE)::int AS total_exames
+      FROM catalogo_blocos b WHERE b.ativo IS NOT FALSE ORDER BY b.nome_bloco`),
+    db.execute(sql`
+      SELECT id, conteudo AS nome, area FROM catalogo_formulas
+      WHERE tipo_linha IN ('FORMULA','MASTER') AND identificador = 'TITL' AND status = 'ATIVO' ORDER BY conteudo`),
+    db.execute(sql`SELECT id, nome_ampola, via, dosagem FROM catalogo_injetaveis WHERE tipo_linha = 'AMPOLA' AND ativo IS NOT FALSE ORDER BY nome_ampola`),
+    db.execute(sql`SELECT id, nome_implante, substancia_ativa, dosagem, unidade, via FROM catalogo_implantes WHERE ativo IS NOT FALSE ORDER BY nome_implante`),
+    db.execute(sql`SELECT id, pergunta_id, categoria, destino_tipo, destino_id, clone_de FROM sinapses_clinicas WHERE ativo ORDER BY id`),
+    db.select().from(sinapsesClinicasPropostasTable).orderBy(
+      sinapsesClinicasPropostasTable.status,
+      sinapsesClinicasPropostasTable.eixo,
+      sinapsesClinicasPropostasTable.perguntaId,
+      sinapsesClinicasPropostasTable.id,
+    ),
+    db.execute(sql`SELECT bloco, cor FROM anamnese_blocos_cor`),
+  ]);
+
+  const destinos: Record<Categoria, Array<{ tipo: string; id: number; nome: string; rotulo?: string; detalhe?: string | null; incompleto?: boolean }>> = {
+    EXAME: [],
+    PRESCRICAO: [],
+    INJETAVEL_IM: [],
+    INJETAVEL_SC: [],
+    INJETAVEL_EV: [],
+    IMPLANTE: [],
+  };
+  for (const b of blocos.rows as any[]) {
+    destinos.EXAME.push({ tipo: "bloco_exames", id: b.id, nome: b.nome_bloco ?? b.codigo_bloco, detalhe: `Bloco ${b.codigo_bloco} (${b.total_exames} exames)`, incompleto: b.total_exames === 0 });
+  }
+  for (const e of exames.rows as any[]) destinos.EXAME.push({ tipo: "exame", id: e.id, nome: e.nome_exame, detalhe: e.grupo_principal });
+  for (const f of formulas.rows as any[]) destinos.PRESCRICAO.push({ tipo: "formula", id: f.id, nome: f.nome, detalhe: f.area });
+  let injetaveisSemVia = 0;
+  for (const i of injetaveis.rows as any[]) {
+    const vias = viasDe(i.via);
+    if (vias.size === 0) injetaveisSemVia++;
+    const item = { tipo: "injetavel", id: i.id, nome: i.nome_ampola as string, rotulo: [i.nome_ampola, i.dosagem].filter(Boolean).join(" · "), detalhe: i.via as string | null };
+    if (vias.has("IM")) destinos.INJETAVEL_IM.push(item);
+    if (vias.has("SC")) destinos.INJETAVEL_SC.push(item);
+    if (vias.has("EV")) destinos.INJETAVEL_EV.push(item);
+  }
+  for (const m of implantes.rows as any[]) {
+    const detalhe = [
+      m.substancia_ativa,
+      m.dosagem ? `${m.dosagem} ${m.unidade ?? ""}`.trim() : null,
+      m.via,
+    ].filter(Boolean).join(" · ");
+    destinos.IMPLANTE.push({ tipo: "implante", id: m.id, nome: m.nome_implante, rotulo: [m.nome_implante, m.dosagem ? `${m.dosagem} ${m.unidade ?? ""}`.trim() : null].filter(Boolean).join(" · "), detalhe });
+  }
+
+  res.json({
+    perguntas: (perguntas.rows as any[]).map((p) => ({
+      perguntaId: p.pergunta_id,
+      pergunta: p.pergunta,
+      bloco: p.bloco,
+      eSinalAlarme: !!p.e_sinal_alarme,
+    })),
+    destinos,
+    injetaveisSemVia,
+    blocoCores: Object.fromEntries((coresBloco.rows as any[]).map((c) => [c.bloco, c.cor])),
+    sinapses: (sinapses.rows as any[]).map((s) => ({
+      id: s.id,
+      perguntaId: s.pergunta_id,
+      categoria: s.categoria,
+      destinoTipo: s.destino_tipo,
+      destinoId: s.destino_id,
+      cloneDe: s.clone_de,
+    })),
+    propostas: propostas.map((p) => ({
+      id: p.id,
+      perguntaId: p.perguntaId,
+      categoria: p.categoria,
+      destinoTipo: p.destinoTipo,
+      destinoId: p.destinoId,
+      eixo: p.eixo,
+      justificativa: p.justificativa,
+      status: p.status,
+    })),
+  });
+});
+
+const criarSchema = z.object({
+  perguntaId: z.string().min(1),
+  categoria: z.enum(CATEGORIAS_SINAPSE),
+  destinoTipo: z.enum(["exame", "bloco_exames", "formula", "injetavel", "implante"]),
+  destinoId: z.number().int().positive(),
+});
+
+const TABELA_DESTINO: Record<string, string> = {
+  exame: "catalogo_exames",
+  bloco_exames: "catalogo_blocos",
+  formula: "catalogo_formulas",
+  injetavel: "catalogo_injetaveis",
+  implante: "catalogo_implantes",
+};
+
+async function perguntaExiste(perguntaId: string): Promise<boolean> {
+  const r = await db.execute(sql`SELECT 1 FROM anamnese_questionario WHERE pergunta_id = ${perguntaId} LIMIT 1`);
+  return r.rows.length > 0;
+}
+async function destinoExiste(tipo: string, id: number): Promise<boolean> {
+  const tabela = TABELA_DESTINO[tipo];
+  if (!tabela) return false;
+  if (tipo === "bloco_exames") {
+    const bloco = await db.execute(sql`
+      SELECT 1
+      FROM catalogo_blocos b
+      WHERE b.id = ${id} AND b.ativo IS NOT FALSE
+        AND EXISTS (
+          SELECT 1 FROM catalogo_bloco_exames x
+          WHERE x.bloco_id = b.codigo_bloco AND x.ativo IS NOT FALSE
+        )
+      LIMIT 1`);
+    return bloco.rows.length > 0;
+  }
+  const r = await db.execute(sql`SELECT 1 FROM ${sql.raw(tabela)} WHERE id = ${id} LIMIT 1`);
+  return r.rows.length > 0;
+}
+
+router.post("/cadastros/sinapses/propostas/carga-inicial", async (req, res): Promise<void> => {
+  await garantir();
+  const base = await carregarBasePropostas();
+  const [ativas, propostasExistentes] = await Promise.all([
+    db.execute(sql`
+      SELECT pergunta_id, categoria, destino_tipo, destino_id
+      FROM sinapses_clinicas
+      WHERE ativo`),
+    db.select({
+      perguntaId: sinapsesClinicasPropostasTable.perguntaId,
+      categoria: sinapsesClinicasPropostasTable.categoria,
+      destinoTipo: sinapsesClinicasPropostasTable.destinoTipo,
+      destinoId: sinapsesClinicasPropostasTable.destinoId,
+    }).from(sinapsesClinicasPropostasTable),
+  ]);
+  const resultado = gerarPropostasSinapsesIniciais(
+    base.perguntas,
+    base.destinos,
+    (ativas.rows as any[]).map((s) => ({
+      perguntaId: s.pergunta_id,
+      categoria: s.categoria as CategoriaSinapse,
+      destinoTipo: s.destino_tipo,
+      destinoId: Number(s.destino_id),
+    })),
+    propostasExistentes.map((p) => ({
+      perguntaId: p.perguntaId,
+      categoria: p.categoria as CategoriaSinapse,
+      destinoTipo: p.destinoTipo,
+      destinoId: p.destinoId,
+    })),
+  );
+  const por = req.collaborator?.professionalId ?? null;
+  const inseridas = resultado.propostas.length
+    ? await db
+        .insert(sinapsesClinicasPropostasTable)
+        .values(resultado.propostas.map((p) => ({ ...p, criadoPor: por })))
+        .onConflictDoNothing()
+        .returning({ id: sinapsesClinicasPropostasTable.id, categoria: sinapsesClinicasPropostasTable.categoria })
+    : [];
+  const porCategoria = Object.fromEntries(
+    CATEGORIAS_SINAPSE.map((categoria) => [
+      categoria,
+      inseridas.filter((p) => p.categoria === categoria).length,
+    ]),
+  );
+  const [ativasFinais, propostasFinais] = await Promise.all([
+    db.execute(sql`
+      SELECT categoria, destino_tipo, destino_id
+      FROM sinapses_clinicas
+      WHERE ativo`),
+    db.select({
+      categoria: sinapsesClinicasPropostasTable.categoria,
+      destinoTipo: sinapsesClinicasPropostasTable.destinoTipo,
+      destinoId: sinapsesClinicasPropostasTable.destinoId,
+      status: sinapsesClinicasPropostasTable.status,
+    }).from(sinapsesClinicasPropostasTable),
+  ]);
+  const destinosCobertos = new Set<string>();
+  for (const s of ativasFinais.rows as any[]) {
+    destinosCobertos.add(`${s.categoria}|${s.destino_tipo}|${s.destino_id}`);
+  }
+  for (const p of propostasFinais) {
+    if (p.status === "PENDENTE" || p.status === "APROVADA") {
+      destinosCobertos.add(`${p.categoria}|${p.destinoTipo}|${p.destinoId}`);
+    }
+  }
+  const destinosElegiveisPorCategoria = Object.fromEntries(
+    CATEGORIAS_SINAPSE.map((categoria) => [
+      categoria,
+      base.destinos[categoria].filter((destino) => !destino.incompleto).length,
+    ]),
+  );
+  const destinosCobertosPorCategoria = Object.fromEntries(
+    CATEGORIAS_SINAPSE.map((categoria) => [
+      categoria,
+      base.destinos[categoria].filter((destino) =>
+        !destino.incompleto && destinosCobertos.has(`${categoria}|${destino.tipo}|${destino.id}`),
+      ).length,
+    ]),
+  );
+  const destinosSemLigacaoPorCategoria = Object.fromEntries(
+    CATEGORIAS_SINAPSE.map((categoria) => [
+      categoria,
+      Number(destinosElegiveisPorCategoria[categoria]) - Number(destinosCobertosPorCategoria[categoria]),
+    ]),
+  );
+  const blocosVazios = base.destinos.EXAME.filter((destino) => destino.incompleto).length;
+  res.status(201).json({
+    inseridas: inseridas.length,
+    propostasEncontradas: resultado.propostas.length,
+    porCategoria,
+    destinosElegiveisPorCategoria,
+    destinosCobertosPorCategoria,
+    destinosSemLigacaoPorCategoria,
+    inelegiveis: { blocosDeExamesVazios: blocosVazios, injetaveisSemVia: base.injetaveisSemVia },
+    codigosAusentes: resultado.codigosAusentes,
+    perguntasIgnoradas: resultado.perguntasIgnoradas,
+  });
+});
+
+const editarPropostaSchema = z.object({
+  categoria: z.enum(CATEGORIAS_SINAPSE),
+  destinoTipo: z.enum(["exame", "bloco_exames", "formula", "injetavel", "implante"]),
+  destinoId: z.number().int().positive(),
+});
+
+router.patch("/cadastros/sinapses/propostas/:id", async (req, res): Promise<void> => {
+  await garantir();
+  const id = Number(req.params.id);
+  const parsed = editarPropostaSchema.safeParse(req.body);
+  if (!Number.isSafeInteger(id) || id <= 0 || !parsed.success) {
+    res.status(400).json({ error: "Dados da proposta inválidos" });
+    return;
+  }
+  const { categoria, destinoTipo, destinoId } = parsed.data;
+  if (!TIPOS_POR_CATEGORIA[categoria].includes(destinoTipo)) {
+    res.status(400).json({ error: "Este tipo de destino não pertence à categoria escolhida" });
+    return;
+  }
+  const base = await carregarBasePropostas();
+  if (!base.destinos[categoria].some((d) => d.tipo === destinoTipo && d.id === destinoId && !d.incompleto)) {
+    res.status(404).json({ error: "O destino ativo não foi encontrado nesta categoria" });
+    return;
+  }
+  const atual = await db.execute(sql`SELECT status FROM sinapses_clinicas_propostas WHERE id = ${id}`);
+  if (!atual.rows.length) {
+    res.status(404).json({ error: "Proposta não encontrada" });
+    return;
+  }
+  if ((atual.rows[0] as any).status !== "PENDENTE") {
+    res.status(409).json({ error: "Somente propostas pendentes podem ser editadas" });
+    return;
+  }
+  const repetida = await db.execute(sql`
+    SELECT 1 FROM sinapses_clinicas_propostas
+    WHERE id <> ${id} AND pergunta_id = (SELECT pergunta_id FROM sinapses_clinicas_propostas WHERE id = ${id})
+      AND categoria = ${categoria} AND destino_tipo = ${destinoTipo} AND destino_id = ${destinoId}
+    LIMIT 1`);
+  if (repetida.rows.length) {
+    res.status(409).json({ error: "Esta pergunta já tem uma proposta igual" });
+    return;
+  }
+  const atualizado = await db.execute(sql`
+    UPDATE sinapses_clinicas_propostas
+    SET categoria = ${categoria}, destino_tipo = ${destinoTipo}, destino_id = ${destinoId}, atualizado_em = NOW()
+    WHERE id = ${id} AND status = 'PENDENTE'
+    RETURNING id, pergunta_id, categoria, destino_tipo, destino_id, eixo, justificativa, status`);
+  if (!atualizado.rows.length) {
+    res.status(409).json({ error: "A proposta já foi revisada." });
+    return;
+  }
+  const p = atualizado.rows[0] as any;
+  res.json({
+    id: p.id,
+    perguntaId: p.pergunta_id,
+    categoria: p.categoria,
+    destinoTipo: p.destino_tipo,
+    destinoId: p.destino_id,
+    eixo: p.eixo,
+    justificativa: p.justificativa,
+    status: p.status,
+  });
+});
+
+router.post("/cadastros/sinapses/propostas/:id/aprovar", async (req, res): Promise<void> => {
+  await garantir();
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Identificador inválido" });
+    return;
+  }
+  const por = req.collaborator?.professionalId ?? null;
+  const resultado = await db.transaction(async (tx) => {
+    const r = await tx.execute(sql`
+      SELECT id, pergunta_id, categoria, destino_tipo, destino_id, status
+      FROM sinapses_clinicas_propostas
+      WHERE id = ${id}
+      FOR UPDATE`);
+    const proposta = r.rows[0] as any;
+    if (!proposta) return { estado: "NAO_ENCONTRADA" as const };
+    if (proposta.status !== "PENDENTE") return { estado: "NAO_PENDENTE" as const };
+    if (!(await perguntaExiste(proposta.pergunta_id))) return { estado: "PERGUNTA_AUSENTE" as const };
+    const base = await carregarBasePropostas();
+    const categoria = proposta.categoria as CategoriaSinapse;
+    if (!base.destinos[categoria]?.some((d) => d.tipo === proposta.destino_tipo && d.id === Number(proposta.destino_id) && !d.incompleto)) {
+      return { estado: "DESTINO_INATIVO" as const };
+    }
+    const existente = await tx.execute(sql`
+      SELECT id, ativo FROM sinapses_clinicas
+      WHERE pergunta_id = ${proposta.pergunta_id} AND categoria = ${proposta.categoria}
+        AND destino_tipo = ${proposta.destino_tipo} AND destino_id = ${proposta.destino_id}
+      FOR UPDATE`);
+    if (existente.rows.length && !(existente.rows[0] as any).ativo) {
+      return { estado: "LIGACAO_DESATIVADA" as const };
+    }
+    if (!existente.rows.length) {
+      await tx.execute(sql`
+        INSERT INTO sinapses_clinicas (pergunta_id, categoria, destino_tipo, destino_id, criado_por)
+        VALUES (${proposta.pergunta_id}, ${proposta.categoria}, ${proposta.destino_tipo}, ${proposta.destino_id}, ${por})
+        ON CONFLICT (pergunta_id, categoria, destino_tipo, destino_id) DO NOTHING`);
+    }
+    await tx.execute(sql`
+      UPDATE sinapses_clinicas_propostas SET status = 'APROVADA', atualizado_em = NOW()
+      WHERE id = ${id} AND status = 'PENDENTE'`);
+    return { estado: "APROVADA" as const };
+  });
+  if (resultado.estado === "NAO_ENCONTRADA") {
+    res.status(404).json({ error: "Proposta não encontrada" });
+    return;
+  }
+  if (resultado.estado !== "APROVADA") {
+    const mensagens: Record<string, string> = {
+      NAO_PENDENTE: "A proposta já foi revisada.",
+      PERGUNTA_AUSENTE: "A pergunta não existe mais no catálogo.",
+      DESTINO_INATIVO: "O destino não está ativo no catálogo.",
+      LIGACAO_DESATIVADA: "A ligação já existe, mas foi desativada; ela não foi reativada.",
+    };
+    res.status(409).json({ error: mensagens[resultado.estado] });
+    return;
+  }
+  res.json({ id, status: "APROVADA" });
+});
+
+router.post("/cadastros/sinapses/propostas/:id/recusar", async (req, res): Promise<void> => {
+  await garantir();
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Identificador inválido" });
+    return;
+  }
+  const r = await db.execute(sql`
+    UPDATE sinapses_clinicas_propostas
+    SET status = 'RECUSADA', atualizado_em = NOW()
+    WHERE id = ${id} AND status = 'PENDENTE'
+    RETURNING id`);
+  if (!r.rows.length) {
+    const existe = await db.execute(sql`SELECT 1 FROM sinapses_clinicas_propostas WHERE id = ${id}`);
+    res.status(existe.rows.length ? 409 : 404).json({
+      error: existe.rows.length ? "A proposta já foi revisada." : "Proposta não encontrada",
+    });
+    return;
+  }
+  res.json({ id, status: "RECUSADA" });
+});
+
+// Cria (ou reativa) uma ligacao. Idempotente: repetir nao duplica.
+router.post("/cadastros/sinapses", async (req, res): Promise<void> => {
+  await garantir();
+  const p = criarSchema.safeParse(req.body);
+  if (!p.success) {
+    res.status(400).json({ error: "Dados da ligação inválidos" });
+    return;
+  }
+  const b = p.data;
+  if (!TIPOS_POR_CATEGORIA[b.categoria].includes(b.destinoTipo)) {
+    res.status(400).json({ error: "Este destino não pertence a esta saída" });
+    return;
+  }
+  if (!(await perguntaExiste(b.perguntaId)) || !(await destinoExiste(b.destinoTipo, b.destinoId))) {
+    res.status(404).json({ error: "Pergunta ou destino não encontrado" });
+    return;
+  }
+  const por = req.collaborator?.professionalId ?? null;
+  const r = await db.execute(sql`
+    INSERT INTO sinapses_clinicas (pergunta_id, categoria, destino_tipo, destino_id, criado_por)
+    VALUES (${b.perguntaId}, ${b.categoria}, ${b.destinoTipo}, ${b.destinoId}, ${por})
+    ON CONFLICT (pergunta_id, categoria, destino_tipo, destino_id)
+    DO UPDATE SET ativo = TRUE, atualizado_em = NOW()
+    RETURNING id`);
+  res.status(201).json({ id: (r.rows[0] as any).id });
+});
+
+// Clona as ligacoes ativas de uma pergunta (ou de ligacoes escolhidas) para outra pergunta.
+// As originais nunca sao alteradas.
+const clonarSchema = z.object({
+  perguntaOrigemId: z.string().min(1).optional(),
+  sinapseIds: z.array(z.number().int().positive()).max(500).optional(),
+  perguntaDestinoId: z.string().min(1),
+});
+router.post("/cadastros/sinapses/clonar", async (req, res): Promise<void> => {
+  await garantir();
+  const p = clonarSchema.safeParse(req.body);
+  if (!p.success || (!p.data.perguntaOrigemId && !p.data.sinapseIds?.length)) {
+    res.status(400).json({ error: "Informe a pergunta de origem ou as ligações a copiar" });
+    return;
+  }
+  const b = p.data;
+  if (!(await perguntaExiste(b.perguntaDestinoId))) {
+    res.status(404).json({ error: "Pergunta de destino não encontrada" });
+    return;
+  }
+  const por = req.collaborator?.professionalId ?? null;
+  const filtro = b.sinapseIds?.length
+    ? sql`id IN (${sql.join(b.sinapseIds.map((i) => sql`${i}`), sql`, `)})`
+    : sql`pergunta_id = ${b.perguntaOrigemId}`;
+  const r = await db.execute(sql`
+    INSERT INTO sinapses_clinicas (pergunta_id, categoria, destino_tipo, destino_id, clone_de, criado_por)
+    SELECT DISTINCT ON (categoria, destino_tipo, destino_id)
+      ${b.perguntaDestinoId}, categoria, destino_tipo, destino_id, id, ${por}
+    FROM sinapses_clinicas
+    WHERE ativo AND ${filtro}
+      AND (destino_tipo <> 'bloco_exames' OR EXISTS (
+        SELECT 1 FROM catalogo_blocos cb
+        WHERE cb.id = sinapses_clinicas.destino_id AND cb.ativo IS NOT FALSE
+          AND EXISTS (
+            SELECT 1 FROM catalogo_bloco_exames cbe
+            WHERE cbe.bloco_id = cb.codigo_bloco AND cbe.ativo IS NOT FALSE
+          )
+      ))
+    ORDER BY categoria, destino_tipo, destino_id, id
+    ON CONFLICT (pergunta_id, categoria, destino_tipo, destino_id)
+    DO UPDATE SET ativo = TRUE, atualizado_em = NOW()
+    RETURNING id`);
+  res.status(201).json({ copiadas: r.rows.length });
+});
+
+// Desativar / reativar (nunca apaga a linha).
+router.patch("/cadastros/sinapses/:id/ativo", async (req, res): Promise<void> => {
+  await garantir();
+  const id = Number(req.params.id);
+  const p = z.object({ ativo: z.boolean() }).safeParse(req.body);
+  if (!Number.isInteger(id) || id <= 0 || !p.success) {
+    res.status(400).json({ error: "Pedido inválido" });
+    return;
+  }
+  if (p.data.ativo) {
+    const atual = await db.execute(sql`SELECT destino_tipo, destino_id FROM sinapses_clinicas WHERE id = ${id}`);
+    if (!atual.rows.length) {
+      res.status(404).json({ error: "Ligação não encontrada" });
+      return;
+    }
+    const alvo = atual.rows[0] as any;
+    if (alvo.destino_tipo === "bloco_exames" && !(await destinoExiste(alvo.destino_tipo, Number(alvo.destino_id)))) {
+      res.status(409).json({ error: "O bloco está vazio ou inativo; não é possível ativar uma ligação sem saída." });
+      return;
+    }
+  }
+  const r = await db.execute(sql`UPDATE sinapses_clinicas SET ativo = ${p.data.ativo}, atualizado_em = NOW() WHERE id = ${id} RETURNING id`);
+  if (!r.rows.length) {
+    res.status(404).json({ error: "Ligação não encontrada" });
+    return;
+  }
+  res.json({ id, ativo: p.data.ativo });
+});
+
+export default router;

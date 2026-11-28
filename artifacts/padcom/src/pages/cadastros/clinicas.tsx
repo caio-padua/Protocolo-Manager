@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,22 +8,25 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useLocation } from "wouter";
+import { ChaveOuro } from "@/components/ui/chave-ouro";
+import { Textarea } from "@/components/ui/textarea";
+import { AgendaGoogleTab } from "./locais/AgendaGoogleTab";
+import type { EnderecoLido } from "./locais/endereco-google";
+import { LocaisPorEmpresa, type EmpresaFiltro } from "./locais/LocaisPorEmpresa";
+import "./locais/locais.css";
+import { MODO_META, compararEmpresas, type LocalAtendimento } from "./locais/locais-modo";
 import {
-  Building2, Plus, Loader2, Search, Save, Pencil, Trash2,
-  Phone, MapPin, CalendarCheck, Tag,
+  Loader2, Search, Save,
+  Video, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
 
-interface Clinica {
-  id: number; name: string; address: string | null; type: string;
-  color: string; active: boolean; googleCalendarId: string | null;
-  phone: string | null; cep: string | null; logradouro: string | null;
-  numero: string | null; complemento: string | null; bairro: string | null;
-  cidade: string | null; estado: string | null; zona: string | null;
-}
+type Clinica = LocalAtendimento;
 
 const formSchema = z.object({
   name: z.string().min(2, "Nome obrigatório"),
@@ -40,6 +43,10 @@ const formSchema = z.object({
   color: z.string().optional(),
   googleCalendarId: z.string().optional(),
   active: z.boolean(),
+  modalidade: z.enum(["presencial", "online", "definir"]),
+  mesmoEnderecoEmpresa: z.boolean(),
+  observacaoLocal: z.string().max(500, "Máximo de 500 caracteres").optional(),
+  nomeEspaco: z.string().max(200, "Máximo de 200 caracteres").optional(),
 });
 type FormValues = z.infer<typeof formSchema>;
 
@@ -54,121 +61,13 @@ function formatPhone(value: string): string {
   if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 }
-function displayPhone(raw: string | null): string {
-  if (!raw) return "—";
-  const clean = raw.replace(/^\+55/, "").replace(/\D/g, "");
-  if (clean.length === 11) return `(${clean.slice(0, 2)}) ${clean.slice(2, 7)}-${clean.slice(7)}`;
-  if (clean.length === 10) return `(${clean.slice(0, 2)}) ${clean.slice(2, 6)}-${clean.slice(6)}`;
-  return raw;
-}
-function calLabel(id: string | null): string {
-  if (!id) return "—";
-  if (id.includes("@group.calendar.google.com")) return id.split("@")[0].slice(0, 16) + "…";
-  if (id.includes("@")) return id;
-  return id.slice(0, 20) + (id.length > 20 ? "…" : "");
-}
-
-const TYPE_LABELS: Record<string, string> = {
-  clinic: "Clínica", homecare: "Domiciliar", lab: "Laboratório",
-};
-
 const EMPTY: FormValues = {
   name: "", type: "clinic", phone: "", cep: "", logradouro: "", numero: "",
   complemento: "", bairro: "", cidade: "", estado: "", zona: "",
   color: "#16284a", googleCalendarId: "", active: true,
+  modalidade: "presencial", mesmoEnderecoEmpresa: false,
+  observacaoLocal: "", nomeEspaco: "",
 };
-
-// ── Card de clínica ───────────────────────────────────────────────────────────
-function ClinicaCard({ c, onEdit, onDelete }: { c: Clinica; onEdit: () => void; onDelete: () => void }) {
-  const endLine1 = [c.logradouro, c.numero, c.complemento].filter(Boolean).join(", ");
-  const endLine2 = [c.bairro, c.cidade ? `${c.cidade}${c.estado ? " - " + c.estado : ""}` : c.estado].filter(Boolean).join(" · ");
-
-  return (
-    <div className="panel-3d relative overflow-hidden flex flex-col">
-      {/* Faixa lateral de cor */}
-      <div className="absolute left-0 top-0 bottom-0 w-[4px] rounded-l-[6px]" style={{ backgroundColor: c.color || "#16284a" }} />
-
-      <div className="pl-4 pr-3 pt-3 pb-3 flex flex-col gap-2.5 flex-1">
-        {/* Linha de topo: status + tipo + ID */}
-        <div className="flex items-center gap-2">
-          <span className={`paxter-led ${c.active ? "paxter-led-breathe paxter-led-green" : "paxter-led-amber"}`} />
-          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-            {TYPE_LABELS[c.type] ?? c.type}
-          </span>
-          <span className="ml-auto text-[9px] text-muted-foreground/50 font-mono">#{c.id}</span>
-          {!c.active && (
-            <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 bg-amber-400/15 text-amber-700 rounded-[3px]">
-              INATIVA
-            </span>
-          )}
-        </div>
-
-        {/* Nome */}
-        <h3 className="font-black text-[15px] uppercase tracking-tight leading-tight">
-          {c.name}
-        </h3>
-
-        {/* Bloco de informações — sempre visível */}
-        <div className="concave-3d p-2.5 space-y-1.5 flex-1">
-          {/* Endereço */}
-          <div className="flex items-start gap-2 text-[11px]">
-            <MapPin className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/60" />
-            <div className="min-w-0">
-              {endLine1 ? (
-                <>
-                  <p className="text-foreground/80 truncate">{endLine1}</p>
-                  {endLine2 && <p className="text-muted-foreground truncate">{endLine2}</p>}
-                </>
-              ) : (
-                <p className="text-muted-foreground">{c.address || "—"}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Telefone */}
-          <div className="flex items-center gap-2 text-[11px]">
-            <Phone className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-            <span className={c.phone ? "text-foreground/80" : "text-muted-foreground"}>{displayPhone(c.phone)}</span>
-          </div>
-
-          {/* Zona */}
-          {c.zona && (
-            <div className="flex items-center gap-2 text-[11px]">
-              <Tag className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-              <span className="text-primary font-semibold">{c.zona}</span>
-            </div>
-          )}
-
-          {/* Google Calendar */}
-          <div className="flex items-center gap-2 text-[11px]">
-            <CalendarCheck className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-            <span className="text-muted-foreground font-mono truncate" title={c.googleCalendarId ?? undefined}>
-              {calLabel(c.googleCalendarId)}
-            </span>
-          </div>
-        </div>
-
-        {/* Botões */}
-        <div className="flex gap-2 pt-0.5">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="bevel-3d flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-primary/10 transition-colors"
-          >
-            <Pencil className="w-3 h-3" /> Editar
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            className="bevel-3d px-3 py-1.5 text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── Divisor de seção do formulário ────────────────────────────────────────────
 function SectionDivider({ label }: { label: string }) {
@@ -184,14 +83,23 @@ function SectionDivider({ label }: { label: string }) {
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function CadastroClinicas() {
   const queryClient = useQueryClient();
+  const localSolicitado = useRef(new URLSearchParams(window.location.search).get("local"));
+  const localAberto = useRef(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [novaEmpresaId, setNovaEmpresaId] = useState("");
+  const [erroEmpresa, setErroEmpresa] = useState("");
+  const [secao, setSecao] = useState<"identificacao" | "endereco" | "contato" | "agenda" | "documentos">("identificacao");
+  const [documentosVisitados, setDocumentosVisitados] = useState(false);
+  const [empresaFiltro, setEmpresaFiltro] = useState<EmpresaFiltro>("todas");
+  const [, navegar] = useLocation();
+  // Sessao do registro aberto: respostas atrasadas (CEP/Google) de outro registro sao descartadas.
+  const sessaoRef = useRef(0);
   const [loadingCep, setLoadingCep] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Clinica | null>(null);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
-  const { data: clinicas = [], isLoading } = useQuery<Clinica[]>({
+  const { data: clinicas = [], isLoading, isError, refetch: refetchClinicas } = useQuery<Clinica[]>({
     queryKey: ["clinicas"],
+    retry: false,
     queryFn: async () => {
       const res = await fetch(`${apiBase}/locations`);
       if (!res.ok) throw new Error("Erro ao carregar clínicas");
@@ -199,213 +107,353 @@ export default function CadastroClinicas() {
     },
   });
 
+  const empresasDisponiveis = useQuery<Array<{ id: number; nome: string }>>({
+    queryKey: ["empresas-disponiveis-local", dialogOpen],
+    enabled: dialogOpen && editingId === null,
+    retry: false,
+    staleTime: 0,
+    queryFn: async () => {
+      const response = await fetch(`${apiBase}/semantic-codes/companies`, { headers: collabAuthHeaders() });
+      if (!response.ok) throw new Error("Não foi possível consultar as empresas.");
+      const data: unknown = await response.json();
+      if (!Array.isArray(data)) throw new Error("Resposta de empresas inválida.");
+      return data;
+    },
+  });
+
+  const vinculos = useQuery<{ locais: Array<{ locationId: number; empresaId: number }>; empresas: Array<{ id: number; nome: string }> }>({
+    // Chave propria: o formato {locais, empresas} difere do cache "semantic-code-locations" (array) do SemanticCodeManager.
+    queryKey: ["clinicas-vinculo-empresa"],
+    enabled: dialogOpen && editingId !== null && documentosVisitados,
+    // documentosVisitados = aba "Identidade" aberta: confirma a empresa dona antes de oferecer o atalho.
+    queryFn: async () => {
+      const headers = collabAuthHeaders();
+      const [locaisResponse, empresasResponse] = await Promise.all([
+        fetch(`${apiBase}/semantic-codes/locations`, { headers }),
+        fetch(`${apiBase}/semantic-codes/companies`, { headers }),
+      ]);
+      if (!locaisResponse.ok || !empresasResponse.ok) throw new Error("Não foi possível consultar o vínculo da clínica.");
+      const [locais, empresas] = await Promise.all([locaisResponse.json(), empresasResponse.json()]);
+      if (!Array.isArray(locais) || !Array.isArray(empresas)) throw new Error("A resposta dos vínculos é inválida.");
+      return { locais, empresas };
+    },
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  const locaisVinculados = vinculos.data?.locais.filter((vinculo) => vinculo.locationId === editingId) ?? [];
+  const empresaVinculada = locaisVinculados.length === 1
+    ? vinculos.data?.empresas.find((empresa) => empresa.id === locaisVinculados[0].empresaId)
+    : undefined;
+
   const form = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: EMPTY });
+  // Leitura no render assina o proxy do react-hook-form; sem isso isDirty fica sempre falso nos handlers.
+  const formSujo = form.formState.isDirty;
+  const modalidadeAtual = form.watch("modalidade");
+  const mesmoEnderecoAtual = form.watch("mesmoEnderecoEmpresa");
+  const enderecoEmpresaEdicao = editingId ? (clinicas.find((c) => c.id === editingId)?.enderecoEmpresa ?? null) : null;
 
   const doLookupCep = useCallback(async () => {
     const cep = form.getValues("cep")?.replace(/\D/g, "");
     if (!cep || cep.length !== 8) { toast.error("CEP deve ter 8 dígitos"); return; }
+    const sessao = sessaoRef.current;
     setLoadingCep(true);
     try {
       const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      if (sessao !== sessaoRef.current) return;
       if (!res.ok) { toast.error("CEP não encontrado"); return; }
       const data = await res.json();
+      // Descarta resposta atrasada: outro registro foi aberto ou o CEP mudou.
+      if (sessao !== sessaoRef.current || form.getValues("cep")?.replace(/\D/g, "") !== cep) return;
       if (data.erro) { toast.error("CEP não encontrado"); return; }
       form.setValue("logradouro", data.logradouro || "");
       form.setValue("bairro",     data.bairro     || "");
       form.setValue("cidade",     data.localidade || "");
       form.setValue("estado",     data.uf         || "");
       toast.success("Endereço preenchido automaticamente!");
-    } catch { toast.error("Erro ao buscar CEP"); }
-    finally  { setLoadingCep(false); }
+    } catch { if (sessao === sessaoRef.current) toast.error("Erro ao buscar CEP"); }
+    finally  { if (sessao === sessaoRef.current) setLoadingCep(false); }
+  }, [form]);
+
+  const aplicarEnderecoGoogle = useCallback((e: EnderecoLido, sessao: number) => {
+    if (sessao !== sessaoRef.current) return;
+    const opts = { shouldDirty: true };
+    form.setValue("cep", e.cep, opts);
+    form.setValue("logradouro", e.logradouro, opts);
+    form.setValue("numero", e.numero, opts);
+    form.setValue("complemento", e.complemento, opts);
+    form.setValue("bairro", e.bairro, opts);
+    form.setValue("cidade", e.cidade, opts);
+    form.setValue("estado", e.estado, opts);
+    form.setValue("zona", "", opts);
+    form.setValue("mesmoEnderecoEmpresa", false, opts);
+    if (form.getValues("modalidade") === "definir") form.setValue("modalidade", "presencial", opts);
+    setSecao("endereco");
+    toast.success("Endereço preenchido a partir do Google. Revise e clique em SALVAR LOCAL.");
   }, [form]);
 
   const saveMutation = useMutation({
-    mutationFn: async (values: FormValues) => {
+    // Alvo capturado no envio: id e empresa nunca sao relidos do estado (que pode mudar durante a gravacao).
+    mutationFn: async ({ values, alvoId, empresaId }: { values: FormValues; alvoId: number | null; empresaId: string }) => {
+      if (!empresaId) throw new Error(alvoId ? "Este local não tem empresa proprietária confirmada; nada foi salvo." : "Selecione a empresa responsável pelo local.");
       const parts = [
         values.logradouro, values.numero, values.complemento && `(${values.complemento})`,
         values.bairro,
         values.cidade ? `${values.cidade}${values.estado ? " - " + values.estado : ""}` : values.estado,
         values.cep ? `CEP ${values.cep}` : "",
       ].filter(Boolean);
-      const body = { ...values, address: parts.join(", ") || null, googleCalendarId: values.googleCalendarId || null };
-      const url = editingId ? `${apiBase}/locations/${editingId}` : `${apiBase}/locations`;
-      const res = await fetch(url, { method: editingId ? "PUT" : "POST", headers: collabAuthHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(body) });
-      if (!res.ok) throw new Error("Erro ao salvar");
+      const body = {
+        ...values, address: parts.join(", ") || null, googleCalendarId: values.googleCalendarId || null,
+        modalidade: values.modalidade === "definir" ? null : values.modalidade,
+        mesmoEnderecoEmpresa: values.modalidade !== "definir" && values.mesmoEnderecoEmpresa,
+        observacaoLocal: values.observacaoLocal?.trim() || null,
+        nomeEspaco: values.nomeEspaco?.trim() || null,
+      };
+      const url = alvoId ? `${apiBase}/locations/${alvoId}` : `${apiBase}/locations`;
+      const headers = collabAuthHeaders({ "Content-Type": "application/json", "X-Empresa-Id": empresaId });
+      const res = await fetch(url, { method: alvoId ? "PUT" : "POST", headers, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error("Não foi possível salvar o local. Confira o acesso à empresa e tente novamente.");
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, { alvoId }) => {
       queryClient.invalidateQueries({ queryKey: ["clinicas"] });
-      toast.success(editingId ? "Clínica atualizada!" : "Clínica cadastrada!");
-      setDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["empresas-locais-confirmados"] });
+      queryClient.invalidateQueries({ queryKey: ["semantic-code-locations"] });
+      queryClient.invalidateQueries({ queryKey: ["clinicas-vinculo-empresa"] });
+      toast.success(alvoId ? "Local atualizado!" : "Local cadastrado!");
+      fecharDialogo();
     },
-    onError: () => toast.error("Erro ao salvar clínica."),
+    onError: (error: Error) => toast.error(error.message),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await fetch(`${apiBase}/locations/${id}`, { method: "DELETE" });
-      if (res.status === 409) { const d = await res.json(); throw new Error(d.error || "Clínica possui sessões vinculadas."); }
-      if (!res.ok) throw new Error("Erro ao apagar");
-      return res.json();
+  // Interruptor ativar/desativar (reversível). Apagar o local não é oferecido nesta tela por enquanto.
+  const { toast: aviso } = useToast();
+  const ativoMutation = useMutation({
+    mutationFn: async ({ c, ativo }: { c: Clinica; ativo: boolean }) => {
+      if (!c.empresaId) throw new Error("Este local não tem empresa proprietária confirmada; nada foi alterado.");
+      const res = await fetch(`${apiBase}/locations/${c.id}`, {
+        method: "PUT",
+        headers: collabAuthHeaders({ "Content-Type": "application/json", "X-Empresa-Id": String(c.empresaId) }),
+        body: JSON.stringify({ active: ativo }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((d as { error?: string }).error ?? "Não foi possível alterar o local.");
+      return ativo;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["clinicas"] }); toast.success("Clínica apagada."); setDeleteTarget(null); setDeleteConfirmText(""); },
-    onError: (e: Error) => toast.error(e.message),
+    onSuccess: (ativo, { c }) => {
+      queryClient.invalidateQueries({ queryKey: ["clinicas"] });
+      aviso({ title: ativo ? `"${c.name}" está ativo.` : `"${c.name}" foi desativado.`, description: ativo ? undefined : "Nada foi apagado; você pode reativar." });
+    },
+    onError: (e: Error) => aviso({ title: e.message, variant: "destructive" }),
   });
 
-  const openNew = () => { setEditingId(null); form.reset(EMPTY); setDialogOpen(true); };
+  const escreverUrlLocal = (id: number | null) => {
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set("local", String(id)); else url.searchParams.delete("local");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  };
+  const fecharDialogo = () => { sessaoRef.current += 1; setLoadingCep(false); setDialogOpen(false); escreverUrlLocal(null); };
+  const gravando = () => {
+    if (!saveMutation.isPending) return false;
+    toast.error("Aguarde: o local ainda está sendo salvo.");
+    return true;
+  };
+  const openNew = () => {
+    if (gravando()) return;
+    sessaoRef.current += 1; setLoadingCep(false);
+    saveMutation.reset(); setEditingId(null); setErroEmpresa(""); setSecao("identificacao"); setDocumentosVisitados(false);
+    // Empresa escolhida na lista vira sugestao explicita; so vale se for autorizada (conferido no envio).
+    setNovaEmpresaId(empresaFiltro !== "todas" && empresaFiltro.startsWith("e") ? empresaFiltro.slice(1) : "");
+    form.reset(EMPTY); escreverUrlLocal(null); setDialogOpen(true);
+  };
   const openEdit = (c: Clinica) => {
+    if (gravando()) return;
+    sessaoRef.current += 1; setLoadingCep(false);
+    saveMutation.reset();
     setEditingId(c.id);
+    setSecao("identificacao");
+    setDocumentosVisitados(false);
+    escreverUrlLocal(c.id);
     form.reset({
       name: c.name, type: c.type, phone: c.phone || "", cep: c.cep || "",
       logradouro: c.logradouro || "", numero: c.numero || "", complemento: c.complemento || "",
       bairro: c.bairro || "", cidade: c.cidade || "", estado: c.estado || "",
       zona: c.zona || "", color: c.color || "#16284a",
       googleCalendarId: c.googleCalendarId || "", active: c.active,
+      modalidade: c.modalidade ?? "definir", mesmoEnderecoEmpresa: c.mesmoEnderecoEmpresa,
+      observacaoLocal: c.observacaoLocal ?? "", nomeEspaco: c.nomeEspaco ?? "",
     });
     setDialogOpen(true);
   };
+  useEffect(() => {
+    if (localAberto.current || !localSolicitado.current || isLoading || isError) return;
+    localAberto.current = true;
+    const local = clinicas.find((item) => String(item.id) === localSolicitado.current);
+    if (local) openEdit(local);
+    else toast.error("O local solicitado não foi encontrado.");
+  }, [clinicas, isLoading, isError]);
+  const handleDialogOpen = (open: boolean) => {
+    if (open) { setDialogOpen(true); return; }
+    if (gravando()) return;
+    if (formSujo &&
+      !window.confirm("Há alterações não salvas. Fechar descartará essas alterações. Continuar?")) return;
+    fecharDialogo();
+  };
+  const localEditado = editingId ? clinicas.find((c) => c.id === editingId) ?? null : null;
+  const empresaNovaNome = empresasDisponiveis.data?.find((e) => String(e.id) === novaEmpresaId)?.nome ?? null;
+  const empresaDona = editingId
+    ? (localEditado?.empresaNome ?? empresaVinculada?.nome ?? null)
+    : empresaNovaNome;
+  const abrirIdentidadeNaEmpresa = (empresaId: number) => {
+    if (gravando()) return;
+    if (formSujo &&
+      !window.confirm("Há alterações não salvas neste local. Abrir a empresa descartará essas alterações. Continuar?")) return;
+    sessaoRef.current += 1;
+    setDialogOpen(false);
+    navegar(`/cadastros/empresas?empresa=${empresaId}&aba=marca-documento`);
+  };
 
-  // ── Agrupamento geográfico data-bound ────────────────────────────────────────
-  // Grupo = "Cidade · UF" derivado dos dados reais do banco.
-  // Nenhum valor de cidade ou estado é fixo no código.
-  // Dentro de cada cidade com 3+ locais: sub-agrupamento por zona.
-
-  const ativas = useMemo(() => clinicas.filter((c) => c.active), [clinicas]);
-
-  const grupos = useMemo(() => {
-    const map = new Map<string, Clinica[]>();
-    for (const c of ativas) {
-      const chave =
-        c.cidade && c.estado ? `${c.cidade} · ${c.estado}` :
-        c.cidade              ? c.cidade :
-        c.estado              ? `Estado: ${c.estado}` :
-                                "Sem Localização";
-      if (!map.has(chave)) map.set(chave, []);
-      map.get(chave)!.push(c);
-    }
-    // Ordena: maior grupo primeiro; empate → alfabético
-    return [...map.entries()].sort(([a, ac], [b, bc]) =>
-      bc.length !== ac.length ? bc.length - ac.length : a.localeCompare(b, "pt-BR")
-    );
-  }, [clinicas]);
-
-  const inativas = useMemo(() => clinicas.filter((c) => !c.active), [clinicas]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
 
       {/* Cabeçalho */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="bevel-3d p-2.5 shrink-0"><Building2 className="w-5 h-5 text-primary" /></div>
-          <div className="min-w-0">
-            <h1 className="text-2xl font-black tracking-tight uppercase">CLÍNICAS & LOCAIS DE ATENDIMENTO</h1>
-            <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">
-              {ativas.length} ativo{ativas.length !== 1 ? "s" : ""} · {inativas.length} inativo{inativas.length !== 1 ? "s" : ""}
-            </p>
-          </div>
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4" data-testid="locais-cabecalho">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight uppercase">LOCAIS DE ATENDIMENTO</h1>
+          <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">Onde a empresa atende</p>
         </div>
-        <Button onClick={openNew} className="btn-3d px-5 shrink-0">
-          <Plus className="w-4 h-4 mr-2" /> NOVA CLÍNICA
+        <Button onClick={openNew} className="btn-3d px-5 shrink-0 w-full sm:w-auto" data-testid="local-novo">
+          NOVO LOCAL
         </Button>
       </div>
 
-      {/* Grade de cards — agrupamento geográfico data-bound */}
+      {/* Locais agrupados: Empresa > Estado > Cidade > Região, com selo de modalidade */}
       {isLoading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+      ) : isError ? (
+        <div role="alert" className="concave-3d text-center py-10 text-sm">
+          <p>Não foi possível carregar os locais. Verifique sua sessão e tente novamente.</p>
+          <Button type="button" className="btn-3d-soft mt-4" onClick={() => void refetchClinicas()}>Tentar novamente</Button>
+        </div>
       ) : clinicas.length === 0 ? (
         <div className="concave-3d text-center py-16 text-muted-foreground text-sm">
-          Nenhuma clínica cadastrada. Clique em NOVA CLÍNICA.
+          Nenhum local cadastrado. Clique em NOVO LOCAL.
         </div>
       ) : (
-        <div className="space-y-8">
-          {/* Grupos geográficos — um painel por cidade */}
-          {grupos.map(([cidadeKey, lista]) => {
-            // Sub-agrupamento por zona dentro de cada cidade (só quando há zonas variadas)
-            const zonaMap = new Map<string, Clinica[]>();
-            for (const c of lista) {
-              const z = c.zona || "—";
-              if (!zonaMap.has(z)) zonaMap.set(z, []);
-              zonaMap.get(z)!.push(c);
-            }
-            const temMultiploZonas = zonaMap.size > 1;
-
-            return (
-              <div key={cidadeKey}>
-                {/* Cabeçalho da cidade */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="bevel-3d px-3 py-1.5 flex items-center gap-2 shrink-0">
-                    <MapPin className="w-3.5 h-3.5 text-primary" />
-                    <span className="font-black text-[11px] uppercase tracking-widest">{cidadeKey}</span>
-                    <span className="text-[9px] text-muted-foreground/60 font-bold">
-                      {lista.length} local{lista.length !== 1 ? "is" : ""}
-                    </span>
-                  </div>
-                  <div className="h-px bg-primary/15 flex-1" />
-                </div>
-
-                {temMultiploZonas ? (
-                  /* Com sub-zonas: agrupa por área dentro da cidade */
-                  <div className="space-y-5 pl-4 border-l-2 border-primary/10">
-                    {[...zonaMap.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR")).map(([zona, items]) => (
-                      <div key={zona}>
-                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/50 mb-2.5 flex items-center gap-2">
-                          <Tag className="w-3 h-3" /> {zona}
-                        </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                          {items.map((c) => (
-                            <ClinicaCard key={c.id} c={c}
-                              onEdit={() => openEdit(c)}
-                              onDelete={() => { setDeleteTarget(c); setDeleteConfirmText(""); }} />
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  /* Cidade única ou sem zonas: grade direta */
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {lista.map((c) => (
-                      <ClinicaCard key={c.id} c={c}
-                        onEdit={() => openEdit(c)}
-                        onDelete={() => { setDeleteTarget(c); setDeleteConfirmText(""); }} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Inativas — sempre ao final, separadas */}
-          {inativas.length > 0 && (
-            <div className="opacity-60">
-              <SectionDivider label={`${inativas.length} inativa${inativas.length > 1 ? "s" : ""}`} />
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
-                {inativas.map((c) => (
-                  <ClinicaCard key={c.id} c={c}
-                    onEdit={() => openEdit(c)}
-                    onDelete={() => { setDeleteTarget(c); setDeleteConfirmText(""); }} />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <LocaisPorEmpresa locais={clinicas} onEdit={openEdit}
+          empresaFiltro={empresaFiltro} onEmpresaFiltro={setEmpresaFiltro}
+          onToggleAtivo={(c, ativo) => ativoMutation.mutate({ c, ativo })} />
       )}
 
       {/* ── Dialog criar / editar ──────────────────────────────────────────── */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
-          <DialogHeader>
+      <Dialog open={dialogOpen} onOpenChange={handleDialogOpen}>
+        <DialogContent className="pax-dialogo-fixo top-2 translate-y-0 max-w-3xl p-0 gap-0" data-testid="local-dialogo">
+          <DialogHeader className="px-6 pt-5 pb-3 border-b border-border/40 shrink-0 space-y-2">
             <DialogTitle className="text-[13px] font-black uppercase tracking-widest">
-              {editingId ? "EDITAR CLÍNICA" : "NOVA CLÍNICA"}
+              {editingId ? "EDITAR LOCAL" : "NOVO LOCAL"}
             </DialogTitle>
+            <div className="concave-3d px-3 py-2 flex items-center gap-2 min-w-0" data-testid="local-empresa-proprietaria">
+              <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground shrink-0">Empresa proprietária</span>
+              <span className="text-[12px] font-bold truncate" data-testid="local-empresa-proprietaria-nome">
+                {empresaDona ?? (editingId ? "Sem empresa vinculada" : "Nenhuma empresa escolhida")}
+              </span>
+              {editingId && <span className="ml-auto text-[9px] font-mono text-muted-foreground shrink-0">Local #{editingId}</span>}
+            </div>
           </DialogHeader>
 
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 px-4 sm:px-6 py-3 shrink-0" role="group" aria-label="Seções do local">
+            {([
+              ["identificacao", "Identificação"],
+              ["endereco", "Endereço"],
+              ["contato", "Contato"],
+              ["agenda", "Agenda Google"],
+              ["documentos", "Identidade dos documentos"],
+            ] as const).map(([value, label]) => (
+              <button key={value} type="button" onClick={() => { setSecao(value); if (value === "documentos") setDocumentosVisitados(true); }}
+                aria-pressed={secao === value} data-testid={`local-secao-${value}`}
+                className="bevel-3d pax-escolha min-w-0 h-11 px-2 text-[10px] font-bold uppercase leading-tight">
+                {label}
+              </button>
+            ))}
+          </div>
+
           <Form {...form}>
-            <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4 pt-1">
+            <form onSubmit={form.handleSubmit((v) => {
+              if (!editingId && (!novaEmpresaId || !empresasDisponiveis.data?.some((e) => String(e.id) === novaEmpresaId))) {
+                setErroEmpresa("Selecione a empresa responsável pelo local.");
+                setSecao("identificacao");
+                return;
+              }
+              setErroEmpresa("");
+              if (saveMutation.isPending) return;
+              const alvo = editingId ? clinicas.find((c) => c.id === editingId) : null;
+              saveMutation.mutate({ values: v, alvoId: editingId, empresaId: editingId ? (alvo?.empresaId ? String(alvo.empresaId) : "") : novaEmpresaId });
+            }, () => setSecao("identificacao"))} className="flex flex-col min-h-0">
+              <div className="pax-dialogo-miolo px-6 pb-4" data-testid="local-dialogo-miolo">
 
               {/* ── SEÇÃO 1: IDENTIFICAÇÃO ── */}
+              <div hidden={secao !== "identificacao"} className="space-y-4">
               <SectionDivider label="Identificação" />
+              {!editingId && (
+                <div className="space-y-2">
+                  <label htmlFor="empresa-do-novo-local" className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Empresa responsável pelo local *</label>
+                  {empresasDisponiveis.isLoading ? (
+                    <p role="status" className="text-sm">Consultando empresas disponíveis...</p>
+                  ) : empresasDisponiveis.isError ? (
+                    <div role="alert" className="text-sm">Não foi possível consultar as empresas. <button type="button" className="btn-3d-soft px-2 py-1" onClick={() => void empresasDisponiveis.refetch()}>Tentar novamente</button></div>
+                  ) : (
+                    <Select value={empresasDisponiveis.data?.some((e) => String(e.id) === novaEmpresaId) ? novaEmpresaId : ""} onValueChange={(value) => { setNovaEmpresaId(value); setErroEmpresa(""); }}>
+                      <SelectTrigger id="empresa-do-novo-local" className="field-engraved" data-testid="local-novo-empresa"><SelectValue placeholder="Selecionar empresa..." /></SelectTrigger>
+                      <SelectContent>
+                        {[...(empresasDisponiveis.data ?? [])].sort(compararEmpresas).map((empresa) => <SelectItem key={empresa.id} value={String(empresa.id)}>{empresa.nome}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {erroEmpresa && <p role="alert" className="text-sm text-destructive">{erroEmpresa}</p>}
+                  <p className="text-xs text-muted-foreground">O local será cadastrado para a empresa escolhida. O servidor confirma o seu acesso.</p>
+                </div>
+              )}
+              {/* Modalidade do atendimento: selo visual + sinalizador "mesmo endereço da empresa" */}
+              <div className="space-y-2">
+                <p className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Como este local atende *</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" role="group" aria-label="Modalidade do local">
+                  {([
+                    ["presencial", "Presencial", "Sede ou local externo", MODO_META.sede.Icon],
+                    ["online", "Online", "Endereço só como referência", Video],
+                    ["definir", "Indefinido", "Informar depois", MODO_META.definir.Icon],
+                  ] as const).map(([valor, titulo, sub, Icone]) => {
+                    const ativo = modalidadeAtual === valor;
+                    return (
+                      <button key={valor} type="button" aria-pressed={ativo} data-testid={`local-modalidade-${valor}`}
+                        onClick={() => { form.setValue("modalidade", valor, { shouldDirty: true }); if (valor === "definir") form.setValue("mesmoEnderecoEmpresa", false, { shouldDirty: true }); }}
+                        className="bevel-3d pax-escolha h-16 p-3 flex items-center gap-3 text-left">
+                        <Icone className="w-5 h-5 shrink-0" aria-hidden />
+                        <span className="min-w-0">
+                          <span className="block text-[11px] font-black uppercase tracking-widest">{titulo}</span>
+                          <span className="block text-[10px] opacity-75">{sub}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {modalidadeAtual !== "definir" && (
+                  <div className="concave-3d p-3 flex items-start gap-3">
+                    <ChaveOuro id="mesmo-endereco-empresa" checked={mesmoEnderecoAtual}
+                      onCheckedChange={(v) => form.setValue("mesmoEnderecoEmpresa", v, { shouldDirty: true })} />
+                    <div className="min-w-0">
+                      <label htmlFor="mesmo-endereco-empresa" className="text-[11px] font-black uppercase tracking-widest cursor-pointer">
+                        {modalidadeAtual === "online" ? "Usar o endereço da empresa como referência" : "O local físico é o mesmo endereço da empresa"}
+                      </label>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {mesmoEnderecoAtual
+                          ? (enderecoEmpresaEdicao ? `Sede de ${empresaDona ?? "empresa proprietária"}: ${enderecoEmpresaEdicao}` : `Será usado o endereço da sede de ${empresaDona ?? "empresa escolhida"} ao salvar.`)
+                          : (modalidadeAtual === "online" ? "Desligado: informe na aba Endereço um endereço de referência, se houver." : "Desligado: informe o endereço deste local na aba Endereço (sala alugada, coworking, outra cidade).")}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="name" render={({ field }) => (
                   <FormItem className="md:col-span-2">
@@ -422,7 +470,7 @@ export default function CadastroClinicas() {
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0"><SelectValue /></SelectTrigger></FormControl>
                         <SelectContent>
-                          <SelectItem value="clinic">Clínica (endereço fixo)</SelectItem>
+                          <SelectItem value="clinic">Local de atendimento</SelectItem>
                           <SelectItem value="homecare">Domiciliar / Itinerante</SelectItem>
                           <SelectItem value="lab">Laboratório</SelectItem>
                         </SelectContent>
@@ -466,10 +514,41 @@ export default function CadastroClinicas() {
                     </div>
                   </FormItem>
                 )} />
+
+                {modalidadeAtual === "presencial" && !mesmoEnderecoAtual && (
+                  <FormField control={form.control} name="nomeEspaco" render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Nome do espaço (sala, coworking, clínica parceira)</FormLabel>
+                      <FormControl><Input placeholder="Ex: Sala 706 — Locação de consultórios" {...field} className="field-engraved" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                )}
+
+                <FormField control={form.control} name="observacaoLocal" render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Observação do local</FormLabel>
+                    <FormControl>
+                      <Textarea rows={3} placeholder="Ex: Atendimento online, endereço da empresa só como referência." {...field} className="field-engraved" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
               </div>
 
               {/* ── SEÇÃO 2: ENDEREÇO ── */}
+              <div hidden={secao !== "endereco"} className="space-y-4">
               <SectionDivider label="Endereço" />
+              {modalidadeAtual === "online" && !mesmoEnderecoAtual && (
+                <p className="concave-3d p-4 text-sm flex items-center gap-2"><Video className="w-4 h-4 shrink-0" /> Atendimento online: o endereço abaixo é apenas uma referência (opcional).</p>
+              )}
+              {mesmoEnderecoAtual ? (
+                <p className="concave-3d p-4 text-sm">
+                  <span>Endereço herdado da empresa{enderecoEmpresaEdicao ? `: ${enderecoEmpresaEdicao}` : "."} Para usar outro endereço, desligue "mesmo endereço da empresa" na aba Identificação.</span>
+                </p>
+              ) : null}
+              <div className={mesmoEnderecoAtual ? "hidden" : "space-y-4"}>
 
               {/* CEP + busca automática */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -560,9 +639,12 @@ export default function CadastroClinicas() {
                   </FormItem>
                 )} />
               </div>
+              </div>
+              </div>
 
               {/* ── SEÇÃO 3: CONTATO & AGENDA ── */}
-              <SectionDivider label="Contato & Agenda Google" />
+              <div hidden={secao !== "contato"} className="space-y-4">
+              <SectionDivider label="Contato" />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="phone" render={({ field }) => (
@@ -587,32 +669,78 @@ export default function CadastroClinicas() {
                 <FormField control={form.control} name="googleCalendarId" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">
-                      ID Agenda Google
+                      ID Agenda Google (somente leitura)
                     </FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="...@group.calendar.google.com"
+                        placeholder="Escolha na aba Agenda Google"
                         {...field}
+                        readOnly
                         className="field-engraved font-mono text-[11px]"
                       />
                     </FormControl>
                     <p className="text-[9px] text-muted-foreground/50 mt-0.5">
-                      Configurações do Google Calendar → Integração → ID da agenda
+                      Para trocar a agenda, use a aba Agenda Google.
                     </p>
                   </FormItem>
                 )} />
               </div>
+              </div>
 
+              <div hidden={secao !== "agenda"} className="space-y-4">
+                <SectionDivider label="Agenda Google" />
+                <AgendaGoogleTab
+                  key={`agenda-${sessaoRef.current}`}
+                  localId={editingId}
+                  googleCalendarId={form.watch("googleCalendarId") || null}
+                  papelInicial={clinicas.find((c) => c.id === editingId)?.agendaPapel ?? null}
+                  onVinculado={({ googleCalendarId, cor }) => {
+                    form.setValue("googleCalendarId", googleCalendarId);
+                    if (cor) form.setValue("color", cor);
+                  }}
+                  onUsarEndereco={((sessao) => (e: EnderecoLido) => aplicarEnderecoGoogle(e, sessao))(sessaoRef.current)}
+                />
+              </div>
+
+              {documentosVisitados && (
+                <div hidden={secao !== "documentos"} className="space-y-3">
+                  {!editingId ? (
+                    <p className="concave-3d p-4 text-sm">Salve o local primeiro para consultar a empresa vinculada.</p>
+                  ) : vinculos.isLoading || vinculos.isFetching ? (
+                    <p role="status" className="concave-3d p-4 text-sm">Consultando a empresa vinculada...</p>
+                  ) : vinculos.isError ? (
+                    <div role="alert" className="concave-3d p-4 text-sm">
+                      <p>Não foi possível consultar o vínculo do local. Nenhuma empresa foi selecionada.</p>
+                      <Button type="button" className="btn-3d-soft mt-3" onClick={() => void vinculos.refetch()}>Tentar novamente</Button>
+                    </div>
+                  ) : !empresaVinculada ? (
+                    <div role="alert" className="concave-3d p-4 text-sm">
+                      Não foi possível confirmar uma empresa vinculada a este local. Confira o vínculo antes de configurar a identidade.
+                    </div>
+                  ) : (
+                    <div className="concave-3d p-4 space-y-3" data-testid="local-identidade-atalho">
+                      <p className="text-sm">A identidade e o logotipo dos documentos pertencem à empresa. Há um único editor, no cadastro da empresa.</p>
+                      <p className="text-sm font-semibold">Empresa vinculada: {empresaVinculada.nome}</p>
+                      <Button type="button" className="btn-3d-soft" data-testid="local-abrir-identidade-empresa" disabled={saveMutation.isPending}
+                        onClick={() => abrirIdentidadeNaEmpresa(empresaVinculada.id)}>
+                        <ExternalLink className="w-4 h-4 mr-2" /> Abrir identidade em Empresas
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+              </div>
               {/* Rodapé do form */}
-              <DialogFooter className="pt-2">
-                <Button type="button" className="btn-3d-soft" onClick={() => setDialogOpen(false)}>
+              {saveMutation.isError && <p role="alert" className="px-6 pb-2 text-sm text-destructive shrink-0">{saveMutation.error.message}</p>}
+              <DialogFooter className="px-6 py-3 border-t border-border/40 shrink-0" data-testid="local-dialogo-rodape">
+                <Button type="button" className="btn-3d-soft" disabled={saveMutation.isPending} onClick={() => handleDialogOpen(false)}>
                   CANCELAR
                 </Button>
-                <Button type="submit" className="btn-3d px-6" disabled={saveMutation.isPending}>
+                <Button type="submit" className="btn-3d px-6" disabled={saveMutation.isPending} data-testid="local-salvar">
                   {saveMutation.isPending
                     ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     : <Save className="w-4 h-4 mr-2" />}
-                  SALVAR CLÍNICA
+                  SALVAR LOCAL
                 </Button>
               </DialogFooter>
             </form>
@@ -620,41 +748,6 @@ export default function CadastroClinicas() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Dialog confirmar exclusão ──────────────────────────────────────── */}
-      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setDeleteConfirmText(""); } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-[13px] font-black uppercase tracking-widest text-destructive">
-              APAGAR CLÍNICA
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="concave-3d p-3 text-sm">
-              <p className="text-muted-foreground mb-2">Esta ação é irreversível. Para confirmar, digite o nome exato:</p>
-              <p className="font-black text-foreground">{deleteTarget?.name}</p>
-            </div>
-            <Input
-              className="field-engraved"
-              placeholder="Digite o nome exato da clínica"
-              value={deleteConfirmText}
-              onChange={(e) => setDeleteConfirmText(e.target.value)}
-            />
-            <DialogFooter>
-              <Button type="button" className="btn-3d-soft" onClick={() => { setDeleteTarget(null); setDeleteConfirmText(""); }}>
-                CANCELAR
-              </Button>
-              <Button
-                type="button" variant="destructive" className="btn-3d"
-                disabled={deleteConfirmText !== deleteTarget?.name || deleteMutation.isPending}
-                onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
-              >
-                {deleteMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-                APAGAR
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

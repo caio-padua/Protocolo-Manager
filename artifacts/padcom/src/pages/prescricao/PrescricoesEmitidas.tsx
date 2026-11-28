@@ -3,10 +3,19 @@ import { useQuery } from "@tanstack/react-query";
 import { Download, Eye } from "lucide-react";
 import { BASE } from "../comunicacao/_shared";
 import ClinicalHistoryToggle from "@/components/ClinicalHistoryToggle";
+import PainelEncaminhamento from "@/components/encaminhamento/PainelEncaminhamento";
 import ClinicalDocumentResendForm from "@/components/ClinicalDocumentResendForm";
 import { getCollabToken } from "@/lib/collab-auth";
 
-type Prescricao = { id: number; clientId: number | null; clientName: string; status: string; createdAt: string };
+type Prescricao = {
+  id: number;
+  clientId: number | null;
+  clientName: string;
+  status: string;
+  signatureStatus?: "signed" | "unsigned_expired" | "legacy_unknown";
+  certificateValidTo?: string | null;
+  createdAt: string;
+};
 type RecipeFile = { id: number; title: string; recipeType: string };
 
 function authHeaders() {
@@ -26,8 +35,8 @@ async function request(path: string, body?: unknown) {
   return data;
 }
 
-function PrescriptionHistoryRow({ p, clientId }: { p: Prescricao; clientId: number | null }) {
-  const [open, setOpen] = useState(false);
+function PrescriptionHistoryRow({ p, clientId, fixo = false, abrir = false }: { p: Prescricao; clientId: number | null; fixo?: boolean; abrir?: boolean }) {
+  const [open, setOpen] = useState(abrir);
   const files = useQuery<{ recipes: RecipeFile[] }>({
     queryKey: ["prescription-issued-files", p.id],
     queryFn: () => request(`/prescriptions/${p.id}`),
@@ -39,6 +48,18 @@ function PrescriptionHistoryRow({ p, clientId }: { p: Prescricao; clientId: numb
       <div>
         <p className="text-sm font-medium">{p.clientName} — Prescrição #{p.id}</p>
         <p className="text-xs text-muted-foreground">{new Date(p.createdAt).toLocaleString("pt-BR")}</p>
+        {p.signatureStatus === "unsigned_expired" && (
+          <p className="mt-1 text-xs font-bold text-amber-800" role="status">
+            GERADA SEM ASSINATURA DIGITAL
+            {p.certificateValidTo && ` — certificado vencido em ${new Date(p.certificateValidTo).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`}
+            ; não enviada; exige assinatura manual.
+          </p>
+        )}
+        {p.signatureStatus === "legacy_unknown" && (
+          <p className="mt-1 text-xs text-muted-foreground" role="status">
+            O histórico anterior não registrava o estado da assinatura.
+          </p>
+        )}
       </div>
       <button type="button" className="btn-3d-soft px-3 py-2 text-xs" aria-expanded={open} onClick={() => setOpen(!open)}>
         {open ? "Fechar documentos" : "Abrir documentos"}
@@ -46,7 +67,11 @@ function PrescriptionHistoryRow({ p, clientId }: { p: Prescricao; clientId: numb
     </div>
     {open && <>
       <div className="concave-3d space-y-2 p-3">
-        <h3 className="font-medium">PDFs emitidos — abrir, baixar ou reenviar individualmente</h3>
+        <h3 className="font-medium">
+          {p.signatureStatus === "unsigned_expired"
+            ? "PDFs gerados sem assinatura — apenas abrir ou baixar"
+            : "PDFs emitidos — abrir, baixar ou reenviar individualmente"}
+        </h3>
         {files.isPending && <p role="status">Carregando arquivos…</p>}
         {files.error && <p role="alert" className="text-sm text-destructive">{files.error.message}</p>}
         {files.data?.recipes.map(recipe => <div key={recipe.id} className="space-y-3 border-t border-current/10 pt-3">
@@ -62,7 +87,9 @@ function PrescriptionHistoryRow({ p, clientId }: { p: Prescricao; clientId: numb
               </PrescriptionPdfLink>
             </span>
           </div>
-          {clientId && <ClinicalDocumentResendForm clientId={clientId} documentType="prescricao" documentId={recipe.id} />}
+          {clientId && p.signatureStatus !== "unsigned_expired" && (fixo
+            ? <PainelEncaminhamento clientId={clientId} documentType="prescricao" documentId={recipe.id} />
+            : <ClinicalDocumentResendForm clientId={clientId} documentType="prescricao" documentId={recipe.id} />)}
         </div>)}
         {!files.isPending && !files.error && !files.data?.recipes.length && <p className="text-sm">Nenhum PDF encontrado nesta prescrição.</p>}
       </div>
@@ -70,17 +97,24 @@ function PrescriptionHistoryRow({ p, clientId }: { p: Prescricao; clientId: numb
   </div>;
 }
 
-export function PrescricoesEmitidas({ clientId, emissionId }: { clientId: number | null; emissionId?: number }) {
-  const [open, setOpen] = useState(false);
+export function PrescricoesEmitidas({ clientId, emissionId, embutido = false, fixo = false }: { clientId: number | null; emissionId?: number; embutido?: boolean; fixo?: boolean }) {
+  // fixo: histórico sempre aberto dentro do painel de emissão, sem interruptor.
+  const [openManual, setOpen] = useState(false);
+  const open = fixo || openManual;
   const { data, isPending, error, refetch } = useQuery<Prescricao[]>({
     queryKey: ["prescricoes-emitidas", clientId, emissionId], queryFn: () => request("/prescriptions"),
     enabled: open, staleTime: 0, refetchInterval: open ? 30000 : false,
   });
-  const rows = data?.filter(p => p.status === "emitted" && (clientId == null || p.clientId === clientId)) ?? [];
-  return <section className="no-print panel-3d p-4 space-y-3" aria-label="Prescrições emitidas">
-    <ClinicalHistoryToggle label="Histórico de prescrições emitidas" open={open} onOpenChange={setOpen} />
+  const rows = data?.filter(p =>
+    (p.status === "emitted" || p.status === "emitted_unsigned") &&
+    (clientId == null || p.clientId === clientId),
+  ) ?? [];
+  return <section className={`no-print ${embutido ? "border-t border-current/15 pt-4 mt-2" : "panel-3d p-4"} space-y-3`} aria-label="Prescrições emitidas">
+    {fixo
+      ? null
+      : <ClinicalHistoryToggle label="Histórico de prescrições emitidas" open={open} onOpenChange={setOpen} />}
     {open && <>
-    <p className="text-sm text-muted-foreground">Emitir não envia mensagens. Abra cada registro para visualizar ou baixar os PDFs, e confirme o destinatário antes de reenviar.</p>
+    {!fixo && <p className="text-sm text-muted-foreground">Emitir não envia mensagens. Abra cada registro para visualizar ou baixar os PDFs, e confirme o destinatário antes de reenviar.</p>}
     {isPending && <p role="status">Carregando prescrições…</p>}
     {error && <div role="alert" className="text-sm text-destructive">
       Não foi possível carregar o histórico: {error.message}
@@ -88,7 +122,7 @@ export function PrescricoesEmitidas({ clientId, emissionId }: { clientId: number
     </div>}
     {!isPending && !error && !rows.length && <p className="text-sm text-muted-foreground">Nenhuma prescrição emitida encontrada.</p>}
     <div className="space-y-2 max-h-[32rem] overflow-y-auto">
-      {rows.map(p => <PrescriptionHistoryRow key={`${clientId}:${p.id}`} p={p} clientId={clientId} />)}
+      {rows.map((p, i) => <PrescriptionHistoryRow key={`${clientId}:${p.id}`} p={p} clientId={clientId} fixo={fixo} abrir={fixo && i === 0} />)}
     </div>
     </>}
   </section>;

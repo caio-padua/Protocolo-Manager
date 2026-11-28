@@ -46,6 +46,7 @@ async function apiLeads(path: string, opts?: RequestInit) {
   if (token) headers.set("Authorization", `Bearer ${token}`);
   if (opts?.body) headers.set("Content-Type", "application/json");
   const res = await fetch(`/api${path}`, { ...opts, headers });
+  if (res.status === 403) throw new Error("Somente o titular da plataforma vê estes leads.");
   if (!res.ok) throw new Error(`API ${res.status}`);
   return res.json();
 }

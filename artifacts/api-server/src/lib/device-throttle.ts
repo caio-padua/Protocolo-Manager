@@ -75,12 +75,16 @@ async function ensureVerificationsTable(): Promise<void> {
           sent_via           TEXT        NOT NULL DEFAULT 'whatsapp',
           phone              TEXT,
           sent_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          code_sent_at       TIMESTAMPTZ,
           expires_at         TIMESTAMPTZ NOT NULL,
           verified_at        TIMESTAMPTZ,
           attempt_count      INTEGER     NOT NULL DEFAULT 0
         )
       `)
       .then(async () => {
+        await db.execute(sql`
+          ALTER TABLE device_contact_verifications ADD COLUMN IF NOT EXISTS code_sent_at TIMESTAMPTZ
+        `);
         await db
           .execute(
             sql`ALTER TABLE device_contact_verifications ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0`,

@@ -1,0 +1,170 @@
+.cpr-shell {
+  --cpr-ink: #182a43;
+  --cpr-gold: #c3a35b;
+  position: relative;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 32px;
+  align-items: stretch;
+  min-width: 0;
+  gap: 5px;
+  padding: 6px;
+  overflow: hidden;
+  border: 1px solid #d0c5a5;
+  border-radius: 11px;
+  background: linear-gradient(180deg, #f8f5ec 0%, #e8e2d4 100%);
+  box-shadow: inset 0 1px 0 #fffdf8, 0 3px 7px #14243a20;
+}
+
+.cpr-shell::before,
+.cpr-shell::after {
+  position: absolute;
+  z-index: 2;
+  top: 6px;
+  bottom: 6px;
+  width: 18px;
+  content: "";
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.cpr-shell::before {
+  left: 42px;
+  background: linear-gradient(90deg, #e9e3d6 8%, transparent);
+}
+
+.cpr-shell::after {
+  right: 42px;
+  background: linear-gradient(270deg, #e9e3d6 8%, transparent);
+}
+
+.cpr-shell.has-left-overflow::before,
+.cpr-shell.has-right-overflow::after {
+  opacity: 1;
+}
+
+.cpr-arrow {
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  min-height: 38px;
+  padding: 0;
+  border: 1px solid #c8bb98;
+  border-radius: 7px;
+  color: #1a2b43;
+  background: linear-gradient(180deg, #fffdf7 0%, #e4dcc9 100%);
+  box-shadow: 0 2px 3px #17263b22, inset 0 1px 0 #fff;
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+
+.cpr-arrow:not(:disabled) {
+  cursor: pointer;
+}
+
+.cpr-arrow:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.cpr-arrow:disabled {
+  opacity: 0.37;
+}
+
+.cpr-arrow:focus-visible,
+.cpr-rail button:focus-visible {
+  outline: 2px solid #bd9a50;
+  outline-offset: 2px;
+}
+
+.cpr-rail {
+  display: flex;
+  min-width: 0;
+  gap: 5px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: #b9a36f transparent;
+  scrollbar-width: thin;
+  scroll-behavior: smooth;
+}
+
+.cpr-rail::-webkit-scrollbar {
+  height: 4px;
+}
+
+.cpr-rail::-webkit-scrollbar-thumb {
+  border-radius: 5px;
+  background: #b9a36f;
+}
+
+.cpr-rail > button {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  max-width: 190px;
+  padding: 0 10px;
+  border: 1px solid #d2c8b0;
+  border-radius: 7px;
+  color: #334259;
+  background: linear-gradient(180deg, #fffdf7 0%, #ede7da 100%);
+  box-shadow: inset 0 1px 0 #fff, 0 1px 2px #1c2b3b12;
+  font: 600 10px/1.15 Inter, sans-serif;
+  letter-spacing: 0.015em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease, transform 120ms ease, border-color 120ms ease;
+}
+
+.cpr-rail > button:hover {
+  border-color: #b29a60;
+  color: #142640;
+  transform: translateY(-1px);
+}
+
+.cpr-rail > button.is-active {
+  border-color: #b6944e;
+  color: #fff9e9;
+  background: linear-gradient(180deg, #263c59 0%, #142640 100%);
+  box-shadow: inset 0 1px 0 #ffffff28, 0 2px 4px #10213930;
+}
+
+.cpr-index {
+  color: #94825b;
+  font: 600 11px/1 "EB Garamond", serif;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.cpr-rail > button.is-active .cpr-index {
+  color: #e2c986;
+}
+
+.cpr-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 620px) {
+  .cpr-shell {
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    gap: 4px;
+    padding: 5px;
+  }
+
+  .cpr-arrow {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .cpr-rail > button {
+    min-height: 40px;
+    padding-inline: 8px;
+  }
+
+  .cpr-shell::before {
+    left: 49px;
+  }
+
+  .cpr-shell::after {
+    right: 49px;
+  }
+}

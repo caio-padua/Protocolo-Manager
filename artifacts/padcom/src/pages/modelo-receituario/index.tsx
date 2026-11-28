@@ -4,6 +4,7 @@
 // (designer de faixas), apenas governa qual modelo o SISTEMA usa ao emitir.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { LayoutTemplate, CheckCircle2, Circle, FlaskConical, Loader2, RefreshCw, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -31,7 +32,7 @@ interface EmitirTesteResult {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function tipoLabel(tipo: string): string {
-  if (tipo === "faixas_paxter") return "Faixas Paxter";
+  if (tipo === "faixas_paxter") return "Faixas PaxMed";
   if (tipo === "classico_anvisa") return "Clássico ANVISA";
   return tipo;
 }
@@ -64,7 +65,8 @@ export default function ModeloReceituario() {
   async function carregar() {
     setCarregando(true);
     try {
-      const r = await fetch(`${API}/api/receituario-modelos`);
+      const r = await fetch(`${API}/api/receituario-modelos`, { headers: collabAuthHeaders() });
+      if (!r.ok) throw new Error("Não foi possível carregar os modelos.");
       const data = await r.json() as { modelos: Modelo[] };
       setModelos(data.modelos ?? []);
       setCarregouUmaVez(true);
@@ -82,7 +84,10 @@ export default function ModeloReceituario() {
   async function ativar(id: number) {
     setAtivando(id);
     try {
-      const r = await fetch(`${API}/api/receituario-modelos/${id}/ativar`, { method: "POST" });
+      const r = await fetch(`${API}/api/receituario-modelos/${id}/ativar`, {
+        method: "POST",
+        headers: collabAuthHeaders(),
+      });
       const data = await r.json() as { ok: boolean; modelo?: Modelo };
       if (!data.ok) throw new Error("Falha ao ativar");
       await carregar();
@@ -100,7 +105,7 @@ export default function ModeloReceituario() {
     try {
       const r = await fetch(`${API}/api/receituario-modelos/emitir-teste`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...collabAuthHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ modeloId }),
       });
       const data = await r.json() as EmitirTesteResult;
@@ -280,7 +285,7 @@ export default function ModeloReceituario() {
               <tbody className="divide-y divide-slate-800">
                 {[
                   ["Modelo Usado", ultimoTeste.modeloUsado],
-                  ["Motor", ultimoTeste.tipoMotor === "faixas_paxter" ? "Faixas Paxter (Puppeteer)" : "Clássico ANVISA (PDF-lib)"],
+                  ["Motor", ultimoTeste.tipoMotor === "faixas_paxter" ? "Faixas PaxMed (Puppeteer)" : "Clássico ANVISA (PDF-lib)"],
                   ["Arquivo", ultimoTeste.fileName],
                   ["Tamanho do PDF", `${((ultimoTeste.pdfSizeBytes ?? 0) / 1024).toFixed(0)} KB`],
                 ].map(([k, v]) => (
@@ -312,7 +317,7 @@ export default function ModeloReceituario() {
         </p>
         <p>
           A tela <span className="text-white font-medium">Faixas do Receituário</span> no menu de Configurações
-          continua disponível para editar o design visual do modelo Faixas Paxter.
+          continua disponível para editar o design visual do modelo Faixas PaxMed.
         </p>
       </div>
     </div>

@@ -62,10 +62,10 @@ function montarMensagem(nomeCliente: string, item: ItemLembrete, periodo: Period
   const saud = periodo === "manha" ? "Bom dia" : periodo === "tarde" ? "Boa tarde" : "Boa noite";
   const det = item.detalhe ? ` (${item.detalhe})` : "";
   if (item.tipo === "formula")
-    return `${saud}, ${nomeCliente}! Lembrete PAXTER: hora da sua formula "${item.nome}"${det}. Cuide-se.`;
+    return `${saud}, ${nomeCliente}! Lembrete PaxMed: hora da sua formula "${item.nome}"${det}. Cuide-se.`;
   if (item.tipo === "injetavel")
-    return `${saud}, ${nomeCliente}! Lembrete PAXTER: janela do seu injetavel "${item.nome}"${det}. Agende/confirme sua aplicacao.`;
-  return `${saud}, ${nomeCliente}! Lembrete PAXTER: nao esqueca de realizar o exame "${item.nome}"${det}.`;
+    return `${saud}, ${nomeCliente}! Lembrete PaxMed: janela do seu injetavel "${item.nome}"${det}. Agende/confirme sua aplicacao.`;
+  return `${saud}, ${nomeCliente}! Lembrete PaxMed: nao esqueca de realizar o exame "${item.nome}"${det}.`;
 }
 
 export interface AgendarResultado {

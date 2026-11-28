@@ -1,9 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import multer, { MulterError } from "multer";
-import fs from "fs";
-import path from "path";
-import { randomUUID } from "crypto";
-import jpeg from "jpeg-js";
 import {
   UpdateCompanySettingsBody,
   UpdateClinicsSettingsBody,
@@ -20,8 +16,14 @@ import {
   type Matriz,
 } from "@workspace/governanca";
 import { requireCollaborator } from "./collaborator";
+import { requireCeoInstance, requirePlatformOwner } from "../middleware/tenantContext";
+import { sessionEmpresaId } from "../lib/exam-tenant";
+import {
+  lerVisibilidadePreliminarExames,
+  salvarVisibilidadePreliminarExames,
+} from "../lib/exam-preliminary-visibility";
 import { ClinicalIdentityError } from "../lib/clinical-emitter";
-import { inspectPrescriptionCertificate } from "../lib/prescription-signing";
+import { getPrescriptionCertificateStatus, inspectPrescriptionCertificate } from "../lib/prescription-signing";
 import { getTelegramBotInfo, setTelegramBotName } from "../lib/telegram";
 import {
   getJsonSetting,
@@ -61,52 +63,6 @@ const upload = multer({
   },
 });
 
-const doctorPhotoUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const name = (file.originalname || "").toLowerCase();
-    const validName = name.endsWith(".jpg") || name.endsWith(".jpeg");
-    const validMime = file.mimetype === "image/jpeg";
-    const valid = validName && validMime;
-    if (!valid) {
-      cb(new MulterError("LIMIT_UNEXPECTED_FILE", "file"));
-      return;
-    }
-    cb(null, true);
-  },
-});
-
-function doctorPhotoUploadMw(req: Request, res: Response, next: NextFunction): void {
-  doctorPhotoUpload.single("file")(req, res, (err: unknown) => {
-    if (err instanceof MulterError) {
-      const msg = err.code === "LIMIT_FILE_SIZE"
-        ? "Imagem maior que 5 MB. Envie um JPEG menor."
-        : "Arquivo inválido. Envie uma imagem JPEG (.jpg ou .jpeg).";
-      res.status(400).json({ error: msg });
-      return;
-    }
-    if (err) {
-      res.status(400).json({ error: "Falha no envio da imagem." });
-      return;
-    }
-    next();
-  });
-}
-
-function doctorPhotoPath(): string {
-  const assetDirs = [
-    path.resolve(import.meta.dirname, "../assets"),
-    path.resolve(import.meta.dirname, "../../assets"),
-    path.resolve(process.cwd(), "assets"),
-  ];
-  const assetsDir = assetDirs.find((candidate) => fs.existsSync(candidate));
-  if (!assetsDir) {
-    throw new Error("Diretório de assets do servidor não encontrado.");
-  }
-  return path.join(assetsDir, "dr-caio-photo.jpg");
-}
-
 // Traduz erros do multer (tamanho/tipo de arquivo) em 400 com mensagem clara,
 // em vez de cair no handler genérico de 500.
 function certUploadMw(req: Request, res: Response, next: NextFunction): void {
@@ -135,91 +91,6 @@ function actor(req: Parameters<Parameters<IRouter["get"]>[1]>[0]): string | unde
   const c = (req as { collaborator?: { professionalId?: number; role?: string } }).collaborator;
   return c ? `${c.role ?? "?"}:${c.professionalId ?? "?"}` : undefined;
 }
-
-// ------------------------------------------------ FOTO DA CAPA DO PROTOCOLO ---
-router.get("/settings/doctor-photo", requireCollaborator, async (_req, res): Promise<void> => {
-  const photoPath = doctorPhotoPath();
-  try {
-    await fs.promises.access(photoPath, fs.constants.R_OK);
-    res.setHeader("Content-Type", "image/jpeg");
-    res.setHeader("Cache-Control", "no-store");
-    res.sendFile(photoPath);
-  } catch (error: unknown) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      res.status(404).json({ error: "Foto do médico ainda não cadastrada." });
-      return;
-    }
-    throw error;
-  }
-});
-
-router.post(
-  "/settings/doctor-photo",
-  requireCollaborator,
-  doctorPhotoUploadMw,
-  async (req, res): Promise<void> => {
-    const actorId = req.collaborator!.professionalId;
-    const [authenticatedProfessional] = await db
-      .select({ isPrimaryDoctor: professionalsTable.isPrimaryDoctor })
-      .from(professionalsTable)
-      .where(eq(professionalsTable.id, actorId))
-      .limit(1);
-    if (!authenticatedProfessional?.isPrimaryDoctor) {
-      res.status(403).json({ error: "Apenas o médico principal pode alterar a foto da capa." });
-      return;
-    }
-
-    const file = req.file;
-    if (!file || file.size === 0 || file.buffer.length === 0) {
-      res.status(400).json({ error: "Envie uma imagem JPEG não vazia no campo 'file'." });
-      return;
-    }
-
-    let normalizedJpeg: Buffer;
-    try {
-      const image = jpeg.decode(file.buffer, {
-        useTArray: true,
-        maxMemoryUsageInMB: 128,
-        maxResolutionInMP: 64,
-      });
-      if (
-        !Number.isInteger(image.width)
-        || !Number.isInteger(image.height)
-        || image.width < 1
-        || image.height < 1
-        || image.width > 8_000
-        || image.height > 8_000
-      ) {
-        res.status(400).json({ error: "A imagem deve ter dimensões entre 1 e 8.000 pixels." });
-        return;
-      }
-      normalizedJpeg = jpeg.encode(
-        { data: image.data, width: image.width, height: image.height },
-        92,
-      ).data;
-    } catch {
-      res.status(400).json({ error: "O arquivo não contém uma imagem JPEG válida." });
-      return;
-    }
-
-    const target = doctorPhotoPath();
-    const temporary = `${target}.${randomUUID()}.tmp`;
-    await fs.promises.mkdir(path.dirname(target), { recursive: true });
-    try {
-      await fs.promises.writeFile(temporary, normalizedJpeg, { flag: "wx" });
-      await fs.promises.rename(temporary, target);
-    } catch (error) {
-      await fs.promises.rm(temporary, { force: true }).catch(() => undefined);
-      throw error;
-    }
-
-    req.log.info(
-      { receivedBytes: file.size, storedBytes: normalizedJpeg.length, actor: actor(req) },
-      "Foto do médico da capa atualizada",
-    );
-    res.status(200).json({ updated: true });
-  },
-);
 
 // ---------------------------------------------------------------- EMPRESA ----
 router.get("/settings/company", requireCollaborator, async (_req, res): Promise<void> => {
@@ -264,11 +135,11 @@ async function paymentGatewayPayload(): Promise<unknown> {
   return { provider: "asaas", baseUrl, apiKeyStatus, webhookTokenStatus };
 }
 
-router.get("/settings/payment-gateway", requireCollaborator, async (_req, res): Promise<void> => {
+router.get("/settings/payment-gateway", requireCollaborator, requirePlatformOwner, async (_req, res): Promise<void> => {
   res.json(await paymentGatewayPayload());
 });
 
-router.put("/settings/payment-gateway", requireCollaborator, async (req, res): Promise<void> => {
+router.put("/settings/payment-gateway", requireCollaborator, requirePlatformOwner, async (req, res): Promise<void> => {
   const parsed = UpdatePaymentGatewaySettingsBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Dados invalidos", details: parsed.error.issues });
@@ -280,6 +151,46 @@ router.put("/settings/payment-gateway", requireCollaborator, async (req, res): P
   if (typeof webhookToken === "string" && webhookToken.trim())
     await setSecret("asaas.webhookToken", webhookToken.trim(), actor(req));
   res.json(await paymentGatewayPayload());
+});
+
+// Conta sandbox é independente da produção. Valores sempre entram no cofre e
+// respostas expõem somente metadados; campo vazio nunca remove a credencial.
+router.get("/settings/payment-gateway/sandbox", requireCollaborator, requirePlatformOwner, requireCeoInstance, async (_req, res): Promise<void> => {
+  const [apiKeyStatus, webhookTokenStatus] = await Promise.all([
+    getSecretStatus("asaas.sandbox.apiKey"),
+    getSecretStatus("asaas.sandbox.webhookToken"),
+  ]);
+  res.json({ provider: "asaas", ambiente: "sandbox", baseUrl: "https://api-sandbox.asaas.com/v3", apiKeyStatus, webhookTokenStatus });
+});
+
+router.put("/settings/payment-gateway/sandbox", requireCollaborator, requirePlatformOwner, requireCeoInstance, async (req, res): Promise<void> => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(403).json({ error: "Configuração do sandbox está bloqueada nesta versão de produção." }); return;
+  }
+  const { apiKey, webhookToken } = req.body ?? {};
+  if (apiKey !== undefined && typeof apiKey !== "string") {
+    res.status(400).json({ error: "Chave do sandbox inválida." }); return;
+  }
+  if (webhookToken !== undefined && typeof webhookToken !== "string") {
+    res.status(400).json({ error: "Token do webhook sandbox inválido." }); return;
+  }
+  const key = typeof apiKey === "string" ? apiKey.trim() : "";
+  const token = typeof webhookToken === "string" ? webhookToken.trim() : "";
+  if (!key && !token) {
+    res.status(400).json({ error: "Preencha ao menos um campo. Campo vazio mantém o valor guardado." }); return;
+  }
+  if (/\$aact_prod_/i.test(key)) {
+    res.status(400).json({ error: "Uma chave de produção não pode ser gravada no cofre do sandbox." }); return;
+  }
+  const actorInfo = (req as { collaborator?: { professionalId?: number } }).collaborator;
+  const updatedBy = `colaborador:${actorInfo?.professionalId ?? "desconhecido"}`;
+  if (key) await setSecret("asaas.sandbox.apiKey", key, updatedBy);
+  if (token) await setSecret("asaas.sandbox.webhookToken", token, updatedBy);
+  const [apiKeyStatus, webhookTokenStatus] = await Promise.all([
+    getSecretStatus("asaas.sandbox.apiKey"),
+    getSecretStatus("asaas.sandbox.webhookToken"),
+  ]);
+  res.json({ provider: "asaas", ambiente: "sandbox", apiKeyStatus, webhookTokenStatus });
 });
 
 // -------------------------------------------------- ASSINATURA ELETRONICA ----
@@ -391,7 +302,19 @@ router.put("/settings/stripe", requireCollaborator, async (req, res): Promise<vo
 
 // ------------------------------------------------------------- CERTIFICADO ---
 router.get("/settings/certificate", requireCollaborator, async (req, res): Promise<void> => {
-  res.json(await getCertificateStatus(req.collaborator!.professionalId));
+  const professionalId = req.collaborator!.professionalId;
+  const [professional] = await db.select({
+    cpf: professionalsTable.cpf,
+    professionalType: professionalsTable.professionalType,
+  })
+    .from(professionalsTable).where(eq(professionalsTable.id, professionalId)).limit(1);
+  const [stored, validity] = await Promise.all([
+    getCertificateStatus(professionalId),
+    professional?.professionalType === "medico"
+      ? getPrescriptionCertificateStatus(professionalId, professional.cpf ?? null)
+      : Promise.resolve({ state: "missing", validFrom: null, validTo: null }),
+  ]);
+  res.json({ ...stored, ...validity, professionalType: professional?.professionalType ?? null });
 });
 
 // Upload do .pfx (multipart): campo "file" + "password" (+ opcional "cpf").
@@ -433,12 +356,12 @@ router.post(
 );
 
 // ------------------------------------------------- EXAMES (validacao humana) ---
-// Toggle global "liberar validacoes": quando LIGADO (padrao), a Evolucao do
-// cliente so mostra resultados de documentos CONFERIDOS por humano. Quando
-// DESLIGADO, a Evolucao mostra tudo que ja foi lido pela IA (menos processando/
-// erro). Guardado em app_settings (nao-sensivel). Chave: exames.exigirValidacaoHumana.
+// Toggle global da evolução profissional. O portal do cliente mantém a regra C2
+// e tem uma opção independente, escopada por clínica, para resultados preliminares.
+// Chave existente: exames.exigirValidacaoHumana; não reutilizar para o portal.
 interface ExamesConfig {
   exigirValidacaoHumana: boolean;
+  exibirResultadosPreliminaresAreaCliente: boolean;
   triagemAtiva: boolean;
   autoCriarDescoberto: boolean;
   autoAbsorverApelidoAltaConfianca: boolean;
@@ -451,9 +374,10 @@ interface ExamesConfig {
 
 // Cada chave ausente => padrao SEGURO/ligado (true) para os existentes;
 // novos LLMs secundários default FALSE (nao ativar sem config explícita).
-async function examesPayload(): Promise<ExamesConfig> {
-  const [ev, ta, ac, aa, lg, lc, lo] = await Promise.all([
+async function examesPayload(empresaId: number | null): Promise<ExamesConfig> {
+  const [ev, preliminares, ta, ac, aa, lg, lc, lo] = await Promise.all([
     getSetting("exames.exigirValidacaoHumana"),
+    lerVisibilidadePreliminarExames(empresaId),
     getSetting("exames.triagemAtiva"),
     getSetting("exames.autoCriarDescoberto"),
     getSetting("exames.autoAbsorverApelidoAltaConfianca"),
@@ -463,6 +387,7 @@ async function examesPayload(): Promise<ExamesConfig> {
   ]);
   return {
     exigirValidacaoHumana: ev === null ? true : ev === "true",
+    exibirResultadosPreliminaresAreaCliente: preliminares,
     triagemAtiva: ta === null ? true : ta === "true",
     autoCriarDescoberto: ac === null ? true : ac === "true",
     autoAbsorverApelidoAltaConfianca: aa === null ? true : aa === "true",
@@ -472,11 +397,11 @@ async function examesPayload(): Promise<ExamesConfig> {
   };
 }
 
-router.get("/settings/exames", requireCollaborator, async (_req, res): Promise<void> => {
-  res.json(await examesPayload());
+router.get("/settings/exames", requireCollaborator, async (req, res): Promise<void> => {
+  res.json(await examesPayload(sessionEmpresaId(req)));
 });
 
-router.put("/settings/exames", requireCollaborator, async (req, res): Promise<void> => {
+router.put("/settings/exames", requireCollaborator, requirePlatformOwner, async (req, res): Promise<void> => {
   const chaves: Record<string, string> = {
     exigirValidacaoHumana: "exames.exigirValidacaoHumana",
     triagemAtiva: "exames.triagemAtiva",
@@ -486,23 +411,48 @@ router.put("/settings/exames", requireCollaborator, async (req, res): Promise<vo
     llmClaudeAtivo: "exames.llmClaudeAtivo",
     llmOpenaiAtivo: "exames.llmOpenaiAtivo",
   };
+  const preliminares = req.body?.exibirResultadosPreliminaresAreaCliente;
+  if (preliminares !== undefined && typeof preliminares !== "boolean") {
+    res.status(400).json({ error: "exibirResultadosPreliminaresAreaCliente deve ser booleano" });
+    return;
+  }
+  if (preliminares !== undefined && Object.keys(chaves).some((campo) => req.body?.[campo] !== undefined)) {
+    res.status(400).json({ error: "Atualize a visibilidade preliminar separadamente das outras configurações." });
+    return;
+  }
+  const empresaId = sessionEmpresaId(req);
+  if (preliminares !== undefined && (!empresaId || !req.tenantContext.professionalId)) {
+    res.status(403).json({ error: "Não foi possível confirmar a clínica e o autor desta alteração." });
+    return;
+  }
+  for (const campo of Object.keys(chaves)) {
+    const v = req.body?.[campo];
+    if (v !== undefined && typeof v !== "boolean") {
+      res.status(400).json({ error: `${campo} deve ser booleano` });
+      return;
+    }
+  }
   // aceita atualizacao parcial: so grava as chaves booleanas enviadas.
   let tocou = false;
   for (const [campo, settingKey] of Object.entries(chaves)) {
     const v = req.body?.[campo];
     if (v === undefined) continue;
-    if (typeof v !== "boolean") {
-      res.status(400).json({ error: `${campo} deve ser booleano` });
-      return;
-    }
     await setSetting(settingKey, v ? "true" : "false");
+    tocou = true;
+  }
+  if (preliminares !== undefined && empresaId && req.tenantContext.professionalId) {
+    await salvarVisibilidadePreliminarExames({
+      empresaId,
+      habilitado: preliminares,
+      professionalId: req.tenantContext.professionalId,
+    });
     tocou = true;
   }
   if (!tocou) {
     res.status(400).json({ error: "Nenhuma configuração de exames enviada" });
     return;
   }
-  res.json(await examesPayload());
+  res.json(await examesPayload(empresaId));
 });
 
 // -------------------------------------------------------------- GOVERNANCA ---

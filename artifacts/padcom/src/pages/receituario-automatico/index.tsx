@@ -13,6 +13,7 @@
  * ════════════════════════════════════════════════════════════════════
  */
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import {
   FlaskConical, Microscope, Calendar, Save, Plus, Minus,
   ChevronLeft, ChevronRight, X, CreditCard, AlertCircle,
@@ -30,9 +31,7 @@ import ExamesPage from "@/pages/exames";
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const API = import.meta.env.BASE_URL.replace(/\/$/, "");
 function authHeader(): HeadersInit {
-  const t = localStorage.getItem("collab_token") || "";
-  return t ? { Authorization: `Bearer ${t}`, "Content-Type": "application/json" }
-           : { "Content-Type": "application/json" };
+  return collabAuthHeaders({ "Content-Type": "application/json" });
 }
 async function apiFetch(path: string, opts?: RequestInit) {
   const r = await fetch(`${API}${path}`, { ...opts, headers: { ...authHeader(), ...(opts?.headers ?? {}) } });
@@ -803,7 +802,7 @@ export default function ReceituarioAutomatico() {
               Emissão Rápida ICP-Brasil
             </div>
             <div className="text-[10px] text-muted-foreground mt-0.5">
-              Dr. Caio — CRM SP 125.475 · Certificado digital ativo · Carlucia Santos Fernandes
+              Atalhos suspensos. Use a ferramenta Prescrição para emitir ou gerar documento de teste.
             </div>
           </div>
         </div>
@@ -811,16 +810,17 @@ export default function ReceituarioAutomatico() {
           <Button
             className="btn-3d gap-2 text-sm"
             onClick={() => { setEmitirResultado(null); setEmitirFormula({ nome: "", dose: "", posologia: "", via: "oral" }); setEmitirAberto(true); }}
-            title="Motor único — lê o modelo ativo do banco"
+            disabled
+            title="Use Emitir receitas na ferramenta Prescrição."
           >
             <FileText className="w-4 h-4" />
             Emitir Receituário
           </Button>
           <Button
             className="btn-3d-soft gap-2 text-sm"
-            disabled={gerarLoading}
+            disabled
             onClick={() => { void gerarPdfVisual(); }}
-            title="Puppeteer server-side — fiel ao template HTML"
+            title="Use Gerar documento teste na ferramenta Prescrição."
           >
             {gerarLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
             PDF Visual

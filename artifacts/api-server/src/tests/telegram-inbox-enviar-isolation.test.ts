@@ -1,6 +1,15 @@
 /**
- * Real route/auth/legacy tenant middleware + server authorization query.
- * Only database and external providers are replaced; no simulated tenant middleware.
+ * Rotas reais + autenticação real do colaborador + middleware real de clínica
+ * (tenantContext, com credentialVersion e vínculos) + consulta real de autorização.
+ * Só o banco e os provedores externos são substituídos; nenhum middleware simulado.
+ *
+ * Contrato atualizado em 13/11/2026: desde a refatoração de 31/10/2026 (commit 8a8b1540)
+ * a identidade do colaborador é conferida no banco a cada requisição (profissional ativo +
+ * credentialVersion) e o middleware de clínica recusa, ANTES da rota, seleção de clínica sem
+ * vínculo (403) ou inconsistente entre cabeçalho e query (400). O banco simulado abaixo
+ * responde por tabela, como o código real consulta. Nenhuma expectativa de bloqueio foi
+ * removida: as recusas passaram a acontecer mais cedo e a consulta de cliente continua
+ * proibida em todos os caminhos negados (mocks.clients).
  */
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
@@ -9,7 +18,7 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
 
 const mocks = vi.hoisted(() => ({
-  select: vi.fn(), where: vi.fn(),
+  select: vi.fn(), where: vi.fn(), clients: vi.fn(), identity: vi.fn(),
   execute: vi.fn().mockResolvedValue({ rows: [] }),
   insert: vi.fn(), send: vi.fn(), whatsapp: vi.fn(), log: vi.fn(),
 }));
@@ -26,22 +35,32 @@ vi.mock("../lib/lembrete-periodo", () => ({
   sincronizarLembretePrescricao: vi.fn(), executarLembretesPeriodo: vi.fn(),
 }));
 vi.mock("../lib/formula-manipulada", () => ({ enriquecerItemFormula: vi.fn() }));
-vi.mock("../lib/logger", () => ({ logger: { error: vi.fn() } }));
+vi.mock("../lib/logger", () => ({ logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }));
+vi.mock("../lib/telegram-config", () => ({
+  resolverChatAlerta: vi.fn().mockResolvedValue({ chatId: "test-alert", fonte: "cofre", motivo: null }),
+}));
 
 import cockpitRouter from "../routes/cockpit";
+import assinaturasRouter from "../routes/assinaturas";
 import { onboardingRouter } from "../routes/onboarding";
 import { createCollaboratorToken } from "../lib/collaborator-auth";
 import { tenantContextMiddleware } from "../middleware/tenantContext";
-import { clientsTable } from "@workspace/db";
+import {
+  clientsTable, professionalsTable, professionalEmpresasTable, locationProfessionalsTable, empresasTable,
+} from "@workspace/db";
 
 const dialect = new PgDialect();
 const CLIENTS = [
   { id: 42, empresaId: 5, name: "Cliente Teste", telegramChatId: "test-chat-42", phone: "test-phone-42" },
   { id: 43, empresaId: 7, name: "Cliente Teste", telegramChatId: "test-chat-43", phone: "test-phone-43" },
 ];
-type Grant = { empresaId: number; active: boolean; professionalActive: boolean; empresaActive: boolean; status: string };
+type Grant = {
+  empresaId: number; active: boolean; professionalActive: boolean; empresaActive: boolean; status: string;
+  isPlatformOwner?: boolean;
+};
 let grants: Map<number, Grant>;
 let databaseFailure = false;
+let vinculosDoChat: Array<{ id: number; empresa_id: number }> | null = null;
 
 function token(professionalId: number, role = "medico") {
   return createCollaboratorToken({ professionalId, role });
@@ -54,6 +73,7 @@ function app() {
   server.use(tenantContextMiddleware);
   server.use("/onboarding", onboardingRouter);
   server.use(cockpitRouter);
+  server.use(assinaturasRouter);
   return server;
 }
 const server = app();
@@ -78,6 +98,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useRealTimers();
   databaseFailure = false;
+  vinculosDoChat = null;
   grants = new Map([
     [500, { empresaId: 5, active: true, professionalActive: true, empresaActive: true, status: "ATIVO" }],
     [700, { empresaId: 7, active: true, professionalActive: true, empresaActive: true, status: "ATIVO" }],
@@ -93,13 +114,21 @@ beforeEach(() => {
       expect(query.sql).toContain("e.id = p.empresa_id");
       expect(query.sql).toContain("p.id = $1 AND p.active = true");
       expect(query.sql).toContain("e.ativa = true AND e.status = 'ATIVO'");
-      expect(query.params).toHaveLength(1);
+      expect(query.sql).toContain("p.credential_version = $2");
+      expect(query.params).toHaveLength(2);
       const grant = grants.get(query.params[0] as number);
+      if (query.params[1] !== 0) return { rows: [] }; // credentialVersion do banco é 0 no cenário
       return { rows: grant?.active && grant.professionalActive && grant.empresaActive && grant.status === "ATIVO"
         ? [{ id: grant.empresaId, nome: "Clínica Teste", slug: grant.empresaId === 5 ? null : "clinica-7" }] : [] };
     }
     if (query.sql.includes("INSERT INTO onboarding_quota")) {
       return { rows: [{ dia_brt: "2026-10-29" }] };
+    }
+    if (query.sql.includes("INSERT INTO telegram_inbox_messages")) return { rows: [{ id: 900 }] };
+    if (query.sql.includes("INSERT INTO telegram_repasse_ceo")) return { rows: [{ id: 901 }] };
+    if (query.sql.includes("WHERE telegram_chat_id =")) {
+      return { rows: vinculosDoChat ?? CLIENTS.filter(c => c.telegramChatId === query.params[0])
+        .map(c => ({ id: c.id, empresa_id: c.empresaId })) };
     }
     return { rows: [] };
   });
@@ -111,9 +140,33 @@ beforeEach(() => {
       CLIENTS.filter((client) => client.id === clientId && client.empresaId === empresaId),
     ) };
   });
+  const professionalRow = (id: number) => {
+    const grant = grants.get(id);
+    return grant ? [{
+      id, role: "medico", category: "medico", empresaId: grant.empresaId, credentialVersion: 0,
+      active: grant.active && grant.professionalActive, isPlatformOwner: grant.isPlatformOwner === true,
+    }] : [];
+  };
   mocks.select.mockImplementation(() => ({
     from: (table: unknown) => {
+      if (table === professionalsTable) {
+        return { where: (cond: SQL) => ({ limit: async () => {
+          mocks.identity();
+          if (databaseFailure) throw new Error("database unavailable");
+          return professionalRow(dialect.sqlToQuery(cond).params[0] as number);
+        } }) };
+      }
+      if (table === locationProfessionalsTable) return { innerJoin: () => ({ where: async () => [] }) };
+      if (table === professionalEmpresasTable) return { where: async () => [] };
+      if (table === empresasTable) {
+        return { where: (cond: SQL) => ({ limit: async () => {
+          const id = dialect.sqlToQuery(cond).params[0] as number;
+          const ok = [...grants.values()].some((g) => g.empresaId === id && g.empresaActive && g.status === "ATIVO");
+          return ok ? [{ id }] : [];
+        } }) };
+      }
       expect(table).toBe(clientsTable);
+      mocks.clients();
       return { where: mocks.where };
     },
   }));
@@ -121,12 +174,16 @@ beforeEach(() => {
 
 for (const route of ["telegram", "guia"] as const) {
   describe(`${route}: autorização real de clínica antes de enviar`, () => {
-    function send(professionalId: number | null, clientId = 42, query = "", role = "medico", rawToken?: string) {
+    // empresaHeader: clínica "selecionada" pelo navegador. Padrão 5 = cabeçalho hostil/legado
+    // (usado para provar que a seleção do navegador nunca concede acesso); null = sem seleção.
+    function send(
+      professionalId: number | null, clientId = 42, query = "", role = "medico", rawToken?: string,
+      empresaHeader: number | null = 5,
+    ) {
       const path = route === "telegram"
         ? `/cockpit/${clientId}/telegram-inbox/enviar` : "/onboarding/enviar-guia";
-      const req = request(server).post(path + query)
-        .set("X-Empresa-Id", "5")
-        .set("X-Tenant-Id", "5");
+      const req = request(server).post(path + query);
+      if (empresaHeader !== null) req.set("X-Empresa-Id", String(empresaHeader)).set("X-Tenant-Id", String(empresaHeader));
       if (professionalId !== null) req.set("Authorization", `Bearer ${rawToken ?? token(professionalId, role)}`);
       return req.send({
         texto: "Mensagem de teste", clientId, canais: ["WHATSAPP", "TELEGRAM"],
@@ -134,30 +191,75 @@ for (const route of ["telegram", "guia"] as const) {
       });
     }
 
-    it.each(["", "?empresaId=5"])("empresa 7 não envia ao cliente da empresa 5 (%s)", async (query) => {
-      const response = await send(700, 42, query);
+    // Segue o contrato atual: a recusa de identidade acontece em camadas diferentes por rota.
+    //  - telegram: requireCollaborator confere o profissional no banco => 401 se inativo/inexistente.
+    //  - guia: a consulta de autorização da clínica => 403 se não há vínculo ativo.
+    const semIdentidade = route === "telegram" ? 401 : 403;
+    const naoEncontrado = route === "telegram"
+      ? { error: "cliente nao encontrado" } : { ok: false, error: "Cliente não encontrado." };
+
+    it.each(["", "?empresaId=5"])("clínica 7 selecionando a clínica 5 é barrada antes de qualquer consulta de cliente (%s)", async (query) => {
+      const response = await send(700, 42, query); // cabeçalho X-Empresa-Id: 5 (clínica alheia)
+      expect(response.status).toBe(403);
+      expect(mocks.clients).not.toHaveBeenCalled();
+      noSideEffects();
+    });
+
+    it("sem seleção de clínica: profissional da clínica 7 pede o cliente 42 (clínica 5) e recebe 404 restrito à própria clínica", async () => {
+      const response = await send(700, 42, "", "medico", undefined, null);
       expect(response.status).toBe(404);
-      expect(response.body).toEqual(route === "telegram"
-        ? { error: "cliente nao encontrado" } : { ok: false, error: "Cliente não encontrado." });
+      expect(response.body).toEqual(naoEncontrado);
       expect(dialect.sqlToQuery(mocks.where.mock.calls[0][0]).params).toEqual([42, 7]);
       noSideEffects();
     });
 
-    it("empresa 5 não envia ao cliente da empresa 7 mesmo com role de proprietário e override", async () => {
-      expect((await send(500, 43, "?empresaId=7", "platform_owner")).status).toBe(404);
+    it("cabeçalho e query com clínicas diferentes são recusados como seleção inválida (400)", async () => {
+      expect((await send(500, 43, "?empresaId=7")).status).toBe(400);
+      expect(mocks.clients).not.toHaveBeenCalled();
       noSideEffects();
     });
 
-    it.each([null, 999])("sem token/vínculo não há envio (profissional %s)", async (id) => {
-      expect((await send(id)).status).toBe(id === null ? 401 : 403);
-      expect(mocks.select).not.toHaveBeenCalled();
+    it("proprietário da plataforma escolhendo a clínica 7 ainda NÃO envia ao cliente 43: a consulta usa a clínica do vínculo do profissional", async () => {
+      grants.get(500)!.isPlatformOwner = true;
+      const response = await send(500, 43, "?empresaId=7", "platform_owner", undefined, 7);
+      expect(response.status).toBe(404);
+      expect(response.body).toEqual(naoEncontrado);
+      expect(dialect.sqlToQuery(mocks.where.mock.calls[0][0]).params).toEqual([43, 5]);
       noSideEffects();
     });
+
+    it("sem token não há envio nem consulta ao banco (401)", async () => {
+      expect((await send(null)).status).toBe(401);
+      expect(mocks.identity).not.toHaveBeenCalled();
+      expect(mocks.clients).not.toHaveBeenCalled();
+      noSideEffects();
+    });
+
+    it("profissional sem vínculo (inexistente) não envia", async () => {
+      expect((await send(999)).status).toBe(semIdentidade);
+      expect(mocks.clients).not.toHaveBeenCalled();
+      noSideEffects();
+    });
+
+    if (route === "telegram") {
+      it.each([
+        ["revogado", []],
+        ["transferido para outro cliente", [{ id: 43, empresa_id: 5 }]],
+        ["empresa alterada", [{ id: 42, empresa_id: 7 }]],
+        ["duplicado entre empresas", [{ id: 42, empresa_id: 5 }, { id: 43, empresa_id: 7 }]],
+      ] as const)("chat %s: recusa antes do transporte", async (_caso, linhas) => {
+        vinculosDoChat = [...linhas];
+        const response = await send(500);
+        expect(response.status).toBe(409);
+        noSideEffects();
+      });
+    }
 
     it("token adulterado é recusado antes de consultar o banco", async () => {
       expect((await send(700, 42, "", "medico", "invalid")).status).toBe(401);
       expect(mocks.execute).not.toHaveBeenCalled();
-      expect(mocks.select).not.toHaveBeenCalled();
+      expect(mocks.identity).not.toHaveBeenCalled();
+      expect(mocks.clients).not.toHaveBeenCalled();
       noSideEffects();
     });
 
@@ -168,16 +270,34 @@ for (const route of ["telegram", "guia"] as const) {
       spy.mockRestore();
       expect((await send(500, 42, "", "medico", expired)).status).toBe(401);
       expect(mocks.execute).not.toHaveBeenCalled();
+      expect(mocks.identity).not.toHaveBeenCalled();
+      expect(mocks.clients).not.toHaveBeenCalled();
       noSideEffects();
     });
 
-    it.each(["active", "professionalActive", "empresaActive", "status"] as const)(
-      "associação/profissional/clínica desativada não envia (%s)", async (field) => {
+    it("senha trocada/credencial revogada: token com credentialVersion antiga é recusado", async () => {
+      const antigo = createCollaboratorToken({ professionalId: 500, role: "medico", credentialVersion: 3 });
+      expect((await send(500, 42, "", "medico", antigo, 5)).status).toBe(semIdentidade);
+      expect(mocks.clients).not.toHaveBeenCalled();
+      noSideEffects();
+    });
+
+    it.each(["active", "professionalActive"] as const)(
+      "vínculo/profissional desativado não envia (%s)", async (field) => {
+        grants.get(500)![field] = false;
+        expect((await send(500)).status).toBe(semIdentidade);
+        expect(mocks.clients).not.toHaveBeenCalled();
+        noSideEffects();
+      },
+    );
+
+    it.each(["empresaActive", "status"] as const)(
+      "clínica desativada ou suspensa não envia (%s)", async (field) => {
         const grant = grants.get(500)!;
         if (field === "status") grant.status = "SUSPENSO";
-        else grant[field] = false;
+        else grant.empresaActive = false;
         expect((await send(500)).status).toBe(403);
-        expect(mocks.select).not.toHaveBeenCalled();
+        expect(mocks.clients).not.toHaveBeenCalled();
         noSideEffects();
       },
     );
@@ -185,19 +305,38 @@ for (const route of ["telegram", "guia"] as const) {
     it("falha ao carregar autorização bloqueia sem efeitos colaterais", async () => {
       databaseFailure = true;
       expect((await send(500)).status).toBe(500);
-      expect(mocks.select).not.toHaveBeenCalled();
+      expect(mocks.clients).not.toHaveBeenCalled();
       noSideEffects();
     });
 
     it("cliente inexistente recebe o mesmo 404 sem enviar", async () => {
-      expect((await send(500, 4042)).status).toBe(404);
+      const response = await send(500, 4042);
+      expect(response.status).toBe(404);
+      expect(response.body).toEqual(naoEncontrado);
       noSideEffects();
     });
 
-    it.each([[500, 42], [700, 43]])("caminho autorizado: colaborador %s envia ao cliente %s", async (actor, clientId) => {
+    it("trocar clienteId, chatId ou destinatário no corpo não contorna: o destino vem sempre do cadastro da clínica do token", async () => {
+      vi.spyOn(Date, "now").mockReturnValue(1_900_000_000_000);
+      const forjado = request(server)
+        .post(route === "telegram" ? "/cockpit/42/telegram-inbox/enviar" : "/onboarding/enviar-guia")
+        .set("X-Empresa-Id", "5")
+        .set("Authorization", `Bearer ${token(500)}`)
+        .send({
+          texto: "Mensagem de teste", clientId: 42, canais: ["TELEGRAM"], guiaUrl: "https://example.test/guia",
+          chatId: "chat-do-atacante", telegramChatId: "chat-do-atacante", destinatario: "chat-do-atacante",
+          to: "chat-do-atacante", clienteId: 43, empresaId: 7,
+        });
+      expect((await forjado).status).toBe(200);
+      expect(mocks.send).toHaveBeenCalledTimes(1);
+      expect(mocks.send.mock.calls[0][0]).toBe("test-chat-42");
+      vi.restoreAllMocks();
+    });
+
+    it.each([[500, 42, 5], [700, 43, 7]])("caminho autorizado: colaborador %s envia ao cliente %s", async (actor, clientId, empresa) => {
       // Onboarding holds cooldown in memory; advance only Date.now, never I/O timers.
       vi.spyOn(Date, "now").mockReturnValue(2_000_000_000_000 + clientId * 100_000);
-      const response = await send(actor, clientId);
+      const response = await send(actor, clientId, "", "medico", undefined, empresa);
       expect(response.status).toBe(200);
       const client = CLIENTS.find((row) => row.id === clientId)!;
       expect(mocks.send).toHaveBeenCalledTimes(1);
@@ -216,20 +355,20 @@ for (const route of ["telegram", "guia"] as const) {
     });
 
     it("revogação é observada pelo mesmo token sem reiniciar", async () => {
-      // First request is blocked at client ownership, but proves a valid grant
-      // was read. After revocation no client query is permitted with that token.
+      // Primeiro pedido: vínculo válido lido do banco, barrado só pela posse do cliente (404).
+      // Depois da revogação nenhuma consulta de cliente é permitida com o mesmo token.
       const signedToken = token(700);
-      expect((await send(700, 42, "", "medico", signedToken)).status).toBe(404);
+      expect((await send(700, 42, "", "medico", signedToken, 7)).status).toBe(404);
       grants.get(700)!.active = false;
-      mocks.select.mockClear();
-      expect((await send(700, 43, "", "medico", signedToken)).status).toBe(403);
-      expect(mocks.select).not.toHaveBeenCalled();
+      mocks.clients.mockClear();
+      expect((await send(700, 43, "", "medico", signedToken, 7)).status).toBe(semIdentidade);
+      expect(mocks.clients).not.toHaveBeenCalled();
       noSideEffects();
     });
 
     it("tentativa proibida não ocupa o cooldown/limite do cliente", async () => {
       vi.spyOn(Date, "now").mockReturnValue(3_000_000_000_000);
-      expect((await send(700)).status).toBe(404);
+      expect((await send(700, 42, "", "medico", undefined, 7)).status).toBe(404);
       noSideEffects();
       expect((await send(500)).status).toBe(200);
       expect(mocks.send).toHaveBeenCalledTimes(1);
@@ -237,3 +376,46 @@ for (const route of ["telegram", "guia"] as const) {
     });
   });
 }
+
+describe("ferramenta test-inbox: cadeia real de autorização e fila", () => {
+  function enfileirar(professionalId: number | null, clienteId = 42, empresa = 5) {
+    const req = request(server).post("/telegram/test-inbox").set("X-Empresa-Id", String(empresa));
+    if (professionalId !== null) req.set("Authorization", `Bearer ${token(professionalId)}`);
+    return req.send({ clienteId, texto: "Teste técnico sintético" });
+  }
+  it("sem identidade não consulta cliente nem envia", async () => {
+    expect((await enfileirar(null)).status).toBe(401);
+    expect(mocks.clients).not.toHaveBeenCalled();
+    noSideEffects();
+  });
+  it("clínica selecionada alheia é recusada antes de consultar cliente", async () => {
+    expect((await enfileirar(700)).status).toBe(403);
+    expect(mocks.clients).not.toHaveBeenCalled();
+    noSideEffects();
+  });
+  it("cliente alheio recebe 404 mesmo com identidade válida", async () => {
+    expect((await enfileirar(500, 43)).status).toBe(404);
+    noSideEffects();
+  });
+  it("chat duplicado em outra empresa não é enfileirado", async () => {
+    vinculosDoChat = [{ id: 42, empresa_id: 5 }, { id: 43, empresa_id: 7 }];
+    expect((await enfileirar(500)).status).toBe(409);
+    noSideEffects();
+  });
+  it("credencial revogada bloqueia a ferramenta", async () => {
+    grants.get(500)!.active = false;
+    expect((await enfileirar(500)).status).toBe(401);
+    noSideEffects();
+  });
+  it("autorizado grava inbox e outbox da própria clínica sem enviar diretamente", async () => {
+    const r = await enfileirar(500);
+    expect(r.status).toBe(202);
+    expect(r.body).toMatchObject({ ok: true, enfileirado: true, telegramEntregue: false, repasseId: 901 });
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(writeQueries().map(q => q.sql).filter(q => q.includes("INSERT INTO telegram_"))).toHaveLength(2);
+    expect(writeQueries().find(q => q.sql.includes("INSERT INTO telegram_inbox_messages"))?.params)
+      .toEqual([5, 42, "test-chat-42", "Teste técnico sintético", "teste"]);
+    expect(writeQueries().find(q => q.sql.includes("INSERT INTO telegram_inbox_messages"))?.sql).toContain("ambiente_credito");
+    expect(JSON.stringify(r.body)).not.toContain("test-chat-42");
+  });
+});

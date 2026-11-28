@@ -16,7 +16,11 @@ export const substancesTable = pgTable("substances", {
   stockUnit: text("stock_unit"),
   pricePerUnit: real("price_per_unit").notNull().default(0),
   procedureType: text("procedure_type").notNull().default("iv"),
+  // Nulo significa que a necessidade de participação médica ainda não foi definida.
+  doctorParticipation: boolean("doctor_participation"),
   durationMinutes: integer("duration_minutes").notNull().default(30),
+  // Fonte precisa para novas leituras; o campo inteiro anterior é preservado.
+  preciseDurationSeconds: integer("precise_duration_seconds"),
   description: text("description"),
   mainFunction: text("main_function"),
   perceivedEffects: text("perceived_effects"),
@@ -57,6 +61,7 @@ export const substancesTable = pgTable("substances", {
   concentrationMg: text("concentration_mg"),
   volumeAmpola: text("volume_ampola"),
   isBlend: boolean("is_blend").notNull().default(false),
+  antioxidante: boolean("antioxidante").notNull().default(false),
   presentationQuantity: real("presentation_quantity"),
   presentationUnit: text("presentation_unit"),
   ampouleVolumeMl: real("ampoule_volume_ml"),

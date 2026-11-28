@@ -68,3 +68,25 @@ Dois caminhos de ativação convivem e nenhum substitui o outro: link mágico (`
 
 **Why:** credenciais de ativação não podem transferir um chat que já tem dono nem misturar históricos clínicos.
 **How to apply:** preservar as duas formas de ativação e verificar a exclusividade do vínculo mesmo sob solicitações simultâneas.
+
+## Porta de entrada e liberação (17/11/2026)
+- Número de celular no Telegram é conta pessoal: NÃO se liga a bot. O caminho é link/QR `t.me/<bot>` (Central Telegram, painel "Porta de entrada do bot") ou link individual `?start=<token>` (cartão "Foto e Contato do Cliente", botão LIBERAR TELEGRAM, usa `/clients/:id/telegram-link`).
+- Atendimento da assistente: `atendimento.ia.modo` = desligado/lista/ligado; em "lista" só clientes em `atendimento.ia.permitidos` (por id de cliente) são atendidos; visitante só em "ligado" ou chat na lista de visitantes. Não existe tela para mudar o modo (decisão do CEO pendente).
+- Alternativa que liga bot a número: Telegram Business "Chatbots" (exige Premium na conta); não implementada.
+
+## Respostas e aprendizado da assistente
+- A IA interpreta, mas não redige a mensagem final; o envio deve copiar texto de uma frase ou orientação aprovada.
+- Não enviar CPF, data de nascimento ou outros identificadores ao provedor; o aprendiz só pode padronizar perguntas seguras e copiar a resposta aprovada sem alterá-la.
+- Nunca aprender conteúdo clínico, preço sem fonte válida ou informação ausente; em dúvida, encaminhar para a equipe.
+
+**Why:** o CEO definiu que o assistente reduz custo sem inventar respostas nem ampliar o risco clínico ou de privacidade.
+**How to apply:** qualquer mudança no Telegram que use IA precisa manter separadas interpretação, conferência e resposta aprovada; editar uma FAQ aprendida não deve alterar mensagens já em andamento.
+
+## Atendimento clínico por Telegram
+- O PaxMed pode responder perguntas sobre fórmulas e protocolos somente com explicação exata aprovada por profissional e ligada ao registro atual da própria cliente.
+- Esse fluxo é separado do aprendiz de perguntas frequentes; não usa geração de texto por inteligência artificial e não aprende respostas clínicas automaticamente.
+- A segunda via é limitada à receita emitida que tenha um único arquivo; a cliente precisa confirmar e recebe um link temporário com hash do token guardado no servidor.
+- A equipe continua responsável por sintomas, reações, doses, alterações, interações, renovação, fonte ausente ou resultado de envio incerto.
+
+**Why:** o CEO quer que o sistema PaxMed converse diretamente com clientes, mantendo a explicação clínica sob aprovação profissional e sem confundir cadastros.
+**How to apply:** manter a conversa vinculada por identificador Telegram único e clínica; nunca procurar por nome, nem enviar documento sem confirmação explícita.

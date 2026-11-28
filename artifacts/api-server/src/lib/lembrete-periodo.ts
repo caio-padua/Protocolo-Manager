@@ -18,10 +18,11 @@ import {
 } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
 import { logger } from "./logger";
-import { sendWhatsapp } from "./whatsapp";
+import { sendWhatsapp, registrarLogMensagem } from "./whatsapp";
 import { montarSaudacao, templateLembretePrescricao, type Genero } from "./lembrete-templates";
 import { montarMensagemPaxmed } from "./mensageria-paxmed";
 import { reminderConsentFilter } from "./reminder-consent";
+import { lerConfigLembreteTelegram, usaTelegram, enviarLembreteTelegram } from "./lembrete-telegram";
 
 const TIMEZONE = "America/Sao_Paulo";
 
@@ -30,6 +31,17 @@ export interface ExecutarLembretesOptions {
   toleranciaMinutos?: number;
   /** Máximo de lembretes processados simultaneamente por tick (padrão: 10). */
   concorrencia?: number;
+  /**
+   * Teste controlado: processa SOMENTE este cliente. Os demais lembretes não são
+   * carregados, avaliados nem enviados, por nenhum canal. Não altera nem pausa nada.
+   */
+  clienteId?: number;
+  /**
+   * Quando verdadeiro, só o Telegram pode ser usado: se o Telegram não estiver liberado
+   * ou vinculado para o cliente, NADA é enviado nem gravado (sem recuo para WhatsApp).
+   * Padrão: verdadeiro quando `clienteId` é informado; falso na execução normal.
+   */
+  somenteTelegram?: boolean;
 }
 
 export interface LembreteEnvioResult {
@@ -107,6 +119,24 @@ export function horarioDentroDaJanela(
   return null;
 }
 
+/**
+ * Períodos que pertencem a ESTA janela de envio. Cada período canônico tem um horário de início
+ * (MAPA_PERIODO); a mensagem das 18:00 leva só os períodos das 18:00, nunca as doses (nem a abertura)
+ * da manhã. Se nenhum período casar (horários editados à mão, dado antigo), mantém o comportamento
+ * anterior e devolve todos — e o chamador registra aviso.
+ */
+export function periodosDaJanela(
+  periodos: LembretePeriodoJson[],
+  horario: string,
+): { periodos: LembretePeriodoJson[]; casou: boolean } {
+  const alvo = parseHorario(horario);
+  const doHorario = periodos.filter((p) => {
+    const inicio = Object.values(MAPA_PERIODO).find((m) => m.sigla === p.sigla)?.inicio;
+    return inicio != null && alvo != null && parseHorario(inicio) === alvo;
+  });
+  return doHorario.length > 0 ? { periodos: doHorario, casou: true } : { periodos, casou: false };
+}
+
 interface LembreteComContexto {
   id: number;
   clienteId: number;
@@ -114,10 +144,11 @@ interface LembreteComContexto {
   horariosEnvio: string[];
   clienteNome: string;
   clienteTelefone: string | null;
+  telegramChatId: string | null;
   empresaId: number | null;
 }
 
-async function carregarLembretesAtivos(): Promise<LembreteComContexto[]> {
+async function carregarLembretesAtivos(clienteId?: number): Promise<LembreteComContexto[]> {
   const rows = await db
     .select({
       id: lembretesPrescricaoTable.id,
@@ -126,6 +157,7 @@ async function carregarLembretesAtivos(): Promise<LembreteComContexto[]> {
       horariosEnvio: lembretesPrescricaoTable.horariosEnvio,
       clienteNome: clientsTable.name,
       clienteTelefone: clientsTable.phone,
+      telegramChatId: clientsTable.telegramChatId,
       empresaId: clientsTable.empresaId,
     })
     .from(lembretesPrescricaoTable)
@@ -135,16 +167,21 @@ async function carregarLembretesAtivos(): Promise<LembreteComContexto[]> {
         eq(lembretesPrescricaoTable.ativo, true),
         eq(clientsTable.status, "active"),
         reminderConsentFilter(),
+        ...(clienteId !== undefined ? [eq(lembretesPrescricaoTable.clienteId, clienteId)] : []),
       ),
     );
 
-  return rows.map((r) => ({
+  return rows
+    // Defesa em profundidade: mesmo que a consulta mude, nunca devolve outro cliente.
+    .filter((r) => clienteId === undefined || r.clienteId === clienteId)
+    .map((r) => ({
     id: r.id,
     clienteId: r.clienteId,
     periodos: Array.isArray(r.periodos) ? r.periodos : [],
     horariosEnvio: Array.isArray(r.horariosEnvio) ? r.horariosEnvio : [],
     clienteNome: r.clienteNome,
     clienteTelefone: r.clienteTelefone,
+    telegramChatId: r.telegramChatId ?? null,
     empresaId: r.empresaId,
   }));
 }
@@ -183,10 +220,31 @@ export interface ItemLembretePrescricao {
   detalhe?: string;
   periodos?: PeriodoAntigo[];
   ativoPrincipal?: string;
+  substancias?: { rotulo: string; nome: string; dose?: string }[];
   dose?: string;
   horario?: string;
   observacaoRefeicao?: string;
   posologia?: string;
+  /** Dúvidas na leitura de dose/posologia. Presente = o lembrete NÃO é enviado. */
+  alertas?: string[];
+}
+
+export const LIMITE_WHATSAPP = 1500;
+
+/** Divide o texto em partes de até `limite` caracteres, cortando só em quebra de parágrafo/linha/frase. Sem perda de conteúdo. */
+export function dividirParaWhatsapp(texto: string, limite = LIMITE_WHATSAPP): string[] {
+  const partes: string[] = [];
+  let resto = texto.trim();
+  while (resto.length > limite) {
+    const janela = resto.slice(0, limite);
+    let corte = Math.max(janela.lastIndexOf("\n\n"), janela.lastIndexOf("\n"), janela.lastIndexOf(". ") + 1);
+    if (corte < limite / 2) corte = janela.lastIndexOf(" ");
+    if (corte <= 0) corte = limite;
+    partes.push(resto.slice(0, corte).trim());
+    resto = resto.slice(corte).trim();
+  }
+  if (resto) partes.push(resto);
+  return partes;
 }
 
 // Mapa período antigo → canônico do IHE (sigla, nome, janela_inicio HH:MM).
@@ -271,6 +329,7 @@ export async function sincronizarLembretePrescricao(
       bloco.formulas.push({
         nome: item.nome,
         ativoPrincipal: item.ativoPrincipal ?? anterior?.ativoPrincipal,
+        substancias: item.substancias ?? anterior?.substancias,
         dose: item.dose ?? anterior?.dose,
         horario: item.horario ?? anterior?.horario,
         observacaoRefeicao: item.observacaoRefeicao ?? anterior?.observacaoRefeicao,
@@ -278,6 +337,7 @@ export async function sincronizarLembretePrescricao(
           ? anterior?.posologia
           : item.posologia ?? item.detalhe ?? anterior?.posologia,
         ...(posologiaManual ? { posologiaManual: true } : {}),
+        ...(item.alertas?.length ? { alertas: item.alertas } : {}),
       });
       formulas += 1;
     }
@@ -317,13 +377,19 @@ export async function executarLembretesPeriodo(
     throw new RangeError("concorrencia deve ser um inteiro positivo");
   }
 
-  const lembretes = await carregarLembretesAtivos();
+  if (options.clienteId !== undefined && (!Number.isSafeInteger(options.clienteId) || options.clienteId < 1)) {
+    throw new RangeError("clienteId deve ser um inteiro positivo");
+  }
+  const somenteTelegram = options.somenteTelegram ?? options.clienteId !== undefined;
+  const lembretes = await carregarLembretesAtivos(options.clienteId);
   const detalhes: LembreteEnvioResult[] = [];
   let enviados = 0;
   let falhas = 0;
   let pulados = 0;
 
   const local = partsParaTimezone(now, TIMEZONE);
+  // Lido uma vez por tick. Padrão "desligado": nada muda para quem não foi liberado.
+  const cfgTelegram = await lerConfigLembreteTelegram();
 
   async function processarLembrete(ctx: LembreteComContexto): Promise<void> {
     if (ctx.horariosEnvio.length === 0) {
@@ -338,6 +404,14 @@ export async function executarLembretesPeriodo(
     }
 
     const janela = janelaKey(local.data, horarioMatch);
+
+    // Modo restrito ao Telegram: sem Telegram liberado e vinculado não há envio por outro
+    // canal e nenhum marcador é gravado (não consome a janela do envio real).
+    if (somenteTelegram && !usaTelegram(cfgTelegram, ctx.clienteId, ctx.telegramChatId)) {
+      pulados += 1;
+      detalhes.push({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, sucesso: false, erro: "telegram_indisponivel_no_teste" });
+      return;
+    }
 
     // Idempotência: tenta inserir o marcador PENDENTE. Se a unique bater, pula.
     const claimRows = await db
@@ -360,11 +434,34 @@ export async function executarLembretesPeriodo(
     }
     const envioId = claim.id;
 
-    // Sem telefone: não há como enviar. Marca FALHOU e segue (visível na tela).
-    if (!ctx.clienteTelefone || !ctx.clienteTelefone.trim()) {
+    const viaTelegram = usaTelegram(cfgTelegram, ctx.clienteId, ctx.telegramChatId);
+
+    // Sem telefone (e sem Telegram liberado): não há como enviar. Marca FALHOU e segue (visível na tela).
+    if (!viaTelegram && (!ctx.clienteTelefone || !ctx.clienteTelefone.trim())) {
       falhas += 1;
       const erro = "cliente sem telefone";
       await db.update(lembreteEnviosTable).set({ status: "FALHOU", erro }).where(eq(lembreteEnviosTable.id, envioId));
+      detalhes.push({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, sucesso: false, erro });
+      return;
+    }
+
+    // Só os períodos desta janela entram na mensagem (abertura e doses da própria janela).
+    const doDia = periodosDaJanela(ctx.periodos, horarioMatch);
+    if (!doDia.casou && ctx.periodos.length > 0) {
+      logger.warn(
+        { lembreteId: ctx.id, clienteId: ctx.clienteId, janela },
+        "[lembrete-periodo] nenhum período casa com o horário; usando todos os períodos (dado antigo ou horário manual)",
+      );
+    }
+    const periodosJanela = doDia.periodos;
+
+    // TRAVA DE DÚVIDA: dose/posologia lida sem certeza = nada é enviado (nunca mensagem errada).
+    const comAlerta = periodosJanela.flatMap((p) => p.formulas).filter((f) => f.alertas?.length);
+    if (comAlerta.length > 0) {
+      falhas += 1;
+      const erro = `dose_nao_confirmada: ${comAlerta.map((f) => `${f.nome} (${f.alertas!.join("; ")})`).join(" | ")}`.slice(0, 900);
+      await db.update(lembreteEnviosTable).set({ status: "FALHOU", erro }).where(eq(lembreteEnviosTable.id, envioId));
+      logger.warn({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, erro }, "[lembrete-periodo] envio bloqueado: dose ou posologia nao confirmada");
       detalhes.push({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, sucesso: false, erro });
       return;
     }
@@ -379,14 +476,14 @@ export async function executarLembretesPeriodo(
       const rica = await montarMensagemPaxmed({
         nome: primeiroNome,
         agora: now,
-        periodos: ctx.periodos,
+        periodos: periodosJanela,
       });
       mensagem = rica ?? templateLembretePrescricao({
         clienteNome: ctx.clienteNome,
         clienteGenero: genero,
         agora: now,
         saudacao: montarSaudacao(ctx.clienteNome, genero, now),
-        periodos: ctx.periodos,
+        periodos: periodosJanela,
       });
     } catch (err) {
       logger.warn(
@@ -398,17 +495,62 @@ export async function executarLembretesPeriodo(
         clienteGenero: genero,
         agora: now,
         saudacao: montarSaudacao(ctx.clienteNome, genero, now),
-        periodos: ctx.periodos,
+        periodos: periodosJanela,
       });
     }
 
+    if (viaTelegram && ctx.telegramChatId) {
+      const r = await enviarLembreteTelegram(ctx.telegramChatId, mensagem);
+      if (r.kind === "enviado") {
+        enviados += 1;
+        const logId = await registrarLogMensagem({
+          telefone: ctx.clienteTelefone ?? "telegram",
+          corpo: mensagem,
+          status: "sent",
+          contexto: "lembrete_prescricao",
+          clienteId: ctx.clienteId,
+          via: "telegram",
+        });
+        await db
+          .update(lembreteEnviosTable)
+          .set({ status: "ENVIADO", whatsappLogId: logId ?? null, erro: null, enviadoEm: new Date() })
+          .where(eq(lembreteEnviosTable.id, envioId));
+        detalhes.push({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, sucesso: true, whatsappLogId: logId });
+      } else {
+        falhas += 1;
+        await db
+          .update(lembreteEnviosTable)
+          .set({ status: "FALHOU", erro: r.erro })
+          .where(eq(lembreteEnviosTable.id, envioId));
+        logger.warn({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, erro: r.erro }, "[lembrete-periodo] falha no envio pelo Telegram");
+        detalhes.push({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, sucesso: false, erro: r.erro });
+      }
+      return;
+    }
+
+    const telefone = ctx.clienteTelefone;
+    if (!telefone || !telefone.trim()) {
+      // Telegram liberado mas sem chat válido e sem telefone: nada a enviar.
+      falhas += 1;
+      const erro = "cliente sem telefone";
+      await db.update(lembreteEnviosTable).set({ status: "FALHOU", erro }).where(eq(lembreteEnviosTable.id, envioId));
+      detalhes.push({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, sucesso: false, erro });
+      return;
+    }
     let resultado: Awaited<ReturnType<typeof sendWhatsapp>>;
     try {
-      resultado = await sendWhatsapp(ctx.clienteTelefone, mensagem, {
-        contexto: "lembrete_prescricao",
-        clienteId: ctx.clienteId,
-        mirrorTelegram: false,
-      });
+      // Twilio recusa corpo acima de 1600 caracteres (erro 21617, HTTP 400). Nada é cortado:
+      // mensagem longa é dividida em partes por parágrafo, enviadas em ordem; falhou uma, para.
+      const partes = dividirParaWhatsapp(mensagem);
+      resultado = { sent: false, via: "link", link: "", error: "mensagem vazia" };
+      for (const parte of partes) {
+        resultado = await sendWhatsapp(telefone, parte, {
+          contexto: "lembrete_prescricao",
+          clienteId: ctx.clienteId,
+          mirrorTelegram: false,
+        });
+        if (!resultado.sent) break;
+      }
     } catch (err) {
       resultado = { sent: false, via: "link", link: "", error: err instanceof Error ? err.message : String(err) };
     }

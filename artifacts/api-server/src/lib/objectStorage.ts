@@ -128,6 +128,18 @@ export class ObjectStorageService {
     });
   }
 
+  // Endereço temporário para uma imagem de identidade de clínica. O prefixo
+  // é privado e não pode ser servido pela rota pública de uploads de vídeos.
+  async getClinicBrandUploadURL(objectId: string): Promise<string> {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(objectId)) {
+      throw new Error("Identificador de imagem inválido.");
+    }
+    const privateObjectDir = this.getPrivateObjectDir();
+    if (!privateObjectDir) throw new Error("Armazenamento privado não configurado.");
+    const { bucketName, objectName } = parseObjectPath(`${privateObjectDir}/paxmed-marcas/${objectId}`);
+    return signObjectURL({ bucketName, objectName, method: "PUT", ttlSec: 900 });
+  }
+
   // Salva bytes gerados no servidor (ex.: mp3 de voz) sob o diretorio privado.
   // `relativePath` DEVE comecar com "uploads/" para ser servido pela rota
   // publica GET /storage/objects/uploads/* (mesma porta de saida do video).

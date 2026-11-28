@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { AssinaturasFallbackSaude } from "./AssinaturasFallbackSaude";
 import {
   Bot, Users, Brain, Zap, MessageSquare, BookOpen, AlignLeft,
   ChevronRight, Shield, Clock, RefreshCw, Edit2, Save, X,
@@ -128,7 +129,7 @@ const CAP_LABELS: Record<string, string> = {
   pode_escalar:           "Escalar",
   pode_ver_exames:        "Ver Exames",
   pode_editar_protocolo:  "Editar Protocolo",
-  pode_ver_ras:           "Ver RAS",
+  pode_ver_ras:           "Ver RASP",
   pode_enviar_lembrete:   "Lembrete",
   pode_criar_cobranca:    "Criar Cobrança",
   pode_acesso_total:      "Acesso Total",
@@ -1163,7 +1164,7 @@ function AbaChat({ agentes }: { agentes: Agente[] }) {
         </div>
         <select value={modelo} onChange={e => setModelo(e.target.value)}
           className="text-xs bg-background border border-border rounded-[4px] px-2 py-1">
-          {PROVEDORES_OPCOES.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+          {MODELOS_CHAT.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
         <button onClick={limpar} className="btn-3d-soft px-2 py-1 text-xs flex items-center gap-1 text-muted-foreground">
           <RotateCcw className="w-3 h-3" /> Limpar
@@ -1509,8 +1510,8 @@ function AbaProvedores({ agentes }: { agentes: Agente[] }) {
               titulo: "Operar Internamente (Agora)",
               cor: "#45B8CC",
               itens: [
-                "Cadastre os primeiros 5 clientes reais no PAXTER",
-                "Lance um protocolo completo com RAS FAP",
+                "Cadastre os primeiros 5 clientes reais no PaxMed",
+                "Lance um protocolo completo com RASP FAP",
                 "Configure os Agentes Virtuais para sua equipe",
                 "Use o sistema por 2–4 semanas para dominar o fluxo",
                 "Documente o antes × depois em números",
@@ -2353,7 +2354,7 @@ function AbaUso() {
           <p className="text-sm font-bold text-emerald-400">Custo via Replit AI Integrations</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             Este sistema usa o proxy do Replit para as chamadas de IA — <strong>você não precisa de uma chave própria da Anthropic</strong>.
-            O custo real é incluído na sua assinatura Replit. Ao vender licenças do PAXTER,
+            O custo real é incluído na sua assinatura Replit. Ao vender licenças do PaxMed,
             inclua uma margem de segurança de <strong>20–30%</strong> sobre o custo de IA estimado acima.
           </p>
         </div>
@@ -2376,7 +2377,7 @@ const PLANOS = [
     descricao: "Para clínicas de 1 médico",
     recursos: [
       "Até 50 clientes ativos",
-      "Agenda + Protocolos + RAS",
+      "Agenda + Protocolos + RASP",
       "3 Agentes Virtuais",
       "Chat IA (Claude Haiku — rápido)",
       "WhatsApp via Twilio",
@@ -2398,7 +2399,7 @@ const PLANOS = [
       "Todos os módulos clínicos",
       "20 Agentes Virtuais completos",
       "Chat IA (todos os 4 provedores)",
-      "RAS FAP + Assinatura Digital ICP-Brasil",
+      "RASP FAP + Assinatura Digital ICP-Brasil",
       "Financeiro + Asaas integrado",
       "Análise de exames por IA",
       "Prioridade no suporte",
@@ -2438,14 +2439,14 @@ function AbaComercial() {
     const medico = nomeMedico || "Dr(a).";
     return `Olá, ${medico}! 👋
 
-Quero te apresentar o *PAXTER* — o sistema de gestão clínica mais completo para protocolos injetáveis do Brasil.
+Quero te apresentar o *PaxMed* — o sistema de gestão clínica mais completo para protocolos injetáveis do Brasil.
 
 *${plano.nome} — R$ ${plano.preco.toLocaleString("pt-BR")}/mês*
 
 ✅ ${plano.recursos.slice(0, 4).join("\n✅ ")}
 
 Para ${clinica}, isso significa:
-• Protocolos e RAS digitais com assinatura ICP-Brasil
+• Protocolos e RASP digitais com assinatura ICP-Brasil
 • Agenda integrada ao Google Calendar
 • Agentes de IA que respondem seus clientes automaticamente
 • Tudo rodando do celular, sem instalação
@@ -2475,7 +2476,7 @@ _PAXTER — Clinical Intelligence System_`;
                 borderTopWidth: 3, borderTopColor: p.cor,
                 ...(((p as Record<string,unknown>).destaque) ? { outlineColor: p.cor } : {}),
               }}>
-              {((p as Record<string,unknown>).destaque) && (
+              {Boolean((p as Record<string,unknown>).destaque) && (
                 <div className="text-center py-1 text-[9px] font-black uppercase tracking-widest"
                   style={{ backgroundColor: p.cor + "30", color: p.cor }}>
                   MAIS POPULAR
@@ -2593,7 +2594,7 @@ _PAXTER — Clinical Intelligence System_`;
             </thead>
             <tbody className="divide-y divide-border/30">
               {[
-                { e:"1", acao:"Operar 2 semanas com dados reais (protocolos + agenda + RAS)", ferr:"PAXTER internamente", prazo:"Semanas 1-2", meta:"Dominar o fluxo clínico" },
+                { e:"1", acao:"Operar 2 semanas com dados reais (protocolos + agenda + RASP)", ferr:"PaxMed internamente", prazo:"Semanas 1-2", meta:"Dominar o fluxo clínico" },
                 { e:"2", acao:"Gravar vídeo de 3min mostrando o sistema em uso real", ferr:"Celular + Loom", prazo:"Dia 14", meta:"Prova social visual" },
                 { e:"3", acao:"Listar 10 médicos conhecidos do seu network (WhatsApp)", ferr:"Contatos pessoais", prazo:"Dia 15", meta:"Pipeline de 10 leads" },
                 { e:"4", acao:"Enviar pitch personalizado para os 10 (usar gerador acima)", ferr:"WhatsApp + pitch desta aba", prazo:"Dias 15-17", meta:"3+ respostas positivas" },
@@ -2871,7 +2872,7 @@ function AbaIntegracoes() {
             </thead>
             <tbody className="divide-y divide-border">
               {[
-                ["Webhook", "Canal de escuta", "Trello avisa o PAXTER quando algo muda no quadro"],
+                ["Webhook", "Canal de escuta", "Trello avisa o PaxMed quando algo muda no quadro"],
                 ["Card Trello", "Cartão de tarefa", "Criado automaticamente quando o agente age"],
                 ["WPP Proativo", "Mensagem ativa no WhatsApp", "Agente envia msg ao cliente sem que ele pergunte"],
                 ["Boas-vindas WPP", "Primeira mensagem automática", "Enviada ao cadastrar um cliente novo com telefone"],
@@ -2999,6 +3000,7 @@ function AbaIntegracoes() {
         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">
           Status das Integrações
         </p>
+        <AssinaturasFallbackSaude />
         <div className="grid grid-cols-2 gap-3">
           <div className="panel-3d-sub rounded-[6px] p-4 space-y-2">
             <div className="flex items-center gap-2">

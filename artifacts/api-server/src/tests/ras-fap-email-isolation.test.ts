@@ -18,7 +18,12 @@
  * para download e POST para o reenvio — sem nenhum efeito colateral no GET.
  */
 
-import { vi, describe, it, expect, beforeEach } from "vitest";
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
+import { postSlackAlert } from "../lib/slack-reporter";
+
+vi.mock("../lib/slack-reporter", () => ({
+  postSlackAlert: vi.fn().mockResolvedValue(undefined),
+}));
 
 // ── Mocks ANTES de qualquer import de rota ───────────────────────────────────
 
@@ -46,6 +51,7 @@ vi.mock("@workspace/db", () => {
     db: {
       select: vi.fn(),
       insert: vi.fn(),
+    execute: vi.fn(),
     },
     eq:      vi.fn((col: any, val: any) => ({ col, val })),
     and:     vi.fn((...args: any[]) => args),
@@ -93,6 +99,20 @@ vi.mock("../lib/google-gmail", () => ({
   isGmailConnected: vi.fn(),
 }));
 
+// A identidade/certificado do médico logado é testada em prescription-signing e
+// doctor-certificate-context; aqui a geração do documento é o foco.
+vi.mock("../lib/prescription-signing", () => ({
+  withLoggedDoctorCertificate: (_req: unknown, _clientId: unknown, fn: () => Promise<unknown>) => fn(),
+  resolveProtocolDoctor: vi.fn(async (_req: unknown, _clientId: unknown, expectedProfessionalId: number | null) => ({
+    professional: {
+      id: expectedProfessionalId ?? 1,
+      name: "Médico sintético",
+      crm: "12345",
+      uf: "SP",
+    },
+  })),
+}));
+
 vi.mock("../lib/pdf-signer", () => ({
   generateSignedRASPdf:    vi.fn(),
   generatePhysicalRASPdf: vi.fn(),
@@ -134,7 +154,8 @@ const FAKE_PROTOCOL = {
   id:             42,
   clientId:       7,
   empresaId:      5,
-  professionalId: null,
+  professionalId: 1,
+  nurseId: null,
   title:          "Longevidade IV",
   status:         "active",
   startDate:      "2026-08-01",
@@ -142,7 +163,7 @@ const FAKE_PROTOCOL = {
   totalSessions:  4,
   completedSessions: 0,
   totalValue:     5000,
-  unit:           "Instituto Pádua",
+  unit:           "Clínica sintética",
   serviceType:    "iv",
   notes:          null,
   createdAt:      new Date("2026-08-01T12:00:00Z"),
@@ -170,6 +191,8 @@ const FAKE_LOCATION = { id: 31, name: "Clínica sintética", active: "true", emp
 
 const FAKE_PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
 let clinicMembershipAllowed = true;
+let lastRasInsertValues: Record<string, unknown> | null = null;
+let rasCatalogRows: Array<Record<string, unknown>> = [];
 const FAKE_RAS = {
   id: 99,
   sessionId: 77,
@@ -182,7 +205,7 @@ const FAKE_RAS = {
   unit: FAKE_LOCATION.name,
   serviceDate: "2026-11-02",
   serviceType: "clinic",
-  substances: [],
+  substances: [] as Array<Record<string, unknown>>,
   observations: null,
   empresaId: 5,
   createdAt: new Date("2026-11-02T12:00:00Z"),
@@ -216,7 +239,7 @@ class DbChain {
       case "locations":             return new DbChain([FAKE_LOCATION]);
       case "location_professionals":return new DbChain(clinicMembershipAllowed ? [{ id: 1 }] : []);
       case "protocol_items":        return new DbChain([]);
-      case "substances":            return new DbChain([]);
+      case "substances":            return new DbChain(rasCatalogRows);
       case "sessions":              return new DbChain([FAKE_SESSION]);
       case "substance_applications":return new DbChain([]);
       case "email_log":             return new DbChain([]);
@@ -255,12 +278,19 @@ function buildApp() {
 
 function setupMocks() {
   clinicMembershipAllowed = true;
+  lastRasInsertValues = null;
+  FAKE_RAS.substances = [];
+  rasCatalogRows = [];
   vi.mocked(gmailLib.isGmailConnected).mockResolvedValue(true);
   vi.mocked(db.select).mockReturnValue(new DbChain([]) as any);
+  vi.mocked(db.execute).mockResolvedValue({
+    rows: [{ drive_clientes_folder_id: "company-clients-root-5" }],
+  } as any);
   vi.mocked(db.insert).mockImplementation(() => ({
-    values: (values: Record<string, unknown>) => ({
-      returning: async () => [{ ...FAKE_RAS, ...values, createdAt: new Date("2026-11-02T12:00:00Z") }],
-    }),
+    values: (values: Record<string, unknown>) => {
+      lastRasInsertValues = values;
+      return { returning: async () => [{ ...FAKE_RAS, ...values, createdAt: new Date("2026-11-02T12:00:00Z") }] };
+    },
   } as any));
   vi.mocked(pdfSigner.generatePhysicalRASPdf).mockResolvedValue(FAKE_PDF_BYTES as any);
   vi.mocked(pdfSigner.generateSignedRASPdf).mockResolvedValue({ pdfBytes: FAKE_PDF_BYTES } as any);
@@ -367,6 +397,72 @@ describe("RAS clínico — identidade e vínculo antes de ler ou produzir docume
     expect(response.body.id).toBe(FAKE_RAS.id);
   });
 
+  it("remove volume da leitura e do PDF sem modificar os dados armazenados", async () => {
+    const originalSubstances = [
+      {
+        substanceName: "Coenzima Q10 100 MG / 2 ML",
+        dose: "100 MG / 2 ML",
+        route: "IM",
+        sessionNumber: 1,
+        totalSessions: 4,
+        lot: null,
+        validity: null,
+        appliedAt: null,
+        status: "pending",
+      },
+      {
+        substanceName: "ADEK 2 ML",
+        dose: "A 25.000 UI + D3 100.000 UI + E 200 UI + K2 1.300 MCG / 2 ML",
+        route: "IM",
+        sessionNumber: 1,
+        totalSessions: 4,
+        lot: null,
+        validity: null,
+        appliedAt: null,
+        status: "pending",
+      },
+    ];
+    FAKE_RAS.substances = originalSubstances;
+    rasCatalogRows = [
+      {
+        name: "Coenzima Q10 100 MG / 2 ML",
+        description: "Apresentação em ampola de 2 mL",
+        mainFunction: "Informação de cadastro sem volume",
+      },
+      {
+        name: "ADEK 2 ML",
+        description: "Composição em 2 mL",
+        mainFunction: "Revisar a dose antes de exibir",
+      },
+    ];
+
+    const response = await request(buildApp())
+      .get(`/api/ras/${FAKE_RAS.id}`)
+      .set("Authorization", "Bearer test-collaborator");
+
+    expect(response.status).toBe(200);
+    expect(response.body.substances).toMatchObject([
+      { substanceName: "Coenzima Q10", dose: "100 mg" },
+      { substanceName: "ADEK", dose: "" },
+    ]);
+    expect(JSON.stringify(response.body)).not.toMatch(/2\s*ml/i);
+    expect(originalSubstances[0].dose).toBe("100 MG / 2 ML");
+    expect(originalSubstances[1].dose).toContain("/ 2 ML");
+
+    const pdfResponse = await request(buildApp())
+      .get(`/api/ras/${FAKE_RAS.id}/pdf`)
+      .set("Authorization", "Bearer test-collaborator");
+    expect(pdfResponse.status).toBe(200);
+    const pdfInput = vi.mocked(pdfSigner.generateSignedRASPdf).mock.calls[0]?.[0] as any;
+    expect(pdfInput.substances).toMatchObject([
+      { substanceName: "Coenzima Q10", dose: "100 mg", description: undefined },
+      { substanceName: "ADEK", dose: "", description: undefined },
+    ]);
+    expect(JSON.stringify(pdfInput.substances)).not.toMatch(/2\s*ml/i);
+    expect(originalSubstances[0].dose).toBe("100 MG / 2 ML");
+    expect(originalSubstances[1].dose).toContain("/ 2 ML");
+  });
+
   it("permite consultar o histórico de envios após validar o vínculo", async () => {
     const response = await request(buildApp())
       .get("/api/ras/physical/42/email-logs");
@@ -417,6 +513,11 @@ describe("RAS clínico — identidade e vínculo antes de ler ou produzir docume
     expect(response.status).toBe(201);
     expect(response.body.clientId).toBe(FAKE_CLIENT.id);
     expect(vi.mocked(db.insert)).toHaveBeenCalledTimes(1);
+    expect(lastRasInsertValues).toEqual(expect.objectContaining({
+      professionalName: FAKE_PROFESSIONAL.name,
+      unit: FAKE_LOCATION.name,
+      empresaId: 5,
+    }));
   });
 
   it("nega criação de RAS sem vínculo e não grava registro", async () => {
@@ -438,6 +539,24 @@ describe("RAS clínico — identidade e vínculo antes de ler ou produzir docume
 
     expect(response.status).toBe(200);
     expect(vi.mocked(driveLib.uploadFileToDrive)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(driveLib.ensureClientFolderStructure)).toHaveBeenCalledWith(
+      FAKE_CLIENT.name,
+      FAKE_CLIENT.cpf,
+      "company-clients-root-5",
+    );
+  });
+
+  it("não usa a raiz global do Drive quando a empresa não tem pasta própria", async () => {
+    vi.mocked(driveLib.isDriveConnected).mockResolvedValue(true);
+    vi.mocked(db.execute).mockResolvedValue({ rows: [] } as any);
+    const response = await request(buildApp())
+      .post(`/api/ras/${FAKE_RAS.id}/upload-drive`)
+      .set("Authorization", "Bearer test-collaborator");
+
+    expect(response.status).toBe(409);
+    expect(response.body.error).toContain("pasta de clientes configurada");
+    expect(vi.mocked(driveLib.ensureClientFolderStructure)).not.toHaveBeenCalled();
+    expect(vi.mocked(driveLib.uploadFileToDrive)).not.toHaveBeenCalled();
   });
 
   it("nega upload ao Drive sem vínculo antes de chamar integração externa", async () => {
@@ -461,6 +580,82 @@ describe("POST /api/ras/physical/:protocolId/reenviar-email — chama e-mail exa
   beforeEach(() => {
     vi.clearAllMocks();
     setupMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it.each([
+    ["recusa do serviço", false, 502],
+    ["exceção no envio", true, 500],
+  ] as const)("preserva PADAXOR_SLACK_CHANNEL_ID no alerta por %s", async (_label, throws, status) => {
+    const channel = "C_TEST_RAS_RESEND_CHANNEL";
+    const error = "SMTP connection refused";
+    vi.stubEnv("PADAXOR_SLACK_CHANNEL_ID", channel);
+    if (throws) {
+      vi.mocked(emailSvc.sendProtocolEmail).mockRejectedValueOnce(new Error(error));
+    } else {
+      vi.mocked(emailSvc.sendProtocolEmail).mockResolvedValueOnce({ success: false, error });
+    }
+
+    const response = await request(buildApp())
+      .post("/api/ras/physical/42/reenviar-email")
+      .send({});
+
+    expect(response.status).toBe(status);
+    expect(emailSvc.sendProtocolEmail).toHaveBeenCalledTimes(1);
+    expect(pdfSigner.generatePhysicalRASPdf).toHaveBeenCalledTimes(1);
+    expect(postSlackAlert).toHaveBeenCalledExactlyOnceWith(channel, expect.stringContaining(error));
+    const text = vi.mocked(postSlackAlert).mock.calls[0][1];
+    expect(text).toContain(FAKE_CLIENT.name);
+    expect(text).toContain(`Protocolo #${FAKE_PROTOCOL.id}`);
+    expect(text).toContain(FAKE_PROTOCOL.title);
+  });
+
+  it("alerta uma vez e preserva o 502 mesmo quando a gravação do email_log falha", async () => {
+    const channel = "C_TEST_RAS_RESEND_CHANNEL";
+    const error = "SMTP connection refused";
+    vi.stubEnv("PADAXOR_SLACK_CHANNEL_ID", channel);
+    vi.mocked(emailSvc.sendProtocolEmail).mockResolvedValueOnce({ success: false, error });
+    const valuesDoLog = vi.fn().mockRejectedValue(new Error("falha sintética ao gravar email_log"));
+    vi.mocked(db.insert).mockImplementation(() => ({ values: valuesDoLog }) as any);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const response = await request(buildApp())
+        .post("/api/ras/physical/42/reenviar-email").send({});
+
+      expect(response.status).toBe(502);
+      expect(response.body.error).toContain(error);
+      expect(emailSvc.sendProtocolEmail).toHaveBeenCalledTimes(1);
+      expect(db.insert).toHaveBeenCalledWith(expect.objectContaining({ __mockName: "email_log" }));
+      expect(valuesDoLog).toHaveBeenCalledTimes(1);
+      expect(valuesDoLog.mock.calls[0][0]).toMatchObject({ tipo: "ras_fap_reenviado", status: "falhou", erro: error, protocolId: FAKE_PROTOCOL.id });
+      expect(postSlackAlert).toHaveBeenCalledExactlyOnceWith(channel, expect.stringContaining(error));
+      expect(consoleError).toHaveBeenCalledWith(expect.stringContaining("email_log do reenvio RAS FAP"), expect.any(Error));
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("não alerta no Slack quando o reenvio tem sucesso", async () => {
+    vi.stubEnv("PADAXOR_SLACK_CHANNEL_ID", "C_TEST_RAS_RESEND_CHANNEL");
+    const response = await request(buildApp())
+      .post("/api/ras/physical/42/reenviar-email").send({});
+
+    expect(response.status).toBe(200);
+    expect(postSlackAlert).not.toHaveBeenCalled();
+  });
+
+  it("mantém a falha de e-mail sem chamar Slack se o canal não está configurado", async () => {
+    vi.stubEnv("PADAXOR_SLACK_CHANNEL_ID", undefined);
+    vi.mocked(emailSvc.sendProtocolEmail).mockResolvedValueOnce({ success: false, error: "SMTP refused" });
+    const response = await request(buildApp())
+      .post("/api/ras/physical/42/reenviar-email").send({});
+
+    expect(response.status).toBe(502);
+    expect(postSlackAlert).not.toHaveBeenCalled();
   });
 
   it("chama sendProtocolEmail exatamente uma vez por acionamento", async () => {
@@ -555,7 +750,7 @@ describe("POST /api/ras/physical/:protocolId/reenviar-email — chama e-mail exa
     expect(response.status).toBe(404);
   });
 
-  it("bloqueia a entrega do RAS FAP antes do PDF e do e-mail se não houver vínculo clínico", async () => {
+  it("encerra a rota legada sem gerar PDF, enviar mensagem ou consultar vínculo", async () => {
     clinicMembershipAllowed = false;
 
     const response = await request(buildApp())
@@ -566,12 +761,12 @@ describe("POST /api/ras/physical/:protocolId/reenviar-email — chama e-mail exa
         substancias: [{ nome: "Substância sintética", dose: "1 mg", via: "IV", sessoes: 1, frequenciaDias: 7, inicio: "2026-11-02" }],
       });
 
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(410);
     expect(vi.mocked(pdfSigner.generatePhysicalRASPdf)).not.toHaveBeenCalled();
     expect(vi.mocked(messaging.enviarMensagemPaxter)).not.toHaveBeenCalled();
   });
 
-  it("autoriza a entrega sintética dentro da clínica e usa apenas provedores simulados", async () => {
+  it("informa que a emissão exige protocolo persistido", async () => {
     const response = await request(buildApp())
       .post("/api/ras-fap/entregar-protocolo")
       .send({
@@ -581,11 +776,10 @@ describe("POST /api/ras/physical/:protocolId/reenviar-email — chama e-mail exa
         substancias: [{ nome: "Substância sintética", dose: "1 mg", via: "IV", sessoes: 1, frequenciaDias: 7, inicio: "2026-11-02" }],
       });
 
-    expect(response.status).toBe(200);
-    expect(response.body.queued).toBe(true);
-    await new Promise((resolve) => setTimeout(resolve, 25));
-    expect(vi.mocked(pdfSigner.generatePhysicalRASPdf)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(messaging.enviarMensagemPaxter)).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(410);
+    expect(response.body.code).toBe("rota_legada_desativada");
+    expect(vi.mocked(pdfSigner.generatePhysicalRASPdf)).not.toHaveBeenCalled();
+    expect(vi.mocked(messaging.enviarMensagemPaxter)).not.toHaveBeenCalled();
   });
 });
 
@@ -635,3 +829,12 @@ describe("Botões de RAS FAP — separação GET/POST na UI (detail.tsx)", () =>
     expect(detailSrc).toContain("disabled={reenviarRasLoading}");
   });
 });
+
+// A identidade da clínica (empresas.nome) e a pertença da unidade têm teste próprio em clinic-unit.test.ts;
+// aqui o foco é outro, então o módulo fica fixo e sem consulta ao banco simulado.
+vi.mock("../lib/clinic-unit", () => ({
+  comNomeDaClinica: async (m: any) => ({ ...m, clinic: { ...m.clinic, name: m.clinic.name ?? "Clínica sintética" } }),
+  nomeDaClinica: async () => "Clínica sintética",
+  unidadePertenceAClinica: async () => true,
+  MENSAGEM_UNIDADE_FORA_DA_CLINICA: "A unidade salva no protocolo pertence a outra clínica e não corresponde à clínica vinculada ao cliente.",
+}));

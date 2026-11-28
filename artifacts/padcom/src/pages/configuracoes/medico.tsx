@@ -1,374 +1,229 @@
-// CONFIGURAÇÃO DO MÉDICO RESPONSÁVEL — /configuracoes/medico
-// Permite que o CEO edite nome, CRM e especialidade do médico com
-// isPrimaryDoctor=true diretamente no painel, sem acesso ao banco.
+// IDENTIDADE DO CEO DA PAXMED — /configuracoes/medico
+// O CEO é uma entidade empresarial. O cadastro MÉDICO (Dr. Caio) é outra coisa:
+// aqui ele é apenas IMPORTADO (somente leitura) e liberado por um interruptor.
+// Todo documento clínico sai no nome do médico que fez o login.
 
-import { useEffect, useRef, useState } from "react";
-import { Stethoscope, Save, AlertCircle, ShieldOff, RefreshCw, Camera, Upload } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Building2, Stethoscope, Landmark, AlertCircle, RefreshCw, ShieldOff, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { SettingsPanel, FieldRow } from "@/components/settings/SettingsUI";
-import { getCollabToken } from "@/lib/collab-auth";
+import { baixarFoto, ceoApi as api } from "@/lib/ceo-api";
 import { usePermissoes } from "@/lib/permissoes";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-interface PrimaryDoctor {
-  id: number;
-  name: string;
-  crm: string | null;
-  specialty: string | null;
-  isPrimaryDoctor: boolean;
+interface Identidade {
+  medicoAtivo: boolean;
+  temFotoCeo: boolean;
+  fotoExibida: "medico" | "ceo" | "nenhuma";
+  medico: { id: number; nome: string; crm: string | null; especialidade: string | null; cpfFinal: string | null; cpf: string | null; temFoto: boolean } | null;
+}
+interface Clinicas {
+  clinicas: Array<{ empresaId: number; nome: string; administradorId: number | null; responsavelTecnicoId: number | null }>;
+  profissionais: Array<{ id: number; nome: string; tipo: string; categoria: string; empresaId: number | null }>;
 }
 
-interface Draft {
-  name: string;
-  crm: string;
-  specialty: string;
+type Destaque = "ouro" | "pulso" | null;
+
+/** Moldura com sinalização. O brilho vive num elemento próprio (não no retrato 3D) para não apagar o relevo. */
+function Retrato({ url, vazio, destaque, legenda, estado }: { url: string | null; vazio: string; destaque: Destaque; legenda: string; estado: string }) {
+  const anel = destaque === "ouro"
+    ? "ring-2 ring-amber-400 shadow-[0_0_22px_4px_rgba(251,191,36,0.55)]"
+    : destaque === "pulso"
+      ? "ring-2 ring-sky-400 shadow-[0_0_26px_6px_rgba(56,189,248,0.55)] animate-pulse"
+      : "";
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative">
+        <div aria-hidden className={`pointer-events-none absolute -inset-1.5 rounded-[12px] transition-all duration-500 ${anel}`} />
+        <div className={`concave-3d relative w-[130px] h-[165px] p-1.5 flex items-center justify-center overflow-hidden shrink-0 transition-opacity duration-500 ${destaque ? "" : "opacity-60"}`}>
+          {url ? <img src={url} alt={legenda} className="w-full h-full object-cover rounded-[6px]" />
+            : <p className="text-xs text-muted-foreground text-center px-2">{vazio}</p>}
+        </div>
+      </div>
+      <p className="text-xs font-bold uppercase tracking-wide">{legenda}</p>
+      <p className={`text-[11px] font-semibold ${destaque ? "text-amber-600" : "text-muted-foreground"}`}>{estado}</p>
+    </div>
+  );
 }
 
-const EMPTY: Draft = { name: "", crm: "", specialty: "" };
-
-function authHeaders(): Record<string, string> {
-  const token = getCollabToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-export default function ConfigMedico() {
+export default function IdentidadeCeo() {
   const { toast } = useToast();
   const { isCeo, loading: permLoading } = usePermissoes();
+  const [id, setId] = useState<Identidade | null>(null);
+  const [clin, setClin] = useState<Clinicas | null>(null);
+  const [fotoCeo, setFotoCeo] = useState<string | null>(null);
+  const [fotoMedico, setFotoMedico] = useState<string | null>(null);
+  const [erro, setErro] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const arquivo = useRef<HTMLInputElement>(null);
 
-  const [doctor, setDoctor] = useState<PrimaryDoctor | null>(null);
-  const [draft, setDraft] = useState<Draft>(EMPTY);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [notFound, setNotFound] = useState(false);
-  const [fetchError, setFetchError] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const [photoLoading, setPhotoLoading] = useState(true);
-  const [photoError, setPhotoError] = useState(false);
-  const [photoUploading, setPhotoUploading] = useState(false);
-  const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null);
-  const photoInputRef = useRef<HTMLInputElement>(null);
-
-  async function loadDoctorPhoto() {
-    setPhotoLoading(true);
-    setPhotoError(false);
+  const carregar = useCallback(async () => {
+    setErro(false);
     try {
-      const response = await fetch(`${BASE}/api/settings/doctor-photo`, {
-        headers: authHeaders(),
-        cache: "no-store",
-      });
-      if (response.status === 404) {
-        setPhotoUrl((current) => {
-          if (current) URL.revokeObjectURL(current);
-          return null;
-        });
-        return;
-      }
-      if (!response.ok) throw new Error("Não foi possível carregar a foto atual.");
-      const blobUrl = URL.createObjectURL(await response.blob());
-      setPhotoUrl((current) => {
-        if (current) URL.revokeObjectURL(current);
-        return blobUrl;
-      });
-    } catch (error) {
-      setPhotoError(true);
-      throw error;
-    } finally {
-      setPhotoLoading(false);
-    }
-  }
+      const dados = await api<Identidade>("/ceo/identidade");
+      setId(dados);
+      const [fc, fm] = await Promise.all([baixarFoto("/ceo/identidade/foto-ceo"), baixarFoto("/ceo/identidade/foto-medico")]);
+      setFotoCeo((a) => { if (a) URL.revokeObjectURL(a); return fc; });
+      setFotoMedico((a) => { if (a) URL.revokeObjectURL(a); return fm; });
+      setClin(await api<Clinicas>("/ceo/clinicas-responsaveis"));
+    } catch { setErro(true); }
+  }, []);
 
-  // Busca o médico principal ao montar (só depois de saber a permissão)
-  useEffect(() => {
-    if (permLoading) return;
-    if (!isCeo) { setLoading(false); return; }
+  useEffect(() => { if (!permLoading && isCeo) void carregar(); }, [permLoading, isCeo, carregar]);
 
-    setLoading(true);
-    setFetchError(false);
-    fetch(`${BASE}/api/professionals`, { headers: authHeaders() })
-      .then((r) => r.json())
-      .then((data: unknown) => {
-        if (!Array.isArray(data)) throw new Error("resposta inválida");
-        const primary = (data as PrimaryDoctor[]).find((p) => p.isPrimaryDoctor);
-        if (primary) {
-          setDoctor(primary);
-          setDraft({
-            name: primary.name ?? "",
-            crm: primary.crm ?? "",
-            specialty: primary.specialty ?? "",
-          });
-        } else {
-          setNotFound(true);
-        }
-      })
-      .catch(() => {
-        setFetchError(true);
-      })
-      .finally(() => setLoading(false));
-  }, [permLoading, isCeo, retryCount]);
-
-  useEffect(() => {
-    if (!permLoading && isCeo) {
-      void loadDoctorPhoto().catch(() => {
-        toast({ title: "Não foi possível carregar a foto atual", variant: "destructive" });
-      });
-    }
-    return () => {
-      setPhotoUrl((current) => {
-        if (current) URL.revokeObjectURL(current);
-        return null;
-      });
-    };
-  }, [permLoading, isCeo]);
-
-  async function uploadDoctorPhoto() {
-    if (!selectedPhoto) {
-      toast({ title: "Selecione uma imagem JPEG" });
-      return;
-    }
-    setPhotoUploading(true);
+  async function alternar(ativo: boolean) {
+    setSalvando(true);
     try {
-      const body = new FormData();
-      body.append("file", selectedPhoto);
-      const response = await fetch(`${BASE}/api/settings/doctor-photo`, {
-        method: "POST",
-        headers: authHeaders(),
-        body,
-      });
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error((error as { error?: string }).error ?? "Falha ao enviar a foto.");
-      }
-      await loadDoctorPhoto();
-      setSelectedPhoto(null);
-      if (photoInputRef.current) photoInputRef.current.value = "";
-      toast({ title: "Foto da capa atualizada" });
-    } catch (error: unknown) {
-      toast({
-        title: error instanceof Error ? error.message : "Falha ao enviar a foto",
-        variant: "destructive",
-      });
-    } finally {
-      setPhotoUploading(false);
-    }
+      await api("/ceo/identidade/medico-ativo", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ativo }) });
+      toast({ title: ativo ? "Profissional Médico ativado" : "Profissional Médico desativado" });
+      await carregar();
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : "Falha ao alterar", variant: "destructive" });
+    } finally { setSalvando(false); }
   }
 
-  function setField(k: keyof Draft, v: string) {
-    setDraft((d) => ({ ...d, [k]: v }));
-  }
-
-  async function save() {
-    if (!doctor) return;
-    if (!draft.name.trim()) {
-      toast({ title: "O nome não pode ficar vazio", variant: "destructive" });
-      return;
-    }
-    setSaving(true);
+  async function enviarFoto(file: File | null) {
+    if (!file) return;
+    const body = new FormData(); body.append("file", file);
     try {
-      const res = await fetch(`${BASE}/api/professionals/primary-doctor`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({
-          name: draft.name.trim(),
-          crm: draft.crm.trim() || null,
-          specialty: draft.specialty.trim() || null,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as any).error ?? "erro desconhecido");
-      }
-      const updated: PrimaryDoctor = await res.json();
-      setDoctor(updated);
-      setDraft({
-        name: updated.name ?? "",
-        crm: updated.crm ?? "",
-        specialty: updated.specialty ?? "",
-      });
-      toast({ title: "Médico responsável atualizado" });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erro ao salvar";
-      toast({ title: msg, variant: "destructive" });
-    } finally {
-      setSaving(false);
+      await api("/ceo/identidade/foto", { method: "PUT", body });
+      toast({ title: "Foto do CEO atualizada" });
+      if (arquivo.current) arquivo.current.value = "";
+      await carregar();
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : "Falha ao enviar", variant: "destructive" });
     }
   }
 
-  const fieldCls = "field-engraved";
-
-  // Aguarda resolução de permissão antes de renderizar conteúdo sensível
-  if (permLoading) {
-    return <Skeleton className="h-64 w-full max-w-2xl mx-auto" />;
+  async function responsavel(empresaId: number, campo: "administradorId" | "responsavelTecnicoId", valor: string) {
+    try {
+      await api(`/ceo/clinicas-responsaveis/${empresaId}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [campo]: valor === "" ? null : Number(valor) }),
+      });
+      toast({ title: "Responsável atualizado" });
+      setClin(await api<Clinicas>("/ceo/clinicas-responsaveis"));
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : "Falha ao salvar", variant: "destructive" });
+    }
   }
 
-  // Acesso restrito ao CEO
+  if (permLoading) return <Skeleton className="h-64 w-full max-w-2xl mx-auto" />;
   if (!isCeo) {
     return (
       <div className="max-w-2xl mx-auto panel-3d p-6 flex items-start gap-3 text-red-600">
         <ShieldOff className="w-5 h-5 mt-0.5 shrink-0" />
+        <p className="font-semibold">Acesso restrito ao CEO da PaxMed.</p>
+      </div>
+    );
+  }
+  if (erro) {
+    return (
+      <div className="max-w-2xl mx-auto panel-3d p-6 flex items-start gap-3 text-red-600">
+        <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
         <div>
-          <p className="font-semibold">Acesso restrito</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Apenas o médico principal (CEO) pode alterar os dados do médico responsável pelos documentos.
-          </p>
+          <p className="font-semibold">Não foi possível carregar a CEO da Pax Med</p>
+          <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={() => void carregar()}>
+            <RefreshCw className="w-4 h-4" /> Tentar novamente
+          </Button>
         </div>
       </div>
     );
   }
+  if (!id) return <Skeleton className="h-64 w-full max-w-2xl mx-auto" />;
+
+  const daClinica = (empresaId: number) =>
+    clin?.profissionais.filter((p) => p.empresaId === empresaId || p.id === id.medico?.id) ?? [];
+  const campo = "field-engraved min-h-10 w-full rounded px-2 text-sm";
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6">
       <header>
-        <h1 className="text-2xl font-bold tracking-tight">Médico Responsável pelos Documentos</h1>
+        <h1 className="text-2xl font-bold tracking-tight">CEO da Pax Med</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Nome e CRM que aparecem nos PDFs emitidos (planos nutricionais, receituários, etc.).
-          Qualquer alteração aqui reflete no próximo documento gerado.
+          O CEO é a entidade empresarial dona do sistema. Os documentos clínicos saem sempre no nome do médico que fez o login.
         </p>
       </header>
 
-      <SettingsPanel icon={Camera} title="Foto da Capa do Protocolo">
-        <div className="grid grid-cols-1 sm:grid-cols-[160px_minmax(0,1fr)] gap-4 items-stretch">
-          <div className="concave-3d min-h-[210px] p-2 flex items-center justify-center overflow-hidden">
-            {photoLoading ? (
-              <Skeleton className="w-full h-[190px]" />
-            ) : photoError ? (
-              <div className="text-center text-red-600 px-3">
-                <AlertCircle className="w-8 h-8 mx-auto mb-2" />
-                <p className="text-sm font-medium">Foto indisponível</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-3 gap-2"
-                  onClick={() => void loadDoctorPhoto().catch(() => undefined)}
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Tentar novamente
-                </Button>
-              </div>
-            ) : photoUrl ? (
-              <img
-                src={photoUrl}
-                alt="Foto atual do médico na capa do protocolo"
-                className="w-full h-[190px] object-cover rounded-[6px]"
-              />
-            ) : (
-              <div className="text-center text-muted-foreground px-3">
-                <Camera className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm font-medium">Sem foto cadastrada</p>
-                <p className="text-xs mt-1">A capa continuará sendo gerada normalmente.</p>
-              </div>
-            )}
+      <SettingsPanel icon={Building2} title="CEO da Pax Med (entidade empresarial)">
+        <div className="flex flex-wrap gap-8 items-start justify-center" data-testid="fotos-lado-a-lado">
+          <div data-testid="retrato-ceo" data-destaque={!id.medicoAtivo ? "ativo" : "inativo"}>
+            <Retrato url={fotoCeo} vazio="Sem foto" legenda="CEO" destaque={id.medicoAtivo ? null : "pulso"}
+              estado={id.medicoAtivo ? "Em repouso" : "Em exercício: sem emissão médica"} />
           </div>
-
-          <div className="panel-3d-sub p-4 flex flex-col justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold">Trocar a foto do médico</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Envie uma imagem JPEG de até 5 MB. A próxima capa gerada já usará a nova foto.
-              </p>
-            </div>
-            <div className="space-y-3">
-              <Input
-                ref={photoInputRef}
-                type="file"
-                accept=".jpg,.jpeg,image/jpeg"
-                className="field-engraved min-h-10"
-                onChange={(event) => setSelectedPhoto(event.target.files?.[0] ?? null)}
-                disabled={photoUploading}
-              />
-              <Button
-                className="btn-3d w-full gap-2"
-                onClick={uploadDoctorPhoto}
-                disabled={!selectedPhoto || photoUploading}
-              >
-                {photoUploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                {photoUploading ? "Enviando…" : "Atualizar foto da capa"}
-              </Button>
-            </div>
+          <div data-testid="retrato-medico" data-destaque={id.medicoAtivo ? "ativo" : "inativo"}>
+            <Retrato url={fotoMedico} vazio="Médico sem foto no Corpo Clínico" legenda="Profissional Médico" destaque={id.medicoAtivo ? "ouro" : null}
+              estado={id.medicoAtivo ? "Ativo: pode emitir" : "Desativado"} />
           </div>
+        </div>
+        <div className="mt-4 space-y-3">
+          <p className="text-sm" data-testid="foto-exibida">
+            {id.fotoExibida === "medico"
+              ? "Interruptor ligado: a foto exibida é a do médico (Dr. Caio) importado."
+              : "Interruptor desligado: a foto exibida é a do CEO."}
+          </p>
+          <Input ref={arquivo} type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" className="field-engraved min-h-10"
+            onChange={(e) => void enviarFoto(e.target.files?.[0] ?? null)} />
+          <p className="text-xs text-muted-foreground"><Upload className="inline w-3 h-3 mr-1" />Foto própria do CEO (JPEG ou PNG, até 2 MB).</p>
         </div>
       </SettingsPanel>
 
-      {loading ? (
-        <Skeleton className="h-64 w-full" />
-      ) : fetchError ? (
-        <div className="panel-3d p-6 flex items-start gap-3 text-red-600">
-          <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
-          <div className="flex-1">
-            <p className="font-semibold">Não foi possível carregar o médico responsável</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Verifique sua conexão e tente novamente.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-4 gap-2"
-              onClick={() => setRetryCount((c) => c + 1)}
-            >
-              <RefreshCw className="w-4 h-4" />
-              Tentar novamente
-            </Button>
-          </div>
-        </div>
-      ) : notFound ? (
-        <div className="panel-3d p-6 flex items-start gap-3 text-amber-600">
-          <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
+      <SettingsPanel icon={Stethoscope} title="Profissional Médico">
+        <div className="flex items-center justify-between gap-4 mb-4">
           <div>
-            <p className="font-semibold">Nenhum médico principal cadastrado</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Acesse <strong>Corpo Clínico</strong>, abra o perfil do médico responsável e ative
-              o campo <em>Médico Principal (isPrimaryDoctor)</em>.
+            <p className="text-sm font-semibold">Usar meu cadastro de médico para atender e assinar</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Ligado: o cadastro do médico abaixo pode emitir receitas, protocolos e demais documentos. Desligado: o CEO não emite nada.
             </p>
           </div>
+          <Switch data-testid="toggle-profissional-medico" checked={id.medicoAtivo} disabled={salvando || !id.medico}
+            onCheckedChange={(v) => void alternar(v)} aria-label="Profissional Médico" />
         </div>
-      ) : (
-        <SettingsPanel icon={Stethoscope} title="Médico Responsável">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FieldRow label="Nome completo">
-              <Input
-                className={fieldCls}
-                value={draft.name}
-                onChange={(e) => setField("name", e.target.value)}
-                placeholder="Dr. Caio Pádua"
-              />
-            </FieldRow>
-
-            <FieldRow label="CRM">
-              <Input
-                className={fieldCls}
-                value={draft.crm}
-                onChange={(e) => setField("crm", e.target.value)}
-                placeholder="CRM/SP 123456"
-              />
-            </FieldRow>
-
-            <FieldRow label="Especialidade" hint="Exibida abaixo do CRM nos documentos">
-              <Input
-                className={fieldCls}
-                value={draft.specialty}
-                onChange={(e) => setField("specialty", e.target.value)}
-                placeholder="Nutrologia"
-              />
-            </FieldRow>
+        {id.medico ? (
+          <div className="flex gap-4 items-start">
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
+              <FieldRow label="Nome completo"><Input readOnly className="field-engraved" value={id.medico.nome} /></FieldRow>
+              <FieldRow label="CRM"><Input readOnly className="field-engraved" value={id.medico.crm ?? ""} /></FieldRow>
+              <FieldRow label="Especialidade"><Input readOnly className="field-engraved" value={id.medico.especialidade ?? ""} /></FieldRow>
+              <FieldRow label="CPF"><Input disabled readOnly aria-label="CPF (somente leitura)" data-testid="cpf-medico-ceo" className="field-engraved cursor-not-allowed opacity-60 bg-muted" value={id.medico.cpf ?? ""} /></FieldRow>
+              <p className="sm:col-span-2 text-xs text-muted-foreground">
+                Dados importados do cadastro do médico no Corpo Clínico. Para alterar, edite lá.
+              </p>
+            </div>
           </div>
+        ) : (
+          <p className="text-sm text-amber-600">Nenhum cadastro médico vinculado ao CEO. Marque o médico no Corpo Clínico.</p>
+        )}
+      </SettingsPanel>
 
-          <div className="mt-6 flex justify-end">
-            <Button
-              className="btn-3d gap-2"
-              onClick={save}
-              disabled={saving}
-            >
-              <Save className="w-4 h-4" />
-              {saving ? "Salvando…" : "Salvar"}
-            </Button>
-          </div>
-        </SettingsPanel>
-      )}
+      <SettingsPanel icon={Landmark} title="Clínicas: administrador e responsável técnico">
+        <p className="text-xs text-muted-foreground mb-3">Escolha em lista. Esta escolha não cria login nem senha.</p>
+        <div className="space-y-4">
+          {clin?.clinicas.map((c) => (
+            <div key={c.empresaId} className="panel-3d-sub p-3" data-testid={`clinica-${c.empresaId}`}>
+              <p className="text-sm font-semibold mb-2">{c.nome}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FieldRow label="Administrador da clínica">
+                  <select className={campo} value={c.administradorId ?? ""} onChange={(e) => void responsavel(c.empresaId, "administradorId", e.target.value)}>
+                    <option value="">Não definido</option>
+                    {daClinica(c.empresaId).filter((p) => p.categoria === "administrador_clinica" || p.id === c.administradorId).map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                  </select>
+                </FieldRow>
+                <FieldRow label="Responsável técnico (médico)">
+                  <select className={campo} value={c.responsavelTecnicoId ?? ""} onChange={(e) => void responsavel(c.empresaId, "responsavelTecnicoId", e.target.value)}>
+                    <option value="">Não definido</option>
+                    {daClinica(c.empresaId).filter((p) => (p.tipo === "medico" && p.categoria === "medico") || p.id === c.responsavelTecnicoId).map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                  </select>
+                </FieldRow>
+              </div>
+            </div>
+          ))}
+        </div>
+      </SettingsPanel>
     </div>
   );
 }

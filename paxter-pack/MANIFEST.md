@@ -10,7 +10,7 @@
 
 | Arquivo (relativo a skills/) | SHA-256 (16) | Linhas |
 |---|---|---|
-| `paxter-loop/CODIGO-PAXTER.md` | 3ef2fd60cc3d6001 | 610 |
+| `paxter-loop/CODIGO-PAXTER.md` | 742079026ff6f748 | 617 |
 | `paxter-loop/SKILL.md` | f69b9c117a7a3dcf | 160 |
 | `skill-layout-paxter/references/alinhamento-espacamento.md` | 34bd3efb266da32c | 61 |
 | `skill-layout-paxter/references/componentes-3d.md` | aa1afa7efcb2f116 | 101 |

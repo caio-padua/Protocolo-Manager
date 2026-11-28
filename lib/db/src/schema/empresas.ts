@@ -21,6 +21,9 @@ export const empresasTable = pgTable("empresas", {
   codigoBaseSemantico: text("codigo_base_semantico"),
   tipo: text("tipo").notNull().default("clinic"),             // clinic | genesis_seed | telemedicina | enfermagem
   tipoUnidade: text("tipo_unidade"),             // CLINICA_OPERACIONAL | CLINICA_PARCEIRA | LABORATORIO_MESTRE
+  // Estudo de classificacao do CEO (11/11/2026). Opcionais; nunca preenchidos por suposicao.
+  classificacaoAssistencial: text("classificacao_assistencial"), // consultorio_isolado | clinica_especializada | policlinica
+  grauComplexidade: text("grau_complexidade"),                   // I | II | III_IV (Anvisa)
   status: text("status").notNull().default("ATIVO"),          // ATIVO | SUSPENSO | CANCELADO
   ativa: boolean("ativa").notNull().default(true),
   donoNome: text("dono_nome"),

@@ -1,0 +1,872 @@
+import { textoExternoDaAgenda } from "./agenda-endereco-externo.js";
+import { randomUUID } from "node:crypto";
+import { and, asc, eq, isNull } from "drizzle-orm";
+import {
+  agendaResourcesTable, clientsTable, db, locationProfessionalsTable, locationsTable, protocolsTable,
+  sessionsTable, substanceApplicationsTable, substancesTable,
+} from "@workspace/db";
+import { estadoAplicacao } from "./estado-aplicacao-protocolo";
+import { carregarItensDoProtocolo, resumirSubstanciasDaVisita, type ItemDoProtocolo } from "./substancias-constantes";
+import {
+  calendarEventExists, createCalendarEvent, deleteCalendarEvent, intervaloDoSistema, updateCalendarEvent, verifyClinicAccount,
+  type CalendarEventData, type CalendarSubstance,
+} from "./google-calendar";
+import { GoogleConflito } from "./google-conflito";
+import { registrarConflitoGoogle } from "./agenda-google-conflitos";
+
+/**
+ * Envio das visitas de um protocolo ao Google Agenda (etapa 5 de 7).
+ *
+ * Princípios (decisão do dono):
+ *  - o sistema é a fonte da verdade; o Google é cópia. Falha do Google NUNCA desfaz a reserva;
+ *  - UM evento por visita (sessão), com todas as substâncias da visita na descrição;
+ *  - sem participante (attendee) e sem convite: a criação usa sendUpdates "none" (google-calendar.ts);
+ *  - o MESMO evento é atualizado depois (identificador reservado antes do envio);
+ *  - resultado incerto nunca autoriza criar outro evento: a conferência reaproveita o identificador reservado.
+ */
+
+export function procedureTypeLabel(type: string): string {
+  switch (type) {
+    case "iv": return "Aplicacao Endovenosa";
+    case "im": return "Aplicacao Intramuscular";
+    case "sc": return "Aplicacao Subcutanea";
+    case "implant": return "Implante";
+    default: return "Procedimento";
+  }
+}
+
+
+export class CalendarSyncUncertain extends Error {}
+
+/** Reserva durável: mesmo falha de resposta ou reinício nunca autoriza nova criação. */
+export interface ReservedSyncOptions {
+  /**
+   * Só vale para evento que JÁ existe no Google. Falha ao atualizá-lo libera a reserva (comparando com a operação
+   * própria) em vez de deixá-la presa: repetir events.update com o mesmo identificador é seguro, e a reserva presa
+   * bloquearia o próximo registro clínico da mesma visita. Sem esta opção (remarcação, envio manual) a reserva fica.
+   */
+  releaseOnUpdateFailure?: boolean;
+  /**
+   * Prazo máximo da chamada events.update quando releaseOnUpdateFailure está ligado. Sem prazo, uma chamada que nunca
+   * responde deixaria a reserva presa para sempre. A chamada HTTP também recebe esse limite (é abortada no cliente);
+   * como a atualização reescreve o evento inteiro a partir do banco, repetir depois é seguro.
+   */
+  updateDeadlineMs?: number;
+  /**
+   * K7: itens do protocolo usados para listar as substâncias constantes. Conferidos de novo depois da reserva, como a
+   * sessão e as aplicações: se o protocolo mudou no intervalo, nada é enviado.
+   */
+  expectedProtocolItems?: ItemDoProtocolo[];
+  /** Decisão humana já registrada ("enviar o do sistema"): grava por cima mesmo com alteração feita direto no Google. */
+  forcarGoogle?: boolean;
+}
+
+/** Prazo da atualização de evento existente disparada por ação clínica (menor que o limite de resposta da tela). */
+export const EVENT_UPDATE_DEADLINE_MS = 7000;
+
+function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const limit = new Promise<never>((_ok, reject) => {
+    timer = setTimeout(() => reject(new Error("O Google não respondeu no prazo.")), ms);
+  });
+  work.catch(() => undefined); // se o prazo vencer, a falha tardia não pode virar rejeição sem tratamento
+  return Promise.race([work, limit]).finally(() => { if (timer) clearTimeout(timer); });
+}
+
+export async function syncReservedEvent(
+  session: typeof sessionsTable.$inferSelect,
+  data: CalendarEventData,
+  expectedApplications: (typeof substanceApplicationsTable.$inferSelect)[],
+  options: ReservedSyncOptions = {},
+) {
+  const operation = randomUUID();
+  const eventId = session.googleEventId ?? randomUUID().replace(/-/g, "");
+  const calendarId = data.calendarId!;
+  const [reserved] = await db.update(sessionsTable).set({
+    googleSyncPendingOperation: operation,
+    googleSyncPendingEventId: eventId,
+    googleSyncPendingCalendarId: calendarId,
+  }).where(and(
+    eq(sessionsTable.id, session.id),
+    isNull(sessionsTable.googleSyncPendingOperation),
+    session.googleEventId ? eq(sessionsTable.googleEventId, session.googleEventId) : isNull(sessionsTable.googleEventId),
+  )).returning({ id: sessionsTable.id });
+  if (!reserved) throw new CalendarSyncUncertain("Há uma sincronização em andamento ou com resultado incerto. Confira antes de repetir.");
+
+  // A descrição pode ter sido montada antes da reserva. Depois da reserva,
+  // confirme que a sessão e suas aplicações ainda são exatamente as mesmas.
+  const stripReservation = (s: typeof sessionsTable.$inferSelect) => {
+    const { googleSyncPendingOperation: _op, googleSyncPendingEventId: _id,
+      googleSyncPendingCalendarId: _calendar, ...rest } = s;
+    return JSON.stringify(rest);
+  };
+  const serializeApplications = (items: (typeof substanceApplicationsTable.$inferSelect)[]) =>
+    JSON.stringify([...items].sort((a, b) => a.id - b.id));
+  const releaseOwnReservation = () => db.update(sessionsTable).set({
+    googleSyncPendingOperation: null, googleSyncPendingEventId: null, googleSyncPendingCalendarId: null,
+  }).where(and(eq(sessionsTable.id, session.id), eq(sessionsTable.googleSyncPendingOperation, operation)));
+  let drifted: boolean;
+  try {
+    const [fresh] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, session.id));
+    const freshApplications = await db.select().from(substanceApplicationsTable)
+      .where(eq(substanceApplicationsTable.sessionId, session.id));
+    const itemsChanged = options.expectedProtocolItems !== undefined &&
+      JSON.stringify(await itensDoProtocoloDaSessao(session, session.empresaId)) !== JSON.stringify(options.expectedProtocolItems);
+    drifted = !fresh || stripReservation(fresh) !== stripReservation(session) ||
+      serializeApplications(freshApplications) !== serializeApplications(expectedApplications) || itemsChanged;
+  } catch (error) {
+    // Falha de leitura DEPOIS da reserva e ANTES de qualquer envio: nada foi ao Google, então a reserva própria é devolvida.
+    try { await releaseOwnReservation(); } catch { /* banco indisponível: a reserva fica e exigirá conferência */ }
+    throw error;
+  }
+  if (drifted) {
+    await releaseOwnReservation();
+    throw new CalendarSyncUncertain("A sessão mudou antes do envio. Nenhum evento foi alterado; confira e tente novamente.");
+  }
+  try {
+    if (session.googleEventId) {
+      if (options.releaseOnUpdateFailure) {
+        const deadline = options.updateDeadlineMs ?? EVENT_UPDATE_DEADLINE_MS;
+        await withDeadline(updateCalendarEvent(eventId, calendarId, data, { timeoutMs: deadline, forcar: options.forcarGoogle }), deadline);
+      } else {
+        await updateCalendarEvent(eventId, calendarId, data, { forcar: options.forcarGoogle });
+      }
+    } else {
+      const created = await createCalendarEvent({ ...data, eventId });
+      if (created !== eventId) throw new Error("O Google não confirmou o identificador reservado.");
+    }
+    const [saved] = await db.update(sessionsTable).set({
+      googleEventId: eventId,
+      googleCalendarId: calendarId,
+      googleSyncPendingOperation: null,
+      googleSyncPendingEventId: null,
+      googleSyncPendingCalendarId: null,
+    }).where(and(eq(sessionsTable.id, session.id), eq(sessionsTable.googleSyncPendingOperation, operation)))
+      .returning({ id: sessionsTable.id });
+    if (!saved) throw new Error("A reserva não foi encontrada para registrar o resultado.");
+    return eventId;
+  } catch (error) {
+    if (error instanceof GoogleConflito) {
+      // Nada foi gravado no Google (a leitura precede a escrita): devolve só a reserva própria, registra o conflito
+      // para decisão humana e NÃO sobrescreve a alteração remota.
+      try { await releaseOwnReservation(); } catch { /* banco indisponível: a reserva fica e exigirá conferência */ }
+      await registrarConflitoGoogle({ empresaId: session.empresaId, sessaoId: session.id, calendarId, eventId,
+        conflito: error, sistema: intervaloDoSistema(data) });
+      throw error;
+    }
+    if (options.releaseOnUpdateFailure && session.googleEventId) {
+      // Atualização de evento existente é idempotente: libera SÓ a reserva própria e devolve falha comum (não incerta).
+      try {
+        await db.update(sessionsTable).set({
+          googleSyncPendingOperation: null, googleSyncPendingEventId: null, googleSyncPendingCalendarId: null,
+        }).where(and(eq(sessionsTable.id, session.id), eq(sessionsTable.googleSyncPendingOperation, operation)));
+      } catch { /* banco indisponível: a reserva fica e exigirá conferência, como no fluxo padrão */ }
+      throw new Error("Não foi possível atualizar o evento existente no Google.");
+    }
+    // Não libera a reserva: o Google pode ter recebido a alteração.
+    throw new CalendarSyncUncertain("Não foi possível confirmar o resultado no Google. Confira o compromisso antes de repetir.");
+  }
+}
+
+
+type SessionRow = typeof sessionsTable.$inferSelect;
+
+/**
+ * Itens do protocolo da sessão. Consulta avulsa (protocol_id nulo) não tem protocolo: lista vazia, nunca um
+ * protocolo presumido nem substância inventada.
+ */
+const itensDoProtocoloDaSessao = (session: SessionRow, empresaId: number | null): Promise<ItemDoProtocolo[]> =>
+  session.protocolId == null ? Promise.resolve([]) : carregarItensDoProtocolo(session.protocolId, empresaId);
+type ApplicationRow = typeof substanceApplicationsTable.$inferSelect;
+
+/** Mesmas visões comparadas antes de qualquer envio: a sessão e suas aplicações não podem ter mudado. */
+function sessionFingerprint(s: SessionRow): string {
+  const { googleSyncPendingOperation: _op, googleSyncPendingEventId: _id, googleSyncPendingCalendarId: _cal, ...rest } = s;
+  return JSON.stringify(rest);
+}
+const applicationsFingerprint = (items: ApplicationRow[]) => JSON.stringify([...items].sort((a, b) => a.id - b.id));
+
+/**
+ * Conferência de uma sincronização que ficou com resultado incerto (falha de rede, erro do Google,
+ * reinício do servidor). Reaproveita o identificador JÁ reservado: se o evento existe, atualiza; se não
+ * existe, cria com o mesmo identificador. Nunca gera identificador novo, então nunca duplica o evento.
+ */
+export async function reconcilePendingEvent(
+  session: SessionRow,
+  data: CalendarEventData,
+  expectedApplications: ApplicationRow[],
+  expectedProtocolItems?: ItemDoProtocolo[],
+  options: { forcarGoogle?: boolean } = {},
+): Promise<string> {
+  const previousOperation = session.googleSyncPendingOperation;
+  const eventId = session.googleSyncPendingEventId;
+  const calendarId = data.calendarId!;
+  if (!previousOperation || !eventId || session.googleSyncPendingCalendarId !== calendarId) {
+    throw new CalendarSyncUncertain("A agenda Google da sessão mudou durante uma sincronização incerta; a conferência manual é necessária.");
+  }
+  const operation = randomUUID();
+  const [taken] = await db.update(sessionsTable).set({ googleSyncPendingOperation: operation })
+    .where(and(eq(sessionsTable.id, session.id), eq(sessionsTable.googleSyncPendingOperation, previousOperation)))
+    .returning({ id: sessionsTable.id });
+  if (!taken) throw new CalendarSyncUncertain("Outra conferência desta sessão está em andamento.");
+
+  const restorePreviousReservation = () => db.update(sessionsTable).set({ googleSyncPendingOperation: previousOperation })
+    .where(and(eq(sessionsTable.id, session.id), eq(sessionsTable.googleSyncPendingOperation, operation)));
+  let drifted: boolean;
+  try {
+    const [fresh] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, session.id));
+    const freshApplications = await db.select().from(substanceApplicationsTable)
+      .where(eq(substanceApplicationsTable.sessionId, session.id));
+    const itemsChanged = expectedProtocolItems !== undefined &&
+      JSON.stringify(await itensDoProtocoloDaSessao(session, session.empresaId)) !== JSON.stringify(expectedProtocolItems);
+    drifted = !fresh || sessionFingerprint(fresh) !== sessionFingerprint(session) ||
+      applicationsFingerprint(freshApplications) !== applicationsFingerprint(expectedApplications) || itemsChanged;
+  } catch (error) {
+    // Nada foi enviado nesta tentativa: devolve a reserva anterior (que continua incerta) mesmo se a leitura falhou.
+    try { await restorePreviousReservation(); } catch { /* banco indisponível: a conferência manual continua possível */ }
+    throw error;
+  }
+  if (drifted) {
+    // Nada foi enviado nesta tentativa: devolve a reserva anterior, que continua incerta.
+    await restorePreviousReservation();
+    throw new CalendarSyncUncertain("A sessão mudou antes da conferência. Nenhum evento foi alterado.");
+  }
+  try {
+    if (await calendarEventExists(eventId, calendarId)) {
+      await updateCalendarEvent(eventId, calendarId, data, { forcar: options.forcarGoogle });
+    } else {
+      const created = await createCalendarEvent({ ...data, eventId });
+      if (created !== eventId) throw new Error("O Google não confirmou o identificador reservado.");
+    }
+    const [saved] = await db.update(sessionsTable).set({
+      googleEventId: eventId, googleCalendarId: calendarId,
+      googleSyncPendingOperation: null, googleSyncPendingEventId: null, googleSyncPendingCalendarId: null,
+    }).where(and(eq(sessionsTable.id, session.id), eq(sessionsTable.googleSyncPendingOperation, operation)))
+      .returning({ id: sessionsTable.id });
+    if (!saved) throw new Error("A reserva não foi encontrada para registrar o resultado.");
+    return eventId;
+  } catch (error) {
+    if (error instanceof GoogleConflito) {
+      // Nada foi gravado nesta tentativa: a reserva anterior (incerta) volta e o conflito aguarda decisão humana.
+      try { await restorePreviousReservation(); } catch { /* banco indisponível: a conferência manual continua possível */ }
+      await registrarConflitoGoogle({ empresaId: session.empresaId, sessaoId: session.id, calendarId, eventId,
+        conflito: error, sistema: intervaloDoSistema(data) });
+      throw error;
+    }
+    throw new CalendarSyncUncertain("Não foi possível confirmar o resultado no Google. A conferência pode ser repetida com o mesmo identificador.");
+  }
+}
+
+export type VisitSyncStatus = "sincronizado" | "ja_sincronizado" | "falhou" | "incerto" | "nao_processada";
+export interface VisitSyncResult {
+  sessionId: number; date: string; time: string; status: VisitSyncStatus;
+  eventId?: string; code?: string; error?: string;
+}
+export type ProtocolGoogleSyncResult =
+  | { ok: true; visits: VisitSyncResult[]; synced: number; alreadySynced: number; failed: number; remaining: number }
+  | { ok: false; status: 404 | 409 | 503; code: string; error: string };
+
+export interface ProtocolGoogleSyncParams {
+  empresaId: number; clientId: number; protocolId: number;
+  /** Profissional logado: precisa pertencer ao local da agenda (mesma regra do envio avulso). */
+  professionalId: number;
+  /** Atualiza também os eventos já enviados (mesmo evento, mesmo identificador). */
+  refresh?: boolean;
+  /** Reconferência do acesso antes de cada visita (o laço leva alguns segundos por visita). */
+  stillAuthorized?: () => Promise<boolean>;
+}
+
+/** Limite por chamada: cada visita pode levar 1 a 2 s no Google e a resposta HTTP precisa voltar. */
+export const MAX_VISITS_PER_GOOGLE_SYNC = 40;
+
+type Destination =
+  | { ok: true; resourceKind: string; modality: string; location: Pick<typeof locationsTable.$inferSelect, "name" | "address" | "phone">; calendarId: string; externalAddress: string | null }
+  | { ok: false; code: string; error: string };
+
+/** `professionalId` nulo = o chamador já autorizou a sessão (ex.: atualização depois de remarcar); não confere vínculo. */
+async function resolveDestination(session: SessionRow, empresaId: number, professionalId: number | null, opts?: DestinoOpts): Promise<Destination> {
+  return resolveResourceDestination(session.resourceId, empresaId, professionalId, opts);
+}
+
+/**
+ * `agendaSemLocal`: Pit Stop. A agenda nova vale pela clínica gravada nela (não exige registro de local legado) e a
+ * autorização foi dada pela rota (permissão da matriz + corpo clínico da mesma empresa), não por vínculo com local.
+ */
+type DestinoOpts = { agendaSemLocal?: boolean };
+
+async function resolveResourceDestination(resourceId: number | null, empresaId: number, professionalId: number | null, opts: DestinoOpts = {}): Promise<Destination> {
+  if (!resourceId) {
+    return { ok: false, code: "visita_sem_agenda", error: "Visita no formato antigo, sem agenda de enfermagem; não foi enviada." };
+  }
+  const [resource] = await db.select().from(agendaResourcesTable).where(eq(agendaResourcesTable.id, resourceId));
+  if (!resource?.active) return { ok: false, code: "agenda_inativa", error: "A agenda desta visita está inativa." };
+  if (!resource.googleCalendarId) {
+    return { ok: false, code: "agenda_sem_google", error: "A agenda desta visita não tem calendário Google configurado." };
+  }
+  if (!resource.locationId) {
+    if (!opts.agendaSemLocal) return { ok: false, code: "agenda_sem_local", error: "A agenda desta visita não está ligada a um local." };
+    if (resource.empresaId == null || resource.empresaId !== empresaId) {
+      return { ok: false, code: "agenda_de_outra_clinica", error: "A agenda desta visita não pertence a esta clínica." };
+    }
+    return { ok: true, resourceKind: resource.kind, modality: resource.modality, location: { name: resource.name, address: null, phone: null },
+      calendarId: resource.googleCalendarId, externalAddress: textoExternoDaAgenda(resource) };
+  }
+  const [location] = await db.select().from(locationsTable).where(eq(locationsTable.id, resource.locationId));
+  if (!location || location.active !== "true" || location.empresaId !== empresaId) {
+    return { ok: false, code: "local_invalido", error: "O local da agenda está inativo ou pertence a outra clínica." };
+  }
+  if (professionalId !== null) {
+    const [membership] = await db.select().from(locationProfessionalsTable).where(and(
+      eq(locationProfessionalsTable.locationId, location.id),
+      eq(locationProfessionalsTable.professionalId, professionalId),
+    ));
+    if (!membership) {
+      return { ok: false, code: "sem_vinculo_local", error: "O profissional logado não está vinculado ao local da agenda." };
+    }
+  }
+  // Agenda EXTERNA: o endereço digitado na própria agenda (via CEP) é o do atendimento; senão vale o do local ligado.
+  return { ok: true, resourceKind: resource.kind, modality: resource.modality, location, calendarId: resource.googleCalendarId, externalAddress: textoExternoDaAgenda(resource) };
+}
+
+/**
+ * Aviso ANTES de agendar: o envio ao Google vai funcionar para esta agenda e este profissional? Usa exatamente a mesma
+ * regra do envio (um só lugar), sem gravar nem chamar o Google. A reserva no sistema vale de qualquer forma; o aviso só
+ * evita descobrir depois do agendamento que o Google não receberá os eventos. Nulo = pronto.
+ */
+export async function googleReadinessWarning(
+  resourceId: number, empresaId: number, professionalId: number,
+): Promise<{ code: string; message: string } | null> {
+  try {
+    const destination = await resolveResourceDestination(resourceId, empresaId, professionalId);
+    if (!destination.ok) {
+      return { code: destination.code,
+        message: `O agendamento ficará salvo no sistema, mas o envio ao Google Agenda não vai funcionar: ${destination.error} Corrija o cadastro antes ou envie depois.` };
+    }
+
+    const account = await verifyClinicAccount();
+    if (!account.ok) {
+      const accountMismatch = account.account !== null;
+      return {
+        code: accountMismatch ? "conta_google_divergente" : "google_indisponivel",
+        message: accountMismatch
+          ? "O agendamento ficará salvo no sistema, mas a conta Google conectada não é a conta autorizada da clínica. Corrija a conexão antes de enviar."
+          : "O agendamento ficará salvo no sistema, mas não foi possível confirmar a conta Google autorizada da clínica. Verifique a conexão antes de enviar.",
+      };
+    }
+    return null;
+  } catch {
+    return { code: "verificacao_indisponivel",
+      message: "Não foi possível verificar se o envio ao Google Agenda está pronto. O agendamento ficará salvo no sistema." };
+  }
+}
+
+/**
+ * K7: substâncias do protocolo sem linha na visita, prontas para o evento do Google, e os números "X de Y".
+ * Usada pelo envio por protocolo E pelas rotas de envio por sessão/semana: o evento nunca depende do caminho.
+ * Constante = estado INDI, posição 0 ("–/total"), nunca devida, sem via; substância sem cadastro vira texto explícito.
+ */
+export async function montarConstantesDoEvento(
+  applications: { substanceId: number; availability: string }[], protocolItems: ItemDoProtocolo[],
+): Promise<{ constants: CalendarSubstance[]; counts: Pick<CalendarEventData, "visitSubstanceCount" | "protocolSubstanceCount"> }> {
+  const summary = resumirSubstanciasDaVisita(applications, protocolItems);
+  if (!summary) return { constants: [], counts: {} };
+  const constants: CalendarSubstance[] = [];
+  for (const item of summary.constants) {
+    const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, item.substanceId));
+    constants.push({
+      name: substance?.name ?? `Substância não cadastrada (${item.substanceId})`, dose: item.dose, sessionNumber: 0,
+      totalSessions: item.totalSessions, status: "unavailable",
+    });
+  }
+  return { constants, counts: { visitSubstanceCount: summary.visitCount, protocolSubstanceCount: summary.protocolCount } };
+}
+
+/** Evento de uma visita: todas as aplicações da sessão viram a lista de substâncias da descrição. */
+async function buildVisitEvent(
+  session: SessionRow, client: typeof clientsTable.$inferSelect, destination: Extract<Destination, { ok: true }>,
+  applications: ApplicationRow[], position: number, totalVisits: number, protocolItems: ItemDoProtocolo[] = [],
+): Promise<{ ok: true; data: CalendarEventData } | { ok: false; code: string; error: string }> {
+  if (!session.durationMinutes || session.durationMinutes <= 0) {
+    return { ok: false, code: "visita_sem_duracao", error: "A visita não tem duração gravada." };
+  }
+  if (applications.length === 0) {
+    return { ok: false, code: "visita_sem_aplicacoes", error: "A visita não tem aplicações; nenhum evento foi enviado." };
+  }
+  const substances: CalendarSubstance[] = [];
+  const dispTypes = new Set<string>();
+  let primaryType = "";
+  for (const app of applications) {
+    const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
+    if (!substance || (app.availability === "disp" && !substance.procedureType)) {
+      return { ok: false, code: "substancia_sem_via", error: "Substância ou via não identificada; nenhum evento foi enviado." };
+    }
+    substances.push({
+      name: substance.name, dose: app.dose, sessionNumber: app.sessionNumber,
+      totalSessions: app.totalSessions, status: estadoAplicacao(app),
+    });
+    if (app.availability === "disp") {
+      primaryType = substance.procedureType!;
+      dispTypes.add(substance.procedureType!);
+    }
+  }
+  if (!primaryType) {
+    return { ok: false, code: "procedimento_indefinido", error: "Procedimento da visita não identificado; nenhum evento foi enviado." };
+  }
+  // K7: as demais substâncias do protocolo ficam constantes (informativas; nunca devidas, sem via, sem bloqueio).
+  const extra = await montarConstantesDoEvento(applications, protocolItems);
+  substances.push(...extra.constants);
+  const location = destination.location;
+  const itinerant = location.address?.toLowerCase().includes("itinerante") ||
+    session.unit?.toLowerCase().includes("domiciliar") || session.unit?.toLowerCase().includes("nurse care");
+  return {
+    ok: true,
+    data: {
+      sessionId: session.id, clientName: client.name, clientCpf: client.cpf ?? undefined,
+      scheduledDate: session.scheduledDate, scheduledTime: session.scheduledTime,
+      durationMinutes: session.durationMinutes,
+      // "Agendamento Número n/total": posição cronológica entre as visitas ATIVAS do protocolo. O número gravado na
+      // sessão não acompanha cancelamento nem remarcação e geraria "3/2" na descrição.
+      weekNumber: position, totalAppointments: totalVisits,
+      unit: session.unit ?? location.name,
+      locationAddress: destination.externalAddress ?? (itinerant && client.address ? client.address : location.address ?? undefined),
+      locationPhone: location.phone ?? undefined, calendarId: destination.calendarId,
+      procedureType: primaryType, procedureLabel: procedureTypeLabel(primaryType),
+      activeProcedureTypes: Array.from(dispTypes), substances,
+      ...extra.counts,
+      // Só para a descrição: o envio nunca cria participante nem convite (sendUpdates "none").
+      clientEmail: client.email || undefined,
+      sessionStatus: session.status, rescheduleCount: session.rescheduleCount,
+    },
+  };
+}
+
+interface VisitContext {
+  empresaId: number; professionalId: number | null; client: typeof clientsTable.$inferSelect;
+  position: number; total: number;
+  /** Ver ReservedSyncOptions.releaseOnUpdateFailure. */
+  releaseOnUpdateFailure?: boolean;
+  updateDeadlineMs?: number;
+  /** Ver ReservedSyncOptions.forcarGoogle. */
+  forcarGoogle?: boolean;
+}
+
+/** Resultado padrão de uma visita cujo envio falhou: conflito com o Google não é falha comum nem resultado incerto. */
+function falhaDoEnvio(base: { sessionId: number; date: string; time: string }, error: unknown): VisitSyncResult {
+  if (error instanceof GoogleConflito) {
+    return { ...base, status: "falhou", code: "google_conflito", error: error.message };
+  }
+  const uncertain = error instanceof CalendarSyncUncertain;
+  return { ...base, status: uncertain ? "incerto" : "falhou", code: uncertain ? "resultado_incerto" : "erro_google",
+    error: uncertain ? (error as Error).message : "Não foi possível enviar ao Google; a reserva no sistema continua valendo." };
+}
+
+/** Uma visita: destino, evento completo e envio seguro (reserva -> Google -> grava). Nunca lança. */
+async function syncVisit(session: SessionRow, ctx: VisitContext): Promise<VisitSyncResult> {
+  const base = { sessionId: session.id, date: session.scheduledDate, time: session.scheduledTime };
+  const destination = await resolveDestination(session, ctx.empresaId, ctx.professionalId);
+  if (!destination.ok) return { ...base, status: "falhou", code: destination.code, error: destination.error };
+  if (session.googleEventId && session.googleCalendarId !== destination.calendarId) {
+    return { ...base, status: "falhou", code: "outra_agenda_google",
+      error: "A visita pertence a outra agenda Google; a transferência exige conferência e não foi feita." };
+  }
+  const applications = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, session.id));
+  let protocolItems: ItemDoProtocolo[];
+  try {
+    protocolItems = await itensDoProtocoloDaSessao(session, ctx.empresaId);
+  } catch {
+    // Falha explícita desta visita (o lote segue): não se envia evento com a composição do protocolo desconhecida.
+    return { ...base, status: "falhou", code: "itens_protocolo_indisponiveis",
+      error: "Não foi possível ler as substâncias do protocolo; nenhum evento foi enviado." };
+  }
+  const built = await buildVisitEvent(session, ctx.client, destination, applications, ctx.position, ctx.total, protocolItems);
+  if (!built.ok) return { ...base, status: "falhou", code: built.code, error: built.error };
+  try {
+    const eventId = session.googleSyncPendingOperation
+      ? await reconcilePendingEvent(session, built.data, applications, protocolItems, { forcarGoogle: ctx.forcarGoogle })
+      : await syncReservedEvent(session, built.data, applications, {
+        releaseOnUpdateFailure: ctx.releaseOnUpdateFailure, updateDeadlineMs: ctx.updateDeadlineMs,
+        expectedProtocolItems: protocolItems, forcarGoogle: ctx.forcarGoogle,
+      });
+    return { ...base, status: "sincronizado", eventId };
+  } catch (error) {
+    return falhaDoEnvio(base, error);
+  }
+}
+
+/**
+ * Pit Stop: uma visita de PROCEDIMENTO (sem substância/via). Mesma reserva durável e mesmo destino do envio legado
+ * (syncReservedEvent / reconcilePendingEvent): repetir nunca duplica o evento. Nunca lança.
+ * Agenda online não leva endereço físico no evento.
+ */
+export async function syncProcedureVisit(session: SessionRow, ctx: VisitContext & {
+  procedureName: string; teamLine: string;
+  /** Home Care: endereço da visita (do paciente ou informado). Obrigatório para essa forma; sem ele a visita não é enviada. */
+  enderecoHomeCare?: string | null;
+}): Promise<VisitSyncResult> {
+  const base = { sessionId: session.id, date: session.scheduledDate, time: session.scheduledTime };
+  const destination = await resolveDestination(session, ctx.empresaId, ctx.professionalId, { agendaSemLocal: true });
+  if (!destination.ok) return { ...base, status: "falhou", code: destination.code, error: destination.error };
+  if (session.googleEventId && session.googleCalendarId !== destination.calendarId) {
+    return { ...base, status: "falhou", code: "outra_agenda_google",
+      error: "A visita pertence a outra agenda Google; a transferência exige conferência e não foi feita." };
+  }
+  if (!session.durationMinutes || session.durationMinutes <= 0) {
+    return { ...base, status: "falhou", code: "visita_sem_duracao", error: "A visita não tem duração gravada." };
+  }
+  const online = destination.modality === "online";
+  const homeCare = destination.modality === "home_care";
+  if (homeCare && !ctx.enderecoHomeCare?.trim()) {
+    return { ...base, status: "falhou", code: "home_care_sem_endereco",
+      error: "Home Care exige o endereço da visita (do paciente ou informado); a visita não foi enviada." };
+  }
+  const data: CalendarEventData = {
+    sessionId: session.id, clientName: ctx.client.name, clientCpf: ctx.client.cpf ?? undefined,
+    scheduledDate: session.scheduledDate, scheduledTime: session.scheduledTime, durationMinutes: session.durationMinutes,
+    weekNumber: ctx.position, totalAppointments: ctx.total,
+    unit: session.unit ?? destination.location.name,
+    locationAddress: online ? undefined : homeCare ? ctx.enderecoHomeCare!.trim()
+      : destination.externalAddress ?? destination.location.address ?? undefined,
+    locationPhone: destination.location.phone ?? undefined, calendarId: destination.calendarId,
+    procedureLabel: ctx.procedureName, activeProcedureTypes: [], substances: [],
+    procedureName: ctx.procedureName, teamLine: ctx.teamLine,
+    clientEmail: ctx.client.email || undefined, sessionStatus: session.status, rescheduleCount: session.rescheduleCount,
+  };
+  try {
+    const eventId = session.googleSyncPendingOperation
+      ? await reconcilePendingEvent(session, data, [], undefined, { forcarGoogle: ctx.forcarGoogle })
+      : await syncReservedEvent(session, data, [], { forcarGoogle: ctx.forcarGoogle });
+    return { ...base, status: "sincronizado", eventId };
+  } catch (error) {
+    return falhaDoEnvio(base, error);
+  }
+}
+
+/** Marca das marcações de teste (a mesma gravada em sessions.notes pela marcação simulada). */
+export const SIM_TAG = "[SIMULACAO]";
+
+/**
+ * Visita MARCADA na agenda (Agenda Configuração, área do cliente): o mesmo evento completo do protocolo, mesmo sem
+ * aplicações gravadas ainda. Nada é presumido: procedimento só aparece quando há aplicação disponível com via
+ * cadastrada; as substâncias do protocolo entram como constantes; endereço vem da FORMA da agenda (Sede = local,
+ * Local externo = endereço da agenda, Home Care = endereço do paciente, Online = sem endereço físico).
+ * Mesma reserva durável do envio por protocolo: repetir nunca duplica o evento. Nunca lança.
+ */
+async function syncBookedVisit(session: SessionRow, ctx: VisitContext): Promise<VisitSyncResult> {
+  const base = { sessionId: session.id, date: session.scheduledDate, time: session.scheduledTime };
+  const destination = await resolveDestination(session, ctx.empresaId, ctx.professionalId, { agendaSemLocal: true });
+  if (!destination.ok) return { ...base, status: "falhou", code: destination.code, error: destination.error };
+  if (session.googleEventId && session.googleCalendarId !== destination.calendarId) {
+    return { ...base, status: "falhou", code: "outra_agenda_google",
+      error: "A visita pertence a outra agenda Google; a transferência exige conferência e não foi feita." };
+  }
+  if (!session.durationMinutes || session.durationMinutes <= 0) {
+    return { ...base, status: "falhou", code: "visita_sem_duracao", error: "A visita não tem duração gravada." };
+  }
+  const online = destination.modality === "online";
+  const homeCare = destination.modality === "home_care";
+  const enderecoHomeCare = ctx.client.address?.trim() || null;
+  if (homeCare && !enderecoHomeCare) {
+    return { ...base, status: "falhou", code: "home_care_sem_endereco",
+      error: "Home Care exige o endereço do paciente no cadastro; o evento não foi enviado." };
+  }
+  const applications = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, session.id));
+  let protocolItems: ItemDoProtocolo[];
+  try {
+    protocolItems = await itensDoProtocoloDaSessao(session, ctx.empresaId);
+  } catch {
+    return { ...base, status: "falhou", code: "itens_protocolo_indisponiveis",
+      error: "Não foi possível ler as substâncias do protocolo; nenhum evento foi enviado." };
+  }
+  const substances: CalendarSubstance[] = [];
+  const dispTypes = new Set<string>();
+  for (const app of applications) {
+    const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
+    substances.push({
+      name: substance?.name ?? `Substância não cadastrada (${app.substanceId})`, dose: app.dose,
+      sessionNumber: app.sessionNumber, totalSessions: app.totalSessions, status: estadoAplicacao(app),
+    });
+    if (app.availability === "disp" && substance?.procedureType) dispTypes.add(substance.procedureType);
+  }
+  const extra = await montarConstantesDoEvento(applications, protocolItems);
+  substances.push(...extra.constants);
+  const primaryType = dispTypes.values().next().value as string | undefined;
+  const data: CalendarEventData = {
+    sessionId: session.id, clientName: ctx.client.name, clientCpf: ctx.client.cpf ?? undefined,
+    scheduledDate: session.scheduledDate, scheduledTime: session.scheduledTime, durationMinutes: session.durationMinutes,
+    weekNumber: ctx.position, totalAppointments: ctx.total,
+    unit: session.unit ?? destination.location.name,
+    locationAddress: online ? undefined : homeCare ? enderecoHomeCare! :
+      destination.externalAddress ?? destination.location.address ?? undefined,
+    locationPhone: online ? undefined : destination.location.phone ?? undefined, calendarId: destination.calendarId,
+    procedureType: primaryType, procedureLabel: primaryType ? procedureTypeLabel(primaryType) : session.unit ?? destination.location.name,
+    activeProcedureTypes: Array.from(dispTypes), substances, ...extra.counts,
+    // Consulta avulsa: bloco clínico simples (sem substâncias nem legenda de protocolo, que não existem aqui).
+    ...(session.protocolId == null ? { procedureName: "Consulta avulsa" } : {}),
+    clientEmail: ctx.client.email || undefined, sessionStatus: session.status, rescheduleCount: session.rescheduleCount,
+    summaryPrefix: session.notes === SIM_TAG ? SIM_TAG : undefined,
+  };
+  try {
+    const eventId = session.googleSyncPendingOperation
+      ? await reconcilePendingEvent(session, data, applications, protocolItems, { forcarGoogle: ctx.forcarGoogle })
+      : await syncReservedEvent(session, data, applications, {
+        releaseOnUpdateFailure: ctx.releaseOnUpdateFailure, updateDeadlineMs: ctx.updateDeadlineMs,
+        expectedProtocolItems: protocolItems, forcarGoogle: ctx.forcarGoogle,
+      });
+    return { ...base, status: "sincronizado", eventId };
+  } catch (error) {
+    return falhaDoEnvio(base, error);
+  }
+}
+
+/**
+ * Depois de MARCAR uma visita na agenda: cria o evento completo no Google (ou atualiza o mesmo evento). Chamada FORA
+ * da transação de marcação. Devolve o aviso para a tela; nunca lança e nunca desfaz a marcação.
+ */
+export async function syncBookedSession(sessionId: number, empresaId: number): Promise<{ eventId: string | null; calendarId: string | null; warning?: string }> {
+  const aviso = (motivo: string) => ({ eventId: null, calendarId: null, warning: `Marcação salva, mas o Google Agenda não recebeu o evento: ${motivo}` });
+  try {
+    const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
+    if (!session || session.empresaId !== empresaId) return aviso("visita não encontrada.");
+    const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
+    if (!client || client.empresaId !== empresaId) return aviso("cliente não encontrado.");
+    if (!(await accountConfirmed())) return aviso("a conta Google da clínica não foi confirmada.");
+    const visits = await activeVisits(session, empresaId);
+    const index = visits.findIndex(v => v.id === session.id);
+    const result = await syncBookedVisit(session, {
+      empresaId, professionalId: null, client, position: index >= 0 ? index + 1 : visits.length + 1,
+      total: Math.max(visits.length, index + 1),
+    });
+    if (result.status === "sincronizado") {
+      const [saved] = await db.select({ eventId: sessionsTable.googleEventId, calendarId: sessionsTable.googleCalendarId })
+        .from(sessionsTable).where(eq(sessionsTable.id, sessionId));
+      return { eventId: saved?.eventId ?? result.eventId ?? null, calendarId: saved?.calendarId ?? null };
+    }
+    return aviso(result.error ?? "o Google não confirmou o envio.");
+  } catch {
+    return aviso("falha inesperada; use \"Enviar ao Google Agenda\" no protocolo para tentar de novo.");
+  }
+}
+
+/** Visitas ativas do protocolo, em ordem cronológica (mesma lista para enviar, numerar e atualizar). */
+async function activeVisits(session: SessionRow, empresaId: number): Promise<SessionRow[]> {
+  // Consulta avulsa é uma visita única: não há sequência de protocolo para numerar.
+  if (session.protocolId == null) {
+    return session.agendaArchived || session.status === "cancelled" ? [] : [session];
+  }
+  const all = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, session.protocolId))
+    .orderBy(asc(sessionsTable.scheduledDate), asc(sessionsTable.scheduledTime), asc(sessionsTable.id));
+  return all.filter(s => !s.agendaArchived && s.status !== "cancelled" &&
+    (s.empresaId === null || s.empresaId === empresaId));
+}
+
+/**
+ * Depois de remarcar uma visita que já está no Google: atualiza o MESMO evento (mesmo identificador),
+ * com a descrição completa e o novo dia/horário. Devolve null quando não há nada a atualizar.
+ * Quem chama já autorizou a sessão; aqui não há profissional logado para conferir vínculo.
+ */
+export async function refreshSessionEventInPlace(
+  sessionId: number, empresaId: number, options: { releaseUpdateFailure?: boolean; updateDeadlineMs?: number; forcarGoogle?: boolean } = {},
+): Promise<VisitSyncResult | null> {
+  const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
+  if (!session || session.agendaArchived || session.status === "cancelled" || session.empresaId !== empresaId ||
+      (!session.googleEventId && !session.googleSyncPendingOperation)) return null;
+  if (options.releaseUpdateFailure && session.googleSyncPendingOperation) {
+    // Ação clínica nunca reivindica a reserva de outra operação (envio manual, criação ou remarcação em andamento):
+    // reconciliar aqui escreveria no Google enquanto o dono da reserva ainda pode estar escrevendo.
+    return { sessionId: session.id, date: session.scheduledDate, time: session.scheduledTime, status: "falhou",
+      code: "sincronizacao_em_andamento",
+      error: "Há outra sincronização com o Google em andamento nesta visita." };
+  }
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
+  if (!client || client.empresaId !== empresaId) return null;
+  const visits = await activeVisits(session, empresaId);
+  const index = visits.findIndex(v => v.id === session.id);
+  if (index < 0) return null;
+  // Mesma exigência do envio manual: dados clínicos só vão à conta Google da clínica.
+  if (!(await accountConfirmed())) {
+    return { sessionId: session.id, date: session.scheduledDate, time: session.scheduledTime, status: "falhou",
+      code: "google_indisponivel", error: "a conta Google da clínica não foi confirmada; nenhum evento foi alterado" };
+  }
+  const [hasApplication] = await db.select({ id: substanceApplicationsTable.id }).from(substanceApplicationsTable)
+    .where(eq(substanceApplicationsTable.sessionId, session.id)).limit(1);
+  const ctx = {
+    empresaId, professionalId: null, client, position: index + 1, total: visits.length,
+    releaseOnUpdateFailure: options.releaseUpdateFailure, updateDeadlineMs: options.updateDeadlineMs,
+    forcarGoogle: options.forcarGoogle,
+  };
+  // Visita marcada na agenda e ainda sem aplicações: mesmo evento completo, sem presumir via nem procedimento.
+  return hasApplication ? syncVisit(session, ctx) : syncBookedVisit(session, ctx);
+}
+
+async function accountConfirmed(): Promise<boolean> {
+  try { return (await verifyClinicAccount()).ok; } catch { return false; }
+}
+
+/** Aviso para a tela quando o Google não acompanhou a remarcação; nunca lança e nunca desfaz a remarcação. */
+export async function refreshAfterReschedule(sessionId: number, empresaId: number): Promise<string | undefined> {
+  try {
+    const result = await refreshSessionEventInPlace(sessionId, empresaId);
+    if (!result || result.status === "sincronizado") return undefined;
+    return `Remarcação salva, mas o evento no Google Agenda não foi atualizado (${result.error ?? "sem detalhe"}). Use "Enviar ao Google Agenda" no protocolo para tentar de novo.`;
+  } catch {
+    return 'Remarcação salva, mas o evento no Google Agenda não foi atualizado. Use "Enviar ao Google Agenda" no protocolo para tentar de novo.';
+  }
+}
+
+/** Espera máxima por uma atualização de evento já em andamento antes de recusar o próximo registro da visita. */
+export const EVENT_UPDATE_SETTLE_MS = 3000;
+
+/**
+ * Registrar duas substâncias da mesma visita em seguida é o fluxo normal: a atualização do Google disparada pelo
+ * primeiro registro mantém a reserva por 1 a 2 s. Em vez de recusar o segundo registro (409), espera um pouco que
+ * a reserva de uma ATUALIZAÇÃO (evento já existe) termine. Reserva de primeiro envio (criação) ou que dure mais que
+ * o limite continua sendo recusada pela regra de sempre; aqui nada é decidido, só se espera.
+ */
+export async function waitForEventUpdateToSettle(
+  sessionId: number, empresaId: number, maxMs: number = EVENT_UPDATE_SETTLE_MS,
+): Promise<void> {
+  const deadline = Date.now() + maxMs;
+  for (;;) {
+    const [row] = await db.select({
+      pendingOperation: sessionsTable.googleSyncPendingOperation,
+      pendingEventId: sessionsTable.googleSyncPendingEventId,
+      eventId: sessionsTable.googleEventId,
+    }).from(sessionsTable).where(and(eq(sessionsTable.id, sessionId), eq(sessionsTable.empresaId, empresaId)));
+    const updating = !!row?.pendingOperation && !!row.eventId && row.pendingEventId === row.eventId;
+    if (!updating || Date.now() >= deadline) return;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+}
+
+/** Limite de espera do registro de aplicação: o Google nunca pode segurar a resposta ao profissional. */
+export const APPLICATION_REFRESH_TIMEOUT_MS = 8000;
+
+/**
+ * Depois de registrar uma ação clínica na visita (aplicada, não realizada, concluída, faltou): atualiza o MESMO
+ * evento no Google. Devolve o aviso para a tela; nunca lança e nunca desfaz o registro clínico. Visita que nunca foi
+ * ao Google não chama o Google. Falha ao atualizar evento existente não deixa reserva presa (ver ReservedSyncOptions).
+ */
+export async function refreshAfterApplication(
+  sessionId: number, empresaId: number,
+  options: { what?: string; timeoutMs?: number; updateDeadlineMs?: number } = {},
+): Promise<string | undefined> {
+  const what = options.what ?? "Aplicação registrada";
+  const retry = 'A atualização será refeita na próxima ação ou pelo botão "Enviar ao Google Agenda" no protocolo.';
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const timeout = new Promise<"timeout">(resolve => {
+      timer = setTimeout(() => resolve("timeout"), options.timeoutMs ?? APPLICATION_REFRESH_TIMEOUT_MS);
+    });
+    const work = refreshSessionEventInPlace(sessionId, empresaId, {
+      releaseUpdateFailure: true, updateDeadlineMs: options.updateDeadlineMs,
+    });
+    work.catch(() => undefined); // se o tempo esgotar, a falha tardia não pode virar rejeição sem tratamento
+    const result = await Promise.race([work, timeout]);
+    if (result === "timeout") return `${what}, mas o Google Agenda demorou para responder e o evento pode estar desatualizado. ${retry}`;
+    if (!result || result.status === "sincronizado") return undefined;
+    const reason = result.code === "google_indisponivel"
+      ? "a conta Google da clínica não foi confirmada"
+      : result.code === "sincronizacao_em_andamento"
+        ? "há outra sincronização com o Google em andamento"
+        : result.code === "google_conflito"
+          ? "o evento foi alterado direto no Google; o sistema não sobrescreveu e aguarda sua decisão na tela de conflitos"
+          : "o Google não confirmou a atualização";
+    return `${what}, mas o evento no Google Agenda não foi atualizado (${reason}). ${result.code === "google_conflito"
+      ? "Decida em Cadastros > Agendas Google > Conflitos com o Google." : retry}`;
+  } catch {
+    return `${what}, mas o evento no Google Agenda não foi atualizado. ${retry}`;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+const isGone = (error: any) => [404, 410].includes(error?.code) || [404, 410].includes(error?.status) ||
+  [404, 410].includes(error?.response?.status);
+
+/**
+ * Visita cancelada: remove o evento do Google. Evento que já não existe (404/410) conta como removido.
+ * Se o Google falhar, o ponteiro do evento é MANTIDO (nunca se perde o rastro de um evento que continua lá)
+ * e a tela recebe o aviso. O cancelamento no sistema vale de qualquer forma.
+ */
+export async function removeSessionEvent(sessionId: number, empresaId: number): Promise<{ removed: boolean; warning?: string }> {
+  const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
+  if (!session || session.empresaId !== empresaId || !session.googleEventId) return { removed: false };
+  // Conta errada vê 404 num calendário que não enxerga: sem confirmar a conta, "404" não prova remoção.
+  if (!(await accountConfirmed())) {
+    return { removed: false,
+      warning: "Visita cancelada no sistema, mas a conta Google da clínica não foi confirmada e o evento continua na agenda. Apague-o manualmente ou repita o cancelamento depois." };
+  }
+  try {
+    await deleteCalendarEvent(session.googleEventId, session.googleCalendarId || undefined);
+  } catch (error) {
+    if (!isGone(error)) {
+      return { removed: false,
+        warning: "Visita cancelada no sistema, mas o evento no Google Agenda não pôde ser removido e continua lá. Apague-o manualmente na agenda." };
+    }
+  }
+  await db.update(sessionsTable).set({ googleEventId: null, googleCalendarId: null })
+    .where(and(eq(sessionsTable.id, sessionId), eq(sessionsTable.googleEventId, session.googleEventId)));
+  return { removed: true };
+}
+
+/**
+ * Envia (ou atualiza) no Google Agenda os eventos das visitas reservadas de um protocolo. Visita a visita,
+ * em ordem de data; falha de uma não impede as outras e nenhuma falha desfaz a reserva no sistema.
+ */
+export async function syncProtocolSessionsToGoogle(params: ProtocolGoogleSyncParams): Promise<ProtocolGoogleSyncResult> {
+  const [protocol] = await db.select({ id: protocolsTable.id, clientId: protocolsTable.clientId, empresaId: protocolsTable.empresaId })
+    .from(protocolsTable).where(eq(protocolsTable.id, params.protocolId));
+  if (!protocol || protocol.clientId !== params.clientId || protocol.empresaId !== params.empresaId) {
+    return { ok: false, status: 404, code: "protocolo_nao_encontrado", error: "Protocolo não encontrado" };
+  }
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, params.clientId));
+  if (!client || client.empresaId !== params.empresaId) {
+    return { ok: false, status: 404, code: "cliente_nao_encontrado", error: "Cliente não encontrado" };
+  }
+  const sessions = await activeVisits({ protocolId: protocol.id, agendaArchived: false, status: "scheduled" } as SessionRow, params.empresaId);
+  if (sessions.length === 0) {
+    return { ok: false, status: 409, code: "sem_visitas", error: "O protocolo não tem visitas agendadas para enviar ao Google." };
+  }
+
+  const visits: VisitSyncResult[] = [];
+  const base = (s: SessionRow) => ({ sessionId: s.id, date: s.scheduledDate, time: s.scheduledTime });
+  const todo = sessions.filter(s => params.refresh || !s.googleEventId || s.googleSyncPendingOperation);
+  const skipped = new Set(sessions.filter(s => !todo.includes(s)).map(s => s.id));
+  const batch = new Set(todo.slice(0, MAX_VISITS_PER_GOOGLE_SYNC).map(s => s.id));
+
+  if (batch.size > 0 && !(await verifyClinicAccount()).ok) {
+    return { ok: false, status: 503, code: "google_indisponivel",
+      error: "Não foi possível confirmar a conta Google autorizada. Nenhum evento foi alterado; as visitas continuam reservadas no sistema." };
+  }
+
+  let stopped = false;
+  for (const listed of sessions) {
+    if (skipped.has(listed.id)) { visits.push({ ...base(listed), status: "ja_sincronizado", eventId: listed.googleEventId ?? undefined }); continue; }
+    if (!batch.has(listed.id) || stopped) {
+      visits.push({ ...base(listed), status: "nao_processada" });
+      continue;
+    }
+    if (params.stillAuthorized && !(await params.stillAuthorized())) {
+      stopped = true;
+      visits.push({ ...base(listed), status: "nao_processada", code: "acesso_alterado",
+        error: "O acesso mudou durante o envio; o restante não foi enviado." });
+      continue;
+    }
+    // Relê a sessão no momento de enviar: a lista inicial pode estar velha.
+    const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, listed.id));
+    if (!session || session.agendaArchived || session.status === "cancelled") {
+      visits.push({ ...base(listed), status: "falhou", code: "visita_mudou", error: "A visita mudou durante o envio; nada foi enviado." });
+      continue;
+    }
+    const position = sessions.findIndex(s => s.id === session.id) + 1;
+    visits.push(await syncVisit(session, {
+      empresaId: params.empresaId, professionalId: params.professionalId, client,
+      position: position > 0 ? position : sessions.length, total: sessions.length,
+    }));
+  }
+  const count = (status: VisitSyncStatus) => visits.filter(v => v.status === status).length;
+  return {
+    ok: true, visits, synced: count("sincronizado"), alreadySynced: count("ja_sincronizado"),
+    failed: count("falhou") + count("incerto"), remaining: count("nao_processada"),
+  };
+}

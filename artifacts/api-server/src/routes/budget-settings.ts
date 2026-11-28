@@ -1,8 +1,10 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, budgetSettingsTable, DEFAULT_CARD_FEES, type CardFee, type VolumeTier } from "@workspace/db";
+import { db, pool, budgetSettingsTable, DEFAULT_CARD_FEES, type CardFee, type VolumeTier } from "@workspace/db";
 import { UpdateBudgetSettingsBody } from "@workspace/api-zod";
 import { DEFAULT_ITEM_VOLUME_TIERS, DEFAULT_CART_VOLUME_TIERS } from "../lib/budget-calc";
+import { exigirComercial, FERRAMENTA_POLITICA_COMERCIAL } from "../lib/comercial-acesso";
+import { lerPoliticaClinica } from "../lib/comercial-politica";
 
 const router: IRouter = Router();
 
@@ -12,21 +14,10 @@ export type ResolvedSettings = typeof budgetSettingsTable.$inferSelect & {
   cartVolumeTiers: VolumeTier[];
 };
 
-// Garante a linha unica id=1, criando-a com os defaults (taxas de cartao +
-// escadas de volume) caso ainda nao exista. Retorna sempre os jsonb preenchidos.
-export async function getOrCreateSettings(): Promise<ResolvedSettings> {
-  let [row] = await db.select().from(budgetSettingsTable).where(eq(budgetSettingsTable.id, 1));
-  if (!row) {
-    [row] = await db
-      .insert(budgetSettingsTable)
-      .values({
-        id: 1,
-        cardFees: DEFAULT_CARD_FEES,
-        itemVolumeTiers: DEFAULT_ITEM_VOLUME_TIERS,
-        cartVolumeTiers: DEFAULT_CART_VOLUME_TIERS,
-      })
-      .returning();
-  }
+// Politica da CLINICA informada (sempre a da sessao). Cria a linha da clinica com os defaults se ainda nao existir.
+export async function getOrCreateSettings(empresaId: number): Promise<ResolvedSettings> {
+  await lerPoliticaClinica(pool, empresaId);
+  const [row] = await db.select().from(budgetSettingsTable).where(eq(budgetSettingsTable.empresaId, empresaId));
   return {
     ...row,
     cardFees: row.cardFees ?? DEFAULT_CARD_FEES,
@@ -55,18 +46,18 @@ function formatSettings(row: ResolvedSettings) {
   };
 }
 
-router.get("/budget-settings", async (_req, res): Promise<void> => {
-  const row = await getOrCreateSettings();
-  res.json(formatSettings(row));
+router.get("/budget-settings", exigirComercial(), async (req, res): Promise<void> => {
+  res.json(formatSettings(await getOrCreateSettings(req.comercial!.empresaId)));
 });
 
-router.put("/budget-settings", async (req, res): Promise<void> => {
+router.put("/budget-settings", exigirComercial(FERRAMENTA_POLITICA_COMERCIAL), async (req, res): Promise<void> => {
   const parsed = UpdateBudgetSettingsBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  await getOrCreateSettings();
+  const empresaId = req.comercial!.empresaId;
+  await getOrCreateSettings(empresaId);
 
   const data = parsed.data;
   const [row] = await db
@@ -86,7 +77,7 @@ router.put("/budget-settings", async (req, res): Promise<void> => {
       ...(data.cartVolumeTiers !== undefined ? { cartVolumeTiers: data.cartVolumeTiers as VolumeTier[] } : {}),
       ...(data.maxTotalDiscountPct !== undefined ? { maxTotalDiscountPct: data.maxTotalDiscountPct } : {}),
     })
-    .where(eq(budgetSettingsTable.id, 1))
+    .where(eq(budgetSettingsTable.empresaId, empresaId))
     .returning();
 
   res.json(

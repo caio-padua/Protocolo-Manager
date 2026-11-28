@@ -1,4 +1,3 @@
-export { default as AF1 } from "./ArabescoFaixas";
 import { ArabescoFaixas as _F } from "./ArabescoFaixas";
 import type { ReactNode } from "react";
 const INK="#111";const CREAM="#f9f9f7";const DARK="#222";const OVERFLOW=20;

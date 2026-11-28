@@ -191,7 +191,14 @@ describe("rotas do código semântico", () => {
 
   it("bloqueia CNPJ repetido sem emitir código", async () => {
     queueSemanticCodeReads([
-      { id: 5, cnpj: storedCompany.cnpj },
+      {
+        id: 5,
+        cnpj: storedCompany.cnpj,
+        tipo: "clinic",
+        ativa: true,
+        status: "ATIVO",
+        isPlatformOwner: false,
+      },
       {
         id: 6,
         cnpj: "63865940000163",

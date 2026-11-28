@@ -18,11 +18,15 @@ import ClientDetail from "@/pages/clients/detail";
 import EditClient from "@/pages/clients/edit";
 import NewClient from "@/pages/clients/new";
 import Substances from "@/pages/substances";
+import Procedimentos from "@/pages/procedimentos";
+import Fornecedores from "@/pages/fornecedores";
+import MatrizFornecedores from "@/pages/matriz-fornecedores";
 import Protocols from "@/pages/protocols";
 import ProtocolDetail from "@/pages/protocols/detail";
 import NewProtocol from "@/pages/protocols/new";
 import Agenda from "@/pages/agenda";
 import AgendaMotor from "@/pages/agenda/motor";
+import PitStopPage from "@/pages/pit-stop";
 import RAS from "@/pages/ras";
 import RASDetail from "@/pages/ras/detail";
 import Stock from "@/pages/stock";
@@ -37,7 +41,11 @@ import Dieta from "@/pages/dieta";
 import CentralPesquisa from "@/pages/central-pesquisa";
 import Treino from "@/pages/treino";
 import Craniotomia from "@/pages/craniotomia";
+import SinapsesClinicas from "@/pages/sinapses";
+import SinapsesV4 from "@/pages/sinapses-v4";
+import SinapsesFaixa from "@/pages/sinapses-faixa";
 import Cockpit from "@/pages/cockpit";
+import CentralTelegram from "@/pages/central-telegram";
 import RadarClinico from "@/pages/radar-clinico";
 import CockpitShell from "@/pages/cockpit-cliente/CockpitShell";
 import type { AbaId } from "@/pages/cockpit-cliente/CockpitTabs";
@@ -50,6 +58,7 @@ import ExamesMonitor from "@/pages/exames/monitor";
 import CadastroExames from "@/pages/cadastros/exames";
 import CadastroConfigExames from "@/pages/cadastros/config-exames";
 import CadastroConsoleExames from "@/pages/cadastros/console-exames";
+import CadastroExamesUnificado from "@/pages/cadastros/cadastro-exames";
 import CadastroListas from "@/pages/cadastros/listas";
 import CadastroClinicas from "@/pages/cadastros/clinicas";
 import CadastroEmpresas from "@/pages/cadastros/empresas";
@@ -57,24 +66,38 @@ import CadastroAgendasGoogle from "@/pages/cadastros/agendas-google";
 import CadastroEquipe from "@/pages/cadastros/equipe";
 import CadastroTextos from "@/pages/cadastros/textos";
 import CadastroAuditoria from "@/pages/cadastros/auditoria";
+import CentralErros from "@/pages/cadastros/central-erros";
+import PedidosMedicosPage from "@/pages/pedidos-medicos";
+import MedicacoesFilaPage from "@/pages/medicacoes-fila";
+import ConvitesPaxmedPage from "@/pages/convites-paxmed";
+import PaxcareConvitesMedicoPage from "@/pages/paxcare-convites-medico";
+import AcolhimentoPage from "@/pages/acolhimento";
+import PaxcareConviteRecebidoPage from "@/pages/paxcare-convite-recebido";
+import AtivarModuloPage from "@/pages/ativar-modulo";
+import PaxCarePlanosPage from "@/pages/paxcare-planos";
+import CentralBoloesPage from "@/pages/boloes";
 import ConfigEmpresa from "@/pages/configuracoes/empresa";
 import ConfigCertificados from "@/pages/configuracoes/certificados";
 import ConfigAssinatura from "@/pages/configuracoes/assinatura";
 import ConfigPagamentos from "@/pages/configuracoes/pagamentos";
 import ConfigReceituario from "@/pages/configuracoes/receituario";
 import ConfigMedico from "@/pages/configuracoes/medico";
+import ConfigParametrosSaude from "@/pages/configuracoes/parametros-saude";
 import ModeloReceituario from "@/pages/modelo-receituario";
 import FinanceiroConciliacao from "@/pages/financeiro/conciliacao";
-import FinanceiroMetas from "@/pages/financeiro/metas";
+import PaxGoals from "@/pages/financeiro/pax-goals";
 import FinanceiroCobranca from "@/pages/financeiro/cobranca";
 import FinanceiroNfse from "@/pages/financeiro/nfse";
 import FinanceiroBancos from "@/pages/financeiro/bancos";
+import PaxTax from "@/pages/financeiro/pax-tax";
 import FinanceiroTransferencias from "@/pages/financeiro/transferencias";
 import { CollaboratorGate } from "@/components/CollaboratorGate";
+import ReceitaProtegida from "@/pages/documento-clinico-protegido/ReceitaProtegida";
 import { registerCollabTokenGetter } from "@/lib/collab-auth";
 import LoginPage from "@/pages/login";
 import Portal from "@/pages/portal";
 import ConsultaReceituario from "@/pages/consulta-receituario";
+import PagarPage from "@/pages/pagar";
 import Foto from "@/pages/foto";
 import Cadastro from "@/pages/cadastro";
 import Agendar, { AgendarAntigo } from "@/pages/agendar";
@@ -86,6 +109,7 @@ import Area from "@/pages/area";
 import Entrada from "@/pages/entrada";
 import Licenciado from "@/pages/licenciado";
 import VitrinePublica from "@/pages/vitrine";
+import PulsoTelegram from "@/pages/pulso-telegram";
 import Abertura from "@/pages/abertura";
 import MarcaMolde from "@/pages/marca-molde";
 import PawardsDemo from "@/pages/pawards-demo";
@@ -98,6 +122,7 @@ import Vitrine from "@/pages/orcamentos/vitrine";
 import ApresentacaoOrcamento from "@/pages/orcamentos/apresentacao";
 import ComunicacaoGateways from "@/pages/comunicacao/gateways";
 import ComunicacaoMensageria from "@/pages/comunicacao/mensageria";
+import DuvidasOrientacoes from "@/pages/comunicacao/duvidas-orientacoes";
 import ComunicacaoCartaEncantamento from "@/pages/comunicacao/carta-encantamento";
 import ExamesCliente from "@/pages/exames-cliente";
 import ComunicacaoCentralLembretes from "@/pages/comunicacao/central-lembretes";
@@ -105,6 +130,8 @@ import ComunicacaoDigital from "@/pages/comunicacao/digital";
 import ComunicacaoEmails from "@/pages/comunicacao/emails";
 import ComunicacaoPlataformas from "@/pages/comunicacao/plataformas";
 import ComunicacaoWhatsappStatus from "@/pages/comunicacao/whatsapp-status";
+import ComunicacaoWhatsappQr from "@/pages/comunicacao/whatsapp-qr";
+import FrasesAssistentePage from "@/pages/comunicacao/frases-assistente-page";
 import ComunicacaoCentralAuditoria from "@/pages/comunicacao/central-auditoria";
 import AvatarManager from "@/pages/comunicacao/avatares";
 import PainelDominios from "@/pages/comunicacao/dominios";
@@ -112,6 +139,7 @@ import DominioEditPage from "@/pages/comunicacao/dominio-edit";
 import PropostaNova from "@/pages/comunicacao/proposta-nova";
 import Hierarquia from "@/pages/hierarquia";
 import CommandCenter from "@/pages/CommandCenter";
+import CabineComando from "@/pages/CabineComando";
 import ConciergePenalidades from "@/pages/ConciergePenalidades";
 import Governanca from "@/pages/governanca";
 import EmpresasLicenciadas from "@/pages/cadastros/empresas-licenciadas";
@@ -132,6 +160,7 @@ import PadteamHub from "@/pages/padteam/index";
 import NovaDemanda from "@/pages/padteam/nova-demanda";
 import ProvaDeValor from "@/pages/prova-de-valor";
 import VitrineLeads from "@/pages/vitrine-leads";
+import VitrineContatosPage from "@/pages/vitrine-contatos";
 import AgentesHub from "@/pages/agentes/index";
 import ProcedenciaExames from "@/pages/procedencia-exames";
 
@@ -159,11 +188,15 @@ function Router() {
       <Route path="/login/google-link-return" component={GoogleLinkReturnPage} />
       <Route path="/portal"><Redirect to="/area" replace /></Route>
       <Route path="/consulta-receituario" component={ConsultaReceituario} />
+      <Route path="/pagar/:token" component={PagarPage} />
+      <Route path="/documento-clinico-receita/:token">
+        <CollaboratorGate><ReceitaProtegida /></CollaboratorGate>
+      </Route>
       <Route path="/foto" component={Foto} />
       <Route path="/cadastro" component={Cadastro} />
       <Route path="/agendar/status/:id" component={AgendarStatus} />
-      <Route path="/agendar-antigo" component={AgendarAntigo} />
-      <Route path="/agendar" component={Agendar} />
+      <Route path="/agendar-antigo"><AgendarAntigo /></Route>
+      <Route path="/agendar"><Agendar /></Route>
       <Route path="/anamnese"><Redirect to="/anamnese/v2" /></Route>
       <Route path="/anamnese/v2" component={AnamneseV2} />
       <Route path="/area" component={Area} />
@@ -171,6 +204,7 @@ function Router() {
       <Route path="/entrada" component={Entrada} />
       <Route path="/licenciado" component={Licenciado} />
       <Route path="/vitrine" component={VitrinePublica} />
+      <Route path="/pulso-telegram" component={PulsoTelegram} />
       <Route path="/abertura" component={Abertura} />
       <Route path="/marca-molde" component={MarcaMolde} />
       <Route path="/pawards" component={PawardsDemo} />
@@ -179,6 +213,8 @@ function Router() {
       <Route>
         <Layout>
           <Switch>
+            {/* Painel interno: /dashboard é o endereço oficial (em paxmed.com.br a raiz / é a vitrine). "/" segue valendo nos demais endereços. */}
+            <Route path="/dashboard" component={Dashboard} />
             <Route path="/" component={Dashboard} />
             
             <Route path="/clients" component={Clients} />
@@ -194,6 +230,7 @@ function Router() {
             }} />
             {/* Cockpit v2: picker vazio */}
             <Route path="/cockpit" component={() => <CockpitShell />} />
+            <Route path="/central-telegram" component={CentralTelegram} />
             {/* Cockpit v2: cliente + aba (deep-link) */}
             <Route path="/cockpit/:clientId/:aba" component={({ params }: { params?: { clientId?: string; aba?: string } }) => {
               const id = params?.clientId && /^\d+$/.test(params.clientId) ? Number(params.clientId) : null;
@@ -213,6 +250,9 @@ function Router() {
             <Route path="/cockpit-cliente/:rest*"><Redirect to="/cockpit" replace /></Route>
             
             <Route path="/substances" component={Substances} />
+            <Route path="/procedimentos"><CollaboratorGate><Procedimentos /></CollaboratorGate></Route>
+            <Route path="/fornecedores"><CollaboratorGate><Fornecedores /></CollaboratorGate></Route>
+            <Route path="/matriz-fornecedores"><CollaboratorGate><MatrizFornecedores /></CollaboratorGate></Route>
 
             <Route path="/prescricao" component={() => {
               const id = new URLSearchParams(window.location.search).get("clientId");
@@ -231,6 +271,8 @@ function Router() {
             <Route path="/orcamentos/:id/apresentacao" component={ApresentacaoOrcamento} />
             <Route path="/orcamentos" component={OrcamentosList} />
             
+            <Route path="/pit-stop/:id" component={PitStopPage} />
+            <Route path="/pit-stop" component={PitStopPage} />
             <Route path="/agenda/motor" component={AgendaMotor} />
             <Route path="/agenda" component={Agenda} />
             
@@ -253,8 +295,21 @@ function Router() {
             <Route path="/central-pesquisa" component={CentralPesquisa} />
             <Route path="/treino" component={Treino} />
             <Route path="/craniotomia" component={Craniotomia} />
+            <Route path="/sinapses-clinicas/v4" component={SinapsesV4} />
+            <Route path="/sinapses-clinicas/classico" component={SinapsesClinicas} />
+            <Route path="/sinapses-clinicas" component={SinapsesFaixa} />
             <Route path="/cockpit-anamnese" component={CockpitAnamnese} />
             <Route path="/radar-clinico" component={RadarClinico} />
+            <Route path="/paxcare-planos"><CollaboratorGate><PaxCarePlanosPage /></CollaboratorGate></Route>
+            <Route path="/ativar-modulo/:modulo"><CollaboratorGate><AtivarModuloPage /></CollaboratorGate></Route>
+            <Route path="/convites-paxmed"><CollaboratorGate><ConvitesPaxmedPage /></CollaboratorGate></Route>
+            <Route path="/paxcare-convite/:token"><CollaboratorGate><PaxcareConviteRecebidoPage /></CollaboratorGate></Route>
+            <Route path="/paxcare-convite"><CollaboratorGate><PaxcareConviteRecebidoPage /></CollaboratorGate></Route>
+            <Route path="/acolhimento"><CollaboratorGate><AcolhimentoPage /></CollaboratorGate></Route>
+            <Route path="/paxcare-convites-medico"><CollaboratorGate><PaxcareConvitesMedicoPage /></CollaboratorGate></Route>
+            <Route path="/medicacoes-adesao"><CollaboratorGate><MedicacoesFilaPage /></CollaboratorGate></Route>
+            <Route path="/pedidos-medicos"><CollaboratorGate><PedidosMedicosPage /></CollaboratorGate></Route>
+            <Route path="/boloes"><CollaboratorGate><CentralBoloesPage /></CollaboratorGate></Route>
             <Route path="/cartorio" component={Cartorio} />
             <Route path="/receituario-automatico" component={ReceituarioAutomatico} />
             <Route path="/modelo-receituario" component={ModeloReceituario} />
@@ -275,7 +330,8 @@ function Router() {
                 <Switch>
                   <Route path="/cadastros/config-exames" component={CadastroConfigExames} />
                   <Route path="/cadastros/governanca" component={Governanca} />
-                  <Route path="/cadastros/exames" component={CadastroExames} />
+                  <Route path="/cadastros/cadastro-exames" component={CadastroExamesUnificado} />
+                  <Route path="/cadastros/exames"><CadastroExames /></Route>
                   <Route path="/cadastros/console-exames" component={CadastroConsoleExames} />
                   <Route path="/cadastros/direcao-exames" component={CadastroConsoleExames} />
                   <Route path="/cadastros/planilha-faixas" component={CadastroConsoleExames} />
@@ -287,6 +343,7 @@ function Router() {
                   <Route path="/cadastros/equipe" component={CadastroEquipe} />
                   <Route path="/cadastros/textos" component={CadastroTextos} />
                   <Route path="/cadastros/auditoria" component={CadastroAuditoria} />
+                  <Route path="/cadastros/central-erros" component={CentralErros} />
                   <Route component={NotFound} />
                 </Switch>
               </CollaboratorGate>
@@ -300,6 +357,7 @@ function Router() {
                   <Route path="/configuracoes/pagamentos" component={ConfigPagamentos} />
                   <Route path="/configuracoes/receituario" component={ConfigReceituario} />
                   <Route path="/configuracoes/medico" component={ConfigMedico} />
+                  <Route path="/configuracoes/parametros-saude" component={ConfigParametrosSaude} />
                   <Route path="/configuracoes/meu-acesso">
                     <Redirect to="/professionals?selfAccess=1" />
                   </Route>
@@ -315,7 +373,9 @@ function Router() {
                   <Route path="/financeiro/bancos" component={FinanceiroBancos} />
                   <Route path="/financeiro/transferencias" component={FinanceiroTransferencias} />
                   <Route path="/financeiro/conciliacao" component={FinanceiroConciliacao} />
-                  <Route path="/financeiro/metas" component={FinanceiroMetas} />
+                  <Route path="/financeiro/metas"><Redirect to="/financeiro/pax-goals" replace /></Route>
+                  <Route path="/financeiro/pax-goals" component={PaxGoals} />
+                  <Route path="/financeiro/pax-tax" component={PaxTax} />
                   <Route component={NotFound} />
                 </Switch>
               </CollaboratorGate>
@@ -323,13 +383,20 @@ function Router() {
             
             <Route path="/comunicacao/gateways" component={ComunicacaoGateways} />
             <Route path="/comunicacao/mensageria" component={ComunicacaoMensageria} />
+            <Route path="/comunicacao/duvidas-orientacoes">
+              <CollaboratorGate>
+                <DuvidasOrientacoes />
+              </CollaboratorGate>
+            </Route>
             <Route path="/comunicacao/carta-encantamento" component={ComunicacaoCartaEncantamento} />
             <Route path="/comunicacao/central-lembretes" component={ComunicacaoCentralLembretes} />
             <Route path="/comunicacao/digital" component={ComunicacaoDigital} />
             <Route path="/comunicacao/emails" component={ComunicacaoEmails} />
             <Route path="/comunicacao/plataformas" component={ComunicacaoPlataformas} />
             <Route path="/comunicacao/whatsapp-status" component={ComunicacaoWhatsappStatus} />
+            <Route path="/comunicacao/whatsapp-qr" component={ComunicacaoWhatsappQr} />
             <Route path="/comunicacao/central-auditoria" component={ComunicacaoCentralAuditoria} />
+            <Route path="/comunicacao/frases-assistente" component={FrasesAssistentePage} />
             <Route path="/comunicacao/avatares" component={AvatarManager} />
             <Route path="/comunicacao/dominios/nova-proposta" component={PropostaNova} />
             <Route path="/comunicacao/dominios/new" component={DominioEditPage} />
@@ -338,9 +405,11 @@ function Router() {
             <Route path="/comunicacao/dominios" component={PainelDominios} />
             <Route path="/hierarquia" component={Hierarquia} />
             <Route path="/ceo/command-center" component={CommandCenter} />
+            <Route path="/ceo/cabine" component={CabineComando} />
             <Route path="/ceo/concierge-penalidades" component={ConciergePenalidades} />
             <Route path="/prova-de-valor" component={ProvaDeValor} />
             <Route path="/vitrine-leads" component={VitrineLeads} />
+            <Route path="/vitrine-contatos"><CollaboratorGate><VitrineContatosPage /></CollaboratorGate></Route>
             <Route path="/padteam/nova" component={NovaDemanda} />
             <Route path="/padteam" component={PadteamHub} />
             <Route path="/agentes" component={AgentesHub} />

@@ -8,19 +8,45 @@ import { getSecret, getSetting } from "./secure-settings.js";
 
 const DEFAULT_BASE_URL = "https://api.asaas.com/v3";
 
-async function resolveApiKey(): Promise<string> {
+export type AsaasAmbiente = "producao" | "sandbox";
+
+const SANDBOX_BASE_URL = "https://api-sandbox.asaas.com/v3";
+
+// Chave e URL andam SEMPRE juntas por ambiente (docs.asaas.com/docs/sandbox:
+// "chave de Sandbox na URL de Sandbox e chave de Producao na URL de Producao").
+// Sandbox usa credencial PROPRIA (asaas.sandbox.apiKey); nunca reaproveita a
+// chave de producao e nunca altera a configuracao de producao.
+async function resolveCredenciais(ambiente: AsaasAmbiente): Promise<{ key: string; baseUrl: string }> {
+  if (ambiente === "sandbox") {
+    const key = await getSecret("asaas.sandbox.apiKey");
+    if (!key) {
+      throw new Error("Asaas SANDBOX nao configurado: falta a chave propria do sandbox (cofre asaas.sandbox.apiKey).");
+    }
+    const base = ((await getSetting("asaas.sandbox.baseUrl")) || SANDBOX_BASE_URL).trim();
+    const url = new URL(base);
+    if (url.protocol !== "https:" || url.origin + url.pathname.replace(/\/$/, "") !== SANDBOX_BASE_URL || url.search || url.hash) {
+      throw new Error("URL do sandbox invalida: precisa apontar exatamente para https://api-sandbox.asaas.com/v3.");
+    }
+    if (/\$aact_prod_/i.test(key)) throw new Error("A chave informada e de PRODUCAO; o sandbox exige chave propria de sandbox.");
+    return { key, baseUrl: base };
+  }
   const key = await getSecret("asaas.apiKey");
   if (!key) throw new Error("Chave do Asaas nao configurada. Defina em Configuracoes > Portas de Pagamento.");
-  return key;
+  const base = ((await getSetting("asaas.baseUrl")) || "").trim() || process.env.ASAAS_BASE_URL || DEFAULT_BASE_URL;
+  let url: URL;
+  try { url = new URL(base); } catch { throw new Error("URL do Asaas invalida."); }
+  if (url.protocol !== "https:" || url.origin + url.pathname.replace(/\/$/, "") !== DEFAULT_BASE_URL || url.search || url.hash || /\$aact_hmlg_/i.test(key)) {
+    throw new Error("Configuracao de PRODUCAO aponta para sandbox ou usa chave de sandbox: ambientes nao podem se misturar.");
+  }
+  return { key, baseUrl: base };
 }
 
-async function resolveBaseUrl(): Promise<string> {
-  const fromDb = await getSetting("asaas.baseUrl");
-  return (fromDb && fromDb.trim()) || process.env.ASAAS_BASE_URL || DEFAULT_BASE_URL;
+export async function asaasSandboxConfigurado(): Promise<boolean> {
+  return Boolean(await getSecret("asaas.sandbox.apiKey"));
 }
 
-async function asaasFetch(path: string, init?: RequestInit): Promise<any> {
-  const [key, baseUrl] = await Promise.all([resolveApiKey(), resolveBaseUrl()]);
+async function asaasFetch(path: string, init?: RequestInit, ambiente: AsaasAmbiente = "producao"): Promise<any> {
+  const { key, baseUrl } = await resolveCredenciais(ambiente);
   const res = await fetch(`${baseUrl}${path}`, {
     ...init,
     // Limite de tempo (20s) para nunca pendurar a requisicao se o Asaas travar.
@@ -43,7 +69,8 @@ async function asaasFetch(path: string, init?: RequestInit): Promise<any> {
   }
   if (!res.ok) {
     const msg = json?.errors?.[0]?.description || `Asaas erro HTTP ${res.status}`;
-    throw new Error(msg);
+    // httpStatus permite distinguir recusa definitiva (4xx) de falha incerta (rede/5xx).
+    throw Object.assign(new Error(msg), { httpStatus: res.status });
   }
   return json;
 }
@@ -55,14 +82,20 @@ export interface AsaasCustomerInput {
   phone?: string | null;
 }
 
-export async function asaasCreateCustomer(input: AsaasCustomerInput): Promise<{ id: string }> {
+export async function asaasCreateCustomer(
+  input: AsaasCustomerInput,
+  ambiente: AsaasAmbiente = "producao",
+  opts: { semNotificacao?: boolean } = {},
+): Promise<{ id: string }> {
   const body = {
     name: input.name,
     cpfCnpj: input.cpfCnpj.replace(/\D/g, ""),
     email: input.email || undefined,
     mobilePhone: input.phone ? input.phone.replace(/\D/g, "") : undefined,
+    // Piloto: nenhuma notificacao externa (e-mail/SMS) de cobranca de teste.
+    ...(ambiente === "sandbox" || opts.semNotificacao ? { notificationDisabled: true } : {}),
   };
-  return asaasFetch("/customers", { method: "POST", body: JSON.stringify(body) });
+  return asaasFetch("/customers", { method: "POST", body: JSON.stringify(body) }, ambiente);
 }
 
 // Atualiza um cliente existente no Asaas (ex.: corrigir CPF/CNPJ do titular).
@@ -85,9 +118,10 @@ export interface AsaasChargeInput {
   value: number;
   dueDate: string; // YYYY-MM-DD
   description?: string;
+  externalReference?: string;
   // "PIX" gera cobranca PIX (com QR embutido, pago DENTRO do Paxter);
   // "UNDEFINED" abre a pagina hospedada (cliente escolhe PIX/boleto/cartao).
-  billingType?: "PIX" | "UNDEFINED";
+  billingType?: "PIX" | "BOLETO" | "UNDEFINED";
 }
 
 export interface AsaasCharge {
@@ -96,21 +130,47 @@ export interface AsaasCharge {
   billingType: string;
   status: string;
   value: number;
+  netValue?: number;
+  paymentDate?: string | null;
+  externalReference?: string | null;
+  // Campos de leitura usados pela conciliacao (todos opcionais: o Asaas so os preenche conforme o status).
+  clientPaymentDate?: string | null;
+  creditDate?: string | null;
+  estimatedCreditDate?: string | null;
+  dateCreated?: string | null;
+  deleted?: boolean;
+  refunds?: Array<{ value?: number; status?: string }> | null;
 }
 
-export async function asaasCreateCharge(input: AsaasChargeInput): Promise<AsaasCharge> {
+export interface AsaasCustomerView {
+  id: string;
+  name: string;
+  cpfCnpj: string | null;
+  email: string | null;
+  notificationDisabled: boolean;
+  deleted: boolean;
+}
+
+/** Leitura (sem alterar nada) do cliente no Asaas, para conferir identidade antes de cobrar. */
+export async function asaasGetCustomer(id: string, ambiente: AsaasAmbiente = "producao"): Promise<AsaasCustomerView> {
+  return asaasFetch(`/customers/${encodeURIComponent(id)}`, { method: "GET" }, ambiente);
+}
+
+export async function asaasCreateCharge(input: AsaasChargeInput, ambiente: AsaasAmbiente = "producao"): Promise<AsaasCharge> {
   const body = {
     customer: input.customerId,
     billingType: input.billingType ?? "UNDEFINED",
     value: input.value,
     dueDate: input.dueDate,
     description: input.description,
+    externalReference: input.externalReference,
+    ...(ambiente === "sandbox" ? { notificationDisabled: true } : {}),
   };
-  return asaasFetch("/payments", { method: "POST", body: JSON.stringify(body) });
+  return asaasFetch("/payments", { method: "POST", body: JSON.stringify(body) }, ambiente);
 }
 
-export async function asaasGetCharge(id: string): Promise<AsaasCharge> {
-  return asaasFetch(`/payments/${id}`, { method: "GET" });
+export async function asaasGetCharge(id: string, ambiente: AsaasAmbiente = "producao"): Promise<AsaasCharge> {
+  return asaasFetch(`/payments/${id}`, { method: "GET" }, ambiente);
 }
 
 export interface AsaasPixQrCode {
@@ -306,4 +366,46 @@ export async function asaasListTransfers(max = 100): Promise<AsaasTransfer[]> {
     offset += limit;
   }
   return out.slice(0, max);
+}
+
+/** SOMENTE LEITURA: lista os webhooks configurados na conta Asaas (nenhuma alteracao). */
+export async function asaasListWebhooks(): Promise<any[]> {
+  const j = await asaasFetch(`/webhooks?limit=100`);
+  return Array.isArray(j?.data) ? j.data : [];
+}
+
+export interface AsaasLancamentoExtrato {
+  id: string;
+  valor: number; // negativo = saida/taxa
+  tipo: string; // PAYMENT_RECEIVED | PAYMENT_FEE | PAYMENT_MESSAGING_NOTIFICATION_FEE | ...
+  data: string; // YYYY-MM-DD
+  paymentId: string | null;
+  descricao: string | null;
+}
+
+/** SOMENTE LEITURA: extrato real da conta (lancamentos efetivos, com taxas), paginado. */
+export async function asaasListExtrato(inicio: string, fim: string, max = 1000): Promise<AsaasLancamentoExtrato[]> {
+  const out: AsaasLancamentoExtrato[] = [];
+  let offset = 0;
+  const limit = 100;
+  while (out.length < max) {
+    const page = await asaasFetch(
+      `/financialTransactions?startDate=${encodeURIComponent(inicio)}&finishDate=${encodeURIComponent(fim)}&offset=${offset}&limit=${limit}&order=asc`,
+      { method: "GET" },
+    );
+    const data: any[] = Array.isArray(page?.data) ? page.data : [];
+    for (const t of data) {
+      out.push({
+        id: String(t.id),
+        valor: Number(t.value ?? 0),
+        tipo: String(t.type ?? ""),
+        data: String(t.date ?? ""),
+        paymentId: t.paymentId ? String(t.paymentId) : null,
+        descricao: t.description ?? null,
+      });
+    }
+    if (!page?.hasMore || data.length === 0) break;
+    offset += limit;
+  }
+  return out;
 }

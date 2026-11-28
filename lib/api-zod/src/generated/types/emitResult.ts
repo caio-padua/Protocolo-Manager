@@ -5,12 +5,16 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+import type { EmitResultSignatureStatus } from "./emitResultSignatureStatus";
 import type { EmittedRecipe } from "./emittedRecipe";
 import type { PharmacyDispatch } from "./pharmacyDispatch";
 import type { SncrAlert } from "./sncrAlert";
 
 export interface EmitResult {
   prescriptionId: number;
+  signatureStatus: EmitResultSignatureStatus;
+  certificateValidTo: Date | null;
+  warning?: string;
   recipes: EmittedRecipe[];
   sncrAlerts: SncrAlert[];
   pharmacyDispatches: PharmacyDispatch[];

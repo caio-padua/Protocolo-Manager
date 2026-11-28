@@ -15,6 +15,8 @@
 
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
+const authState = vi.hoisted(() => ({ enforce: false, whereCalls: [] as unknown[] }));
+
 // ── Mocks OBRIGATORIAMENTE antes dos imports das rotas ────────────────────────
 //
 // db usa uma FILA interna: cada chamada a db.select() consome um item da fila.
@@ -23,16 +25,20 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 
 vi.mock("@workspace/db", () => {
   const _queue: unknown[][] = [];
+  const _whereCalls: unknown[] = authState.whereCalls;
 
   function makeChain(result: unknown[]) {
     const chain: Record<string, unknown> = {};
-    chain.where   = vi.fn().mockReturnValue(chain);
+    chain.where   = vi.fn((condition: unknown) => {
+      _whereCalls.push(condition);
+      return chain;
+    });
     chain.from    = vi.fn().mockReturnValue(chain);
     chain.orderBy = vi.fn().mockReturnValue(chain);
     chain.limit   = vi.fn().mockResolvedValue(result);
     // Torna o chain "thenable" (para queries sem .limit())
-    (chain as unknown as Promise<unknown[]>).then = (res: (v: unknown[]) => unknown) =>
-      Promise.resolve(result).then(res);
+    const resolved = Promise.resolve(result);
+    (chain as unknown as Promise<unknown[]>).then = resolved.then.bind(resolved);
     return chain;
   }
 
@@ -40,6 +46,7 @@ vi.mock("@workspace/db", () => {
     select:        vi.fn().mockImplementation(() => makeChain(_queue.shift() ?? [])),
     execute:       vi.fn().mockResolvedValue({ rows: [] }),
     _queueResults: (...rows: unknown[][]) => { _queue.splice(0); _queue.push(...rows); },
+    _whereCalls,
   };
 
   // Colunas do clientsTable precisam ser objetos (o cockpit faz clientsTable.id, etc.)
@@ -68,6 +75,15 @@ vi.mock("@workspace/db", () => {
   };
 });
 
+vi.mock("drizzle-orm", () => ({
+  eq: (col: unknown, val: unknown) => ({ op: "eq", col, val }),
+  and: (...args: unknown[]) => ({ op: "and", args }),
+  inArray: (col: unknown, vals: unknown[]) => ({ op: "inArray", col, vals }),
+  desc: (col: unknown) => ({ op: "desc", col }),
+  ne: (col: unknown, val: unknown) => ({ op: "ne", col, val }),
+  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
+}));
+
 vi.mock("../lib/motor-anamnese", () => ({
   computeMotor: vi.fn().mockResolvedValue({
     escoreTotal: 0, gradeGlobal: "BASICA", redFlag: false,
@@ -94,7 +110,14 @@ vi.mock("../middleware/moduleGuard", () => ({
   moduleGuard: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 vi.mock("../routes/collaborator", () => ({
-  requireCollaborator: (_req: unknown, _res: unknown, next: () => void) => next(),
+  requireCollaborator: (req: { headers: Record<string, string | undefined>; collaborator?: unknown }, res: { status: (code: number) => { json: (body: unknown) => void } }, next: () => void) => {
+    if (authState.enforce && req.headers.authorization !== "Bearer test-authorized") {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    req.collaborator = { professionalId: 1, role: "executor", credentialVersion: 0 };
+    next();
+  },
   collaboratorGuard:   (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 // A rota real confirma o vínculo da clínica no banco; neste teste isolado
@@ -142,6 +165,11 @@ function buildApp() {
   const app = express();
   app.use(express.json());
   app.use(tenantContextMiddleware);
+  app.use((req, _res, next) => {
+    const requested = req.headers["x-test-company"];
+    if (typeof requested === "string") req.tenantContext.empresaId = Number(requested);
+    next();
+  });
   app.use(cockpitRouter);
   return app;
 }
@@ -193,6 +221,43 @@ describe("GET /cockpit/:clientId — badge Telegram + DTO básico", () => {
     const res = await request(buildApp()).get("/cockpit/abc");
     expect(res.status).toBe(400);
   });
+
+  it("nega as leituras sem sessão antes de consultar o banco", async () => {
+    authState.enforce = true;
+    try {
+      const before = vi.mocked(dbModule.db.select).mock.calls.length;
+      const dto = await request(buildApp()).get("/cockpit/42");
+      const pdf = await request(buildApp()).get("/cockpit/42/pdf");
+      expect(dto.status).toBe(401);
+      expect(pdf.status).toBe(401);
+      expect(vi.mocked(dbModule.db.select)).toHaveBeenCalledTimes(before);
+    } finally {
+      authState.enforce = false;
+    }
+  });
+
+  it("usa a empresa autenticada no filtro de cliente para impedir leitura entre clínicas", async () => {
+    authState.enforce = true;
+    authState.whereCalls.splice(0);
+    queueForCockpitGet(undefined);
+    try {
+      const response = await request(buildApp())
+        .get("/cockpit/42")
+        .set("Authorization", "Bearer test-authorized")
+        .set("x-test-company", "6");
+      expect(response.status).toBe(404);
+      const containsCompanyFilter = (value: any): boolean => {
+        if (!value || typeof value !== "object") return false;
+        if (value.op === "eq" && value.col?.name === "empresa_id" && value.val === 6) return true;
+        return Object.values(value).some(child => Array.isArray(child)
+          ? child.some(containsCompanyFilter)
+          : containsCompanyFilter(child));
+      };
+      expect(authState.whereCalls.some(containsCompanyFilter)).toBe(true);
+    } finally {
+      authState.enforce = false;
+    }
+  });
 });
 
 // ── Testes: POST /cockpit/:clientId/telegram-inbox/enviar ─────────────────────
@@ -202,14 +267,15 @@ describe("GET /cockpit/:clientId — badge Telegram + DTO básico", () => {
 // número de chamadas a db.execute:
 //
 //   sent=false, mock=false → 1 execute (UPDATE false)  + 502 (sem INSERT)
-//   sent=true,  mock=false → 2 executes (UPDATE true + INSERT inbox)
-//   sent=true,  mock=true  → 1 execute (INSERT inbox, sem UPDATE)
+//   sent=true,  mock=false → 3 executes (UPDATE + INSERT inbox + pausa da IA)
+//   sent=true,  mock=true  → 2 executes (INSERT inbox + pausa da IA, sem UPDATE)
 
 describe("POST /cockpit/:clientId/telegram-inbox/enviar — telegram_last_test_ok", () => {
   beforeEach(() => vi.clearAllMocks());
 
   /** Fila para o POST: apenas 1 select (busca do cliente). */
   function queueForEnviar(telegramChatId: string | null) {
+    vi.mocked(dbModule.db.execute).mockResolvedValueOnce({ rows: [{ id: 42, empresa_id: 5 }] } as never);
     (dbModule.db as unknown as DbHelper)._queueResults(
       telegramChatId !== null ? [{ id: 42, telegramChatId }] : [],
     );
@@ -226,11 +292,10 @@ describe("POST /cockpit/:clientId/telegram-inbox/enviar — telegram_last_test_o
     // 502 porque o envio real falhou
     expect(res.status).toBe(502);
 
-    // db.execute deve ter sido chamado EXATAMENTE 1 vez:
-    // o UPDATE SET telegram_last_test_ok = false.
+    // Uma leitura do vínculo único e o UPDATE SET telegram_last_test_ok = false.
     // O INSERT do inbox NÃO ocorre pois a rota retorna antes.
     const executeCalls = vi.mocked(dbModule.db.execute as ReturnType<typeof vi.fn>).mock.calls;
-    expect(executeCalls).toHaveLength(1);
+    expect(executeCalls).toHaveLength(2);
   });
 
   it("persiste telegram_last_test_ok=true e retorna 200 após envio bem-sucedido", async () => {
@@ -244,11 +309,14 @@ describe("POST /cockpit/:clientId/telegram-inbox/enviar — telegram_last_test_o
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
 
-    // db.execute deve ter sido chamado EXATAMENTE 2 vezes:
-    // 1) UPDATE SET telegram_last_test_ok = true
-    // 2) INSERT INTO telegram_inbox_messages (registro no inbox)
     const executeCalls = vi.mocked(dbModule.db.execute as ReturnType<typeof vi.fn>).mock.calls;
-    expect(executeCalls).toHaveLength(2);
+    expect(executeCalls).toHaveLength(4);
+    const statements = executeCalls.map(([query]) =>
+      (query as { strings?: string[] }).strings?.join(" ") ?? "",
+    );
+    expect(statements.some((statement) => statement.includes("UPDATE clients"))).toBe(true);
+    expect(statements.some((statement) => statement.includes("INSERT INTO telegram_inbox_messages"))).toBe(true);
+    expect(statements.some((statement) => statement.includes("INSERT INTO telegram_atendimento"))).toBe(true);
   });
 
   it("não persiste telegram_last_test_ok quando o envio é mock (token ausente)", async () => {
@@ -261,9 +329,13 @@ describe("POST /cockpit/:clientId/telegram-inbox/enviar — telegram_last_test_o
 
     expect(res.status).toBe(200);
 
-    // db.execute deve ter sido chamado EXATAMENTE 1 vez:
-    // somente o INSERT do inbox. O UPDATE NÃO ocorre porque mock=true.
     const executeCalls = vi.mocked(dbModule.db.execute as ReturnType<typeof vi.fn>).mock.calls;
-    expect(executeCalls).toHaveLength(1);
+    expect(executeCalls).toHaveLength(3);
+    const statements = executeCalls.map(([query]) =>
+      (query as { strings?: string[] }).strings?.join(" ") ?? "",
+    );
+    expect(statements.some((statement) => statement.includes("UPDATE clients"))).toBe(false);
+    expect(statements.some((statement) => statement.includes("INSERT INTO telegram_inbox_messages"))).toBe(true);
+    expect(statements.some((statement) => statement.includes("INSERT INTO telegram_atendimento"))).toBe(true);
   });
 });

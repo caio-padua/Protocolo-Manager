@@ -2,6 +2,7 @@ import { Router, type IRouter, Request, Response } from "express";
 import { eq, and, gte, lte, asc, desc, sql } from "drizzle-orm";
 import {
   db,
+  pool,
   clientsTable,
   protocolsTable,
   protocolItemsTable,
@@ -16,33 +17,37 @@ import {
   agendaResourcesTable,
 } from "@workspace/db";
 import { verifyPortalToken, createPortalToken } from "../lib/portal-token";
+import { dosePrescritaParaDocumento, nomeSubstanciaNoProtocolo } from "../lib/protocol-dose-presentation";
 import { isAppPasswordValid, PASSWORD_POLICY_MESSAGE } from "@workspace/password-policy";
 import { verifyPassword, hashPassword } from "../lib/patient-auth.js";
-import { generateSignedRASPdf, generateProtocolDocumentPdf } from "../lib/pdf-signer";
+import { revogarSessoesDoCliente } from "../lib/area-paciente-sessao.js";
+import { contaExcluida } from "../lib/area-paciente-conta.js";
 import { computeResourceSlots, bookSession, rescheduleSession } from "../lib/agenda-booking";
+import { refreshAfterReschedule } from "../lib/session-google-sync";
 import { enviarMensagemPaxter } from "../lib/messaging/index.js";
+import { codigoTelegramSemantico } from "../lib/telegram-codigo";
+import { BOT_USERNAME, BOT_LINK, emitirLinkMagico } from "../lib/telegram-magic-link";
+import { contarCadastrosComCodigo } from "../lib/telegram-contato";
 import { z } from "zod/v4";
+import { lerEstadoPreCadastro, pendentesDe, CAMPOS_PRE_CADASTRO } from "../lib/pre-cadastro";
 
 // ===========================================================================
 // AREA DO PACIENTE (token-bound, sem auth de admin)
 // Todos os endpoints derivam o clientId do TOKEN do paciente (HMAC, 30min).
 // NUNCA aceitam clientId vindo do client (query/body) -> evita IDOR.
-// Os GET /pdf reusam os geradores de pdf-signer, mas SEM efeitos colaterais
-// (sem upload ao Drive / envio de e-mail) que as rotas admin disparam.
+// Os GET /pdf NAO geram nem assinam documento aqui (ver bloco DOWNLOAD abaixo).
 // ===========================================================================
 
+import { criarTokenExame } from "../lib/exam-link";
+import { registrarAcesso } from "../lib/acesso-registro";
 const router: IRouter = Router();
 
-// Le o token de Authorization: Bearer <token> ou de ?token= (necessario para
-// links de download abertos em nova aba, onde nao se envia header). Retorna o
-// clientId ou null.
+// Le o token SOMENTE de Authorization: Bearer <token> (Apple App Store 3.7/4.6:
+// credencial nunca viaja na URL). Retorna o clientId ou null.
 function getClientId(req: Request): number | null {
   const auth = req.headers.authorization;
-  let token: string | undefined;
-  if (auth && auth.startsWith("Bearer ")) token = auth.slice(7);
-  if (!token && typeof req.query.token === "string") token = req.query.token;
-  if (!token) return null;
-  return verifyPortalToken(token);
+  if (!auth || !auth.startsWith("Bearer ")) return null;
+  return verifyPortalToken(auth.slice(7));
 }
 
 function unauthorized(res: Response) {
@@ -53,10 +58,72 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// ── Pré-cadastro obrigatório ────────────────────────────────────────────────
+// Convidado com cadastro incompleto não abre nenhuma rota da área (428), exceto
+// as de entrada e a do próprio pré-cadastro. Token inválido segue para a rota,
+// que responde 401 como sempre.
+const ROTAS_LIVRES_PRE_CADASTRO = ["/area-paciente/login", "/area-paciente/trocar-senha", "/area-paciente/definir-senha", "/area-paciente/pre-cadastro"];
+router.use("/area-paciente", async (req: Request, res: Response, next) => {
+  const caminho = `/area-paciente${req.path === "/" ? "" : req.path}`;
+  if (ROTAS_LIVRES_PRE_CADASTRO.includes(caminho)) { next(); return; }
+  const clientId = getClientId(req);
+  if (clientId === null) { next(); return; }
+  try {
+    const est = await lerEstadoPreCadastro(clientId);
+    if (est && !est.completo) {
+      res.status(428).json({ error: "Complete seu cadastro para continuar.", codigo: "PRE_CADASTRO_PENDENTE", pendentes: est.pendentes });
+      return;
+    }
+    next();
+  } catch (err) {
+    console.error("[Area] Falha ao conferir pré-cadastro:", err instanceof Error ? err.message : err);
+    res.status(503).json({ error: "Não foi possível conferir seu cadastro. Tente novamente." });
+  }
+});
+
+router.get("/area-paciente/pre-cadastro", async (req: Request, res: Response): Promise<void> => {
+  const clientId = getClientId(req);
+  if (clientId === null) { unauthorized(res); return; }
+  const est = await lerEstadoPreCadastro(clientId);
+  if (!est) { res.status(404).json({ error: "Cadastro não encontrado." }); return; }
+  res.json({ ...est, campos: CAMPOS_PRE_CADASTRO });
+});
+
+const preCadastroBody = z.object({
+  birthDate: z.string().trim(),
+  phone: z.string().trim(),
+  email: z.string().trim(),
+  sexoBiologico: z.string().trim(),
+  address: z.string().trim(),
+});
+
+router.post("/area-paciente/pre-cadastro", async (req: Request, res: Response): Promise<void> => {
+  const clientId = getClientId(req);
+  if (clientId === null) { unauthorized(res); return; }
+  const parsed = preCadastroBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Dados inválidos." }); return; }
+  const v = { ...parsed.data, sexoBiologico: parsed.data.sexoBiologico.toUpperCase() };
+  const pendentes = pendentesDe(v);
+  if (pendentes.length > 0) { res.status(400).json({ error: "Preencha todos os campos obrigatórios.", pendentes }); return; }
+  const est = await lerEstadoPreCadastro(clientId);
+  if (!est) { res.status(404).json({ error: "Cadastro não encontrado." }); return; }
+  if (!est.exigido) { res.status(409).json({ error: "Este cadastro não exige pré-cadastro." }); return; }
+  await db.execute(sql`
+    UPDATE clients SET birth_date = ${v.birthDate}, phone = ${v.phone}, email = ${v.email},
+      sexo_biologico = ${v.sexoBiologico}, address = ${v.address},
+      pre_cadastro_completo_em = NOW(), updated_at = NOW()
+    WHERE id = ${clientId}`);
+  res.json({ ok: true });
+});
+
 // Erro GENERICO de acesso (linha vermelha 4 — anti-enumeracao: nunca revela se o
 // CPF existe ou se a senha e que esta errada).
-function badCredentials(res: Response) {
-  res.status(401).json({ error: "CPF ou senha incorretos." });
+// Decisao do CEO (21/11/2026): a tela diz exatamente o que esta errado (CPF ou senha).
+function badCredentials(res: Response, motivo: "cpf" | "senha" = "cpf") {
+  res.status(401).json({ error: motivo === "senha" ? "Senha errada." : "CPF errado." });
+}
+function semSenhaCadastrada(res: Response) {
+  res.status(401).json({ error: "Este CPF ainda não tem senha. Entre com a data de nascimento." });
 }
 
 // Acha o cadastro por CPF comparando so DIGITOS (independe de mascara). Retorna
@@ -67,7 +134,7 @@ async function findClientByCpf(cpfRaw: string) {
   const [client] = await db
     .select()
     .from(clientsTable)
-    .where(sql`regexp_replace(coalesce(${clientsTable.cpf}, ''), '\D', '', 'g') = ${digits}`)
+    .where(sql`regexp_replace(coalesce(${clientsTable.cpf}, ''), '[^0-9]', '', 'g') = ${digits}`)
     .limit(1);
   return client ?? null;
 }
@@ -86,8 +153,10 @@ router.post("/area-paciente/login", async (req: Request, res: Response): Promise
     if (!cpf || !password) { badCredentials(res); return; }
 
     const client = await findClientByCpf(cpf);
-    if (!client || !client.passwordHash) { badCredentials(res); return; }
-    if (!verifyPassword(password, client.passwordHash)) { badCredentials(res); return; }
+    if (!client) { badCredentials(res); return; }
+    if (await contaExcluida(pool, client.id)) { badCredentials(res); return; }
+    if (!client.passwordHash) { semSenhaCadastrada(res); return; }
+    if (!verifyPassword(password, client.passwordHash)) { badCredentials(res, "senha"); return; }
 
     if (client.mustChangePassword) {
       // Senha provisoria valida: exige troca antes de liberar a Area (sem token).
@@ -95,6 +164,7 @@ router.post("/area-paciente/login", async (req: Request, res: Response): Promise
       return;
     }
 
+    await registrarAcesso("cliente", client.id, "login_senha");
     res.json({
       id: client.id,
       name: client.name,
@@ -118,8 +188,9 @@ router.post("/area-paciente/trocar-senha", async (req: Request, res: Response): 
     if (!cpf || !currentPassword) { badCredentials(res); return; }
 
     const client = await findClientByCpf(cpf);
-    if (!client || !client.passwordHash) { badCredentials(res); return; }
-    if (!verifyPassword(currentPassword, client.passwordHash)) { badCredentials(res); return; }
+    if (!client) { badCredentials(res); return; }
+    if (!client.passwordHash) { semSenhaCadastrada(res); return; }
+    if (!verifyPassword(currentPassword, client.passwordHash)) { badCredentials(res, "senha"); return; }
 
     if (!isAppPasswordValid(newPassword)) {
       res.status(400).json({ error: PASSWORD_POLICY_MESSAGE });
@@ -139,7 +210,10 @@ router.post("/area-paciente/trocar-senha", async (req: Request, res: Response): 
         passwordSetTokenExpiresAt: null,
       })
       .where(eq(clientsTable.id, client.id));
+    // Senha nova invalida os celulares que já estavam com sessão persistente.
+    await revogarSessoesDoCliente(pool, client.id).catch((err) => req.log.error({ err: String(err) }, "Sessões persistentes não revogadas"));
 
+    await registrarAcesso("cliente", client.id, "troca_senha");
     res.json({
       id: client.id,
       name: client.name,
@@ -187,7 +261,10 @@ router.post("/area-paciente/definir-senha", async (req: Request, res: Response):
         passwordSetTokenExpiresAt: null,
       })
       .where(eq(clientsTable.id, client.id));
+    // Senha nova invalida os celulares que já estavam com sessão persistente.
+    await revogarSessoesDoCliente(pool, client.id).catch((err) => req.log.error({ err: String(err) }, "Sessões persistentes não revogadas"));
 
+    await registrarAcesso("cliente", client.id, "definir_senha");
     res.json({
       id: client.id,
       name: client.name,
@@ -215,7 +292,7 @@ router.get("/area-paciente/resumo", async (req: Request, res: Response): Promise
     const upcoming = await db
       .select()
       .from(sessionsTable)
-      .where(and(eq(sessionsTable.clientId, clientId), gte(sessionsTable.scheduledDate, todayISO())))
+      .where(and(eq(sessionsTable.clientId, clientId), eq(sessionsTable.agendaArchived, false), gte(sessionsTable.scheduledDate, todayISO())))
       .orderBy(asc(sessionsTable.scheduledDate), asc(sessionsTable.scheduledTime));
 
     const nextSession = upcoming.find((s) => s.status === "scheduled" || s.status === "confirmed") ?? upcoming[0] ?? null;
@@ -242,6 +319,90 @@ router.get("/area-paciente/resumo", async (req: Request, res: Response): Promise
   } catch (err: any) {
     console.error("[AreaPaciente] resumo:", err.message);
     res.status(500).json({ error: "Erro ao carregar resumo" });
+  }
+});
+
+// --- MINHA CATEGORIA --------------------------------------------------------
+// Projecao minima para a aba Minha Categoria: SO o nivel comercial (clients.plano) do proprio cliente do token.
+// Separado do resumo clinico de proposito e SEM relacao com o Grupo VIP (que nao le nivel algum).
+// So devolve um dos quatro niveis existentes; qualquer outro valor (nulo, "legado:*", desconhecido)
+// vira null e a tela diz que a categoria nao esta disponivel.
+const NIVEIS_CATEGORIA = ["prata", "ouro", "platinum", "diamond"] as const;
+router.get("/area-paciente/minha-categoria", async (req: Request, res: Response): Promise<void> => {
+  // Somente cabecalho Authorization (nunca ?token=, que vaza em log e historico).
+  const auth = req.headers.authorization;
+  const clientId = auth && auth.startsWith("Bearer ") ? verifyPortalToken(auth.slice(7)) : null;
+  if (clientId === null) { unauthorized(res); return; }
+  try {
+    const [row] = await db.select({ plano: clientsTable.plano }).from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
+    if (!row) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+    const nivel = (NIVEIS_CATEGORIA as readonly string[]).includes(row.plano) ? row.plano : null;
+    res.set("Cache-Control", "private, no-store");
+    res.json({ nivel });
+  } catch (err) {
+    req.log.error({ err: String(err) }, "Falha ao carregar a categoria do cliente");
+    res.status(500).json({ error: "Não foi possível carregar sua categoria agora." });
+  }
+});
+
+// --- COMUNICACAO (Telegram) -------------------------------------------------
+// Mostra ao proprio cliente (token do portal) como ativar o Telegram. O caminho principal
+// e o LINK INDIVIDUAL (POST abaixo): nao exige saber codigo nenhum. O codigo de validacao
+// do cadastro e o caminho alternativo e SO e mostrado se for unico entre cadastros ativos
+// (um codigo repetido nunca vincula; nesse caso so o link serve). clientId vem do token.
+router.get("/area-paciente/comunicacao", async (req: Request, res: Response): Promise<void> => {
+  const clientId = getClientId(req);
+  if (clientId === null) { unauthorized(res); return; }
+  try {
+    const [c] = await db.select({
+      name: clientsTable.name, cpf: clientsTable.cpf,
+      telegramChatId: clientsTable.telegramChatId, validationPassword: clientsTable.validationPassword,
+    }).from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
+    if (!c) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+    const vinculado = Boolean(c.telegramChatId);
+    let senha: string | null = null;
+    if (!vinculado) {
+      const existente = c.validationPassword ?? null;
+      const candidata = existente ?? (c.cpf && c.cpf.replace(/\D/g, "").length === 11 ? codigoTelegramSemantico(c.name, c.cpf) : null);
+      if (candidata && (await contarCadastrosComCodigo(candidata, clientId)) === 0) {
+        senha = candidata;
+        if (!existente) {
+          await db.update(clientsTable)
+            .set({ validationPassword: candidata, validationPasswordSentAt: new Date() })
+            .where(and(eq(clientsTable.id, clientId), sql`${clientsTable.validationPassword} IS NULL`));
+        }
+      }
+    }
+    // Identificador publico da clinica do proprio cliente: so serve para o manual abrir com a
+    // marca certa (?tenant=). Falha aqui nunca derruba a tela (manual cai no texto neutro).
+    let clinicaSlug: string | null = null;
+    try {
+      const r = await db.execute(sql`SELECT e.slug FROM clients c JOIN empresas e ON e.id = c.empresa_id WHERE c.id = ${clientId} LIMIT 1`);
+      const slug = (r.rows[0] as { slug: string | null } | undefined)?.slug;
+      clinicaSlug = slug ?? null;
+    } catch { clinicaSlug = null; }
+    res.json({ vinculado, senha, botUsername: BOT_USERNAME, botLink: BOT_LINK, clinicaSlug });
+  } catch (err) {
+    req.log.error({ err: String(err) }, "Erro ao carregar comunicacao");
+    res.status(500).json({ error: "Erro ao carregar dados" });
+  }
+});
+
+// Gera o link individual do PROPRIO cliente (uso unico, 7 dias). Nao envia nada.
+router.post("/area-paciente/comunicacao/link", async (req: Request, res: Response): Promise<void> => {
+  const clientId = getClientId(req);
+  if (clientId === null) { unauthorized(res); return; }
+  try {
+    const [c] = await db.select({ telegramChatId: clientsTable.telegramChatId, status: clientsTable.status })
+      .from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
+    if (!c || c.status !== "active") { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+    if (c.telegramChatId) { res.status(409).json({ error: "Seu Telegram já está ativo." }); return; }
+    const link = await emitirLinkMagico(clientId);
+    if (!link) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+    res.json({ url: link.url, expiraEm: link.expiraEm.toISOString() });
+  } catch (err) {
+    req.log.error({ err: String(err) }, "Erro ao gerar link individual");
+    res.status(500).json({ error: "Erro ao gerar o link" });
   }
 });
 
@@ -278,10 +439,10 @@ router.get("/area-paciente/protocolos", async (req: Request, res: Response): Pro
           const sub = subMap.get(it.substanceId);
           return {
             id: it.id,
-            substanceName: sub?.name ?? `Substância ${it.substanceId}`,
+            substanceName: nomeSubstanciaNoProtocolo(sub?.name ?? `Substância ${it.substanceId}`),
             color: sub?.color ?? "yellow",
             procedureType: sub?.procedureType ?? "iv",
-            dose: it.dose,
+            dose: dosePrescritaParaDocumento(it.dose),
             totalSessions: it.totalSessions,
             completedSessions: it.completedSessions,
             intervalDays: it.intervalDays,
@@ -309,7 +470,7 @@ router.get("/area-paciente/sessoes", async (req: Request, res: Response): Promis
     const sessions = await db
       .select()
       .from(sessionsTable)
-      .where(eq(sessionsTable.clientId, clientId))
+      .where(and(eq(sessionsTable.clientId, clientId), eq(sessionsTable.agendaArchived, false)))
       .orderBy(asc(sessionsTable.scheduledDate), asc(sessionsTable.scheduledTime));
 
     const allSubstances = await db.select().from(substancesTable);
@@ -335,13 +496,13 @@ router.get("/area-paciente/sessoes", async (req: Request, res: Response): Promis
         unit: s.unit,
         serviceType: s.serviceType,
         weekNumber: s.weekNumber,
-        protocolTitle: protoMap.get(s.protocolId) ?? null,
+        protocolTitle: s.protocolId == null ? null : protoMap.get(s.protocolId) ?? null,
         substances: apps.map((a) => {
           const sub = subMap.get(a.substanceId);
           return {
-            substanceName: sub?.name ?? `Substância ${a.substanceId}`,
+            substanceName: nomeSubstanciaNoProtocolo(sub?.name ?? `Substância ${a.substanceId}`),
             color: sub?.color ?? "yellow",
-            dose: a.dose,
+            dose: dosePrescritaParaDocumento(a.dose),
             sessionNumber: a.sessionNumber,
             totalSessions: a.totalSessions,
             status: a.status,
@@ -414,7 +575,9 @@ router.get("/area-paciente/exames", async (req: Request, res: Response): Promise
       .where(eq(examRequestPdfsTable.clientId, clientId))
       .orderBy(desc(examRequestPdfsTable.createdAt));
 
-    res.json(exams);
+    // Uso dentro do aplicativo autenticado: o acesso é um link novo de curta duração (1 dia), não o código legado;
+    // assim a transição dos links antigos nunca quebra o botão do próprio cliente.
+    res.json(exams.map((e) => ({ ...e, token: criarTokenExame({ pdfId: e.id, clientId, ttlDias: 1 }) })));
   } catch (err: any) {
     console.error("[AreaPaciente] exames:", err.message);
     res.status(500).json({ error: "Erro ao carregar exames" });
@@ -457,200 +620,23 @@ router.get("/area-paciente/documentos", async (req: Request, res: Response): Pro
   }
 });
 
-// --- DOWNLOAD RAS (PDF assinado) — token-bound, sem efeitos colaterais ------
-router.get("/area-paciente/ras/:id/pdf", async (req: Request, res: Response): Promise<void> => {
-  const clientId = getClientId(req);
-  if (clientId === null) { unauthorized(res); return; }
+// --- DOWNLOAD RAS / PROTOCOLO — BLOQUEADO NA AREA DO CLIENTE -------------------
+// Estas rotas geravam o PDF na hora e o assinavam com o certificado GLOBAL da
+// plataforma, sem nenhum medico logado: assinatura de quem nao emitiu o documento.
+// Regra vigente: assina somente o medico, logado, com o PROPRIO certificado. Como o
+// sistema ainda nao guarda o PDF ja emitido, o cliente recebe a orientacao abaixo
+// ate a entrega do documento emitido (nunca um PDF assinado por terceiro).
+const DOCUMENTO_INDISPONIVEL =
+  "Este documento é emitido e assinado pelo seu médico. Peça a segunda via à clínica.";
 
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) { res.status(400).json({ error: "RAS inválido" }); return; }
-
-  try {
-    const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, id));
-    if (!ras || ras.clientId !== clientId) { res.status(404).json({ error: "RAS não encontrado" }); return; }
-
-    const rawSubstances = (ras.substances as Array<{
-      substanceName: string; dose: string; route: string; sessionNumber: number;
-      totalSessions: number; lot: string | null; validity: string | null;
-      appliedAt: string | null; status: string;
-    }>) ?? [];
-
-    const allSubstances = await db.select().from(substancesTable);
-    const substanceMap = new Map(allSubstances.map((s) => [s.name, s]));
-
-    const enrichedSubstances = rawSubstances.map((sub) => {
-      const dbSub = substanceMap.get(sub.substanceName);
-      return {
-        ...sub,
-        description: dbSub?.description ?? undefined,
-        mainFunction: dbSub?.mainFunction ?? undefined,
-        perceivedEffects: dbSub?.perceivedEffects ?? undefined,
-        timeToEffect: dbSub?.timeToEffect ?? undefined,
-        starRating: dbSub?.starRating ?? undefined,
-        bodySystemEffects: (dbSub?.bodySystemEffects as Record<string, string>) ?? undefined,
-        procedureType: dbSub?.procedureType ?? undefined,
-      };
-    });
-
-    const { pdfBytes } = await generateSignedRASPdf({
-      id: ras.id,
-      sessionId: ras.sessionId,
-      clientName: ras.clientName,
-      clientCpf: ras.clientCpf,
-      professionalName: ras.professionalName,
-      professionalCrm: ras.professionalCrm ?? null,
-      unit: ras.unit,
-      serviceDate: ras.serviceDate,
-      serviceType: ras.serviceType,
-      observations: ras.observations ?? null,
-      substances: enrichedSubstances,
-    });
-
-    const clientSlug = ras.clientName.replace(/\s+/g, "_");
-    const dateSlug = ras.serviceDate.replace(/-/g, "");
-    const filename = `RAS_${String(ras.id).padStart(6, "0")}_${clientSlug}_${dateSlug}.pdf`;
-
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
-    res.setHeader("Content-Length", pdfBytes.length);
-    res.send(Buffer.from(pdfBytes));
-  } catch (err: any) {
-    console.error("[AreaPaciente] ras pdf:", err.message);
-    res.status(500).json({ error: "Erro ao gerar PDF" });
-  }
+router.get("/area-paciente/ras/:id/pdf", (req: Request, res: Response): void => {
+  if (getClientId(req) === null) { unauthorized(res); return; }
+  res.status(409).json({ error: DOCUMENTO_INDISPONIVEL });
 });
 
-// --- DOWNLOAD PROTOCOLO COMPLETO (PDF) — token-bound, sem efeitos colaterais
-router.get("/area-paciente/protocolo/:id/pdf", async (req: Request, res: Response): Promise<void> => {
-  const clientId = getClientId(req);
-  if (clientId === null) { unauthorized(res); return; }
-
-  const protocolId = parseInt(req.params.id);
-  if (isNaN(protocolId)) { res.status(400).json({ error: "Protocolo inválido" }); return; }
-
-  try {
-    const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolId));
-    if (!protocol || protocol.clientId !== clientId) { res.status(404).json({ error: "Protocolo não encontrado" }); return; }
-
-    const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
-    if (!client) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
-
-    let professionalName = "Profissional";
-    let professionalCrm: string | null = null;
-    let nurseName: string | undefined;
-    if (protocol.professionalId) {
-      const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.professionalId));
-      if (prof) { professionalName = prof.name; professionalCrm = prof.crm ?? null; }
-    }
-    const allProfs = await db.select().from(professionalsTable);
-    const nurseProf = allProfs.find((p) => (p.specialty ?? "").toLowerCase().includes("enf"));
-    if (nurseProf) nurseName = nurseProf.name;
-
-    const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
-    const allSubstances = await db.select().from(substancesTable);
-    const substMap = new Map(allSubstances.map((s) => [s.id, s]));
-
-    const substances = protocolItems.map((item) => {
-      const sub = substMap.get(item.substanceId);
-      return {
-        name: sub?.name ?? `Substancia ${item.substanceId}`,
-        dose: item.dose,
-        color: sub?.color ?? "yellow",
-        totalSessions: item.totalSessions,
-        intervalDays: item.intervalDays,
-        startDate: item.startDate,
-        procedureType: sub?.procedureType ?? "iv",
-        unitPrice: item.unitPrice || sub?.pricePerUnit || 0,
-        description: sub?.description ?? undefined,
-        mainFunction: sub?.mainFunction ?? undefined,
-        perceivedEffects: sub?.perceivedEffects ?? undefined,
-        timeToEffect: sub?.timeToEffect ?? undefined,
-        starRating: sub?.starRating ?? undefined,
-        bodySystemEffects: (sub?.bodySystemEffects as Record<string, string>) ?? undefined,
-        contraindications: sub?.contraindications ?? undefined,
-        scientificEvidence: sub?.scientificEvidence ?? undefined,
-        longevityBenefit: sub?.longevityBenefit ?? undefined,
-        qualityOfLifeImpact: sub?.qualityOfLifeImpact ?? undefined,
-        sleepBenefit: sub?.sleepBenefit ?? undefined,
-        energyBenefit: sub?.energyBenefit ?? undefined,
-        libidoBenefit: sub?.libidoBenefit ?? undefined,
-        physicalPerformance: sub?.physicalPerformance ?? undefined,
-        muscleStrength: sub?.muscleStrength ?? undefined,
-        mentalClarity: sub?.mentalClarity ?? undefined,
-        skinHairNails: sub?.skinHairNails ?? undefined,
-        immuneSupport: sub?.immuneSupport ?? undefined,
-      };
-    });
-
-    const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
-    sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.weekNumber - b.weekNumber);
-
-    const docSessions = [];
-    for (const sess of sessions) {
-      const apps = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, sess.id));
-      const substanceStatuses = apps
-        .filter((a) => a.availability === "disp")
-        .map((a) => {
-          const sub = substMap.get(a.substanceId);
-          return {
-            substanceName: sub?.name ?? "",
-            sessionNumber: a.sessionNumber,
-            totalSessions: a.totalSessions,
-            status: a.status,
-          };
-        });
-      docSessions.push({
-        number: sess.weekNumber,
-        scheduledDate: sess.scheduledDate,
-        status: sess.status,
-        substanceStatuses,
-      });
-    }
-
-    const payments = await db.select().from(paymentsTable).where(eq(paymentsTable.protocolId, protocolId));
-
-    const { pdfBytes } = await generateProtocolDocumentPdf({
-      protocolId: protocol.id,
-      protocolTitle: protocol.title,
-      clientName: client.name,
-      clientCpf: client.cpf,
-      clientEmail: client.email,
-      clientPhone: client.phone ?? undefined,
-      clientBirthDate: client.birthDate ?? undefined,
-      professionalName,
-      professionalCrm,
-      nurseName,
-      unit: protocol.unit ?? "Instituto Pádua",
-      serviceType: protocol.serviceType,
-      startDate: protocol.startDate,
-      endDate: protocol.endDate,
-      totalValue: protocol.totalValue,
-      notes: protocol.notes,
-      substances,
-      sessions: docSessions,
-      payments: payments.map((p) => ({
-        amount: p.amount,
-        method: p.method,
-        status: p.status,
-        dueDate: p.dueDate,
-        paidAt: p.paidAt,
-        description: p.description,
-        installments: p.installments,
-        cardLabel: p.cardLabel,
-      })),
-    });
-
-    const clientSlug = client.name.replace(/\s+/g, "_");
-    const filename = `PROTOCOLO_${clientSlug}_${protocolId}.pdf`;
-
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
-    res.setHeader("Content-Length", pdfBytes.length);
-    res.send(Buffer.from(pdfBytes));
-  } catch (err: any) {
-    console.error("[AreaPaciente] protocolo pdf:", err.message);
-    res.status(500).json({ error: "Erro ao gerar PDF" });
-  }
+router.get("/area-paciente/protocolo/:id/pdf", (req: Request, res: Response): void => {
+  if (getClientId(req) === null) { unauthorized(res); return; }
+  res.status(409).json({ error: DOCUMENTO_INDISPONIVEL });
 });
 
 // --- VALIDAR CÓDIGO DE PRESENÇA -----------------------------------------
@@ -742,7 +728,7 @@ router.get("/area-paciente/agenda-recursos", async (req: Request, res: Response)
     );
   } catch (err: any) {
     console.error("[AreaPaciente] agenda-recursos:", err.message);
-    res.status(500).json({ error: "Erro ao carregar recursos" });
+    res.status(500).json({ error: "Erro ao carregar agendas" });
   }
 });
 
@@ -760,7 +746,7 @@ router.get("/area-paciente/agenda-slots", async (req: Request, res: Response): P
 
   try {
     const computed = await computeResourceSlots(resourceId, date, null);
-    if (!computed) { res.status(404).json({ error: "Recurso não encontrado" }); return; }
+    if (!computed) { res.status(404).json({ error: "Agenda não encontrada" }); return; }
     // Paciente so enxerga horarios ABERTOS (nunca ocupados/bloqueados de outros).
     const slots = computed.result.slots
       .filter((s) => s.state === "aberto")
@@ -864,7 +850,7 @@ router.post("/area-paciente/reagendar", async (req: Request, res: Response): Pro
   try {
     const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
     // Mensagem generica (nao revela se a sessao existe nem que e de outra cliente) -> anti-IDOR
-    if (!session || session.clientId !== clientId) {
+    if (!session || session.agendaArchived || session.clientId !== clientId) {
       res.status(404).json({ error: "Sessão não encontrada." });
       return;
     }
@@ -904,7 +890,8 @@ router.post("/area-paciente/reagendar", async (req: Request, res: Response): Pro
     }
 
     // R5.2 nova data nao pode cair depois do fim do protocolo (quando o protocolo tem fim definido)
-    const [proto] = await db
+    // Consulta avulsa (sem protocolo) não tem fim de protocolo para respeitar.
+    const [proto] = session.protocolId == null ? [] : await db
       .select({ endDate: protocolsTable.endDate })
       .from(protocolsTable)
       .where(eq(protocolsTable.id, session.protocolId));
@@ -915,6 +902,10 @@ router.post("/area-paciente/reagendar", async (req: Request, res: Response): Pro
 
     const r = await rescheduleSession({ sessionId, clientId, resourceId, date, time, syncGoogle: true });
     if (!r.ok) { res.status(r.status).json({ error: r.error }); return; }
+    // Visita de protocolo ja no Google: o MESMO evento acompanha o novo horario (aviso, nunca bloqueio).
+    if (r.googleRefreshNeeded && r.session?.empresaId != null) {
+      r.googleSyncWarning = await refreshAfterReschedule(r.session.id, r.session.empresaId);
+    }
 
     // R7.2 e-mail de confirmacao (best-effort; nunca trava a remarcacao)
     try {

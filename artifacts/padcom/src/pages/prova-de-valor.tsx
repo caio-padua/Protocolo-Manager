@@ -531,7 +531,7 @@ export default function ProvaDeValor() {
               </div>
             ))}
             <span className="ml-auto text-[9px] text-muted-foreground/30 uppercase tracking-widest">
-              PADAXOR Clinical Intelligence System
+              PaxMed Clinical Intelligence System
             </span>
           </div>
         </>

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import {
   useListAnamneseBlocos,
   useListAnamnesePerguntas,
@@ -127,6 +129,38 @@ function BlocosEditor() {
   );
 }
 
+// Cor da categoria: a mesma usada nos fios da tela Sinapses Clínicas (tabela anamnese_blocos_cor).
+function CorDoBloco({ bloco }: { bloco: string }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data } = useQuery<Record<string, string>>({
+    queryKey: ["/api/cadastros/sinapses/bloco-cores"],
+    queryFn: async () => {
+      const r = await fetch("/api/cadastros/sinapses/bloco-cores", { headers: collabAuthHeaders() });
+      if (!r.ok) throw new Error("Não foi possível carregar as cores");
+      return r.json();
+    },
+  });
+  const salvar = useMutation({
+    mutationFn: async (cor: string) => {
+      const r = await fetch("/api/cadastros/sinapses/bloco-cor", { method: "PUT", headers: collabAuthHeaders({ "Content-Type": "application/json" }), body: JSON.stringify({ bloco, cor }) });
+      if (!r.ok) throw new Error("Não foi possível salvar a cor");
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/cadastros/sinapses/bloco-cores"] }); qc.invalidateQueries({ queryKey: ["/api/cadastros/sinapses/painel"] }); toast({ title: "Cor da categoria salva" }); },
+    onError: (e: Error) => toast({ title: "Cor não salva", description: e.message, variant: "destructive" }),
+  });
+  const cor = data?.[bloco];
+  return (
+    <label className="concave-3d flex h-8 items-center gap-3 px-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground" title="Cor desta categoria nos fios da tela Sinapses Clínicas" data-testid="cor-do-bloco">
+      Cor na sinapse
+      <span className="relative block h-5 w-8 rounded-[3px] border border-black/30" style={{ background: cor ?? "repeating-linear-gradient(45deg,#e5e7eb,#e5e7eb 4px,#f9fafb 4px,#f9fafb 8px)" }}>
+        <input type="color" aria-label={`Cor da categoria ${bloco}`} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" value={cor ?? "#1d4ed8"} onChange={(e) => salvar.mutate(e.target.value)} />
+      </span>
+      {!cor && <span className="font-medium normal-case tracking-normal">padrão</span>}
+    </label>
+  );
+}
+
 function PerguntasEditor({ bloco }: { bloco: string }) {
   const { data: perguntas, isLoading, refetch } = useListAnamnesePerguntas({
     bloco,
@@ -155,6 +189,7 @@ function PerguntasEditor({ bloco }: { bloco: string }) {
         <div className="flex items-center gap-2">
           <ChevronRight className="h-4 w-4 text-primary" />
           <h3 className="text-base font-black uppercase tracking-tight text-primary">{bloco}</h3>
+          <CorDoBloco bloco={bloco} />
         </div>
         <Button
           size="sm"

@@ -4,6 +4,26 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import puppeteer from "puppeteer";
 
+/** Imprime páginas A4 reais, sem comprimir receitas longas em uma única folha. */
+export async function htmlToPdfBytes(html: string): Promise<Uint8Array> {
+  const browser = await puppeteer.launch({
+    headless: true,
+    executablePath: "/nix/store/qa9cnw4v5xkxyip6mb9kxqfq1z4x2dx1-chromium-138.0.7204.100/bin/chromium",
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--disable-software-rasterizer", "--disable-features=VizDisplayCompositor"],
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 2 });
+    await page.emulateMediaType("print");
+    await page.setContent(html, { waitUntil: "load", timeout: 30_000 });
+    await page.waitForNetworkIdle({ idleTime: 500, timeout: 30_000 });
+    await page.evaluate("document.fonts.ready");
+    return await page.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true });
+  } finally {
+    await browser.close();
+  }
+}
+
 /**
  * Recebe HTML completo, renderiza em headless Chromium, tira screenshot
  * do elemento #receituario e retorna PNG base64.
@@ -32,7 +52,8 @@ export async function htmlToPngBase64(html: string): Promise<string> {
     await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 2 });
 
     // Carrega o HTML com networkidle0 para aguardar imagens
-    await page.setContent(html, { waitUntil: "networkidle0", timeout: 30_000 });
+    await page.setContent(html, { waitUntil: "load", timeout: 30_000 });
+    await page.waitForNetworkIdle({ idleTime: 500, timeout: 30_000 });
 
     // Screenshot do elemento #receituario (captura exatamente a folha)
     const el = await page.$("#receituario");

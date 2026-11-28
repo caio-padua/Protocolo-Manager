@@ -1,10 +1,21 @@
 import { google } from 'googleapis';
+import type { EstadoAplicacao } from "./estado-aplicacao-protocolo";
+import {
+  CHAVE_MARCA_GOOGLE, GoogleConflito, conferirEventoRemoto, impressaoDoEvento, type EventoRemoto, type IntervaloEvento,
+} from "./google-conflito";
+import {
+  findReplitConnection,
+  getReplitConnectionAccessToken,
+  type ReplitConnectorConnection,
+} from "./replit-connection";
 
-let connectionSettings: any;
+let connectionSettings: ReplitConnectorConnection | undefined;
 
 async function getAccessToken() {
-  if (connectionSettings && connectionSettings.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
-    return connectionSettings.settings.access_token;
+  const cachedToken = getReplitConnectionAccessToken(connectionSettings);
+  const expiresAt = connectionSettings?.settings.expires_at;
+  if (cachedToken && expiresAt && new Date(expiresAt).getTime() > Date.now()) {
+    return cachedToken;
   }
   
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
@@ -18,7 +29,7 @@ async function getAccessToken() {
     throw new Error('X-Replit-Token not found for repl/depl');
   }
 
-  connectionSettings = await fetch(
+  const response = await fetch(
     'https://' + hostname + '/api/v2/connection?include_secrets=true',
     {
       headers: {
@@ -26,9 +37,11 @@ async function getAccessToken() {
         'X-Replit-Token': xReplitToken
       }
     }
-  ).then(res => res.json()).then(data => data.items?.find((i: any) => i.connector_name === 'google-calendar'));
+  );
+  if (!response.ok) throw new Error("Google Calendar not connected");
+  connectionSettings = findReplitConnection(await response.json(), "google-calendar");
 
-  const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
+  const accessToken = getReplitConnectionAccessToken(connectionSettings);
 
   if (!connectionSettings || !accessToken) {
     throw new Error('Google Calendar not connected');
@@ -47,7 +60,7 @@ export async function getUncachableGoogleCalendarClient() {
   return google.calendar({ version: 'v3', auth: oauth2Client });
 }
 
-export type SubstanceStatus = "disp" | "prox" | "applied" | "missed";
+export type SubstanceStatus = EstadoAplicacao;
 
 export interface CalendarSubstance {
   name: string;
@@ -68,21 +81,28 @@ export interface CalendarEventData {
   unit: string;
   locationAddress?: string;
   calendarId?: string;
+  eventId?: string;
   procedureType?: string;
   procedureLabel: string;
   activeProcedureTypes: string[];
   substances: CalendarSubstance[];
+  // K7: "NESTA VISITA: X de Y substâncias". Só aparece quando os dois números vêm do protocolo.
+  visitSubstanceCount?: number;
+  protocolSubstanceCount?: number;
   clientEmail?: string;
   sessionStatus?: string;
+  rescheduleCount?: number;
   summaryPrefix?: string;
   // Total de idas (sessoes) do protocolo. Alimenta "Agendamento Número: N/Total".
   totalAppointments?: number;
   // Telefone da clínica da sessão (SUB-05). Vira blocos LIGAR/WHATSAPP no evento.
   locationPhone?: string;
+  // Pit Stop (procedimento real, sem substância/via): quando presente, a descrição mostra o procedimento e a equipe
+  // no lugar dos blocos PROCEDIMENTOS/SUBSTÂNCIAS. Ausente = formato legado inalterado.
+  procedureName?: string;
+  teamLine?: string;
 }
 
-// Número oficial da clínica (SUB-05). Fallback quando a clínica não tem telefone próprio.
-const OFFICIAL_CLINIC_PHONE = "+5511977154000";
 
 // Normaliza um telefone para E.164 (+DDI...). Respeita o DDI informado (não força +55
 // quando já vem com sinal de mais); assume Brasil (+55) só para números locais sem DDI.
@@ -149,15 +169,15 @@ function buildAddressBlock(address: string | undefined, unitName: string): strin
   return block;
 }
 
-// Lista FIXA de procedimentos exibida no evento (padrao Paxter dos prints).
-// Cada linha leva polegar (ativo/inativo) e a contagem de tempo entre colchetes.
-const PROCEDURE_ROWS: Array<{ key: string; label: string; min: number }> = [
-  { key: "im", label: "Aplicação Intramuscular", min: 15 },
-  { key: "iv", label: "Aplicação Endovenosa", min: 30 },
-  { key: "consultation", label: "Consulta", min: 60 },
-  { key: "__retorno", label: "Retorno ou Avaliação", min: 30 },
-  { key: "__especifico", label: "Procedimento Específico", min: 60 },
-  { key: "implant", label: "Implante", min: 60 },
+// A classificação é exibida sem atribuir tempos clínicos que não estejam no cadastro.
+const PROCEDURE_ROWS: Array<{ key: string; label: string }> = [
+  { key: "im", label: "Aplicação Intramuscular" },
+  { key: "sc", label: "Aplicação Subcutânea" },
+  { key: "iv", label: "Aplicação Endovenosa" },
+  { key: "consultation", label: "Consulta" },
+  { key: "__retorno", label: "Retorno ou Avaliação" },
+  { key: "__especifico", label: "Procedimento Específico" },
+  { key: "implant", label: "Implante" },
 ];
 
 const MARK_OK = "\u2705"; // ✅ ocorre
@@ -196,14 +216,18 @@ const STATUS_SQUARE: Record<SubstanceStatus, string> = {
   disp: "\uD83D\uDFE9", // 🟩 verde
   prox: "\uD83D\uDFE8", // 🟨 amarelo
   applied: "\uD83D\uDFE6", // 🟦 azul
-  missed: "\u2B1C", // ⬜ branco
+  notPerformed: "\uD83D\uDFE5",
+  unavailable: "\u2B1C",
+  review: "\uD83D\uDFE7",
 };
 
 const STATUS_ABBR: Record<SubstanceStatus, string> = {
   disp: "DISP",
   prox: "PROX",
   applied: "APLI",
-  missed: "INDI",
+  notPerformed: "NREA",
+  unavailable: "INDI",
+  review: "CONF",
 };
 
 const SUBSTANCE_LEGEND =
@@ -211,34 +235,36 @@ const SUBSTANCE_LEGEND =
   `${STATUS_SQUARE.disp} Disponível para Aplicação [DISP]\n` +
   `${STATUS_SQUARE.prox} Disponível Próxima Sessão [PROX]\n` +
   `${STATUS_SQUARE.applied} Substância Aplicada [APLI]\n` +
-  `${STATUS_SQUARE.missed} Substância Indisponível [INDI]`;
-
-/** Soma das duracoes (min) so dos procedimentos ATIVOS, sem repetir tipo. */
-function computeActiveDuration(activeProcTypes: string[]): number {
-  const active = new Set(activeProcTypes);
-  let total = 0;
-  for (const row of PROCEDURE_ROWS) {
-    if (active.has(row.key)) total += row.min;
-  }
-  return total;
-}
+  `${STATUS_SQUARE.notPerformed} Aplicação Não Realizada [NREA]\n` +
+  `${STATUS_SQUARE.unavailable} Substância Indisponível [INDI]\n` +
+  `${STATUS_SQUARE.review} Registro a Conferir [CONF]`;
 
 function buildProcedureChecklist(activeProcTypes: string[]): string {
   const active = new Set(activeProcTypes);
   return PROCEDURE_ROWS.map(row => {
     const mark = active.has(row.key) ? MARK_OK : MARK_NO;
-    return `${mark} ${row.label} [${row.min}min]`;
+    return `${mark} ${row.label}`;
   }).join("\n");
 }
 
-function getSessionStatusLine(sessionStatus?: string): string {
-  if (sessionStatus === "completed") {
-    return `${STATUS_SQUARE.applied} Aplicação Realizada`;
+export function getSessionStatusLine(data: Pick<CalendarEventData, "sessionStatus" | "substances" | "rescheduleCount">): string {
+  if (data.sessionStatus === "cancelled") return `${STATUS_SQUARE.unavailable} Sessão Cancelada`;
+  if (data.sessionStatus === "missed") return `${STATUS_SQUARE.notPerformed} Cliente Faltou`;
+  if (data.sessionStatus === "completed") {
+    const due = data.substances.filter(s => s.sessionNumber > 0 && s.status !== "prox" && s.status !== "unavailable");
+    if (!due.length) return `${STATUS_SQUARE.unavailable} Sessão Encerrada`;
+    if (due.some(s => s.status === "review")) return `${STATUS_SQUARE.review} Sessão Encerrada — Registro a Conferir`;
+    const applied = due.filter(s => s.status === "applied").length;
+    if (applied === due.length) return `${STATUS_SQUARE.applied} Aplicações Realizadas`;
+    if (applied > 0) return `${STATUS_SQUARE.review} Sessão Encerrada — Aplicações Parcialmente Realizadas`;
+    return `${STATUS_SQUARE.unavailable} Sessão Encerrada — Nenhuma Aplicação Registrada como Realizada`;
   }
-  if (sessionStatus === "missed" || sessionStatus === "cancelled") {
-    return `${STATUS_SQUARE.missed} Não Realizada`;
+  if (data.sessionStatus === "scheduled" || data.sessionStatus === "confirmed") {
+    return (data.rescheduleCount ?? 0) > 0
+      ? `${STATUS_SQUARE.prox} Aplicação Remarcada`
+      : `${STATUS_SQUARE.prox} Aplicação Programada`;
   }
-  return `${STATUS_SQUARE.prox} Aplicação Programada`;
+  return `${STATUS_SQUARE.review} Situação da Sessão a Conferir`;
 }
 
 function buildSubstanceList(substances: CalendarSubstance[]): string {
@@ -246,8 +272,8 @@ function buildSubstanceList(substances: CalendarSubstance[]): string {
   return substances
     .map(s => {
       const idx = s.sessionNumber > 0 ? `${s.sessionNumber}/${s.totalSessions}` : `–/${s.totalSessions}`;
-      const square = STATUS_SQUARE[s.status] ?? STATUS_SQUARE.prox;
-      const abbr = STATUS_ABBR[s.status] ?? "PROX";
+      const square = STATUS_SQUARE[s.status] ?? STATUS_SQUARE.review;
+      const abbr = STATUS_ABBR[s.status] ?? "CONF";
       return `${square} [${idx}] ${s.name} ${s.dose} [${abbr}]`;
     })
     .join("\n");
@@ -259,12 +285,15 @@ function buildEventTitle(clientName: string, cpf: string, prefix: string): strin
   return `${prefix}${nameUpper}${cpfPart} [SESS]`;
 }
 
-function buildDescriptionBody(data: CalendarEventData): string {
+export function buildDescriptionBody(data: CalendarEventData): string {
   const totalAppointments = data.totalAppointments ?? data.weekNumber;
-  const durationTotal = computeActiveDuration(data.activeProcedureTypes) || data.durationMinutes;
+  const durationTotal = data.durationMinutes;
   const procedureChecklist = buildProcedureChecklist(data.activeProcedureTypes);
-  const statusLine = getSessionStatusLine(data.sessionStatus);
+  const statusLine = getSessionStatusLine(data);
   const substanceList = buildSubstanceList(data.substances);
+  const visitCountLine = data.visitSubstanceCount !== undefined && data.protocolSubstanceCount !== undefined
+    ? `NESTA VISITA: ${data.visitSubstanceCount} de ${data.protocolSubstanceCount} substâncias do protocolo\n`
+    : "";
 
   const addressBlock = buildAddressBlock(data.locationAddress, data.unit);
   const mapsLink = data.locationAddress
@@ -282,18 +311,24 @@ function buildDescriptionBody(data: CalendarEventData): string {
   const relogio = clockEmojiForTime(horaInicio);
   const horarioBlock = `HORÁRIO:\n${relogio} ${horaInicio} às ${horaFim}`;
 
+  const blocoClinico = data.procedureName
+    ? `PROCEDIMENTO:\n${data.procedureName}\n${data.teamLine ? `EQUIPE: ${data.teamLine}\n` : ""}` +
+      `DURAÇÃO TOTAL: ${durationTotal}min\n\n` +
+      `STATUS:\n${data.rescheduleCount ? "Atendimento remarcado" : "Atendimento programado"}`
+    : `PROCEDIMENTOS:\n${procedureChecklist}\n` +
+      `DURAÇÃO TOTAL: ${durationTotal}min\n\n` +
+      `STATUS:\n${statusLine}\n\n` +
+      `SUBSTÂNCIAS PROTOCOLO:\n${visitCountLine}${substanceList}\n\n` +
+      `${SUBSTANCE_LEGEND}`;
+
   let desc =
-    `Developed by: Padcon \u00b7 Paxter\n\n` +
+    `Developed by: Padcon \u00b7 PaxMed\n\n` +
     `${data.clientName}\n` +
     `CPF.: ${data.clientCpf || "-"}\n` +
     `Agendamento Número: ${data.weekNumber}/${totalAppointments}\n` +
     `UNIDADE: ${data.unit}\n\n` +
     `${horarioBlock}\n\n` +
-    `PROCEDIMENTOS:\n${procedureChecklist}\n` +
-    `DURAÇÃO TOTAL: ${durationTotal}min\n\n` +
-    `STATUS:\n${statusLine}\n\n` +
-    `SUBSTÂNCIAS PROTOCOLO:\n${substanceList}\n\n` +
-    `${SUBSTANCE_LEGEND}`;
+    blocoClinico;
 
   if (addressBlock) {
     desc += `\n\n${addressBlock}`;
@@ -310,9 +345,8 @@ function buildDescriptionBody(data: CalendarEventData): string {
     }
   }
 
-  // CONTATO (SUB-05): telefone da clínica da sessão; fallback para o número oficial.
-  // Só omite se não houver telefone nem fallback (evita link quebrado).
-  const phoneE164 = normalizePhoneE164(data.locationPhone) ?? OFFICIAL_CLINIC_PHONE;
+  // Não atribuir telefone de outra empresa quando o cadastro estiver vazio.
+  const phoneE164 = normalizePhoneE164(data.locationPhone);
   if (phoneE164) {
     const waNumber = phoneE164.replace(/^\+/, "");
     desc += `\n\nCONTATO:`;
@@ -329,6 +363,7 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
 
     // Mesmo corpo usado na atualizacao (convite B): 1 so verdade, sem drift create vs update.
     const event: any = buildEventRequestBody(data);
+    if (data.eventId) event.id = data.eventId;
 
     // Convite A (decisao CEO): o evento vive nos calendarios da clinica e NAO depende de
     // aceite do cliente. Nao adicionamos participante (attendee) nem disparamos convite/RSVP.
@@ -353,12 +388,19 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
 function buildEventRequestBody(data: CalendarEventData) {
   const [h, m] = data.scheduledTime.split(":").map(Number);
   const startDate = new Date(`${data.scheduledDate}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00-03:00`);
-  const durationTotal = computeActiveDuration(data.activeProcedureTypes) || data.durationMinutes;
+  const durationTotal = data.durationMinutes;
   const endDate = new Date(startDate.getTime() + durationTotal * 60 * 1000);
   const cpfFormatted = data.clientCpf || "";
   const prefix = data.summaryPrefix ? `${data.summaryPrefix} ` : "";
+  const summary = buildEventTitle(data.clientName, cpfFormatted, prefix);
   return {
-    summary: buildEventTitle(data.clientName, cpfFormatted, prefix),
+    summary,
+    // Marca privada (hash): permite provar, na próxima atualização, se alguém mudou o evento direto no Google.
+    extendedProperties: {
+      private: {
+        [CHAVE_MARCA_GOOGLE]: impressaoDoEvento({ inicio: startDate.toISOString(), fim: endDate.toISOString(), titulo: summary }),
+      },
+    },
     description: buildDescriptionBody(data),
     location: data.locationAddress || data.unit,
     start: { dateTime: startDate.toISOString(), timeZone: 'America/Sao_Paulo' },
@@ -376,19 +418,47 @@ function buildEventRequestBody(data: CalendarEventData) {
 
 // Convite B (decisao CEO): atualiza o MESMO evento (events.update, corpo completo) em vez de
 // apagar+recriar. Mantem o evento no celular de quem ja salvou; NAO dispara "Evento cancelado".
-export async function updateCalendarEvent(eventId: string, calendarId: string, data: CalendarEventData): Promise<void> {
+export async function updateCalendarEvent(
+  eventId: string, calendarId: string, data: CalendarEventData,
+  options: { timeoutMs?: number; /** Decisão humana já tomada: grava por cima mesmo com alteração remota. */ forcar?: boolean } = {},
+): Promise<void> {
   try {
+    // O prazo cobre a chamada INTEIRA (token + leitura + envio). Se a obtenção do token já consumiu o prazo, nada é enviado:
+    // quem chamou já liberou a reserva e uma atualização mais nova pode ter saído; enviar agora gravaria descrição velha.
+    const startedAt = Date.now();
     const calendar = await getUncachableGoogleCalendarClient();
+    const restante = () => {
+      if (!options.timeoutMs) return undefined;
+      const ms = options.timeoutMs - (Date.now() - startedAt);
+      if (ms <= 0) throw new Error("Prazo esgotado antes do envio ao Google; nada foi enviado.");
+      return ms;
+    };
+    let remainingMs = restante();
+    if (!options.forcar) {
+      // Nunca sobrescrever em silêncio uma alteração feita direto no Google: lê o estado atual e compara com a marca.
+      const lido = await calendar.events.get({ calendarId: calendarId || 'primary', eventId }, remainingMs ? { timeout: remainingMs } : undefined);
+      const conferencia = conferirEventoRemoto(lido.data as EventoRemoto);
+      if (conferencia.tipo === "apagado") throw new GoogleConflito("apagado", null);
+      if (conferencia.tipo === "alterado") throw new GoogleConflito("alterado", conferencia.remoto);
+      remainingMs = restante();
+    }
     await calendar.events.update({
       calendarId: calendarId || 'primary',
       eventId,
       requestBody: buildEventRequestBody(data),
       sendUpdates: 'none',
-    });
+    }, remainingMs ? { timeout: remainingMs } : undefined);
   } catch (err: any) {
+    if (err instanceof GoogleConflito) throw err;
     console.error("Failed to update calendar event:", err.message);
     throw err;
   }
+}
+
+/** Início, fim e título que o sistema enviaria ao Google para estes dados (mesma regra do corpo do evento). */
+export function intervaloDoSistema(data: CalendarEventData): IntervaloEvento {
+  const body = buildEventRequestBody(data);
+  return { inicio: body.start.dateTime, fim: body.end.dateTime, titulo: body.summary };
 }
 
 export async function updateCalendarEventDescription(eventId: string, calendarId: string, data: CalendarEventData): Promise<void> {
@@ -404,6 +474,23 @@ export async function updateCalendarEventDescription(eventId: string, calendarId
     });
   } catch (err: any) {
     console.error("Failed to update calendar event:", err.message);
+    throw err;
+  }
+}
+
+/**
+ * Confere se um identificador reservado já existe no calendário (somente leitura).
+ * 404 = não existe; qualquer outro erro é lançado, nunca tratado como "não existe".
+ * Evento apagado no Google continua existindo como "cancelled" e conta como existente,
+ * porque o Google não aceita criar de novo com o mesmo identificador.
+ */
+export async function calendarEventExists(eventId: string, calendarId: string): Promise<boolean> {
+  const calendar = await getUncachableGoogleCalendarClient();
+  try {
+    await calendar.events.get({ calendarId: calendarId || 'primary', eventId });
+    return true;
+  } catch (err: any) {
+    if (err?.code === 404 || err?.status === 404 || err?.response?.status === 404) return false;
     throw err;
   }
 }

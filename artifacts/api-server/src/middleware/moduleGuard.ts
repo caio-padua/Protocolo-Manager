@@ -11,6 +11,7 @@
  * Regra: isPlatformOwner NUNCA é bloqueado por módulo.
  * Regra: se modulos_ativos está vazio ou é null, todos os módulos passam
  *        (clinica legacy sem configuração = acesso total, por compatibilidade).
+ * Regra: falha ao ler a licença = 503 (fail-closed); nunca libera por erro.
  */
 
 import type { Request, Response, NextFunction } from "express";
@@ -84,8 +85,8 @@ export function moduleGuard(moduloId: ModuloId) {
       next();
     } catch (err) {
       req.log?.error({ err }, "moduleGuard: erro ao verificar módulos");
-      // Fail-open: em caso de erro de BD, não bloquear a rota
-      next();
+      // Fail-closed: sem conseguir confirmar a licença, a rota NÃO é liberada.
+      res.status(503).json({ error: "Não foi possível confirmar os módulos da clínica. Tente novamente.", modulo: moduloId });
     }
   };
 }

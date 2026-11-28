@@ -8,6 +8,8 @@
 
 export type ConfirmSubstanceApplicationBody = {
   substanceId: number;
+  /** Identificador da ocorrência específica, obrigatório quando há mais de uma aplicação da mesma substância na sessão. */
+  applicationId?: number;
   confirmed: boolean;
   notes?: string;
 };

@@ -1,0 +1,24 @@
+---
+name: Agenda — barra congelada, faixa de agendas e cartão rápido
+description: Lições de layout/teste da tela /agenda (barra sticky, chips de agendas, hover card)
+---
+A tela /agenda tem um bloco sticky (comandos + faixa de agendas contínua com +/− que abre gaveta) e um cartão rápido por hover nos eventos da linha do tempo.
+
+**Why:** pedido do CEO de tela menos carregada, controles congelados e resumo ao passar o mouse; padrão registrado no skill-layout-paxter (Padrão 42).
+
+**How to apply:**
+- Sticky dentro do contêiner de rolagem do Layout (que tem padding) precisa de `top` NEGATIVO igual ao padding (-1rem / -1.5rem), senão para 24px abaixo do topo e cobre o conteúdo.
+- `scroll-snap` na faixa de chips esconde o rótulo do primeiro grupo: não usar.
+- Testes e2e do filtro agora precisam clicar `filtro-agendas-recolher` (+) antes de usar o painel por grupo; os chips (`chip-agenda-<chave>`, role checkbox) ficam na barra minimizada.
+- O dev server é lento no primeiro carregamento (goto ate ~45s com 3 navegações): rodar specs com `--timeout=120000 --workers=1`, ou em segundo plano com log.
+- Hover card do Radix ignora toque; no celular o clique abre os detalhes como antes.
+- Aviso que aparece/some ao lado de uma faixa clicavel precisa de largura FIXA: senao o 2o clique do duplo clique cai no aviso (dblclick falhava).
+- Ocupacao "N/M" = vagas ocupadas / vagas das janelas (agenda_windows) no periodo, calculada no servidor (GET /agenda/ocupacao, funcao pura); nao usa o motor de slots (cadeia/Google).
+- Se o preview cair ("ERR_CONNECTION_REFUSED" no e2e), reiniciar os workflows padcom e api-server antes de culpar o codigo.
+- Ocupacao no botao da agenda: porcentagem (Percentual/Numeral) + sigla OCUP no canto direito; cor da agenda so no rodape de vidro acetinado (CEO reprovou faixa lateral e retirou a barra OCUPADO n/m).
+- Ao reescrever CSS por fatia (index..index) conferir se nao ha regras irmas no meio: uma troca apagou .ag-vidro e .ag-ocup sem aviso; apos editar, grep das classes criticas. Vidro aprovado = 0.72rem de altura, nao mudar.
+- Botao da agenda (decisao CEO): linha 1 = so categoria profissional (Medico/Enfermeira/Biomedico); linha 2 menor, nome sem repetir categoria; nome inteiro na nuvenzinha.
+- Nuvenzinha do botao de agenda (decisao CEO): translucida, canto inferior direito, 3,5 s e esvanece, numero em algarismos, Tempo e Endereco (so externo); sem vagas = 0%, falha = travessao.
+- Nuvenzinha: dura ~2,2 s (3,5 s era demais), tirar o mouse nao fecha, sem % na ocupacao; endereco da sede vem de /agenda/resources (locationAddressText, so modality=local + local presencial na sede). Apos codegen, restaurar lib/api-zod/src/index.ts para so 'export * from ./generated/api' (git checkout bloqueado: reescrever o arquivo).
+- Apelido da agenda (coluna display_name, ALTER aditivo): botao usa apelido cadastrado, senao sugestao derivada do nome; nome completo = referencia do Google, nunca muda. Nuvem: sem titulo, 2 colunas, 2 s.
+- Grade da Agenda: cabecalho do dia = folhinha (faixa azul-marinho clara + creme), compromisso pastel com moldura da mesma cor em up bevel, Agora/som no canto da grade, sem contador nem olho na barra de agendas.

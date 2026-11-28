@@ -14,6 +14,11 @@ import {
 } from "@workspace/db";
 import { buildFindings, type AdapterQuestion } from "../lib/anamnese-findings-adapter";
 import { verifyPortalToken } from "../lib/portal-token";
+import { sql } from "drizzle-orm";
+import {
+  ehCirurgia, ehIdentidade, garantirColunasSexoReferencia, gravarSexoSeVazio, SEXO_QUESTION_ID, sexoDaResposta, sexoDoCadastro, fatosBloqueados, garantirIndiceRascunhoUnico, garantirTabelaCorrecoes, idadeDe, identidadeDoCadastro, retiraFato,
+  type ValorResposta,
+} from "../lib/anamnese-retorno";
 
 const router: IRouter = Router();
 
@@ -88,11 +93,22 @@ async function loadState(session: AnamneseSessionRow) {
   const refusals = refusalsRaw.filter(
     (r) => !(r.escopo === "bloco" && blocosAlarme.has(r.alvo)),
   );
-  return { session, answers, refusals, findings, notes };
+  // Retorno: so em sessao amarrada a cliente (token verificado). Identidade vem do cadastro;
+  // fatos de cirurgia ja registrados vem como bloqueados (somente leitura).
+  let retorno: unknown = null;
+  if (session.clientId !== null) {
+    const identidade = await identidadeDoCadastro(session.clientId);
+    const bloqueados = await fatosBloqueados(session.clientId, session.id);
+    await garantirTabelaCorrecoes();
+    const correcoes = (await db.execute(sql`SELECT id, question_row_id AS "questionRowId", texto, status, criado_em AS "criadoEm" FROM anamnese_correcoes WHERE client_id=${session.clientId} ORDER BY id DESC LIMIT 50`)).rows;
+    retorno = { identidade, bloqueados: Object.fromEntries(bloqueados), correcoes };
+  }
+  return { session, answers, refusals, findings, notes, retorno };
 }
 
 // GET /anamnese-v2/questions — questionario completo
 router.get("/anamnese-v2/questions", async (req, res) => {
+  await garantirColunasSexoReferencia();
   const rows = await db
     .select({
       id: anamneseQuestionarioTable.id,
@@ -110,6 +126,7 @@ router.get("/anamnese-v2/questions", async (req, res) => {
       observacao: anamneseQuestionarioTable.observacao,
       escalaValidada: anamneseQuestionarioTable.escalaValidada,
       aplicavelEm: anamneseQuestionarioTable.aplicavelEm,
+      referencia: anamneseQuestionarioTable.referencia,
       videoUrl: anamneseQuestionarioTable.videoUrl,
       dependeDe: anamneseQuestionarioTable.dependeDe,
       audioUrl: anamneseQuestionarioTable.audioUrl,
@@ -145,6 +162,8 @@ router.post("/anamnese-v2/sessions", async (req, res) => {
         and(
           eq(anamneseSessionsTable.clientId, clientId),
           eq(anamneseSessionsTable.status, "rascunho"),
+          // Nunca devolver ao paciente a sessao de CONSULTA (token do profissional).
+          eq(anamneseSessionsTable.mode, "paciente"),
         ),
       )
       .orderBy(asc(anamneseSessionsTable.id))
@@ -155,17 +174,30 @@ router.post("/anamnese-v2/sessions", async (req, res) => {
     }
   }
 
+  // Rota publica: o modo e sempre "paciente" (o corpo nao escolhe). Sessao de consulta so nasce na rota do colaborador.
+  await garantirIndiceRascunhoUnico();
+  let empresaId: number | null = null;
+  if (clientId !== null) {
+    empresaId = ((await db.execute(sql`SELECT empresa_id FROM clients WHERE id=${clientId}`)).rows[0] as { empresa_id: number | null } | undefined)?.empresa_id ?? null;
+  }
   const token = randomBytes(24).toString("hex");
   const [s] = await db
     .insert(anamneseSessionsTable)
-    .values({
-      token,
-      clientId,
-      mode: parsed.data.mode ?? "paciente",
-    })
+    .values({ token, clientId, mode: "paciente" })
+    .onConflictDoNothing()
     .returning();
+  // empresa_id existe so no banco (fora do schema Drizzle): gravado por SQL.
+  if (s && empresaId !== null) await db.execute(sql`UPDATE anamnese_sessions SET empresa_id=${empresaId} WHERE id=${s.id}`);
+  if (!s && clientId !== null) {
+    // Corrida: outra requisicao criou o rascunho primeiro; devolve-o.
+    const [ja] = await db.select().from(anamneseSessionsTable)
+      .where(and(eq(anamneseSessionsTable.clientId, clientId), eq(anamneseSessionsTable.status, "rascunho"), eq(anamneseSessionsTable.mode, "paciente")))
+      .limit(1);
+    if (ja) return res.status(200).json(ja);
+  }
+  if (!s) return res.status(500).json({ error: "Nao foi possivel abrir a sessao" });
   req.log.info({ sessionId: s.id, mode: s.mode, bound: clientId !== null }, "anamnese-v2 session created");
-  return res.status(201).json(s);
+  return res.status(201).json(empresaId !== null ? { ...s, empresaId } : s);
 });
 
 // GET /anamnese-v2/sessions/:token — estado completo
@@ -179,10 +211,24 @@ router.get("/anamnese-v2/sessions/:token", async (req, res) => {
 router.patch("/anamnese-v2/sessions/:token/answers", async (req, res) => {
   const session = await findSession(req.params.token);
   if (!session) return res.status(404).json({ error: "Sessao nao encontrada" });
-  if (session.status === "concluida") return res.status(409).json({ error: "Sessao ja concluida" });
+  if (session.status !== "rascunho") return res.status(409).json({ error: "Sessao ja encerrada" });
   const parsed = answerInput.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
   if (parsed.data.valor === undefined) return res.status(400).json({ error: "valor obrigatorio" });
+  if (session.clientId !== null) {
+    if (ehIdentidade(parsed.data.questionRowId)) {
+      return res.status(409).json({ codigo: "IDENTIDADE_DO_CADASTRO", error: "Nome, CPF e idade vêm do cadastro e não são respondidos aqui." });
+    }
+    if (parsed.data.questionRowId === SEXO_QUESTION_ID && (await sexoDoCadastro(session.clientId)) !== null) {
+      return res.status(409).json({ codigo: "SEXO_DO_CADASTRO", error: "O sexo biológico vem do cadastro e não é alterado aqui. Para a identidade de gênero, use a pergunta própria." });
+    }
+    if (ehCirurgia(parsed.data.questionRowId)) {
+      const base = (await fatosBloqueados(session.clientId, session.id)).get(parsed.data.questionRowId);
+      if (retiraFato(base, parsed.data.valor as ValorResposta)) {
+        return res.status(409).json({ codigo: "RETIRADA_BLOQUEADA", error: "Fatos já registrados não podem ser retirados. Use 'Comunicar erro' para pedir correção a um profissional." });
+      }
+    }
+  }
   try {
     const [row] = await db
       .insert(anamneseSessionAnswersTable)
@@ -219,6 +265,7 @@ router.patch("/anamnese-v2/sessions/:token/answers", async (req, res) => {
 router.post("/anamnese-v2/sessions/:token/refusals", async (req, res) => {
   const session = await findSession(req.params.token);
   if (!session) return res.status(404).json({ error: "Sessao nao encontrada" });
+  if (session.status !== "rascunho") return res.status(409).json({ error: "Sessao ja encerrada" });
   const parsed = refusalInput.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
   // LINHA VERMELHA: bloco que contem pergunta de alarme NUNCA pode ser recusado.
@@ -270,6 +317,7 @@ router.post("/anamnese-v2/sessions/:token/refusals", async (req, res) => {
 router.post("/anamnese-v2/sessions/:token/refusals/remove", async (req, res) => {
   const session = await findSession(req.params.token);
   if (!session) return res.status(404).json({ error: "Sessao nao encontrada" });
+  if (session.status !== "rascunho") return res.status(409).json({ error: "Sessao ja encerrada" });
   const parsed = refusalTarget.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
   await db
@@ -288,6 +336,7 @@ router.post("/anamnese-v2/sessions/:token/refusals/remove", async (req, res) => 
 router.post("/anamnese-v2/sessions/:token/notes", async (req, res) => {
   const session = await findSession(req.params.token);
   if (!session) return res.status(404).json({ error: "Sessao nao encontrada" });
+  if (session.status !== "rascunho") return res.status(409).json({ error: "Sessao ja encerrada" });
   const parsed = groupNoteInput.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
   const [row] = await db
@@ -296,7 +345,8 @@ router.post("/anamnese-v2/sessions/:token/notes", async (req, res) => {
       sessionId: session.id,
       grupo: parsed.data.grupo,
       observacao: parsed.data.observacao,
-      autorProfId: parsed.data.autorProfId ?? null,
+      // rota publica: autoria nunca vem do corpo (anti-falsificacao)
+      autorProfId: null,
     })
     .returning();
   return res.json(row);
@@ -312,6 +362,22 @@ router.post("/anamnese-v2/sessions/:token/complete", async (req, res) => {
       .select({ questionRowId: anamneseSessionAnswersTable.questionRowId, valor: anamneseSessionAnswersTable.valor })
       .from(anamneseSessionAnswersTable)
       .where(eq(anamneseSessionAnswersTable.sessionId, session.id));
+    // Idade calculada da data de nascimento do cadastro (nunca digitada) em sessao amarrada.
+    if (session.clientId !== null) {
+      const c = (await tx.execute(sql`SELECT birth_date FROM clients WHERE id=${session.clientId}`)).rows[0] as { birth_date: string | null } | undefined;
+      const idade = idadeDe(c?.birth_date);
+      if (idade !== null) {
+        const valor = { tipo: "number", numero: idade };
+        await tx.execute(sql`INSERT INTO anamnese_session_answers (session_id, question_row_id, pergunta_id, valor, tempo_seg) SELECT ${session.id}, 41, 'A03', ${JSON.stringify(valor)}::jsonb, 0 WHERE EXISTS (SELECT 1 FROM anamnese_questionario WHERE id=41) ON CONFLICT (session_id, question_row_id) DO UPDATE SET valor=EXCLUDED.valor, updated_at=now()`);
+        const i = answers.findIndex((a) => a.questionRowId === 41);
+        if (i >= 0) answers[i] = { questionRowId: 41, valor }; else answers.push({ questionRowId: 41, valor });
+      }
+    }
+    // Sexo biologico: se o cadastro ainda nao tem, grava a resposta da A04 UMA vez (nunca sobrescreve).
+    if (session.clientId !== null) {
+      const sx = sexoDaResposta(answers.find((a) => a.questionRowId === SEXO_QUESTION_ID)?.valor);
+      if (sx) await gravarSexoSeVazio(session.clientId, sx);
+    }
     const questions: AdapterQuestion[] = await tx
       .select({
         id: anamneseQuestionarioTable.id,
@@ -348,6 +414,20 @@ router.post("/anamnese-v2/sessions/:token/complete", async (req, res) => {
   const fresh = await findSession(req.params.token);
   req.log.info({ sessionId: session.id }, "anamnese-v2 session completed");
   return res.json(await loadState(fresh ?? session));
+});
+
+// POST /anamnese-v2/sessions/:token/correcao — cliente comunica erro em fato registrado.
+// Nao altera nada: abre pedido para um profissional resolver, com trilha.
+router.post("/anamnese-v2/sessions/:token/correcao", async (req, res) => {
+  const session = await findSession(req.params.token);
+  if (!session) return res.status(404).json({ error: "Sessao nao encontrada" });
+  if (session.clientId === null) return res.status(403).json({ error: "Identifique-se para comunicar um erro." });
+  const parsed = z.object({ questionRowId: z.number().int(), texto: z.string().trim().min(3).max(2000) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Descreva o erro com pelo menos 3 caracteres." });
+  await garantirTabelaCorrecoes();
+  const emp = (await db.execute(sql`SELECT empresa_id FROM clients WHERE id=${session.clientId}`)).rows[0] as { empresa_id: number | null } | undefined;
+  const row = (await db.execute(sql`INSERT INTO anamnese_correcoes (client_id, empresa_id, session_id, question_row_id, texto) VALUES (${session.clientId}, ${emp?.empresa_id ?? null}, ${session.id}, ${parsed.data.questionRowId}, ${parsed.data.texto}) RETURNING id, status`)).rows[0];
+  return res.status(201).json(row);
 });
 
 export default router;

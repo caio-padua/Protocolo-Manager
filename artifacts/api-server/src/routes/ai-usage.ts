@@ -91,8 +91,16 @@ router.get(
       `);
 
       const totais = totaisR.rows[0] as Record<string, number | string>;
-      const custoUsd  = parseFloat(String(totais.custo_usd  ?? 0));
-      const custoBrl  = parseFloat((custoUsd * 5.5).toFixed(2));
+      const custoUsd = parseFloat(String(totais.custo_usd ?? 0));
+      const catalogoExiste = await db.execute(sql`SELECT to_regclass('cat_config') IS NOT NULL AS existe`);
+      let cambioEfetivo: number | null = null;
+      if (catalogoExiste.rows[0]?.existe === true) {
+        const cambio = await db.execute(sql`SELECT valor FROM cat_config WHERE chave = 'cambio_efetivo' LIMIT 1`);
+        const raw = (cambio.rows[0] as { valor?: unknown } | undefined)?.valor;
+        const parsed = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : null;
+        if (parsed != null && Number.isFinite(parsed) && parsed > 0) cambioEfetivo = parsed;
+      }
+      const custoBrl = cambioEfetivo == null ? null : parseFloat((custoUsd * cambioEfetivo).toFixed(2));
 
       res.json({
         ok: true,
@@ -103,6 +111,8 @@ router.get(
         total_output_tokens: Number(totais.output_tokens ?? 0),
         total_custo_usd: parseFloat(custoUsd.toFixed(6)),
         total_custo_brl: custoBrl,
+        cambio_efetivo: cambioEfetivo,
+        custo_brl_situacao: cambioEfetivo == null ? "nao_informado" : "calculado_com_cambio_efetivo",
       });
     } catch (err) {
       res.status(500).json({

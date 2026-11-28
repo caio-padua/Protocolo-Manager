@@ -13,7 +13,15 @@
 import { PDFDocument, PDFFont, PDFImage, PDFPage, StandardFonts, rgb } from "pdf-lib";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { logger } from "../logger";
+import {
+  PAXMED_LIMITE_CONTEUDO,
+  carimbarRodapesProva,
+  desenharCabecalhoProva,
+  prepararVisualProva,
+} from "./paxmed-modelo-2b-prova";
+import type { TextosEmpresa2b } from "./paxmed-2b-limites";
 
 // ---- Paleta da marca (espelha os tokens do front em artifacts/padcom/src/index.css) ----
 export const COR = {
@@ -46,7 +54,7 @@ export interface CabecalhoOpts {
 }
 
 export interface RodapeOpts {
-  legenda?: string; // default "PAXTER · Motor Clínico — Protocolos Injetáveis"
+  legenda?: string; // default "PAXMED · Motor Clínico — Protocolos Injetáveis"
 }
 
 // Resolve um asset de marca. Em produção/dev-workflow o servidor roda do bundle
@@ -54,7 +62,8 @@ export interface RodapeOpts {
 // Em execução avulsa via tsx (fonte), o __dirname é src/lib/documentos, então
 // caímos no diretório de assets do pacote (../../../assets). Lança se faltar nos dois.
 function lerAsset(nome: string): Uint8Array {
-  const candidatos = [path.join(__dirname, "assets", nome), path.resolve(__dirname, "../../../assets", nome)];
+  const diretorio = path.dirname(fileURLToPath(import.meta.url));
+  const candidatos = [path.join(diretorio, "assets", nome), path.resolve(diretorio, "../../../assets", nome)];
   let ultimoErro: unknown;
   for (const p of candidatos) {
     try {
@@ -84,6 +93,8 @@ export interface Fabrica {
   fontBold: PDFFont; // Helvetica-Bold
   margem: number;
   larguraConteudo: number;
+  /** Limite inferior da área de conteúdo, em pontos a partir da base. */
+  limiteInferior: number;
   /** Adiciona uma página nova com o cabeçalho-mastro desenhado; devolve o y inicial do conteúdo. */
   novaPagina(opts: CabecalhoOpts): { page: PDFPage; y: number };
   /** Desenha o cabeçalho-mastro numa página já existente; devolve o y inicial do conteúdo. */
@@ -101,15 +112,26 @@ export interface Fabrica {
 }
 
 // Cria uma Fábrica ligada a um documento novo, com fontes e marca já embutidas.
-export async function iniciarFabrica(): Promise<Fabrica> {
+export async function iniciarFabrica(opts?: {
+  modeloProva?: "paxmed-2b-sintetico";
+  identidadeProva?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array };
+}): Promise<Fabrica> {
+  const prova2b = opts?.modeloProva === "paxmed-2b-sintetico";
+  if (opts?.identidadeProva && !prova2b) throw new Error("Identidade de prova exige o Modelo 2B de teste.");
+  if (prova2b && process.env.NODE_ENV === "production") {
+    throw new Error("O Modelo 2B de prova não pode ser usado em produção.");
+  }
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const identidadeProvaPersonalizada = Boolean(opts?.identidadeProva);
+  const visualProva = prova2b ? await prepararVisualProva(doc, opts?.identidadeProva) : null;
 
   const margem = PAGINA.margem;
   const larguraPagina = PAGINA.larguraRetrato;
   const alturaPagina = PAGINA.alturaRetrato;
   const larguraConteudo = larguraPagina - margem * 2;
+  const limiteInferior = prova2b ? PAXMED_LIMITE_CONTEUDO : 72;
 
   // Pré-embute as marcas (embedPng é assíncrono) para o desenho do cabeçalho ser
   // síncrono. Degrada para texto se faltar o asset (registrado em log).
@@ -130,6 +152,11 @@ export async function iniciarFabrica(): Promise<Fabrica> {
 
   function desenharCabecalho(page: PDFPage, opts: CabecalhoOpts): number {
     const emissor = opts.emissor ?? "paxter";
+    if (visualProva) {
+      if (!identidadeProvaPersonalizada && emissor !== "instituto_padua") throw new Error("A prova do Modelo 2B é exclusiva do Instituto Pádua.");
+      emissorDoc = emissor;
+      return desenharCabecalhoProva(page, visualProva, font, fontBold, opts.titulo, opts.subtitulo ?? "");
+    }
     emissorDoc = emissor;
     const topo = alturaPagina;
     const bandaY = topo - MASTRO_ALTURA;
@@ -154,7 +181,7 @@ export async function iniciarFabrica(): Promise<Fabrica> {
       page.drawImage(marca, { x: margem, y, width: w, height: h });
     } else {
       // Degradação: nome em texto ouro (último recurso, registrado em log).
-      const nome = emissor === "instituto_padua" ? "INSTITUTO PÁDUA" : "PAXTER";
+      const nome = emissor === "instituto_padua" ? "INSTITUTO PÁDUA" : "PAXMED";
       page.drawText(nome, {
         x: margem,
         y: bandaY + MASTRO_ALTURA / 2 - 8,
@@ -208,10 +235,14 @@ export async function iniciarFabrica(): Promise<Fabrica> {
   function carimbarRodape(opts?: RodapeOpts): void {
     if (rodapeCarimbado) return; // idempotência: nunca carimba duas vezes
     rodapeCarimbado = true;
+    if (visualProva) {
+      carimbarRodapesProva(doc, visualProva, font);
+      return;
+    }
     const legendaPadrao =
       emissorDoc === "instituto_padua"
         ? "Instituto Pádua — Protocolos Injetáveis"
-        : "PAXTER · Motor Clínico — Protocolos Injetáveis";
+        : "PAXMED · Motor Clínico — Protocolos Injetáveis";
     const legenda = opts?.legenda ?? legendaPadrao;
     const paginas = doc.getPages();
     const total = paginas.length;
@@ -242,6 +273,7 @@ export async function iniciarFabrica(): Promise<Fabrica> {
     fontBold,
     margem,
     larguraConteudo,
+    limiteInferior,
     novaPagina,
     desenharCabecalho,
     carimbarRodape,

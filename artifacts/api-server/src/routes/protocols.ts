@@ -1,16 +1,27 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
-import { eq, and, inArray, desc } from "drizzle-orm";
+import { eq, and, inArray, desc, sql } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
-import { db, protocolsTable, protocolItemsTable, clientsTable, substancesTable, professionalsTable, sessionsTable, substanceApplicationsTable, paymentsTable, assinaturaSolicitacoesTable, assinaturaTemplatesTable, protocolEmissoesTable, locationProfessionalsTable } from "@workspace/db";
+import { db, protocolsTable, protocolItemsTable, clientsTable, substancesTable, substanceBlendComponentsTable, professionalsTable, sessionsTable, substanceApplicationsTable, paymentsTable, assinaturaSolicitacoesTable, assinaturaTemplatesTable, protocolEmissoesTable, locationProfessionalsTable } from "@workspace/db";
+import { buildProtocolSubstanceCatalogSnapshot } from "../lib/protocol-substance-catalog";
+import { substanceDurationMinutes } from "../lib/substance-duration";
+import {
+  MENSAGEM_DOSE_CLINICA_REVISAO,
+  detalheCatalogoSeguroParaProtocolo,
+  dosePrescritaParaDocumento,
+  doseTemApresentacaoProibida,
+  nomeSubstanciaNoProtocolo,
+} from "../lib/protocol-dose-presentation";
 import { enviarAssinatura } from "../lib/assinatura/service";
 import { resolverCodigosCadernos } from "../lib/cadernos-resolver";
+import { ClinicalIdentityError } from "../lib/clinical-emitter";
+import { resolveProtocolDoctor, withLoggedDoctorCertificate } from "../lib/prescription-signing";
 import { generateProtocolDocumentPdf, generatePhysicalRASPdf, getCertInfo } from "../lib/pdf-signer";
 import { generateProtocolLetterPdf, buildCartaTratamentoDto } from "../lib/pdf-carta-tratamento";
+import { contarAplicacoesRealizadas } from "../lib/contagem-aplicacoes-realizadas";
 import {
   ensureClientFolderStructure,
   uploadFileToDrive,
-  uploadToFolderById,
   shareWithClient,
   isDriveConnected,
   formatPhysicalRASFileName,
@@ -20,9 +31,16 @@ import { postSlackAlert } from "../lib/slack-reporter";
 import { notifySlackRasFapFailure } from "../lib/ras-fap-alert";
 import { buildEventsForSessions } from "../lib/session-ics";
 import { buildVCalendar } from "../lib/ics";
+import { buildExactProtocolSchedule } from "../lib/protocol-exact-schedule";
+import { loadProtocolRasGrid } from "../lib/protocol-ras-grid";
+import { loadProtocolRasRegistros } from "../lib/ras-fap-registros";
 import { requireCollaborator } from "./collaborator";
+import { ClientProtocolAgendaError, loadClientProtocolAgendas } from "../lib/protocol-client-agendas";
+import { archiveClinicalDocument, finalizeArchivedClinicalDocument } from "../lib/clinical-document-archive";
+import { brtISODate } from "../lib/brt";
 import { isGmailConnected } from "../lib/google-gmail";
 import { resolveClinicalMember } from "../lib/clinical-emitter";
+import { comNomeDaClinica, unidadePertenceAClinica, MENSAGEM_UNIDADE_FORA_DA_CLINICA } from "../lib/clinic-unit";
 import {
   ListProtocolsQueryParams,
   CreateProtocolBody,
@@ -30,6 +48,7 @@ import {
   UpdateProtocolParams,
   UpdateProtocolBody,
   ValidateProtocolParams,
+  ValidateProtocolQueryParams,
   GenerateProtocolICSParams,
 } from "@workspace/api-zod";
 
@@ -54,6 +73,8 @@ export async function ensureProtocolEmissoesTable(): Promise<void> {
 
 const router: IRouter = Router();
 router.use(moduleGuard("protocolos"));
+
+class ProtocolValidationConflict extends Error {}
 
 type ClinicalMember = Awaited<ReturnType<typeof resolveClinicalMember>>;
 
@@ -81,7 +102,7 @@ async function authorizeProtocolClient(
   }
 }
 
-async function authorizeProtocol(
+export async function authorizeProtocol(
   req: import("express").Request,
   protocol: typeof protocolsTable.$inferSelect,
   res: import("express").Response,
@@ -92,7 +113,16 @@ async function authorizeProtocol(
     res.status(404).json({ error: "Registro não encontrado" });
     return null;
   }
-  return member;
+  // A clínica dos documentos é a empresa do cliente, não o nome da agenda.
+  try {
+    return await comNomeDaClinica(member);
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) {
+      res.status(error.status).json({ error: error.message });
+      return null;
+    }
+    throw error;
+  }
 }
 
 async function professionalLinkedToClinic(professionalId: number, locationId: number): Promise<boolean> {
@@ -110,6 +140,14 @@ async function professionalLinkedToClinic(professionalId: number, locationId: nu
     ))
     .limit(1);
   return Boolean(membership);
+}
+
+async function companyClientDriveRoot(empresaId: number): Promise<string | null> {
+  const result = await db.execute(
+    sql`SELECT drive_clientes_folder_id FROM empresas WHERE id = ${empresaId} LIMIT 1`,
+  );
+  const value = (result.rows as Array<{ drive_clientes_folder_id?: unknown }>)[0]?.drive_clientes_folder_id;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelect) {
@@ -163,6 +201,8 @@ async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelec
       id: session.id,
       protocolId: session.protocolId,
       clientId: session.clientId,
+      resourceId: session.resourceId ?? null,
+      durationMinutes: session.durationMinutes ?? null,
       clientName: client?.name ?? "",
       clientCpf: client?.cpf ?? "",
       scheduledDate: session.scheduledDate,
@@ -177,9 +217,9 @@ async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelec
       substanceApplications: applications.map(app => ({
         id: app.id,
         substanceId: app.substanceId,
-        substanceName: appSubstances[app.substanceId]?.name ?? "",
+        substanceName: nomeSubstanciaNoProtocolo(appSubstances[app.substanceId]?.name),
         substanceColor: appSubstances[app.substanceId]?.color ?? "#888888",
-        dose: app.dose,
+        dose: dosePrescritaParaDocumento(app.dose),
         sessionNumber: app.sessionNumber,
         totalSessions: app.totalSessions,
         status: app.status,
@@ -206,6 +246,8 @@ async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelec
     title: protocol.title,
     status: protocol.status,
     startDate: protocol.startDate,
+    scheduledTime: protocol.scheduledTime,
+    schedulingMode: protocol.schedulingMode,
     endDate: protocol.endDate ?? null,
     professionalId: protocol.professionalId ?? null,
     professionalName,
@@ -229,14 +271,16 @@ async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelec
       cadernosCount: e.cadernosCount,
     })),
     items: items.map(item => {
-      const unitPrice = item.unitPrice || substances[item.substanceId]?.pricePerUnit || 0;
+      const catalogSnapshot = item.catalogSnapshot;
+      const currentSubstance = substances[item.substanceId];
+      const unitPrice = item.unitPrice || currentSubstance?.pricePerUnit || 0;
       const lineTotal = unitPrice * item.totalSessions;
       return {
         id: item.id,
         substanceId: item.substanceId,
-        substanceName: substances[item.substanceId]?.name ?? "",
-        substanceColor: substances[item.substanceId]?.color ?? "#888888",
-        dose: item.dose,
+        substanceName: nomeSubstanciaNoProtocolo(catalogSnapshot?.name ?? currentSubstance?.name),
+        substanceColor: catalogSnapshot?.color ?? currentSubstance?.color ?? "#888888",
+        dose: dosePrescritaParaDocumento(item.dose),
         unitPrice,
         lineTotal,
         totalSessions: item.totalSessions,
@@ -244,6 +288,7 @@ async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelec
         intervalDays: item.intervalDays,
         startDate: item.startDate,
         frequency: item.frequency,
+        catalogSnapshot: catalogSnapshot ?? null,
       };
     }),
     sessions: formattedSessions,
@@ -307,12 +352,40 @@ router.post("/protocols", requireCollaborator, async (req, res): Promise<void> =
   }
 
   const { items, ...protocolData } = parsed.data;
+  if (items.some(item => !item.dose.trim())) {
+    res.status(400).json({ error: "Informe a dose por aplicação de cada substância." });
+    return;
+  }
+  if (items.some(item =>
+    doseTemApresentacaoProibida(item.dose) || !dosePrescritaParaDocumento(item.dose),
+  )) {
+    res.status(400).json({ code: "dose_clinica_revisao", error: MENSAGEM_DOSE_CLINICA_REVISAO });
+    return;
+  }
   const member = await authorizeProtocolClient(req, protocolData.clientId, res);
   if (!member) return;
+  let clientAgendas;
+  try {
+    clientAgendas = await loadClientProtocolAgendas(protocolData.clientId, member.clinic.empresaId);
+  } catch (error) {
+    if (error instanceof ClientProtocolAgendaError) {
+      res.status(error.status).json({ code: error.code, error: error.message });
+      return;
+    }
+    throw error;
+  }
+  if (protocolData.schedulingMode === "exact") {
+    try {
+      buildExactProtocolSchedule(protocolData.startDate, items);
+    } catch {
+      res.status(400).json({ error: "Confira as datas, as substâncias e os intervalos do protocolo." });
+      return;
+    }
+  }
 
-  if (protocolData.professionalId != null &&
-      !await professionalLinkedToClinic(protocolData.professionalId, member.clinic.id)) {
-    res.status(403).json({ error: "O profissional selecionado não está vinculado a esta clínica." });
+  if (!protocolData.professionalId ||
+      !clientAgendas.doctors.some(professional => professional.id === protocolData.professionalId)) {
+    res.status(403).json({ code: "medico_fora_do_cadastro", error: "Selecione um médico vinculado à agenda médica cadastrada para este cliente." });
     return;
   }
 
@@ -323,20 +396,47 @@ router.post("/protocols", requireCollaborator, async (req, res): Promise<void> =
     res.status(400).json({ error: "O profissional de enfermagem selecionado é inválido." });
     return;
   }
-  if (rawNurseId != null && !await professionalLinkedToClinic(rawNurseId, member.clinic.id)) {
-    res.status(403).json({ error: "O profissional de enfermagem não está vinculado a esta clínica." });
+  if (rawNurseId != null && !clientAgendas.nurses.some(professional => professional.id === rawNurseId)) {
+    res.status(403).json({ code: "enfermagem_fora_do_cadastro", error: "A profissional de enfermagem não está vinculada à agenda cadastrada para este cliente." });
     return;
   }
 
   const totalSessions = Math.max(...items.map((i: { totalSessions: number }) => i.totalSessions), 0);
 
-  // Busca o valor da ampola de cada substância para montar o orçamento.
+  // O identificador exato selecionado define o registro; nome não é chave.
   const subIds = [...new Set(items.map((i: { substanceId: number }) => i.substanceId))];
+  const catalogRows = await db.select().from(substancesTable)
+    .where(inArray(substancesTable.id, subIds));
+  const catalogById = new Map(catalogRows.map(substance => [substance.id, substance]));
+  const missingSubstanceIds = subIds.filter(id => !catalogById.has(id));
+  if (missingSubstanceIds.length > 0) {
+    res.status(422).json({
+      code: "substancia_nao_encontrada",
+      error: "Uma das substâncias selecionadas não existe mais no cadastro. Atualize a lista antes de criar o protocolo.",
+    });
+    return;
+  }
+
+  const componentRows = await db.select().from(substanceBlendComponentsTable)
+    .where(inArray(substanceBlendComponentsTable.substanceId, subIds));
+  const componentsBySubstanceId = new Map<number, typeof componentRows>();
+  for (const component of componentRows) {
+    const current = componentsBySubstanceId.get(component.substanceId) ?? [];
+    current.push(component);
+    componentsBySubstanceId.set(component.substanceId, current);
+  }
+
   const priceMap: Record<number, number> = {};
   for (const sid of subIds) {
-    const [s] = await db.select().from(substancesTable).where(eq(substancesTable.id, sid));
-    priceMap[sid] = s?.pricePerUnit ?? 0;
+    priceMap[sid] = catalogById.get(sid)!.pricePerUnit;
   }
+  const catalogSnapshotById = new Map(subIds.map(id => {
+    const substance = catalogById.get(id)!;
+    return [id, buildProtocolSubstanceCatalogSnapshot(
+      substance,
+      componentsBySubstanceId.get(id) ?? [],
+    )] as const;
+  }));
   const computedBudget = items.reduce(
     (sum: number, i: { substanceId: number; totalSessions: number }) =>
       sum + (priceMap[i.substanceId] ?? 0) * i.totalSessions,
@@ -345,8 +445,11 @@ router.post("/protocols", requireCollaborator, async (req, res): Promise<void> =
   const finalTotalValue =
     protocolData.totalValue && protocolData.totalValue > 0 ? protocolData.totalValue : computedBudget;
 
-  const [protocol] = await db.insert(protocolsTable).values({
+  const protocol = await db.transaction(async tx => {
+  const [created] = await tx.insert(protocolsTable).values({
     ...protocolData,
+    serviceType: "clinic",
+    unit: clientAgendas.nursingAgenda.locationName,
     totalValue: finalTotalValue,
     totalSessions,
     empresaId: member.clinic.empresaId,
@@ -354,18 +457,21 @@ router.post("/protocols", requireCollaborator, async (req, res): Promise<void> =
     ...(rawNurseServiceFee != null && !isNaN(rawNurseServiceFee) ? { nurseServiceFee: rawNurseServiceFee } : {}),
   }).returning();
 
-  await Promise.all(items.map((item: { substanceId: number; dose: string; totalSessions: number; intervalDays: number; frequency: string }) =>
-    db.insert(protocolItemsTable).values({
-      protocolId: protocol.id,
+  await Promise.all(items.map((item: { substanceId: number; dose: string; totalSessions: number; intervalDays: number; frequency: string; startDate?: string }) =>
+    tx.insert(protocolItemsTable).values({
+      protocolId: created.id,
       substanceId: item.substanceId,
       dose: item.dose,
       unitPrice: priceMap[item.substanceId] ?? 0,
       totalSessions: item.totalSessions,
       intervalDays: item.intervalDays,
-      startDate: protocolData.startDate,
+      startDate: item.startDate ?? protocolData.startDate,
       frequency: item.frequency,
+      catalogSnapshot: catalogSnapshotById.get(item.substanceId)!,
     })
   ));
+  return created;
+  });
 
   const result = await buildProtocolResponse(protocol);
   res.status(201).json(result);
@@ -383,7 +489,15 @@ router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res):
     res.status(404).json({ error: "Protocol not found" });
     return;
   }
-  if (!await authorizeProtocol(req, protocol, res)) return;
+  const clinicalMember = await authorizeProtocol(req, protocol, res);
+  if (!clinicalMember) return;
+  if (!(await unidadePertenceAClinica(clinicalMember.clinic.empresaId, protocol.unit, clinicalMember.clinic.name))) {
+    res.status(409).json({
+      code: "protocol_clinic_unit_mismatch",
+      error: `${MENSAGEM_UNIDADE_FORA_DA_CLINICA} Confira o vínculo antes de emitir.`,
+    });
+    return;
+  }
 
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
   if (!client) {
@@ -391,19 +505,32 @@ router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res):
     return;
   }
 
-  let professionalName = "Profissional";
+  let professionalName: string;
   let professionalCrm: string | null = null;
   let nurseName: string | undefined;
-  if (protocol.professionalId) {
-    const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.professionalId));
-    if (prof) {
-      professionalName = prof.name;
-      professionalCrm = prof.crm ?? null;
-    }
+  if (!protocol.professionalId) {
+    res.status(409).json({ code: "protocol_professional_missing", error: "O protocolo não possui médico responsável vinculado." });
+    return;
   }
+  const [professional] = await db.select().from(professionalsTable)
+    .where(eq(professionalsTable.id, protocol.professionalId));
+  if (!professional?.active) {
+    res.status(409).json({ code: "protocol_professional_missing", error: "O médico responsável do protocolo não está ativo ou não foi localizado." });
+    return;
+  }
+  professionalName = professional.name;
+  professionalCrm = professional.crm ?? professional.registrationNumber ?? null;
 
-  const allProfs = await db.select().from(professionalsTable);
-  const nurseProf = allProfs.find(p => (p.specialty ?? "").toLowerCase().includes("enf"));
+  const nurseLinked = protocol.nurseId
+    ? await professionalLinkedToClinic(protocol.nurseId, clinicalMember.clinic.id)
+    : false;
+  const [nurseProf] = protocol.nurseId && nurseLinked
+    ? await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.nurseId))
+    : [];
+  if (protocol.nurseId && !nurseProf) {
+    res.status(409).json({ code: "protocol_nurse_clinic_mismatch", error: "A enfermagem vinculada ao protocolo não está ativa ou não pertence à clínica do cliente." });
+    return;
+  }
   if (nurseProf) nurseName = nurseProf.name;
 
   const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
@@ -413,8 +540,8 @@ router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res):
   const substances = protocolItems.map(item => {
     const sub = substMap.get(item.substanceId);
     return {
-      name: sub?.name ?? `Substancia ${item.substanceId}`,
-      dose: item.dose,
+      name: nomeSubstanciaNoProtocolo(sub?.name ?? `Substancia ${item.substanceId}`),
+      dose: dosePrescritaParaDocumento(item.dose),
       color: sub?.color ?? "yellow",
       totalSessions: item.totalSessions,
       intervalDays: item.intervalDays,
@@ -422,39 +549,51 @@ router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res):
       procedureType: sub?.procedureType ?? "iv",
       categoryType: sub?.categoryType ?? null,
       unitPrice: item.unitPrice || sub?.pricePerUnit || 0,
-      description: sub?.description ?? undefined,
-      mainFunction: sub?.mainFunction ?? undefined,
-      perceivedEffects: sub?.perceivedEffects ?? undefined,
+      description: detalheCatalogoSeguroParaProtocolo(sub?.description),
+      mainFunction: detalheCatalogoSeguroParaProtocolo(sub?.mainFunction),
+      perceivedEffects: detalheCatalogoSeguroParaProtocolo(sub?.perceivedEffects),
       timeToEffect: sub?.timeToEffect ?? undefined,
       starRating: sub?.starRating ?? undefined,
       bodySystemEffects: (sub?.bodySystemEffects as Record<string, string>) ?? undefined,
-      contraindications: sub?.contraindications ?? undefined,
-      scientificEvidence: sub?.scientificEvidence ?? undefined,
-      longevityBenefit: sub?.longevityBenefit ?? undefined,
-      qualityOfLifeImpact: sub?.qualityOfLifeImpact ?? undefined,
-      sleepBenefit: sub?.sleepBenefit ?? undefined,
-      energyBenefit: sub?.energyBenefit ?? undefined,
-      libidoBenefit: sub?.libidoBenefit ?? undefined,
-      physicalPerformance: sub?.physicalPerformance ?? undefined,
-      muscleStrength: sub?.muscleStrength ?? undefined,
-      mentalClarity: sub?.mentalClarity ?? undefined,
-      skinHairNails: sub?.skinHairNails ?? undefined,
-      immuneSupport: sub?.immuneSupport ?? undefined,
-      composicao: sub?.composicao ?? undefined,
-      posologia: sub?.posologia ?? undefined,
+      contraindications: detalheCatalogoSeguroParaProtocolo(sub?.contraindications),
+      scientificEvidence: detalheCatalogoSeguroParaProtocolo(sub?.scientificEvidence),
+      longevityBenefit: detalheCatalogoSeguroParaProtocolo(sub?.longevityBenefit),
+      qualityOfLifeImpact: detalheCatalogoSeguroParaProtocolo(sub?.qualityOfLifeImpact),
+      sleepBenefit: detalheCatalogoSeguroParaProtocolo(sub?.sleepBenefit),
+      energyBenefit: detalheCatalogoSeguroParaProtocolo(sub?.energyBenefit),
+      libidoBenefit: detalheCatalogoSeguroParaProtocolo(sub?.libidoBenefit),
+      physicalPerformance: detalheCatalogoSeguroParaProtocolo(sub?.physicalPerformance),
+      muscleStrength: detalheCatalogoSeguroParaProtocolo(sub?.muscleStrength),
+      mentalClarity: detalheCatalogoSeguroParaProtocolo(sub?.mentalClarity),
+      skinHairNails: detalheCatalogoSeguroParaProtocolo(sub?.skinHairNails),
+      immuneSupport: detalheCatalogoSeguroParaProtocolo(sub?.immuneSupport),
+      composicao: detalheCatalogoSeguroParaProtocolo(sub?.composicao),
+      posologia: detalheCatalogoSeguroParaProtocolo(sub?.posologia),
       // Classificação do cadastro — vai ao cabeçalho de identidade da ficha (spec R3).
       category: sub?.category ?? undefined,
-      // Campos de posologia & logística auditados em task-266.
-      concentrationMg: sub?.concentrationMg ?? undefined,
-      volumeAmpola: sub?.volumeAmpola ?? undefined,
-      durationMinutes: sub?.durationMinutes ?? undefined,
+      durationMinutes: sub ? substanceDurationMinutes(sub) : undefined,
     };
   });
+
+  if (substances.some(substance => !substance.dose)) {
+    res.status(409).json({ code: "dose_clinica_revisao", error: MENSAGEM_DOSE_CLINICA_REVISAO });
+    return;
+  }
 
   const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
   sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.weekNumber - b.weekNumber);
 
-  const docSessions = [];
+  const docSessions: Array<{
+    number: number;
+    scheduledDate: string;
+    status: string;
+    substanceStatuses: Array<{
+      substanceName: string;
+      sessionNumber: number;
+      totalSessions: number;
+      status: string;
+    }>;
+  }> = [];
   for (const sess of sessions) {
     const apps = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, sess.id));
     const substanceStatuses = apps
@@ -480,18 +619,19 @@ router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res):
   const payments = await db.select().from(paymentsTable).where(eq(paymentsTable.protocolId, protocolId));
 
   try {
-    const { pdfBytes } = await generateProtocolDocumentPdf({
+    const { pdfBytes } = await withLoggedDoctorCertificate(req, protocol.clientId, () => generateProtocolDocumentPdf({
       protocolId: protocol.id,
       protocolTitle: protocol.title,
       clientName: client.name,
-      clientCpf: client.cpf,
-      clientEmail: client.email,
+      clientCpf: client.cpf ?? "",
+      clientEmail: client.email ?? "",
       clientPhone: client.phone ?? undefined,
       clientBirthDate: client.birthDate ?? undefined,
+      professionalId: protocol.professionalId,
       professionalName,
       professionalCrm,
       nurseName,
-      unit: protocol.unit ?? "Instituto Pádua",
+      unit: clinicalMember.clinic.name,
       serviceType: protocol.serviceType,
       startDate: protocol.startDate,
       endDate: protocol.endDate,
@@ -509,7 +649,7 @@ router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res):
         installments: p.installments,
         cardLabel: p.cardLabel,
       })),
-    });
+    }), { expectedProfessionalId: protocol.professionalId });
 
     const pdfBuffer = Buffer.from(pdfBytes);
     const clientSlug = client.name.replace(/\s+/g, "_");
@@ -523,6 +663,7 @@ router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res):
     // Para subir no Drive, enviar e-mail e despachar cadernos jurídicos,
     // use POST /protocols/:id/emit-document (ação explícita e distinta).
   } catch (err: any) {
+    if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ error: err.message }); return; }
     console.error("Protocol document PDF error:", err);
     res.status(500).json({ error: "Erro ao gerar documento do protocolo", details: err.message });
   }
@@ -545,7 +686,28 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
     res.status(404).json({ error: "Protocol not found" });
     return;
   }
-  if (!await authorizeProtocol(req, protocol, res)) return;
+  const clinicalMember = await authorizeProtocol(req, protocol, res);
+  if (!clinicalMember) return;
+  if (!(await unidadePertenceAClinica(clinicalMember.clinic.empresaId, protocol.unit, clinicalMember.clinic.name))) {
+    res.status(409).json({
+      code: "protocol_clinic_unit_mismatch",
+      error: `${MENSAGEM_UNIDADE_FORA_DA_CLINICA} Confira o vínculo antes de emitir.`,
+    });
+    return;
+  }
+
+  // A autoria clínica é validada antes até do alerta preventivo ao Slack.
+  try {
+    await resolveProtocolDoctor(req, protocol.clientId, protocol.professionalId);
+  } catch (err: any) {
+    if (err instanceof ClinicalIdentityError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    req.log.error({ err }, "Falha ao validar o médico responsável pelo protocolo");
+    res.status(500).json({ error: "Não foi possível validar o médico responsável." });
+    return;
+  }
 
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
   if (!client) {
@@ -572,19 +734,32 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
     }
   }
 
-  let professionalName = "Profissional";
+  let professionalName: string;
   let professionalCrm: string | null = null;
   let nurseName: string | undefined;
-  if (protocol.professionalId) {
-    const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.professionalId));
-    if (prof) {
-      professionalName = prof.name;
-      professionalCrm = prof.crm ?? null;
-    }
+  if (!protocol.professionalId) {
+    res.status(409).json({ code: "protocol_professional_missing", error: "O protocolo não possui médico responsável vinculado." });
+    return;
   }
+  const [professional] = await db.select().from(professionalsTable)
+    .where(eq(professionalsTable.id, protocol.professionalId));
+  if (!professional?.active) {
+    res.status(409).json({ code: "protocol_professional_missing", error: "O médico responsável do protocolo não está ativo ou não foi localizado." });
+    return;
+  }
+  professionalName = professional.name;
+  professionalCrm = professional.crm ?? professional.registrationNumber ?? null;
 
-  const allProfs = await db.select().from(professionalsTable);
-  const nurseProf = allProfs.find(p => (p.specialty ?? "").toLowerCase().includes("enf"));
+  const nurseLinked = protocol.nurseId
+    ? await professionalLinkedToClinic(protocol.nurseId, clinicalMember.clinic.id)
+    : false;
+  const [nurseProf] = protocol.nurseId && nurseLinked
+    ? await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.nurseId))
+    : [];
+  if (protocol.nurseId && !nurseProf) {
+    res.status(409).json({ code: "protocol_nurse_clinic_mismatch", error: "A enfermagem vinculada ao protocolo não está ativa ou não pertence à clínica do cliente." });
+    return;
+  }
   if (nurseProf) nurseName = nurseProf.name;
 
   const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
@@ -594,8 +769,8 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
   const substances = protocolItems.map(item => {
     const sub = substMap.get(item.substanceId);
     return {
-      name: sub?.name ?? `Substancia ${item.substanceId}`,
-      dose: item.dose,
+      name: nomeSubstanciaNoProtocolo(sub?.name ?? `Substancia ${item.substanceId}`),
+      dose: dosePrescritaParaDocumento(item.dose),
       color: sub?.color ?? "yellow",
       totalSessions: item.totalSessions,
       intervalDays: item.intervalDays,
@@ -603,34 +778,50 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
       procedureType: sub?.procedureType ?? "iv",
       categoryType: sub?.categoryType ?? null,
       unitPrice: item.unitPrice || sub?.pricePerUnit || 0,
-      description: sub?.description ?? undefined,
-      mainFunction: sub?.mainFunction ?? undefined,
-      perceivedEffects: sub?.perceivedEffects ?? undefined,
+      description: detalheCatalogoSeguroParaProtocolo(sub?.description),
+      mainFunction: detalheCatalogoSeguroParaProtocolo(sub?.mainFunction),
+      perceivedEffects: detalheCatalogoSeguroParaProtocolo(sub?.perceivedEffects),
       timeToEffect: sub?.timeToEffect ?? undefined,
       starRating: sub?.starRating ?? undefined,
       bodySystemEffects: (sub?.bodySystemEffects as Record<string, string>) ?? undefined,
-      contraindications: sub?.contraindications ?? undefined,
-      scientificEvidence: sub?.scientificEvidence ?? undefined,
-      longevityBenefit: sub?.longevityBenefit ?? undefined,
-      qualityOfLifeImpact: sub?.qualityOfLifeImpact ?? undefined,
-      sleepBenefit: sub?.sleepBenefit ?? undefined,
-      energyBenefit: sub?.energyBenefit ?? undefined,
-      libidoBenefit: sub?.libidoBenefit ?? undefined,
-      physicalPerformance: sub?.physicalPerformance ?? undefined,
-      muscleStrength: sub?.muscleStrength ?? undefined,
-      mentalClarity: sub?.mentalClarity ?? undefined,
-      skinHairNails: sub?.skinHairNails ?? undefined,
-      immuneSupport: sub?.immuneSupport ?? undefined,
-      composicao: sub?.composicao ?? undefined,
-      posologia: sub?.posologia ?? undefined,
+      contraindications: detalheCatalogoSeguroParaProtocolo(sub?.contraindications),
+      scientificEvidence: detalheCatalogoSeguroParaProtocolo(sub?.scientificEvidence),
+      longevityBenefit: detalheCatalogoSeguroParaProtocolo(sub?.longevityBenefit),
+      qualityOfLifeImpact: detalheCatalogoSeguroParaProtocolo(sub?.qualityOfLifeImpact),
+      sleepBenefit: detalheCatalogoSeguroParaProtocolo(sub?.sleepBenefit),
+      energyBenefit: detalheCatalogoSeguroParaProtocolo(sub?.energyBenefit),
+      libidoBenefit: detalheCatalogoSeguroParaProtocolo(sub?.libidoBenefit),
+      physicalPerformance: detalheCatalogoSeguroParaProtocolo(sub?.physicalPerformance),
+      muscleStrength: detalheCatalogoSeguroParaProtocolo(sub?.muscleStrength),
+      mentalClarity: detalheCatalogoSeguroParaProtocolo(sub?.mentalClarity),
+      skinHairNails: detalheCatalogoSeguroParaProtocolo(sub?.skinHairNails),
+      immuneSupport: detalheCatalogoSeguroParaProtocolo(sub?.immuneSupport),
+      composicao: detalheCatalogoSeguroParaProtocolo(sub?.composicao),
+      posologia: detalheCatalogoSeguroParaProtocolo(sub?.posologia),
       category: sub?.category ?? undefined,
+      durationMinutes: sub ? substanceDurationMinutes(sub) : undefined,
     };
   });
+
+  if (substances.some(substance => !substance.dose)) {
+    res.status(409).json({ code: "dose_clinica_revisao", error: MENSAGEM_DOSE_CLINICA_REVISAO });
+    return;
+  }
 
   const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
   sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.weekNumber - b.weekNumber);
 
-  const docSessions = [];
+  const docSessions: Array<{
+    number: number;
+    scheduledDate: string;
+    status: string;
+    substanceStatuses: Array<{
+      substanceName: string;
+      sessionNumber: number;
+      totalSessions: number;
+      status: string;
+    }>;
+  }> = [];
   for (const sess of sessions) {
     const apps = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, sess.id));
     const substanceStatuses = apps
@@ -657,18 +848,19 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
 
   try {
     // 1. Gerar PDF do protocolo
-    const { pdfBytes } = await generateProtocolDocumentPdf({
+    const { pdfBytes } = await withLoggedDoctorCertificate(req, protocol.clientId, () => generateProtocolDocumentPdf({
       protocolId: protocol.id,
       protocolTitle: protocol.title,
       clientName: client.name,
-      clientCpf: client.cpf,
-      clientEmail: client.email,
+      clientCpf: client.cpf ?? "",
+      clientEmail: client.email ?? "",
       clientPhone: client.phone ?? undefined,
       clientBirthDate: client.birthDate ?? undefined,
+      professionalId: protocol.professionalId,
       professionalName,
       professionalCrm,
       nurseName,
-      unit: protocol.unit ?? "Instituto Pádua",
+      unit: clinicalMember.clinic.name,
       serviceType: protocol.serviceType,
       startDate: protocol.startDate,
       endDate: protocol.endDate,
@@ -686,7 +878,7 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
         installments: p.installments,
         cardLabel: p.cardLabel,
       })),
-    });
+    }), { expectedProfessionalId: protocol.professionalId });
 
     const pdfBuffer = Buffer.from(pdfBytes);
 
@@ -694,43 +886,28 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
     const mm = protocol.startDate.slice(5, 7);
     const dd = protocol.startDate.slice(8, 10);
     const driveFileName = `${yy}.${mm}.${dd} PROTOCOLO ${client.name.toUpperCase()} (${protocol.title.toUpperCase()}).pdf`;
+    const protocolArchiveId = await archiveClinicalDocument({
+      documentType: "protocolo",
+      sourceId: protocol.id,
+      clientId: client.id,
+      empresaId: clinicalMember.clinic.empresaId,
+      locationId: clinicalMember.clinic.id,
+      professionalId: protocol.professionalId ?? null,
+      documentLabel: `Protocolo — ${protocol.title}`,
+      fileName: driveFileName,
+      issuedAt: brtISODate(),
+      signatureStatus: "signed",
+      bytes: pdfBuffer,
+    });
 
-    const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
-
-    // 2. Upload Drive (protocolo)
-    // driveActuallyUploaded = true somente quando pelo menos um upload CONCLUIU.
+    // Os dois documentos serão enviados juntos para a pasta exclusiva da empresa.
     let driveActuallyUploaded = false;
-    if (await isDriveConnected()) {
-      const uploadPromises: Promise<any>[] = [];
-
-      uploadPromises.push(
-        uploadToFolderById(SHARED_RAS_FOLDER_ID, driveFileName, "application/pdf", pdfBuffer)
-          .then(() => { driveActuallyUploaded = true; console.log(`[emit] Protocol uploaded to shared folder: ${driveFileName}`); })
-          .catch(err => console.error("[emit] Shared folder upload error:", err.message))
-      );
-
-      uploadPromises.push(
-        ensureClientFolderStructure(client.name, client.cpf)
-          .then(async ({ subfolders }) => {
-            const protocolosFolderId = subfolders["PROTOCOLOS"];
-            if (protocolosFolderId) {
-              const result = await uploadFileToDrive(protocolosFolderId, driveFileName, "application/pdf", pdfBuffer);
-              if (client.email) {
-                await shareWithClient(result.fileId, client.email);
-              }
-              driveActuallyUploaded = true;
-              console.log(`[emit] Protocol uploaded to client PROTOCOLOS: ${driveFileName}`);
-            }
-          })
-          .catch(err => console.error("[emit] Client folder upload error:", err.message))
-      );
-
-      await Promise.all(uploadPromises);
-    }
+    let driveError: string | null = null;
 
     // 3. Gerar RAS FAP + upload Drive
     let rasFapBuffer: Buffer | undefined;
-    const rasFapFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
+    const rasFapFileName = `${yy}.${mm}.${dd} RASP FAP ${client.name.toUpperCase()}.pdf`;
+    let rasFapArchiveId: number | null = null;
     try {
       const physicalSessions = docSessions.map(sess => ({
         number: sess.number,
@@ -749,13 +926,15 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
       }
 
       const rasFapBytes = await generatePhysicalRASPdf({
+        persistedGrid: await loadProtocolRasGrid(protocol, protocolItems.map(item => item.substanceId)),
+        registros: await loadProtocolRasRegistros(protocol, protocolItems.map(item => item.substanceId)),
         clientName: client.name,
-        clientCpf: client.cpf ?? "000.000.000-00",
+        clientCpf: client.cpf ?? "",
         clientPhone: client.phone ?? "",
         clientAge,
         professionalName,
         nurseName,
-        unit: protocol.unit ?? "Instituto Padua",
+        unit: clinicalMember.clinic.name,
         startDate: protocol.startDate,
         protocolNumber: `FAP-${yy}${mm}${dd}-${protocol.id}`,
         valorTratamento: protocol.totalValue
@@ -773,32 +952,24 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
         sessions: physicalSessions,
       }, "PREMIUM");
       rasFapBuffer = Buffer.from(rasFapBytes);
+      rasFapArchiveId = await archiveClinicalDocument({
+        documentType: "ras_fap",
+        sourceId: protocol.id,
+        clientId: client.id,
+        empresaId: clinicalMember.clinic.empresaId,
+        locationId: clinicalMember.clinic.id,
+        professionalId: protocol.professionalId ?? null,
+        documentLabel: `Relatório RAS FAP — ${protocol.title}`,
+        fileName: rasFapFileName,
+        issuedAt: brtISODate(),
+        signatureStatus: "not_required",
+        bytes: rasFapBuffer,
+      });
       console.log(`[emit] RAS FAP gerado para ${client.name} (${rasFapBuffer.length} bytes)`);
 
-      if (await isDriveConnected()) {
-        const rasFapPromises: Promise<any>[] = [];
-        rasFapPromises.push(
-          uploadToFolderById(SHARED_RAS_FOLDER_ID, rasFapFileName, "application/pdf", rasFapBuffer)
-            .then(() => console.log(`[emit] RAS FAP uploaded to shared folder: ${rasFapFileName}`))
-            .catch(err => console.error("[emit] RAS FAP shared folder upload error:", err.message))
-        );
-        rasFapPromises.push(
-          ensureClientFolderStructure(client.name, client.cpf ?? "")
-            .then(async ({ subfolders }) => {
-              const protocolosFolderId = subfolders["PROTOCOLOS"];
-              if (protocolosFolderId && rasFapBuffer) {
-                const result = await uploadFileToDrive(protocolosFolderId, rasFapFileName, "application/pdf", rasFapBuffer);
-                if (client.email) {
-                  await shareWithClient(result.fileId, client.email);
-                }
-                console.log(`[emit] RAS FAP uploaded to client PROTOCOLOS: ${rasFapFileName}`);
-              }
-            })
-            .catch(err => console.error("[emit] RAS FAP client folder upload error:", err.message))
-        );
-        await Promise.all(rasFapPromises);
-      }
     } catch (rasFapErr: any) {
+      const archiveFailedAfterPdfGeneration = Boolean(rasFapBuffer);
+      if (archiveFailedAfterPdfGeneration) rasFapBuffer = undefined;
       console.error("[emit] RAS FAP generation error:", rasFapErr.message);
       await notifySlackRasFapFailure(
         "drive",
@@ -808,13 +979,55 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
         rasFapErr.message,
         process.env.PADAXOR_SLACK_CHANNEL_ID,
       );
+      if (archiveFailedAfterPdfGeneration) throw rasFapErr;
+    }
+
+    // A pasta raiz é resolvida pela empresa do protocolo e nunca cai na pasta
+    // global antiga. Sem configuração, nenhum arquivo clínico é enviado ao Drive.
+    try {
+      if (!await isDriveConnected()) {
+        driveError = "Google Drive indisponível ou não autorizado.";
+      } else if (!client.cpf) {
+        driveError = "O cliente não possui CPF cadastrado para localizar sua pasta exclusiva.";
+      } else {
+        const companyRoot = await companyClientDriveRoot(clinicalMember.clinic.empresaId);
+        if (!companyRoot) {
+          driveError = "A empresa não possui a pasta de clientes configurada no Drive.";
+        } else {
+          const { subfolders } = await ensureClientFolderStructure(client.name, client.cpf, companyRoot);
+          const protocolosFolderId = subfolders["PROTOCOLOS"];
+          if (!protocolosFolderId) {
+            throw new Error("A pasta PROTOCOLOS do cliente não foi localizada.");
+          }
+          const protocolUpload = await uploadFileToDrive(
+            protocolosFolderId, driveFileName, "application/pdf", pdfBuffer, true,
+          );
+          driveActuallyUploaded = true;
+          if (client.email) await shareWithClient(protocolUpload.fileId, client.email);
+
+          if (rasFapBuffer) {
+            const rasUpload = await uploadFileToDrive(
+              protocolosFolderId, rasFapFileName, "application/pdf", rasFapBuffer, true,
+            );
+            driveActuallyUploaded = true;
+            if (client.email) await shareWithClient(rasUpload.fileId, client.email);
+          }
+        }
+      }
+    } catch (driveErr: any) {
+      driveError = driveErr?.message ?? "Falha ao salvar os documentos na pasta da empresa.";
+      req.log.error({ err: driveErr, protocolId, empresaId: clinicalMember.clinic.empresaId }, "Falha no destino de Drive da empresa");
     }
 
     // 4. E-mail ao paciente
     let emailSent = false;
     let emailError: string | undefined;
     let cadernosDispatched = 0;
-    if (client.email && await isGmailConnected()) {
+    if (!client.email) {
+      emailError = "Cliente sem e-mail cadastrado.";
+    } else if (!await isGmailConnected()) {
+      emailError = "Gmail indisponível ou não autorizado. Verifique a conexão.";
+    } else {
       try {
         const emailResult = await sendProtocolEmail({
           clientName: client.name,
@@ -915,7 +1128,7 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
                   substances.map((s, idx) =>
                     `<tr style="background:${idx % 2 === 0 ? "#ffffff" : "#f7faf8"}">` +
                     `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9"><strong>${s.name}</strong></td>` +
-                    `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${s.dose.replace(/\s*\/\s*\d+[\.,]?\d*\s*(ml|mL|ML)/gi, "").trim()}</td>` +
+                    `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${dosePrescritaParaDocumento(s.dose)}</td>` +
                     `<td style="text-align:center;padding:5px 10px;border-bottom:1px solid #e8ede9">${s.totalSessions}</td>` +
                     `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${s.intervalDays > 0 ? `a cada ${s.intervalDays} dias` : "dose única"}</td>` +
                     `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${viaMapHid[s.procedureType] ?? s.procedureType.toUpperCase()}</td>` +
@@ -931,11 +1144,11 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
                   "cliente.telefone":       client.phone ?? "",
                   "data.hoje":              new Date().toLocaleDateString("pt-BR"),
                   "medico.nome":            professionalName,
-                  "medico.crm":             professionalCrm ?? "XXXXX",
-                  "medico.uf":              "SP",
-                  "clinica.nome":           protocol.unit ?? "Clínica Tatuapé — Padcon Conect",
-                  "clinica.endereco":       "São Paulo — SP",
-                  "clinica.email":          "contato@padconconect.com.br",
+                  "medico.crm":             professionalCrm ?? "",
+                  "medico.uf":              professional.registrationCouncil?.match(/\b[A-Z]{2}\b/)?.[0] ?? "",
+                  "clinica.nome":           clinicalMember.clinic.name,
+                  "clinica.endereco":       "",
+                  "clinica.email":          "",
                   "protocolo.titulo":       protocol.title,
                   "protocolo.substancias":  substanciasTable,
                   "protocolo.vias":         viasUnicas,
@@ -1065,11 +1278,18 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
       emailSent,
       emailError: emailError ?? null,
       driveUploaded: driveActuallyUploaded,
+      driveError,
+      rasFapGenerated: Boolean(rasFapBuffer?.length),
+      archivedDocumentIds: {
+        protocolo: protocolArchiveId,
+        rasFap: rasFapArchiveId,
+      },
       message: emailSent
-        ? `Protocolo emitido e e-mail enviado a ${client.email}.`
-        : `Protocolo gerado e subido no Drive. E-mail não enviado${emailError ? ": " + emailError : " (Gmail não conectado ou paciente sem e-mail)"}.`,
+        ? `E-mail do protocolo aceito pelo Gmail para ${client.email}.`
+        : `E-mail do protocolo não confirmado${emailError ? ": " + emailError : "; motivo não informado."}`,
     });
   } catch (err: any) {
+    if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ error: err.message }); return; }
     console.error("[emit] Erro geral:", err);
     res.status(500).json({ error: "Erro ao emitir documento do protocolo", details: err.message });
   }
@@ -1083,11 +1303,19 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
 router.get("/protocols/carta-pdf-certcheck", requireCollaborator, async (_req, res): Promise<void> => {
   try {
     const info = getCertInfo();
-    const msRemaining = new Date(info.validTo).getTime() - Date.now();
+    const now = Date.now();
+    const startsAt = Date.parse(info.validFrom);
+    const expiresAt = Date.parse(info.validTo);
+    const state = now < startsAt ? "not_yet_valid" : now > expiresAt ? "expired" : "valid";
+    const msRemaining = expiresAt - now;
     const daysRemaining = Math.floor(msRemaining / (1000 * 60 * 60 * 24));
     res.json({
-      ok: true,
-      message: "Certificado carregado com sucesso — assinatura PAdES disponível.",
+      ok: state === "valid",
+      state,
+      message: state === "valid"
+        ? "Certificado global válido; assinatura digital disponível."
+        : state === "expired" ? "Certificado global vencido; assinatura digital indisponível."
+          : "Certificado global ainda não vigente; assinatura digital indisponível.",
       cert: {
         issuer:       info.issuer,
         serial:       info.serial,
@@ -1099,8 +1327,8 @@ router.get("/protocols/carta-pdf-certcheck", requireCollaborator, async (_req, r
   } catch (err: any) {
     res.status(503).json({
       ok: false,
+      state: "unavailable",
       message: "Certificado não configurado ou senha incorreta.",
-      details: err.message,
     });
   }
 });
@@ -1164,11 +1392,16 @@ router.put("/protocols/:id", requireCollaborator, async (req, res): Promise<void
   res.json(result);
 });
 
-// Validate protocol and auto-generate sessions with weekly consolidation logic
+// Legacy route: never creates sessions, because it does not reserve agenda slots.
 router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Promise<void> => {
   const params = ValidateProtocolParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const query = ValidateProtocolQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
     return;
   }
 
@@ -1179,17 +1412,86 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
   }
   if (!await authorizeProtocol(req, protocol, res)) return;
 
-  const items = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocol.id));
-
-  // Delete existing sessions for this protocol
-  const existingSessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocol.id));
-  for (const session of existingSessions) {
-    await db.delete(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, session.id));
+  let generated = false;
+  let updatedProtocol: typeof protocolsTable.$inferSelect;
+  try {
+  updatedProtocol = await db.transaction(async (tx) => {
+  // Serializa validações concorrentes, sem reconstruir ou apagar sessões.
+  // A autorização acima continua obrigatória; identidade é reconferida no lock.
+  const [lockedProtocol] = await tx.select().from(protocolsTable)
+    .where(eq(protocolsTable.id, protocol.id)).for("update");
+  if (!lockedProtocol ||
+      lockedProtocol.clientId !== protocol.clientId ||
+      lockedProtocol.empresaId !== protocol.empresaId ||
+      lockedProtocol.professionalId !== protocol.professionalId) {
+    throw new ProtocolValidationConflict("O protocolo mudou; recarregue e confira antes de validar.");
   }
-  await db.delete(sessionsTable).where(eq(sessionsTable.protocolId, protocol.id));
+  // Refaz a autorização depois de eventual espera pelo bloqueio do protocolo.
+  try {
+    const currentMember = await resolveClinicalMember(req, lockedProtocol.clientId);
+    if (currentMember.clinic.empresaId !== resolveEmpresaId(req) ||
+        currentMember.clinic.empresaId !== lockedProtocol.empresaId) {
+      throw new Error("clinical_scope_changed");
+    }
+  } catch {
+    throw new ProtocolValidationConflict("O acesso clínico mudou; recarregue e confira antes de validar.");
+  }
+  const db = tx;
+  const existingSessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocol.id));
+  if (lockedProtocol.status === "validated" && existingSessions.length > 0) {
+    if (existingSessions.some(session => !session.resourceId || !session.durationMinutes)) {
+      throw new ProtocolValidationConflict(
+        "Este protocolo tem sessões antigas sem reserva. Elas foram preservadas; não podem ser tratadas como agendadas.",
+      );
+    }
+    return lockedProtocol;
+  }
+  if (lockedProtocol.status === "suggested" && existingSessions.length === 0) {
+    throw new ProtocolValidationConflict(
+      "A validação antiga não reserva horários. Use a prévia e a confirmação em “Agendar protocolo”. Nada foi gravado.",
+    );
+  }
+  if (lockedProtocol.status !== "suggested" || existingSessions.length > 0) {
+    throw new ProtocolValidationConflict("Protocolo já processado ou com sessões existentes; confira o histórico sem recriar os agendamentos.");
+  }
+  const items = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocol.id));
+  if (items.length === 0 || items.some(item =>
+    !Number.isSafeInteger(item.totalSessions) || item.totalSessions <= 0 ||
+    !Number.isSafeInteger(item.intervalDays) || item.intervalDays <= 0)) {
+    throw new ProtocolValidationConflict("Confira as substâncias, as quantidades de sessões e os intervalos antes de validar.");
+  }
+  const defaultTime = query.data.scheduledTime ?? lockedProtocol.scheduledTime ?? "09:00";
+  if (lockedProtocol.schedulingMode === "exact") {
+    let appointments;
+    try {
+      appointments = buildExactProtocolSchedule(lockedProtocol.startDate, items);
+    } catch {
+      throw new ProtocolValidationConflict("Confira as datas e os intervalos das substâncias antes de validar.");
+    }
+    for (const [index, appointment] of appointments.entries()) {
+      const [session] = await db.insert(sessionsTable).values({
+        protocolId: lockedProtocol.id, clientId: lockedProtocol.clientId,
+        professionalId: lockedProtocol.professionalId, scheduledDate: appointment.date,
+        scheduledTime: defaultTime, status: "scheduled", unit: lockedProtocol.unit,
+        serviceType: lockedProtocol.serviceType, weekNumber: index + 1,
+      }).returning();
+      for (const application of appointment.applications) {
+        await db.insert(substanceApplicationsTable).values({
+          sessionId: session.id, ...application, status: "pending", availability: "disp",
+        });
+      }
+      for (const item of appointment.upcoming) {
+        await db.insert(substanceApplicationsTable).values({
+          sessionId: session.id, substanceId: item.substanceId, dose: item.dose,
+          sessionNumber: 0, totalSessions: item.totalSessions,
+          status: "pending", availability: "prox",
+        });
+      }
+    }
+  } else {
 
   // Build schedule map: week -> { date, substances[] }
-  const startDate = new Date(protocol.startDate);
+  const startDate = new Date(lockedProtocol.startDate);
   const weekMap: Map<number, { date: string; substanceApplications: Array<{ substanceId: number; dose: string; sessionNumber: number; totalSessions: number; weekNumber: number; dayOfWeek: number; }> }> = new Map();
 
   for (const item of items) {
@@ -1226,7 +1528,6 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
   }
 
   // For each week, elect the best date (day with most applications) — weekly consolidation rule
-  const defaultTime = "09:00";
   for (const [weekNumber, weekData] of weekMap.entries()) {
     // Count applications per day
     const dayCount: Record<string, number> = {};
@@ -1252,12 +1553,12 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
     const [session] = await db.insert(sessionsTable).values({
       protocolId: protocol.id,
       clientId: protocol.clientId,
-      professionalId: protocol.professionalId,
+      professionalId: lockedProtocol.professionalId,
       scheduledDate: bestDate,
       scheduledTime: defaultTime,
       status: "scheduled",
-      unit: protocol.unit,
-      serviceType: protocol.serviceType,
+      unit: lockedProtocol.unit,
+      serviceType: lockedProtocol.serviceType,
       weekNumber,
     }).returning();
 
@@ -1284,11 +1585,7 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
             `Protocolo: *#${protocol.id}* | Sessão: *#${session.id}* (semana ${weekNumber}) | Substância ID: *${app.substanceId}* | Sessão nº ${app.sessionNumber}\n` +
             `O motor de consolidação tentou inserir uma linha já existente. Nenhum dado foi corrompido — a duplicata foi bloqueada na origem.`,
           );
-          res.status(409).json({
-            error: "duplicate_application",
-            message: `Aplicação duplicada detectada para a substância ${app.substanceId} na sessão ${session.id} (semana ${weekNumber}, nº ${app.sessionNumber}). O banco recusou o INSERT. Verifique o motor de consolidação.`,
-          });
-          return;
+          throw new ProtocolValidationConflict("Aplicação duplicada detectada; nenhuma sessão desta validação foi gravada.");
         }
         throw insertErr;
       }
@@ -1320,11 +1617,7 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
                 `Protocolo: *#${protocol.id}* | Sessão: *#${session.id}* (semana ${weekNumber}) | Substância ID: *${item.substanceId}* | Sessão nº 0\n` +
                 `O motor de consolidação tentou inserir uma linha já existente. Nenhum dado foi corrompido — a duplicata foi bloqueada na origem.`,
               );
-              res.status(409).json({
-                error: "duplicate_application",
-                message: `Aplicação duplicada detectada (PROX) para a substância ${item.substanceId} na sessão ${session.id} (semana ${weekNumber}). O banco recusou o INSERT. Verifique o motor de consolidação.`,
-              });
-              return;
+              throw new ProtocolValidationConflict("Aplicação futura duplicada detectada; nenhuma sessão desta validação foi gravada.");
             }
             throw insertErr;
           }
@@ -1332,21 +1625,35 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
       }
     }
   }
+  }
 
   // Update protocol status to validated
   const [updatedProtocol] = await db.update(protocolsTable)
-    .set({ status: "validated" })
+    .set({ status: "validated", scheduledTime: defaultTime })
     .where(eq(protocolsTable.id, params.data.id))
     .returning();
+  generated = true;
+  return updatedProtocol;
+  });
+  } catch (err) {
+    if (err instanceof ProtocolValidationConflict) {
+      res.status(409).json({ error: "protocol_validation_conflict", message: err.message });
+      return;
+    }
+    throw err;
+  }
+  if (!generated) {
+    req.log.info({ protocolId: protocol.id }, "Validação já concluída; sessões e comunicações preservadas");
+    res.json(await buildProtocolResponse(updatedProtocol));
+    return;
+  }
 
   // SUB-04 item 5: onboarding ao fechar/validar o protocolo — e-mail de boas-vindas
   // com o .ics consolidado das sessões recém-geradas. Best-effort: cliente sem
   // e-mail ou falha no envio NÃO quebra a validação (caso extremo 1).
-  // O e-mail de boas-vindas e o comportamento PADRAO e continua ligado.
-  // O CEO pode suprimi-lo de forma EXPLICITA com ?skipOnboardingEmail=true
-  // quando valida um protocolo apenas para conferencia interna e o paciente
-  // ainda nao deve receber nada. Nunca e silencioso: fica registrado no log.
-  const skipOnboarding = String(req.query.skipOnboardingEmail ?? "") === "true";
+  // Só enviar horários que já tenham reserva real na agenda. As sessões
+  // geradas pela validação ainda são previsões, não reservas.
+  const skipOnboarding = query.data.skipOnboardingEmail === "true";
 
   try {
     if (skipOnboarding) {
@@ -1358,17 +1665,21 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
       const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
       if (client?.email) {
         const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocol.id));
-        sessions.sort((a, b) =>
-          a.scheduledDate.localeCompare(b.scheduledDate) || a.scheduledTime.localeCompare(b.scheduledTime),
-        );
-        const events = await buildEventsForSessions(sessions, client.name);
-        const onboarding = await sendProtocolOnboardingEmail({
-          clientName: client.name,
-          clientEmail: client.email,
-          events,
-        });
-        if (!onboarding.success) {
-          req.log.warn({ protocolId: protocol.id, error: onboarding.error }, "Onboarding email não enviado");
+        if (sessions.length === 0 || sessions.some(s => !s.resourceId || !s.durationMinutes || s.durationMinutes <= 0)) {
+          req.log.warn({ protocolId: protocol.id }, "Convite não enviado: sessões ainda não têm horários reservados.");
+        } else {
+          sessions.sort((a, b) =>
+            a.scheduledDate.localeCompare(b.scheduledDate) || a.scheduledTime.localeCompare(b.scheduledTime),
+          );
+          const events = await buildEventsForSessions(sessions, client.name);
+          const onboarding = await sendProtocolOnboardingEmail({
+            clientName: client.name,
+            clientEmail: client.email,
+            events,
+          });
+          if (!onboarding.success) {
+            req.log.warn({ protocolId: protocol.id, error: onboarding.error }, "Onboarding email não confirmado");
+          }
         }
       } else {
         req.log.info({ protocolId: protocol.id }, "Cliente sem e-mail — onboarding pulado");
@@ -1440,49 +1751,64 @@ type CartaMontada = {
 };
 
 async function montarCartaDeTratamento(
+  req: Request,
   protocolId: number,
 ): Promise<{ ok: true; carta: CartaMontada } | { ok: false; status: number; error: string }> {
   const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolId));
   if (!protocol) return { ok: false, status: 404, error: "Protocolo não encontrado" };
 
+  let clinicalMember: ClinicalMember;
+  try {
+    clinicalMember = await comNomeDaClinica(await resolveClinicalMember(req, protocol.clientId));
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) {
+      return { ok: false, status: error.status, error: error.message };
+    }
+    throw error;
+  }
+  if (clinicalMember.clinic.empresaId !== resolveEmpresaId(req) ||
+      clinicalMember.clinic.empresaId !== protocol.empresaId) {
+    return { ok: false, status: 404, error: "Registro não encontrado" };
+  }
+  if (!(await unidadePertenceAClinica(clinicalMember.clinic.empresaId, protocol.unit, clinicalMember.clinic.name))) {
+    return { ok: false, status: 409, error: MENSAGEM_UNIDADE_FORA_DA_CLINICA };
+  }
+  try {
+    await resolveProtocolDoctor(req, protocol.clientId, protocol.professionalId);
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) {
+      return { ok: false, status: error.status, error: error.message };
+    }
+    throw error;
+  }
+
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
   if (!client) return { ok: false, status: 404, error: "Cliente não encontrado" };
 
-  let professionalName = "Profissional";
+  let professionalName: string;
   let professionalCrm: string | null = null;
-  if (protocol.professionalId) {
-    const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.professionalId));
-    if (prof) { professionalName = prof.name; professionalCrm = prof.crm ?? null; }
+  if (!protocol.professionalId) {
+    return { ok: false, status: 409, error: "O protocolo não possui médico responsável vinculado." };
   }
+  const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.professionalId));
+  if (!prof?.active) {
+    return { ok: false, status: 409, error: "O médico responsável do protocolo não está ativo ou não foi localizado." };
+  }
+  professionalName = prof.name;
+  professionalCrm = prof.crm ?? prof.registrationNumber ?? null;
 
   const items      = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
   const allSubs    = await db.select().from(substancesTable);
   const subMap     = new Map(allSubs.map(s => [s.id, s]));
   const sessions   = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
 
-  // Quantas sessoes JA foram feitas de cada substancia.
-  // Conta as aplicacoes marcadas como "disp" (aplicada naquela semana) que
-  // pertencem a uma sessao concluida. Sem esta conta, a ficha de cada substancia
-  // imprimia sempre "0 / 8" enquanto a capa dizia "3 de 8", e o documento que
-  // chega ao paciente se contradizia.
-  // Conta SESSOES DISTINTAS, nunca linhas de aplicacao. Nao existe restricao de
-  // unicidade em (session_id, substance_id): uma linha duplicada faria a mesma
-  // sessao contar duas vezes e a substancia apareceria concluida antes da hora.
-  const doneSessionIds = sessions.filter(s => s.status === "completed").map(s => s.id);
-  const sessoesFeitasPorSubstancia = new Map<number, Set<number>>();
-  if (doneSessionIds.length > 0) {
-    const apps = await db.select().from(substanceApplicationsTable)
-      .where(inArray(substanceApplicationsTable.sessionId, doneSessionIds));
-    for (const a of apps) {
-      if (a.availability !== "disp") continue;
-      let set = sessoesFeitasPorSubstancia.get(a.substanceId);
-      if (!set) { set = new Set<number>(); sessoesFeitasPorSubstancia.set(a.substanceId, set); }
-      set.add(a.sessionId);
-    }
-  }
-  const doneBySubstance = new Map<number, number>(
-    [...sessoesFeitasPorSubstancia].map(([subId, set]) => [subId, set.size]),
-  );
+  // Sessão encerrada pode conter faltas; contar apenas aplicações comprovadas.
+  const sessionIds = sessions.map(s => s.id);
+  const applications = sessionIds.length
+    ? await db.select().from(substanceApplicationsTable)
+      .where(inArray(substanceApplicationsTable.sessionId, sessionIds))
+    : [];
+  const actual = contarAplicacoesRealizadas(sessionIds, applications);
 
   const substances = items.map(item => {
     const sub = subMap.get(item.substanceId);
@@ -1491,7 +1817,7 @@ async function montarCartaDeTratamento(
       dose:               item.dose,
       color:              sub?.color             ?? "navy",
       totalSessions:      item.totalSessions,
-      completedSessions:  doneBySubstance.get(item.substanceId) ?? 0,
+      completedSessions:  actual.bySubstance.get(item.substanceId) ?? 0,
       intervalDays:       item.intervalDays,
       startDate:          item.startDate,
       procedureType:      sub?.procedureType     ?? "iv",
@@ -1521,15 +1847,17 @@ async function montarCartaDeTratamento(
     protocolTitle:    protocol.title,
     clientName:       client.name,
     clientCpf:        client.cpf,
+    professionalId:   protocol.professionalId,
     professionalName,
     professionalCrm,
-    unit:             protocol.unit ?? "Instituto Padua",
+    unit:             clinicalMember.clinic.name,
     startDate:        protocol.startDate,
     substances,
-    sessions: sessions.map(s => ({ status: s.status })),
+    sessions: sessions.map(s => ({ status: s.status, hasRecordedApplication: actual.visits.has(s.id) })),
   });
 
-  const { pdfBytes, certInfo } = await generateProtocolLetterPdf(dto);
+  const { pdfBytes, certInfo } = await withLoggedDoctorCertificate(req, protocol.clientId, () => generateProtocolLetterPdf(dto),
+    { expectedProfessionalId: protocol.professionalId });
   const slug = client.name.replace(/\s+/g, "_");
 
   return {
@@ -1560,7 +1888,7 @@ router.get("/protocols/:id/carta-pdf", requireCollaborator, async (req, res): Pr
       if (!res.headersSent) res.status(404).json({ error: "Registro não encontrado" });
       return;
     }
-    const r = await montarCartaDeTratamento(protocolId);
+    const r = await montarCartaDeTratamento(req, protocolId);
     if (!r.ok) { res.status(r.status).json({ error: r.error }); return; }
     const { pdfBytes, certInfo, filename, client } = r.carta;
 
@@ -1585,6 +1913,7 @@ router.get("/protocols/:id/carta-pdf", requireCollaborator, async (req, res): Pr
 
     res.send(Buffer.from(pdfBytes));
   } catch (err: any) {
+    if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ error: err.message }); return; }
     console.error("[carta-pdf] erro:", err.message);
     res.status(500).json({ error: "Erro ao gerar carta", details: err.message });
   }
@@ -1598,6 +1927,7 @@ router.post("/protocols/:id/carta-email", requireCollaborator, async (req, res):
   const protocolId = parseInt(String(req.params.id));
   if (isNaN(protocolId)) { res.status(400).json({ error: "ID inválido" }); return; }
 
+  let cartaArchiveId: number | null = null;
   try {
     // Checagens BARATAS primeiro. Assinar um PDF de 2,4 MB para só depois
     // descobrir que o paciente não é desta clínica, que não tem e-mail ou que
@@ -1641,9 +1971,30 @@ router.post("/protocols/:id/carta-email", requireCollaborator, async (req, res):
       return;
     }
 
-    const r = await montarCartaDeTratamento(protocolId);
+    const r = await montarCartaDeTratamento(req, protocolId);
     if (!r.ok) { res.status(r.status).json({ error: r.error }); return; }
     const c = r.carta;
+    const empresaId = Number(c.protocol.empresaId);
+    const locationId = Number(c.client.locationId);
+    if (!Number.isSafeInteger(empresaId) || empresaId <= 0 ||
+        !Number.isSafeInteger(locationId) || locationId <= 0) {
+      res.status(409).json({ sent: false, error: "Não foi possível confirmar a clínica original do documento." });
+      return;
+    }
+    cartaArchiveId = await archiveClinicalDocument({
+      documentType: "carta_tratamento",
+      sourceId: c.protocol.id,
+      clientId: c.client.id,
+      empresaId,
+      locationId,
+      professionalId: c.protocol.professionalId ?? null,
+      documentLabel: `Carta de Tratamento — ${c.protocol.title}`,
+      fileName: c.filename,
+      issuedAt: brtISODate(),
+      signatureStatus: "signed",
+      bytes: Buffer.from(c.pdfBytes),
+      finalizeImmediately: false,
+    });
 
     const envio = await sendCartaTratamentoEmail({
       clientName:        c.client.name,
@@ -1667,11 +2018,13 @@ router.post("/protocols/:id/carta-email", requireCollaborator, async (req, res):
     });
 
     if (!envio.success) {
+      await finalizeArchivedClinicalDocument(cartaArchiveId, "failed");
       console.error(`[carta-email] FALHOU protocolo=${protocolId} destino=${email} motivo="${envio.error}"`);
       res.status(502).json({ sent: false, error: envio.error ?? "Falha no envio" });
       return;
     }
 
+    await finalizeArchivedClinicalDocument(cartaArchiveId, "emitted");
     console.info(
       `[carta-email] ENVIADO protocolo=${protocolId} cliente="${c.client.name}" destino=${email} arquivo=${c.filename} bytes=${c.pdfBytes.length}`,
     );
@@ -1680,10 +2033,15 @@ router.post("/protocols/:id/carta-email", requireCollaborator, async (req, res):
       email,
       filename: c.filename,
       bytes: c.pdfBytes.length,
+      archiveDocumentId: cartaArchiveId,
       completedSessions: c.completedSessions,
       totalSessions: c.totalSessions,
     });
   } catch (err: any) {
+    if (cartaArchiveId !== null) {
+      await finalizeArchivedClinicalDocument(cartaArchiveId, "failed").catch(() => undefined);
+    }
+    if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ sent: false, error: err.message }); return; }
     console.error("[carta-email] erro:", err.message);
     res.status(500).json({ sent: false, error: "Erro ao enviar carta", details: err.message });
   }

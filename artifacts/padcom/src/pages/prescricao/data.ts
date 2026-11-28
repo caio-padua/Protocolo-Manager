@@ -6,7 +6,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type Tomada = { doses: number; via: string; periodo: string; hora: string; raw?: string };
+export type Tomada = { doses: number; via: string; periodo: string; hora: string; raw?: string; orientacao?: string };
 export type FormulaSeed = { id: string; cat: string; name: string; body: string; precoMedio?: number };
 export type Category = { id: string; label: string; icon: LucideIcon; color?: string };
 export type Protocolo = { id: string; nome: string; formulaIds: string[] };
@@ -65,6 +65,20 @@ export const PERIODOS: string[] = [
   'Noite',
   'Final da Noite',
   'Ceia',
+];
+/** Sugestões para a coluna Orientação (texto livre: o médico pode digitar outra). */
+export const ORIENTACOES: string[] = [
+  '10 minutos antes do café da manhã',
+  '10 minutos antes do almoço',
+  '10 minutos antes do jantar',
+  '15 minutos antes do almoço',
+  '15 minutos antes do jantar',
+  '30 minutos antes do café da manhã',
+  'Em jejum',
+  'Junto com a refeição',
+  'Após a refeição',
+  'Longe das refeições',
+  'Ao deitar',
 ];
 export const VIAS: string[] = ['VO', 'SL', 'Tópico', 'Uso externo'];
 
@@ -794,10 +808,12 @@ export function parseBody(body: string): { ativos: string; tomadas: Tomada[] } {
 }
 
 export function tomadaToText(t: Tomada): string {
+  const orient = t.orientacao?.trim();
   if (t.periodo) {
-    return `${t.doses} dose${t.doses > 1 ? 's' : ''} ${t.via || 'VO'} – ${t.periodo}${t.hora ? ` – Sugestão: ${t.hora}` : ''}`;
+    return `${t.doses} dose${t.doses > 1 ? 's' : ''} ${t.via || 'VO'} – ${t.periodo}${orient ? ` – ${orient}` : ''}${t.hora ? ` – Sugestão: ${t.hora}` : ''}`;
   }
-  return t.raw || `${t.doses} dose${t.doses > 1 ? 's' : ''} ${t.via || 'VO'}`;
+  const base = t.raw || `${t.doses} dose${t.doses > 1 ? 's' : ''} ${t.via || 'VO'}`;
+  return orient ? `${base} – ${orient}` : base;
 }
 
 export function parseAtivosLines(ativosText: string): { parsed: ParsedAtivo[]; max: number } {

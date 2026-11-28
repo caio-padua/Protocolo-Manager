@@ -2,6 +2,7 @@
 -- MIGRAÇÕES DE SCHEMA DO PROJETO
 -- Aplicado automaticamente a cada merge de task agent por scripts/post-merge.sh
 -- -----------------------------------------------------------------------------
+
 --
 -- REGRAS DE ESCRITA (obrigatórias):
 --
@@ -294,6 +295,13 @@ BEGIN
   END IF;
 END $$;
 
+-- Registra se cada prescrição foi assinada, sem presumir o estado dos
+-- documentos antigos. A validade é uma fotografia no momento da emissão.
+ALTER TABLE prescriptions
+  ADD COLUMN IF NOT EXISTS signature_status TEXT NOT NULL DEFAULT 'legacy_unknown';
+ALTER TABLE prescriptions
+  ADD COLUMN IF NOT EXISTS certificate_valid_to TIMESTAMPTZ;
+
 -- Campos separados para o cadastro empresarial da planilha.
 -- referencia_planilha é informativa: não alimenta empresa_mae_id nem códigos oficiais.
 ALTER TABLE empresas
@@ -349,3 +357,372 @@ BEGIN
       );
   END IF;
 END $$;
+
+-- QR público da receita: token aleatório somente em hash, validade curta e
+-- resumo do PDF assinado para conferir integridade antes de servir o arquivo.
+ALTER TABLE recipes
+  ADD COLUMN IF NOT EXISTS qr_token_hash TEXT;
+ALTER TABLE recipes
+  ADD COLUMN IF NOT EXISTS qr_expires_at TIMESTAMPTZ;
+ALTER TABLE recipes
+  ADD COLUMN IF NOT EXISTS qr_pdf_sha256 TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
+  ON recipes (qr_token_hash)
+  WHERE qr_token_hash IS NOT NULL;
+
+-- Cadastro isolado da identidade visual do Modelo 2B.
+\ir migrations/20261107_paxmed_2b_identidade.sql
+\ir migrations/20261107_paxmed_2b_empresa.sql
+\ir migrations/20261107_paxmed_2b_exemplos.sql
+
+-- Modalidade dos locais de atendimento (presencial/online + mesmo endereco da empresa).
+\ir migrations/20261107_locais_modalidade.sql
+
+-- Aba Agenda Google no cadastro do local (papel, observacao, compromissos importados).
+\ir migrations/20261107_agenda_google_local.sql
+
+-- Precisão da duração de substâncias: somente coluna, não altera dados.
+\ir migrations/20261108_substancias_duracao_precisa.sql
+
+-- Participação médica desconhecida até ser definida no catálogo.
+\ir migrations/20261108_substancias_participacao_medica.sql
+
+-- Arquivamento lógico de preferências de agenda sem excluir registros.
+\ir migrations/20261108_preferencias_agendas_ativas.sql
+
+-- Revisões não destrutivas de dias e horários preferenciais.
+\ir migrations/20261108_preferencias_visitas.sql
+\ir migrations/20261108_preferencias_visitas_proveniencia.sql
+
+-- Janelas com recorrência semanal ou quinzenal, preservando as antigas.
+\ir migrations/20261108_agenda_janelas_quinzenais.sql
+
+-- Autoria do registro clínico, sem reescrever aplicações históricas.
+\ir migrations/20261108_autoria_confirmacao_aplicacoes.sql
+
+-- Reserva durável para identificar tentativas externas com resultado incerto.
+\ir migrations/20261108_agenda_google_reserva_envio.sql
+
+-- Preservação de vias clínicas revisadas ao importar catálogos.
+\ir migrations/20261108_catalogo_via_revisada.sql
+
+-- Clínica de origem independente da empresa de acesso e do local operacional.
+\ir migrations/20261109_clinica_origem_cliente.sql
+
+-- Agendas padrao por tipo no cadastro de clientes.
+\ir migrations/20261109_agendas_padrao_cliente.sql
+
+-- Vinculo empresarial do profissional (originario + ate 4 adicionais) e carga inicial dos acessos existentes.
+\ir migrations/20261109_profissional_empresas.sql
+
+-- Cadastro de locais externos (consultorios sublocados do mesmo CNPJ), usado pela agenda EXTERNA.
+\ir migrations/20261116_locais_externos.sql
+
+-- Locais externos com os mesmos campos do cadastro da empresa (interno, sem ligacao com outras tabelas).
+\ir migrations/20261117_locais_externos_cadastro.sql
+-- Locais externos: exclusao definitiva so com confirmacao do CEO (carimbo, sem apagar a linha).
+\ir migrations/20261118_locais_externos_exclusao.sql
+
+-- Classificacao da empresa: porte assistencial e grau de complexidade (opcionais, sem preenchimento automatico).
+\ir migrations/20261119_empresa_classificacao.sql
+
+-- Vocabulario unico da agenda: "remoto" vira "online" (papel gravado e sufixo do nome). Ver specs/agenda-forma-online.md.
+\ir migrations/20261120_agenda_online.sql
+
+-- Classificacao (A a D) e plano do cliente, ambos com padrao D e bronze.
+\ir migrations/20261121_cliente_classificacao_plano.sql
+
+-- Medicoes corporais do cliente (avaliacoes do Cockpit).
+\ir migrations/20261124_client_avaliacoes.sql
+\ir migrations/20261125_antropometria_figuras.sql
+
+-- Niveis do cliente: Prata, Ouro, Platinum e Diamond. So bronze vira prata; os demais valores antigos
+-- ficam preservados como 'legado:<valor>' (A REVISAR). Execucao unica; rollback manual em migrations/rollback/.
+\ir migrations/20261125_cliente_plano_niveis.sql
+
+-- 20261126_client_body_photos
+CREATE TABLE IF NOT EXISTS client_body_photos (
+  id serial PRIMARY KEY,
+  client_id integer NOT NULL,
+  empresa_id integer NOT NULL,
+  taken_on text NOT NULL,
+  angle text NOT NULL,
+  storage_path text NOT NULL,
+  bytes integer NOT NULL,
+  width integer NOT NULL,
+  height integer NOT NULL,
+  source text NOT NULL DEFAULT 'cliente',
+  consent_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS client_body_photos_cliente_idx ON client_body_photos (client_id, taken_on);
+CREATE UNIQUE INDEX IF NOT EXISTS client_body_photos_slot_ativo_uq
+  ON client_body_photos (client_id, taken_on, angle) WHERE deleted_at IS NULL;
+-- Marca o cadastro de cliente que representa o CELULAR OFICIAL da empresa/licenca (WhatsApp e Telegram da clinica).
+-- Somente o CEO (administrador da plataforma) liga ou desliga. Aditiva e reversivel: nao altera nome, CPF, telefone,
+-- chat do Telegram nem situacao do cadastro. Um unico cadastro ativo por empresa pode ter a marca.
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS numero_oficial_empresa boolean NOT NULL DEFAULT false;
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_clients_numero_oficial_empresa
+  ON clients (empresa_id) WHERE numero_oficial_empresa AND deleted_at IS NULL;
+-- Auditoria do canal oficial da clinica: quem, quando, antes e depois. Somente acrescenta linhas.
+CREATE TABLE IF NOT EXISTS canal_clinica_auditoria (
+  id              serial PRIMARY KEY,
+  empresa_id      integer NOT NULL,
+  client_id       integer NOT NULL,
+  professional_id integer,
+  acao            text NOT NULL,
+  antes           boolean NOT NULL,
+  depois          boolean NOT NULL,
+  tinha_historico boolean NOT NULL DEFAULT false,
+  confirmou_historico boolean NOT NULL DEFAULT false,
+  em              timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS canal_clinica_auditoria_cliente_idx ON canal_clinica_auditoria (client_id, em DESC);
+-- Logo (nome da marca, imagem larga) por empresa. O simbolo ja existe em paxmed_2b_empresa_identidade. Aditiva.
+CREATE TABLE IF NOT EXISTS empresa_marca_logo (
+  empresa_id      integer PRIMARY KEY REFERENCES empresas(id),
+  logo_path       text NOT NULL,
+  atualizado_por  integer,
+  atualizado_em   timestamptz NOT NULL DEFAULT now()
+);
+-- Identidade do CEO da PaxMed (entidade empresarial) + interruptor "Profissional Médico".
+-- O interruptor liga/desliga o uso do cadastro MÉDICO (profissional) do CEO para emitir documentos.
+-- Aditiva: nada é apagado. Começa LIGADO para não mudar o comportamento atual.
+CREATE TABLE IF NOT EXISTS ceo_identidade (
+  id                       integer PRIMARY KEY CHECK (id = 1),
+  foto_path                text,
+  medico_ativo             boolean NOT NULL DEFAULT true,
+  medico_professional_id   integer,
+  atualizado_por           integer,
+  atualizado_em            timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO ceo_identidade (id, medico_professional_id)
+SELECT 1, (SELECT id FROM professionals WHERE is_primary_doctor AND active ORDER BY id LIMIT 1)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS ceo_identidade_auditoria (
+  id            serial PRIMARY KEY,
+  campo         text NOT NULL,
+  valor_antes   text,
+  valor_depois  text,
+  por           integer,
+  em            timestamptz NOT NULL DEFAULT now()
+);
+
+-- Administrador e Responsável técnico por clínica (escolhidos em lista; não cria login nem senha).
+CREATE TABLE IF NOT EXISTS empresa_responsaveis (
+  empresa_id                    integer PRIMARY KEY REFERENCES empresas(id),
+  administrador_professional_id integer,
+  responsavel_tecnico_professional_id integer,
+  atualizado_por                integer,
+  atualizado_em                 timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS empresa_responsaveis_auditoria (
+  id            serial PRIMARY KEY,
+  empresa_id    integer NOT NULL,
+  funcao        text NOT NULL,
+  antes         integer,
+  depois        integer,
+  por           integer,
+  em            timestamptz NOT NULL DEFAULT now()
+);
+
+-- 19/11/2026: precificação por categoria + estoque estático/dinâmico (ver lib/db/migrations/20261119-precificacao-estoque.sql)
+-- Precificação por categoria + estoque estático/dinâmico (reserva por protocolo).
+-- Aditiva e idempotente (Regra de Ouro: nunca DROP/DELETE). Pode rodar mais de uma vez.
+
+-- 1) Parâmetros de custos e encargos (uma linha por clínica). Zero = ainda não preenchido.
+CREATE TABLE IF NOT EXISTS precificacao_parametros (
+  empresa_id      integer PRIMARY KEY REFERENCES empresas(id),
+  frete_pct       numeric(5,2) NOT NULL DEFAULT 0,
+  perda_pct       numeric(5,2) NOT NULL DEFAULT 0,
+  impostos_pct    numeric(5,2) NOT NULL DEFAULT 0,
+  cartao_pct      numeric(5,2) NOT NULL DEFAULT 0,
+  comissao_pct    numeric(5,2) NOT NULL DEFAULT 0,
+  despesas_pct    numeric(5,2) NOT NULL DEFAULT 0,
+  arredondamento  text NOT NULL DEFAULT 'nenhum',
+  referencia_modo text NOT NULL DEFAULT 'maior',
+  atualizado_por  integer,
+  atualizado_em   timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT precificacao_parametros_faixa_ck CHECK (
+    frete_pct BETWEEN 0 AND 95 AND perda_pct BETWEEN 0 AND 95 AND impostos_pct BETWEEN 0 AND 95 AND
+    cartao_pct BETWEEN 0 AND 95 AND comissao_pct BETWEEN 0 AND 95 AND despesas_pct BETWEEN 0 AND 95),
+  CONSTRAINT precificacao_parametros_arred_ck CHECK (arredondamento IN ('nenhum','inteiro','90')),
+  CONSTRAINT precificacao_parametros_ref_ck CHECK (referencia_modo IN ('maior','media','menor'))
+);
+
+-- 2) Margem por categoria e interruptor (auto = preço acompanha; congelado = preço parado).
+CREATE TABLE IF NOT EXISTS precificacao_categorias (
+  empresa_id     integer NOT NULL REFERENCES empresas(id),
+  categoria      text NOT NULL,
+  margem_pct     numeric(5,2) NOT NULL DEFAULT 0,
+  modo           text NOT NULL DEFAULT 'congelado',
+  atualizado_por integer,
+  atualizado_em  timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (empresa_id, categoria),
+  CONSTRAINT precificacao_categorias_cat_ck CHECK (categoria IN ('IM','SC','IMPLANTE','OUTRAS','SEM_VIA')),
+  CONSTRAINT precificacao_categorias_margem_ck CHECK (margem_pct BETWEEN 0 AND 95),
+  CONSTRAINT precificacao_categorias_modo_ck CHECK (modo IN ('auto','congelado'))
+);
+
+-- 3) Preço de venda publicado por apresentação (é o que o "congelado" preserva).
+CREATE TABLE IF NOT EXISTS preco_publicado (
+  empresa_id                 integer NOT NULL,
+  variante_id                integer NOT NULL,
+  preco_centavos             integer NOT NULL,
+  custo_referencia_centavos  integer,
+  margem_pct                 numeric(5,2),
+  origem                     text NOT NULL,
+  publicado_em               timestamptz NOT NULL DEFAULT now(),
+  publicado_por              integer,
+  PRIMARY KEY (empresa_id, variante_id),
+  CONSTRAINT preco_publicado_valores_ck CHECK (preco_centavos >= 0 AND origem IN ('auto','aplicar_agora','congelamento'))
+);
+
+-- 4) Histórico append-only: toda mudança de preço (matriz, orçamento ou substância) deixa rastro.
+CREATE TABLE IF NOT EXISTS preco_publicado_historico (
+  id             serial PRIMARY KEY,
+  empresa_id     integer NOT NULL,
+  variante_id    integer NOT NULL,
+  alvo           text NOT NULL,
+  alvo_id        integer,
+  antes_centavos integer,
+  depois_centavos integer NOT NULL,
+  origem         text NOT NULL,
+  criado_por     integer,
+  criado_em      timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT preco_publicado_historico_alvo_ck CHECK (alvo IN ('matriz','orcamento','substancia'))
+);
+CREATE INDEX IF NOT EXISTS preco_publicado_historico_variante_idx ON preco_publicado_historico (empresa_id, variante_id, criado_em DESC);
+
+-- 5) Reserva de estoque por item de protocolo (o "dinâmico").
+CREATE TABLE IF NOT EXISTS estoque_reservas (
+  id                    serial PRIMARY KEY,
+  empresa_id            integer NOT NULL,
+  protocol_id           integer NOT NULL,
+  protocol_item_id      integer NOT NULL,
+  client_id             integer,
+  substance_id          integer NOT NULL,
+  quantidade_reservada  integer NOT NULL,
+  quantidade_consumida  integer NOT NULL DEFAULT 0,
+  quantidade_liberada   integer NOT NULL DEFAULT 0,
+  status                text NOT NULL DEFAULT 'ativa',
+  criado_em             timestamptz NOT NULL DEFAULT now(),
+  atualizado_em         timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT estoque_reservas_item_uq UNIQUE (protocol_item_id),
+  CONSTRAINT estoque_reservas_valores_ck CHECK (
+    quantidade_reservada > 0 AND quantidade_consumida >= 0 AND quantidade_liberada >= 0 AND
+    quantidade_consumida + quantidade_liberada <= quantidade_reservada),
+  CONSTRAINT estoque_reservas_status_ck CHECK (status IN ('ativa','concluida','liberada'))
+);
+CREATE INDEX IF NOT EXISTS estoque_reservas_empresa_status_idx ON estoque_reservas (empresa_id, status, substance_id);
+CREATE INDEX IF NOT EXISTS estoque_reservas_protocolo_idx ON estoque_reservas (protocol_id);
+
+-- 6) Livro de movimentos (append-only; chave de idempotência impede baixa em dobro).
+CREATE TABLE IF NOT EXISTS estoque_movimentos (
+  id                 serial PRIMARY KEY,
+  empresa_id         integer NOT NULL,
+  substance_id       integer NOT NULL,
+  tipo               text NOT NULL,
+  quantidade         integer NOT NULL,
+  reserva_id         integer REFERENCES estoque_reservas(id),
+  stock_item_id      integer,
+  lote               text,
+  protocol_id        integer,
+  application_id     integer,
+  chave_idempotencia text NOT NULL,
+  criado_em          timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT estoque_movimentos_chave_uq UNIQUE (chave_idempotencia),
+  CONSTRAINT estoque_movimentos_valores_ck CHECK (quantidade > 0 AND tipo IN ('RESERVA','CONSUMO','LIBERACAO'))
+);
+CREATE INDEX IF NOT EXISTS estoque_movimentos_substancia_idx ON estoque_movimentos (empresa_id, substance_id, criado_em DESC);
+
+-- 19/11/2026: matriz — todas as vias + nome comercial da fonte (ver lib/db/migrations/20261119-matriz-vias-produto-fonte.sql)
+-- Matriz de fornecedores: todas as vias de uso como categoria + nome comercial da fonte.
+-- Aditiva e idempotente. A restrição de valores é trocada por outra MAIS LARGA (nenhum dado é apagado).
+
+-- 1) Novas categorias de via: EV (endovenosa) e ID (intradérmica).
+ALTER TABLE precificacao_categorias DROP CONSTRAINT IF EXISTS precificacao_categorias_cat_ck;
+ALTER TABLE precificacao_categorias ADD CONSTRAINT precificacao_categorias_cat_ck
+  CHECK (categoria IN ('IM','EV','SC','ID','IMPLANTE','OUTRAS','SEM_VIA'));
+
+-- 2) EV e ID nascem com a margem e o modo que OUTRAS já tinha (hoje 0 % e automático), em cada clínica.
+INSERT INTO precificacao_categorias (empresa_id, categoria, margem_pct, modo, atualizado_por)
+SELECT empresa_id, nv.categoria, margem_pct, modo, atualizado_por
+  FROM precificacao_categorias CROSS JOIN (VALUES ('EV'), ('ID')) AS nv(categoria)
+ WHERE precificacao_categorias.categoria = 'OUTRAS'
+ON CONFLICT (empresa_id, categoria) DO NOTHING;
+
+-- 3) Nome comercial do produto como veio na tabela do laboratório (ex.: "Pill Food", "Bioprolin").
+ALTER TABLE substance_ofertas ADD COLUMN IF NOT EXISTS produto_fonte text;
+UPDATE substance_ofertas
+   SET produto_fonte = btrim(split_part(fonte_texto, '|', 3))
+ WHERE produto_fonte IS NULL AND origem_chave LIKE 'farmatec-%' AND split_part(fonte_texto, '|', 3) <> '';
+
+-- Propostas de sinapses clínicas ficam separadas das ligações ativas até revisão humana.
+CREATE TABLE IF NOT EXISTS sinapses_clinicas_propostas (
+  id SERIAL PRIMARY KEY,
+  pergunta_id TEXT NOT NULL,
+  categoria TEXT NOT NULL,
+  destino_tipo TEXT NOT NULL,
+  destino_id INTEGER NOT NULL,
+  eixo TEXT NOT NULL,
+  justificativa TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDENTE'
+    CHECK (status IN ('PENDENTE', 'APROVADA', 'RECUSADA')),
+  criado_por INTEGER,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT sinapses_clinicas_propostas_uk
+    UNIQUE (pergunta_id, categoria, destino_tipo, destino_id)
+);
+CREATE INDEX IF NOT EXISTS sinapses_clinicas_propostas_status_idx
+  ON sinapses_clinicas_propostas (status, id);
+
+-- ── Papéis por clínica (Fatia 1 do Plano Mestre de Permissões) ─────────────
+-- Cinco interruptores INDEPENDENTES por profissional e por clínica (empresa_id).
+-- Aditivo e idempotente. Não substitui category/role atuais (Regra de Ouro).
+CREATE TABLE IF NOT EXISTS professional_papeis_empresa (
+  id              SERIAL PRIMARY KEY,
+  professional_id INTEGER NOT NULL REFERENCES professionals(id),
+  empresa_id      INTEGER NOT NULL REFERENCES empresas(id),
+  is_clinic_admin BOOLEAN NOT NULL DEFAULT FALSE,
+  is_doctor       BOOLEAN NOT NULL DEFAULT FALSE,
+  is_nurse        BOOLEAN NOT NULL DEFAULT FALSE,
+  is_reception    BOOLEAN NOT NULL DEFAULT FALSE,
+  is_finance      BOOLEAN NOT NULL DEFAULT FALSE,
+  origem          TEXT NOT NULL DEFAULT 'categoria',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT professional_papeis_empresa_uk UNIQUE (professional_id, empresa_id)
+);
+CREATE INDEX IF NOT EXISTS professional_papeis_empresa_empresa_idx
+  ON professional_papeis_empresa (empresa_id);
+
+-- Preenchimento inicial SÓ a partir da categoria já cadastrada (nada inventado).
+INSERT INTO professional_papeis_empresa
+  (professional_id, empresa_id, is_clinic_admin, is_doctor, is_nurse, is_reception, is_finance, origem)
+SELECT p.id, p.empresa_id,
+  p.category = 'administrador_clinica',
+  p.category = 'medico',
+  p.category = 'enfermagem',
+  p.category = 'recepcao',
+  p.category = 'financeiro',
+  'categoria'
+FROM professionals p
+WHERE p.empresa_id IS NOT NULL
+  AND p.category IN ('administrador_clinica','medico','enfermagem','recepcao','financeiro')
+ON CONFLICT (professional_id, empresa_id) DO NOTHING;
+
+-- Decisão do Dr. Caio (cenário 3): médico + administrador na própria clínica.
+UPDATE professional_papeis_empresa SET is_clinic_admin = TRUE, origem = 'decisao_ceo', updated_at = NOW()
+ WHERE professional_id = 6 AND empresa_id = 5 AND NOT is_clinic_admin;
+INSERT INTO professional_papeis_empresa (professional_id, empresa_id, is_clinic_admin, is_doctor, origem)
+SELECT 7, 2, TRUE, TRUE, 'decisao_ceo'
+WHERE EXISTS (SELECT 1 FROM professionals WHERE id = 7) AND EXISTS (SELECT 1 FROM empresas WHERE id = 2)
+ON CONFLICT (professional_id, empresa_id) DO NOTHING;
+
+-- Pré-cadastro obrigatório da área do cliente (/area): só quem foi convidado é exigido.
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS pre_cadastro_exigido BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS pre_cadastro_completo_em TIMESTAMPTZ;

@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { Calendar, AlertTriangle, Send, Loader2, CheckCircle2, FileText, X, ExternalLink, Zap, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 import { useToast } from "@/hooks/use-toast";
 
 const API = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -27,6 +28,7 @@ type AlertaSlot = {
   dataFormatada: string;
   status: string;
   clientName: string;
+  clientId?: number;
   formulas: { nome: string }[];
 };
 
@@ -147,24 +149,31 @@ export function ReceituarioAlertaPanel({ clientId }: Props) {
 
   if (carregando) {
     return (
-      <div className="panel-3d-sub p-4 flex items-center gap-2 text-muted-foreground text-sm">
-        <Loader2 className="w-4 h-4 animate-spin" />
-        Verificando receituário automático…
+      <div className="space-y-2">
+        <ClinicalCertificateStatus scope="professional" />
+        <div className="panel-3d-sub p-4 flex items-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Verificando receituário automático…
+        </div>
       </div>
     );
   }
 
   if (total === 0) {
     return (
-      <div className="panel-3d-sub p-3 flex items-center gap-2 text-muted-foreground text-sm">
-        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-        Nenhuma receita a liberar nos próximos 7 dias
+      <div className="space-y-2">
+        <ClinicalCertificateStatus scope="professional" />
+        <div className="panel-3d-sub p-3 flex items-center gap-2 text-muted-foreground text-sm">
+          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+          Nenhuma receita a liberar nos próximos 7 dias
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-2">
+      <ClinicalCertificateStatus scope="professional" />
       {/* Cabeçalho + botão de emissão rápida */}
       <div className="flex items-center justify-between gap-2">
         <div className="bevel-3d text-[11px] px-2 py-0.5 uppercase tracking-widest inline-flex items-center gap-1">
@@ -176,7 +185,8 @@ export function ReceituarioAlertaPanel({ clientId }: Props) {
           <Button
             className="btn-3d h-7 text-xs gap-1"
             onClick={() => { setEmitirResultado(null); setEmitirAberto(true); }}
-            title="Motor único — lê o modelo ativo do banco"
+            disabled
+            title="Use Emitir receitas na ferramenta Prescrição."
           >
             <FileText className="w-3.5 h-3.5" />
             Emitir Receituário
@@ -184,14 +194,17 @@ export function ReceituarioAlertaPanel({ clientId }: Props) {
           <Button
             className="btn-3d-soft h-7 text-xs gap-1"
             onClick={() => { void gerarPdfVisual(); }}
-            disabled={gerarLoading}
-            title="Puppeteer server-side — fiel ao template HTML"
+            disabled
+            title="Use Gerar documento teste na ferramenta Prescrição."
           >
             {gerarLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
             PDF Visual
           </Button>
         </div>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Atalhos suspensos: use a ferramenta Prescrição para emitir ou gerar documento de teste.
+      </p>
 
       {/* Modal emissão rápida ICP-Brasil */}
       {emitirAberto && (

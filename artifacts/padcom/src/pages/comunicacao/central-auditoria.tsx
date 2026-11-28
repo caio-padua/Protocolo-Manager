@@ -5,6 +5,12 @@ import {
   Clock, Bot, Trello, Filter, X, Info, Wifi, WifiOff
 } from "lucide-react";
 import { ConsoleShell, BlockTitle, StatusVela, BASE } from "./_shared";
+import { getCollabToken } from "@/lib/collab-auth";
+import { PainelOperacionalTelegram } from "./painel-telegram";
+import { FichaAtendimento } from "./ficha-atendimento";
+import { SecaoComunicacaoUnificada } from "./conversa-unificada";
+import { BotaoMinMax } from "./botao-min-max";
+import { classificarStatusTelegram, mensagemErroTelegram, type StatusTelegram } from "./telegram-status";
 
 // ============================================================================
 // CENTRAL DE AUDITORIA DE COMUNICAÇÃO — visão unificada de TODOS os canais:
@@ -242,7 +248,7 @@ function BlocoWhatsApp({ filtroData }: { filtroData: FiltroData }) {
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             </button>
-            {aberto ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            <BotaoMinMax aberto={aberto} onAlternar={() => setAberto(!aberto)} />
           </div>
         </div>
 
@@ -367,7 +373,7 @@ function BlocoEmail() {
             <p className="text-[10px] text-muted-foreground">via Gmail API · {loading ? "verificando…" : ativo ? "conectado" : "não configurado"}</p>
           </div>
         </div>
-        {aberto ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        <BotaoMinMax aberto={aberto} onAlternar={() => setAberto(!aberto)} />
       </div>
 
       {aberto && (
@@ -408,7 +414,7 @@ function BlocoEmail() {
               <tbody>
                 {[
                   { tipo: "Pré-sessão", gatilho: "Agendamento confirmado", conteudo: "Código de validação + lista de substâncias" },
-                  { tipo: "Pós-sessão", gatilho: "Sessão concluída", conteudo: "Substâncias aplicadas + PDF do RAS assinado" },
+                  { tipo: "Pós-sessão", gatilho: "Sessão concluída", conteudo: "Substâncias aplicadas + PDF do RASP assinado" },
                   { tipo: "Protocolo Completo", gatilho: "Lançamento do protocolo", conteudo: "PDF de 8-10 páginas com protocolo completo" },
                   { tipo: "Lembretes semanais", gatilho: "Batch semanal", conteudo: "Resumo da semana por cliente" },
                 ].map(row => (
@@ -430,19 +436,25 @@ function BlocoEmail() {
 // ── Bloco Telegram ────────────────────────────────────────────────────────────
 
 function BlocoTelegram() {
-  const [cfg, setCfg] = useState<{ active: boolean; configured: boolean } | null>(null);
+  const [status, setStatus] = useState<StatusTelegram | null>(null);
   const [loading, setLoading] = useState(true);
   const [aberto, setAberto] = useState(true);
 
   useEffect(() => {
-    fetch(`${BASE}/api/settings/telegram`)
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(d => setCfg({ active: !!d?.active, configured: !!d?.configured }))
-      .catch(() => setCfg({ active: false, configured: false }))
+    const token = getCollabToken();
+    fetch(`${BASE}/api/settings/telegram`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then(async r => {
+        const corpo: unknown = await r.json().catch(() => null);
+        setStatus(classificarStatusTelegram(r.status, corpo));
+      })
+      .catch(() => setStatus({ tipo: "erro", motivo: "rede" }))
       .finally(() => setLoading(false));
   }, []);
 
-  const ativo = cfg?.active && cfg?.configured;
+  const erro = status?.tipo === "erro" ? status : null;
+  const cfg = status?.tipo === "ok" ? { active: status.ativo, configured: status.configurado } : null;
+  const ativo = Boolean(cfg?.active && cfg?.configured);
+  const rotuloEstado = loading ? "verificando…" : erro ? "indisponível" : ativo ? "conectado" : cfg?.configured ? "desativado" : "não configurado";
 
   return (
     <section className="panel-3d overflow-hidden">
@@ -454,11 +466,11 @@ function BlocoTelegram() {
         <div className="flex items-center gap-3">
           <Bot className="h-5 w-5 text-[#29B6F6]" />
           <div>
-            <p className="text-[13px] font-bold uppercase tracking-wide">Telegram</p>
-            <p className="text-[10px] text-muted-foreground">via Bot Token · {loading ? "verificando…" : ativo ? "conectado" : "não configurado"}</p>
+            <p className="text-[13px] font-bold uppercase tracking-wide">Telegram · Status do bot</p>
+            <p className="text-[10px] text-muted-foreground">via Bot Token · {rotuloEstado}</p>
           </div>
         </div>
-        {aberto ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        <BotaoMinMax aberto={aberto} onAlternar={() => setAberto(!aberto)} />
       </div>
 
       {aberto && (
@@ -469,8 +481,11 @@ function BlocoTelegram() {
               : <WifiOff className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
             }
             <div>
-              <StatusVela on={!!ativo} pending={loading} labelOn="Bot ativo" labelOff={cfg?.configured ? "Bot desativado" : "Token não configurado"} />
-              {!cfg?.configured && !loading && (
+              <StatusVela on={ativo} pending={loading} error={Boolean(erro)} labelOn="Bot ativo" labelOff={cfg?.configured ? "Bot desativado" : "Token não configurado"} />
+              {erro && !loading && (
+                <p className="text-[12px] text-muted-foreground mt-2 leading-relaxed">{mensagemErroTelegram(erro.motivo)}</p>
+              )}
+              {cfg && !cfg.configured && !loading && (
                 <p className="text-[12px] text-muted-foreground mt-2 leading-relaxed">
                   Configure o Token do Bot Telegram no menu <strong>Configurações → Gateways de Comunicação</strong>.
                   O log de mensagens será exibido aqui após a configuração.
@@ -492,7 +507,7 @@ function BlocoTelegram() {
 
           <BlockTitle icon={Info}>Mensagens enviadas via Telegram</BlockTitle>
           <div className="concave-3d px-4 py-3 text-[12px] text-muted-foreground leading-relaxed">
-            O Telegram é usado para envio de RAS, documentos assinados e notificações de protocolo
+            O Telegram é usado para envio de RASP, documentos assinados e notificações de protocolo
             quando o cliente tem <strong>Telegram Chat ID</strong> cadastrado no perfil.
             Mensagens de lembrete por período (cockpit de mensageria) também usam este canal.
           </div>
@@ -521,7 +536,7 @@ function BlocoTrello() {
             <p className="text-[10px] text-muted-foreground">cards de tarefa interna · não configurado</p>
           </div>
         </div>
-        {aberto ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        <BotaoMinMax aberto={aberto} onAlternar={() => setAberto(!aberto)} />
       </div>
 
       {aberto && (
@@ -619,10 +634,15 @@ export default function CentralAuditoriaComunicacao() {
         </div>
       </section>
 
+      <SecaoComunicacaoUnificada periodo={filtroData} />
+
+      <FichaAtendimento periodo={filtroData} />
+
       {/* 4 blocos de canal */}
       <BlocoWhatsApp filtroData={filtroData} />
-      <BlocoEmail />
       <BlocoTelegram />
+      <PainelOperacionalTelegram />
+      <BlocoEmail />
       <BlocoTrello />
     </ConsoleShell>
   );

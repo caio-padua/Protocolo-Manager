@@ -1,7 +1,7 @@
 /**
- * RAS FAP — gerador (Paxter).
+ * RASP FAP — gerador (Paxter).
  *
- * RAS = Registro de Administracao de Substancias (titulo impresso do documento).
+ * RASP = Registro de Atendimentos, Substancias e Procedimentos.
  * FAP = Formulario de Auditoria de Procedimentos (papel fisico, preenchido a
  *       caneta na sala no momento da aplicacao).
  * PDF = arquivo de documento. A4 landscape = folha A4 deitada.
@@ -21,6 +21,8 @@
  */
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
+import { nomeEnfermeira, rubricaCliente, type RegistroRasFap } from "./ras-fap-rubrica";
+import { dosePrescritaParaDocumento, nomeSubstanciaNoProtocolo } from "./protocol-dose-presentation";
 
 // Site institucional do Paxter (placeholder). QR no rodape do RAS FAP aponta aqui
 // para que medicos/farmacias achem o sistema. Trocar so esta linha quando o site existir.
@@ -50,6 +52,9 @@ export interface DadosRasFap {
   protocoloNumero?: string;
   valorTratamento?: number; // em reais
   substancias: SubstanciaFap[];
+  gradePersistida?: LinhaGrade[];
+  /** K9: o que já aconteceu em cada visita, por número da linha da grade (só protocolos de datas exatas). */
+  registros?: Map<number, RegistroRasFap>;
 }
 
 export type ModoRasFap = "PREMIUM" | "SIMPLES" | "MARCA" | "MINIMAL" | "BRONZE";
@@ -168,9 +173,13 @@ export interface PaginaRasFap {
  * lacunas: SEM 1, 3, 5... e isso e CORRETO). Padding ate 20 linhas POR PAGINA
  * com SEM em branco (linha de escrita, nao e ida real — nunca renumera).
  */
-export function planejarPaginasRasFap(subs: SubstanciaFap[]): PaginaRasFap[] {
+export function planejarPaginasRasFap(subs: SubstanciaFap[], gradePersistida?: LinhaGrade[]): PaginaRasFap[] {
   const grupos = chunk(subs, MAX_SUBS_POR_PAGINA);
-  const gradeGlobal = montarGrade(subs, 0);
+  // Explicit exact-date protocols supply their recorded agenda; legacy motor is unchanged.
+  const gradeGlobal = gradePersistida ?? montarGrade(subs, 0);
+  if (gradeGlobal.some(row => row.contadores.length !== subs.length)) {
+    throw new Error("RASP: grade incompatível com as colunas de substâncias");
+  }
   const plano: PaginaRasFap[] = [];
   for (const g of grupos) {
     const idxGlobais = g.map((s) => subs.indexOf(s));
@@ -464,9 +473,10 @@ function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
   // Esquerda: wordmark "RAS FAP" + 2 descritivos, centralizados em yc.
   const wmSize = 23;
   const wmFont = pal.wordmark === "serif" ? "Times-Bold" : "Helvetica-Bold";
-  doc.font(wmFont).fontSize(wmSize).fillColor(pal.brand).text("RAS FAP", ML, yc - (wmSize * 0.72) / 2, { lineBreak: false, characterSpacing: pal.wordmark === "serif" ? 0 : 1 });
-  const dx = ML + doc.widthOfString("RAS FAP") + 18;
-  doc.font("Helvetica").fontSize(8.5).fillColor(pal.ink).text("Registro de Administração de Substâncias.", dx, yc - 8, { lineBreak: false, characterSpacing: 0.3 });
+  const wmTracking = pal.wordmark === "serif" ? 0 : 1;
+  doc.font(wmFont).fontSize(wmSize).fillColor(pal.brand).text("RASP FAP", ML, yc - (wmSize * 0.72) / 2, { lineBreak: false, characterSpacing: wmTracking });
+  const dx = ML + doc.widthOfString("RASP FAP", { characterSpacing: wmTracking }) + 18;
+  doc.font("Helvetica").fontSize(8.5).fillColor(pal.ink).text("Registro de Atendimentos, Substâncias e Procedimentos.", dx, yc - 8, { lineBreak: false, characterSpacing: 0.3 });
   doc.font("Helvetica-Oblique").fontSize(6.8).fillColor(pal.labelInk).text("Formulário de Auditoria de Procedimentos.", dx + 16, yc + 2.5, { lineBreak: false, characterSpacing: 0.3 });
 
   // Direita: PAXTER e PADCON lado a lado, cada um com tagline em ingles
@@ -474,7 +484,7 @@ function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
   // MESMO NIVEL do wordmark. PAXTER = sistema clinico; PADCON = empresa-raiz
   // de tecnologia (holding que cria varias empresas de tecnologia).
   const colW = 190;
-  const colAx = rEnd - 400; // coluna PAXTER (borda direita em rEnd-210)
+  const colAx = rEnd - 400; // coluna PaxMed (borda direita em rEnd-210)
   const colBx = rEnd - colW; // coluna PADCON (borda direita em rEnd)
   const brandSize = 9.5;
   const tagSize = 6.5;
@@ -482,7 +492,7 @@ function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
   const blockH = brandSize * 0.72 + gapBT + tagSize * 0.72;
   const yBrand = yc - blockH / 2;
   const yTag = yBrand + brandSize * 0.72 + gapBT;
-  doc.font("Helvetica-Bold").fontSize(brandSize).fillColor(pal.brand).text("PAXTER", colAx, yBrand, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
+  doc.font("Helvetica-Bold").fontSize(brandSize).fillColor(pal.brand).text("PAXMED", colAx, yBrand, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
   doc.font("Helvetica-Bold").fontSize(brandSize).fillColor(pal.brand).text("PADCON", colBx, yBrand, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
   doc.font("Helvetica-Bold").fontSize(tagSize).fillColor(pal.accent).text("CLINICAL INTELLIGENCE SYSTEM", colAx, yTag, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.1 });
   doc.font("Helvetica-Bold").fontSize(tagSize).fillColor(pal.accent).text("ADVANCED SYSTEMS ARCHITECTURE", colBx, yTag, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.3 });
@@ -538,7 +548,15 @@ function desenharProtocolo(doc: Doc, pal: Paleta, grupo: SubstanciaFap[], y: num
   const cols = slots5(grupo);
 
   const linhas: { label: string; valor: (s: SubstanciaFap) => string; destaque?: boolean }[] = [
-    { label: "SUBSTÂNCIAS", valor: (s) => `${s.nome}${s.dose ? " " + s.dose : ""}`, destaque: true },
+    {
+      label: "SUBSTÂNCIAS",
+      valor: (s) => {
+        const name = nomeSubstanciaNoProtocolo(s.nome);
+        const dose = dosePrescritaParaDocumento(s.dose);
+        return `${name}${dose ? ` ${dose}` : ""}`;
+      },
+      destaque: true,
+    },
     { label: "APLICAÇÕES", valor: (s) => String(s.sessoes) },
     { label: "FREQUÊNCIA", valor: (s) => `A cada ${s.frequenciaDias} dias.` },
     { label: "INÍCIO DA APLICAÇÃO", valor: (s) => fmtData(s.inicio) },
@@ -577,6 +595,53 @@ function desenharProtocolo(doc: Doc, pal: Paleta, grupo: SubstanciaFap[], y: num
   return cy + 7;
 }
 
+// Check desenhado por linhas: a fonte padrao do PDF (Helvetica) nao tem o caractere de check.
+function desenharCheck(doc: Doc, cor: string, x: number, y: number, w: number, h: number): void {
+  const t = Math.min(w, h) * 0.34;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  doc.save();
+  doc.lineWidth(0.9).lineCap("round").lineJoin("round").strokeColor(cor);
+  doc.moveTo(cx - t, cy + t * 0.05).lineTo(cx - t * 0.3, cy + t * 0.75).lineTo(cx + t, cy - t * 0.7).stroke();
+  doc.restore();
+}
+
+// Rubrica do cliente como imagem (cadastro do cliente). A imagem e aberta UMA vez por documento: cada linha
+// reaproveita o mesmo objeto do PDF em vez de embutir o arquivo de novo.
+const imagensAbertas = new WeakMap<Doc, Map<Buffer, unknown>>();
+function abrirImagem(doc: Doc, png: Buffer): unknown {
+  let porBuffer = imagensAbertas.get(doc);
+  if (!porBuffer) {
+    porBuffer = new Map();
+    imagensAbertas.set(doc, porBuffer);
+  }
+  let imagem = porBuffer.get(png);
+  if (!imagem) {
+    imagem = (doc as unknown as { openImage(src: Buffer): unknown }).openImage(png);
+    porBuffer.set(png, imagem);
+  }
+  return imagem;
+}
+
+// Desenha a rubrica dentro da celula, a esquerda, sem sair da moldura. `sufixo` (ex.: "(cadastro)") fica
+// inteiro a direita e a imagem usa o espaco que sobra.
+function desenharRubricaImagem(
+  doc: Doc, pal: Paleta, png: Buffer, x: number, y: number, w: number, h: number, sufixo?: string,
+): void {
+  const pad = 3;
+  const padV = 1.2;
+  let larguraUtil = w - 2 * pad;
+  if (sufixo) {
+    doc.font("Helvetica").fontSize(5.8);
+    const ws = doc.widthOfString(sufixo);
+    doc.fillColor(pal.ink).text(sufixo, x + w - pad - ws, y + (h - 5.8 * 0.72) / 2, { lineBreak: false, ellipsis: false });
+    larguraUtil -= ws + 3;
+  }
+  doc.image(abrirImagem(doc, png) as never, x + pad, y + padV, {
+    fit: [larguraUtil, h - 2 * padV], valign: "center",
+  });
+}
+
 function desenharGrade(
   doc: Doc,
   pal: Paleta,
@@ -585,6 +650,8 @@ function desenharGrade(
   yTopo: number,
   yRodape: number,
   aplicInicio: number,
+  registros: Map<number, RegistroRasFap> | undefined,
+  todas: SubstanciaFap[],
 ): void {
   rotulo(doc, pal, "GRADE DE APLICAÇÕES", ML, yTopo - 11);
   const headH = 26;
@@ -621,25 +688,59 @@ function desenharGrade(
   linhas.forEach((ln, idx) => {
     const zebra = pal.zebra && idx % 2 === 1 ? pal.zebra : undefined;
     let cx = ML;
+    // K9: registros da visita (so linhas reais; padding tem numero 0). Sem registros, tudo como antes.
+    const reg = ln.numero > 0 ? registros?.get(ln.numero) : undefined;
     const fixedVals: Record<string, string> = {
       // APLIC: numeracao continua POR FOLHA (1..20, 21..40 ...), em TODAS as
       // linhas, inclusive padding (regra do CEO: aparece com ou sem aplicacao).
       sem: String(aplicInicio + idx + 1),
       agend: ln.data ? fmtData(ln.data) : "",
-      hora: "",
+      hora: reg?.hora ?? "",
       cienciaPac: "",
       rubEnf: "",
-      efetiva: "",
+      efetiva: reg?.dataEfetiva ?? "",
       obs: "",
     };
+    const fixedEstilo: Record<string, { bold?: boolean; color?: string }> = {};
+    let imagemRubrica: Buffer | null = null;
+    let sufixoImagem: string | undefined;
+    if (reg) {
+      // Folga de 2 caracteres: o espaco util da celula menos a largura de 2 digitos.
+      const cabeEm = (w: number) => (t: string) =>
+        doc.font("Helvetica").fontSize(6.6).widthOfString(t) <= w - 6 - 2 * doc.widthOfString("0");
+      const wCiencia = COLS_FIXAS.find((c) => c.key === "cienciaPac")!.w;
+      const wEnf = COLS_FIXAS.find((c) => c.key === "rubEnf")!.w;
+      // Com imagem de rubrica no cadastro, ela substitui as iniciais (so nas marcas que mostram rubrica).
+      imagemRubrica = reg.rubricaHistorica!=="sem_imagem" && reg.rubricaPng && (reg.confirmacaoCliente === "plena" || reg.confirmacaoCliente === "cadastro")
+        ? reg.rubricaPng : null;
+      if ((reg.confirmacaoCliente === "plena" || reg.confirmacaoCliente === "cadastro") && reg.rubricaHistorica==="legado_sem_versao") {
+        imagemRubrica=null;
+        fixedVals.cienciaPac="RUBRICA SEM VERSÃO";
+      } else if (reg.confirmacaoCliente === "plena") {
+        if (!imagemRubrica) fixedVals.cienciaPac = rubricaCliente(reg.clienteNome, cabeEm(wCiencia));
+      } else if (reg.confirmacaoCliente === "cadastro") {
+        if (imagemRubrica) sufixoImagem = "(cadastro)";
+        else fixedVals.cienciaPac = rubricaCliente(reg.clienteNome, cabeEm(wCiencia), " (cadastro)");
+      } else if (reg.confirmacaoCliente === "aguardando") {
+        fixedVals.cienciaPac = "AGUARDANDO";
+        fixedEstilo.cienciaPac = { bold: true, color: pal.labelInk };
+      } else if (reg.confirmacaoCliente === "nao_confirmada") {
+        fixedVals.cienciaPac = "NÃO CONFIRMADA";
+        fixedEstilo.cienciaPac = { bold: true };
+      }
+      if (reg.enfermeira) fixedVals.rubEnf = nomeEnfermeira(reg.enfermeira, cabeEm(wEnf));
+    }
     for (const c of COLS_FIXAS) {
+      const estilo = fixedEstilo[c.key];
       celula(doc, pal, cx, ry, c.w, rowH, {
         text: fixedVals[c.key],
         size: 6.6,
         align: c.key === "sem" || c.key === "agend" ? "center" : "left",
-        bold: c.key === "sem",
+        bold: c.key === "sem" || estilo?.bold === true,
+        color: estilo?.color,
         fill: zebra,
       });
+      if (c.key === "cienciaPac" && imagemRubrica) desenharRubricaImagem(doc, pal, imagemRubrica, cx, ry, c.w, rowH, sufixoImagem);
       cx += c.w;
     }
     cols.forEach((s, i) => {
@@ -659,17 +760,26 @@ function desenharGrade(
           .fontSize(6.8)
           .fillColor(pal.aplicInk)
           .text(vFmt, fx, ry + (rowH - 6.8) / 2 - 0.3, { width: fw, align: "center", lineBreak: false });
-      if (pal.cell === "tick") {
-        // Minimal: sem pintura, fracao centralizada na celula inteira.
-        escreveFracao(sx, SUB_W);
-      } else {
+      // K9: aplicada = a barra NAO muda de cor; o terco direito da celula fica sem pintura e recebe o check.
+      const aplicada = reg?.aplicadas[todas.indexOf(s)] === true;
+      const q = SUB_W / 4;
+      const inicioFracao = pal.cell === "tick" ? sx : sx + q;
+      if (pal.cell !== "tick") {
         // Pinta SOMENTE 1/4 (faixa marcador a esquerda); fracao nos 3/4 da direita.
-        const q = SUB_W / 4;
         doc.save();
         doc.rect(sx + 0.6, ry + 0.6, q - 0.6, rowH - 1.2).fillAndStroke(pal.aplic, pal.border);
         doc.restore();
-        escreveFracao(sx + q, SUB_W - q);
       }
+      if (!aplicada) {
+        // Sem aplicacao registrada: identico ao desenho de sempre.
+        escreveFracao(inicioFracao, pal.cell === "tick" ? SUB_W : SUB_W - q);
+        return;
+      }
+      const larguraTexto = doc.font("Helvetica-Bold").fontSize(6.8).widthOfString(vFmt);
+      let larguraCheck = SUB_W / 3;
+      if (larguraTexto + 2 > sx + SUB_W - larguraCheck - inicioFracao) larguraCheck = 12;
+      escreveFracao(inicioFracao, sx + SUB_W - larguraCheck - inicioFracao);
+      desenharCheck(doc, pal.aplicInk, sx + SUB_W - larguraCheck, ry, larguraCheck, rowH);
     });
     ry += rowH;
   });
@@ -742,7 +852,7 @@ function desenharFaixaLateral(
 
   // Trunca se nome for longo demais.
   const avail = h - 14;
-  let label = `RAS FAP   —   ${(nome || "").toUpperCase()}`;
+  let label = `RASP FAP   —   ${(nome || "").toUpperCase()}`;
   if (doc.widthOfString(label, { characterSpacing: cspc }) > avail) {
     while (label.length > 12 && doc.widthOfString(label + "\u2026", { characterSpacing: cspc }) > avail) {
       label = label.slice(0, -1);
@@ -764,7 +874,7 @@ function desenharFaixaLateral(
 
 function desenharRodape(doc: Doc, pal: Paleta, pageNum: number, totalPages: number, qrBuf: Buffer | null): void {
   const yb = PAGE_H - M + 2;
-  doc.font("Helvetica").fontSize(6).fillColor(pal.labelInk).text("PAXTER  \u00b7  DESENVOLVIDO PELA PADCON  \u00b7  ADVANCED SYSTEMS ARCHITECTURE  \u00b7  DOCUMENTO DE AUDITORIA — PREENCHIMENTO À CANETA NA SALA.", ML, yb, { lineBreak: false, characterSpacing: 0.4 });
+  doc.font("Helvetica").fontSize(6).fillColor(pal.labelInk).text("PaxMed  \u00b7  DESENVOLVIDO PELA PADCON  \u00b7  ADVANCED SYSTEMS ARCHITECTURE  \u00b7  DOCUMENTO DE AUDITORIA — PREENCHIMENTO À CANETA NA SALA.", ML, yb, { lineBreak: false, characterSpacing: 0.4 });
   const pagX = PAGE_W - M - 90;
   doc.font("Helvetica").fontSize(6.5).fillColor(pal.labelInk).text(`PAG. ${pageNum} / ${totalPages}`, pagX, yb, { width: 90, align: "right", lineBreak: false });
   // Selo QR PAXTER (best-effort): pequeno, a esquerda do indicador de pagina.
@@ -774,7 +884,7 @@ function desenharRodape(doc: Doc, pal: Paleta, pageNum: number, totalPages: numb
     const qy = yb - (qrSize - 8);
     try {
       doc.image(qrBuf, qx, qy, { width: qrSize, height: qrSize });
-      doc.font("Helvetica-Bold").fontSize(5).fillColor(pal.labelInk).text("PAXTER", qx + qrSize + 3, qy + 2, { lineBreak: false, characterSpacing: 0.3 });
+      doc.font("Helvetica-Bold").fontSize(5).fillColor(pal.labelInk).text("PAXMED", qx + qrSize + 3, qy + 2, { lineBreak: false, characterSpacing: 0.3 });
       doc.font("Helvetica").fontSize(4.5).fillColor(pal.labelInk).text("paxter.com.br", qx + qrSize + 3, qy + 9, { lineBreak: false, characterSpacing: 0.2 });
     } catch { /* nunca derruba a emissao */ }
   }
@@ -799,7 +909,7 @@ export async function gerarRasFapPdf(dados: DadosRasFap, modo: ModoRasFap = "PRE
     doc.on("end", () => resolve(Buffer.concat(bufs)));
     doc.on("error", reject);
 
-    const planoPaginas = planejarPaginasRasFap(dados.substancias);
+    const planoPaginas = planejarPaginasRasFap(dados.substancias, dados.gradePersistida);
     const totalPages = planoPaginas.length;
 
     // APLIC continua, reiniciando a cada GRUPO de substancias (cada grupo gera
@@ -823,7 +933,7 @@ export async function gerarRasFapPdf(dados: DadosRasFap, modo: ModoRasFap = "PRE
       const assinH = 42;
       const yAssin = PAGE_H - M - 12 - assinH;
       const yRodape = yAssin - 8;
-      desenharGrade(doc, pal, p.grupo, p.linhas, y, yRodape, aplicBase);
+      desenharGrade(doc, pal, p.grupo, p.linhas, y, yRodape, aplicBase, dados.registros, dados.substancias);
       desenharAssinaturas(doc, pal, yAssin, assinH);
       desenharRodape(doc, pal, idx + 1, totalPages, qrBuf);
       desenharFaixaLateral(doc, pal, dados.nome, M, PAGE_H - M, "esquerda");

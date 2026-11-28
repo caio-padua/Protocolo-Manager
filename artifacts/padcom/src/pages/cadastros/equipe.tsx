@@ -8,10 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
-  Users, Plus, Loader2, Save, Pencil, Trash2, Phone, Mail, Stethoscope,
+  Users, Plus, Loader2, Save, Pencil, Phone, Mail, Stethoscope,
   Building2, Link2, CalendarDays, X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
+import { Switch } from "@/components/ui/switch";
+import { getCollabProfessional } from "@/lib/collab-auth";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
 
@@ -29,7 +32,7 @@ interface Professional {
   active: boolean;
   createdAt: string;
 }
-interface Clinica { id: number; name: string }
+interface Clinica { id: number; name: string; empresaId?: number | null }
 interface AgendaCal { id: number; name: string; locationId: number | null; active: boolean }
 interface Vinculo { id: number; locationId: number; professionalId: number; role: string; agendaCalendarId: number | null }
 
@@ -62,7 +65,6 @@ export default function CadastroEquipe() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY);
-  const [deleteTarget, setDeleteTarget] = useState<Professional | null>(null);
   const [vinculoTarget, setVinculoTarget] = useState<Professional | null>(null);
 
   const { data: professionals = [], isLoading } = useQuery<Professional[]>({
@@ -105,27 +107,25 @@ export default function CadastroEquipe() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (p: Professional) => {
+  // Interruptor ativar/desativar (reversível). Apagar profissional não é oferecido nesta tela por enquanto.
+  const { toast: aviso } = useToast();
+  const eu = getCollabProfessional()?.id ?? null;
+  const ativoMutation = useMutation({
+    mutationFn: async ({ p, ativo }: { p: Professional; ativo: boolean }) => {
       const res = await fetch(`${apiBase}/professionals/${p.id}`, {
-        method: "DELETE",
-        headers: collabAuthHeaders(),
+        method: "PUT",
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ active: ativo }),
       });
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        throw new Error(e.error || "Erro ao apagar");
-      }
-      return res.json();
+      const e = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((e as { error?: string }).error || "Não foi possível alterar o profissional.");
+      return ativo;
     },
-    onSuccess: () => {
+    onSuccess: (ativo, { p }) => {
       queryClient.invalidateQueries({ queryKey: ["professionals"] });
-      toast.success("Profissional desativado; histórico preservado.");
-      setDeleteTarget(null);
+      aviso({ title: ativo ? `${p.name} está ativo.` : `${p.name} foi desativado.`, description: ativo ? undefined : "Nada foi apagado; o histórico fica preservado e você pode reativar." });
     },
-    onError: (e: Error) => {
-      toast.error(e.message);
-      setDeleteTarget(null);
-    },
+    onError: (e: Error) => aviso({ title: e.message, variant: "destructive" }),
   });
 
   const openNew = () => { setEditingId(null); setForm(EMPTY); setDialogOpen(true); };
@@ -224,9 +224,14 @@ export default function CadastroEquipe() {
                         <Button size="sm" variant="outline" className="btn-3d-soft" title="Vínculos com clínicas e agendas" onClick={() => setVinculoTarget(p)}>
                           <Link2 className="w-3.5 h-3.5" />
                         </Button>
-                        <Button size="sm" variant="outline" className="btn-3d-soft" title="Apagar profissional" onClick={() => setDeleteTarget(p)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                        {p.id !== eu && (
+                          <label className="bevel-3d px-2.5 flex items-center gap-2 text-[10px] font-black uppercase cursor-pointer">
+                            {p.active ? "Ativo" : "Inativo"}
+                            <Switch checked={p.active} disabled={ativoMutation.isPending} data-testid={`profissional-ativo-${p.id}`}
+                              aria-label={`${p.active ? "Desativar" : "Ativar"} ${p.name}`}
+                              onCheckedChange={(v) => ativoMutation.mutate({ p, ativo: v })} />
+                          </label>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -310,25 +315,6 @@ export default function CadastroEquipe() {
 
       {/* Dialog vínculos */}
       <VinculosDialog professional={vinculoTarget} onClose={() => setVinculoTarget(null)} />
-
-      {/* Dialog apagar */}
-      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="uppercase tracking-wide">APAGAR PROFISSIONAL</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Apagar <strong className="text-foreground">{deleteTarget?.name}</strong>? Se houver sessões vinculadas, o sistema bloqueia e pede para apenas desativar.
-          </p>
-          <DialogFooter>
-            <Button type="button" className="btn-3d-soft" onClick={() => setDeleteTarget(null)}>CANCELAR</Button>
-            <Button type="button" variant="outline" className="btn-3d-soft" disabled={deleteMutation.isPending} onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget)}>
-              {deleteMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-              APAGAR
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -355,6 +341,21 @@ function VinculosDialog({ professional, onClose }: { professional: Professional 
     )).json(),
     enabled: open,
   });
+
+  // Agenda só abre nas empresas onde o profissional está cadastrado (local sem empresa = Instituto Pádua, 5).
+  const { data: empresasDoProfissional, isError: empresasFalhou } = useQuery<number[]>({
+    queryKey: ["professional-empresas", professional?.id],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/professionals/${professional!.id}/empresas`, { headers: collabAuthHeaders() });
+      const corpo = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(corpo.error || "Não foi possível carregar as empresas do profissional.");
+      return (corpo.vinculos as { empresaId: number }[]).map((v) => v.empresaId);
+    },
+    enabled: open,
+  });
+  const clinicasDoProfissional = empresasDoProfissional
+    ? clinicas.filter((c) => empresasDoProfissional.includes(c.empresaId ?? 5) || !!vinculos.find((v) => v.locationId === c.id))
+    : [];
 
   const agendaCals = agendas?.calendars ?? [];
 
@@ -404,12 +405,18 @@ function VinculosDialog({ professional, onClose }: { professional: Professional 
         </DialogHeader>
         <p className="text-[11px] text-muted-foreground">
           Marque as clínicas onde o profissional atende e escolha a agenda Google preferida do par. O evento da sessão cai nessa agenda.
+          Só aparecem as clínicas das empresas onde o profissional está cadastrado (edite em Corpo Clínico, aba VÍNCULOS).
         </p>
         <div className="space-y-3 py-1">
-          {clinicas.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-6">Nenhuma clínica cadastrada.</p>
+          {empresasFalhou && (
+            <p role="alert" className="text-sm font-bold text-destructive text-center py-6">
+              Não foi possível carregar as empresas do profissional. Nenhuma clínica foi liberada.
+            </p>
           )}
-          {clinicas.map((c) => {
+          {!empresasFalhou && clinicasDoProfissional.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-6">Nenhuma clínica nas empresas deste profissional.</p>
+          )}
+          {clinicasDoProfissional.map((c) => {
             const v = vinculoFor(c.id);
             const linked = !!v;
             const clinicAgendas = agendaCals.filter((a) => a.active && (a.locationId === c.id || a.locationId === null));

@@ -21,6 +21,7 @@ import { db } from "@workspace/db";
 import { sql, eq } from "drizzle-orm";
 import { clientsTable } from "@workspace/db/schema";
 import { sendTelegram } from "../lib/telegram.js";
+import { chatAlertaOuNull } from "../lib/telegram-config.js";
 import { sendWhatsapp } from "../lib/whatsapp.js";
 
 const router = Router();
@@ -65,7 +66,7 @@ router.get("/padaxor/slack/preview", async (req: Request, res: Response): Promis
 // ---------------------------------------------------------------------------
 router.post("/padaxor/slack/relatorio", async (req: Request, res: Response): Promise<void> => {
   const channelId      = (req.body.channelId as string) || process.env.PADAXOR_SLACK_CHANNEL_ID;
-  const telegramChatId = (req.body.telegramChatId as string) || process.env.PADAXOR_TELEGRAM_CHAT_ID || "";
+  const telegramChatId = (req.body.telegramChatId as string) || (await chatAlertaOuNull()) || "";
 
   if (!channelId) {
     res.status(400).json({
@@ -297,7 +298,7 @@ router.get("/padaxor/telegram/meu-chat-id", async (_req: Request, res: Response)
       chatIdConfigurado,
       aviso: "TELEGRAM_BOT_TOKEN não configurado no cofre — não é possível buscar getUpdates.",
       instrucao: [
-        "1. Abra o bot PADAXOR no Telegram e envie /start",
+        "1. Abra o bot PaxMed no Telegram e envie /start",
         "2. Abra @userinfobot no Telegram e envie qualquer mensagem — ele responde com o seu chatId",
         "3. Configure PADAXOR_TELEGRAM_CHAT_ID=<seu-chat-id> como Replit Secret",
       ],
@@ -376,7 +377,7 @@ router.get("/padaxor/telegram/meu-chat-id", async (_req: Request, res: Response)
 // ---------------------------------------------------------------------------
 router.get("/padaxor/slack/status", async (_req: Request, res: Response): Promise<void> => {
   const slackChannel   = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "";
-  const telegramChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID ?? "";
+  const telegramChatId = (await chatAlertaOuNull()) ?? "";
   const ceoSecret      = process.env.PADAXOR_CEO_SECRET       ?? "";
   const planilhaId     = "1SW6K2JNUEP4i1I16v_ZYhtwxTpUkT_dx3ERHkj9HQcw";
 
@@ -485,7 +486,7 @@ router.post("/padaxor/slack/test-fallback-telegram", async (_req: Request, res: 
       erro: erroMensagem || null,
       historicoId,
       mensagem: telegramFailed
-        ? "Fallback testado: Telegram recusou, aviso enviado ao Slack. Confirme a mensagem ⚠️ PADAXOR — Telegram offline no canal."
+        ? "Fallback testado: Telegram recusou, aviso enviado ao Slack. Confirme a mensagem ⚠️ PAXMED — Telegram offline no canal."
         : "Telegram enviou com sucesso (token real configurado — use chatId inválido para testar fallback).",
     });
   } catch (e: any) {
@@ -767,7 +768,7 @@ router.post("/padaxor/teste-canal/:clientId", requireCeoInstance, async (req: Re
 
   // ── Texto compartilhado: o mesmo chega via WhatsApp e via Telegram ────────
   const msgTeste =
-    `🩺 *Instituto Pádua — Sistema PADAXOR*\n\n` +
+    `🩺 *Instituto Pádua — Sistema PAXMED*\n\n` +
     `Olá, ${primeiroNome}! Esta é uma mensagem de teste enviada às ${agora}.\n\n` +
     `Você está recebendo este teste porque o canal está ativo. ` +
     `Para ativar o Telegram, abra *@Paduaclinica_bot* e envie a senha de validação informada por e-mail.`;
@@ -788,7 +789,7 @@ router.post("/padaxor/teste-canal/:clientId", requireCeoInstance, async (req: Re
   // Capturamos sent:true/false para reportar no JSON desta resposta.
   if (chatId) {
     const msgTelegramCliente =
-      `🩺 <b>Instituto Pádua — Sistema PADAXOR</b>\n\n` +
+      `🩺 <b>Instituto Pádua — Sistema PAXMED</b>\n\n` +
       `Olá, ${primeiroNome}! Esta é uma mensagem de teste enviada às ${agora}.\n\n` +
       `Você está recebendo este teste porque o seu Telegram está ativo. ✅`;
     const tgResult = await sendTelegram(chatId, msgTelegramCliente);
@@ -803,7 +804,7 @@ router.post("/padaxor/teste-canal/:clientId", requireCeoInstance, async (req: Re
   }
 
   // ── Notificação ao CEO via Telegram ──────────────────────────────────────
-  const chatIdCEO = process.env["PADAXOR_TELEGRAM_CHAT_ID"] ?? null;
+  const chatIdCEO = await chatAlertaOuNull();
   if (chatIdCEO) {
     const waSent = resultados.whatsapp && (resultados.whatsapp as any).sent;
     const tgSent = chatId && (resultados.telegram as any).sent;

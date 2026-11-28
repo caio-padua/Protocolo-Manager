@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
-import { useGetRAS } from "@workspace/api-client-react";
+import { useGetRAS, getGetRASQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ArrowLeft, Printer, FileDown, ShieldCheck, Loader2, FolderUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { collabAuthHeaders } from "@/lib/collab-auth";
+import { dosePrescritaExibivel, nomeSubstanciaProtocolo } from "@/lib/protocol-substance-selection";
 
 interface CertInfo {
   subject: string;
@@ -28,7 +30,7 @@ export default function RASDetail() {
   const [certInfo, setCertInfo] = useState<CertInfo | null>(null);
 
   const { data: ras, isLoading } = useGetRAS(id, {
-    query: { enabled: !!id }
+    query: { queryKey: getGetRASQueryKey(id), enabled: !!id }
   });
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export default function RASDetail() {
         throw new Error(err?.error || "Erro ao enviar ao Drive");
       }
       const data = await resp.json();
-      toast({ title: "RAS enviado ao Google Drive!", description: data.message });
+      toast({ title: "RASP enviado ao Google Drive!", description: data.message });
     } catch (err: any) {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
     } finally {
@@ -76,7 +78,7 @@ export default function RASDetail() {
       a.href = url;
       const cd = resp.headers.get("Content-Disposition");
       const filenameMatch = cd?.match(/filename="(.+)"/);
-      a.download = filenameMatch?.[1] ?? `RAS_${id}.pdf`;
+      a.download = filenameMatch?.[1] ?? `RASP_${id}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
       toast({ title: "PDF assinado baixado!", description: "Documento com assinatura digital ICP-Brasil." });
@@ -96,7 +98,7 @@ export default function RASDetail() {
     );
   }
 
-  if (!ras) return <div className="p-8 text-muted-foreground">RAS não encontrado.</div>;
+  if (!ras) return <div className="p-8 text-muted-foreground">RASP não encontrado.</div>;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -106,7 +108,7 @@ export default function RASDetail() {
           <ArrowLeft className="h-4 w-4 mr-1" />
           Voltar
         </Button>
-        <h1 className="text-2xl font-black uppercase tracking-tight flex-1">RAS — {ras.clientName}</h1>
+        <h1 className="text-2xl font-black uppercase tracking-tight flex-1">RASP — {ras.clientName}</h1>
         <Button
           className="btn-3d gap-2"
           onClick={downloadPdf}
@@ -129,17 +131,7 @@ export default function RASDetail() {
         </Button>
       </div>
 
-      {/* Certificate badge */}
-      {certInfo && (
-        <div className="flex items-center gap-2 text-xs print:hidden panel-3d-sub border-l-4 border-blue-500 px-4 py-2.5">
-          <ShieldCheck className="h-4 w-4 text-blue-600 flex-shrink-0" />
-          <span className="text-[10px] font-bold uppercase tracking-wide text-blue-700">
-            Certificado A1 ICP-Brasil ativo — <strong>{certInfo.cpf ?? "CPF vinculado"}</strong>
-            {" "}· Válido até {new Date(certInfo.validTo).toLocaleDateString("pt-BR")}
-            {" "}· Emissor: {certInfo.issuer.split(",").find(p => p.includes("CN="))?.replace("CN=", "").trim() ?? certInfo.issuer}
-          </span>
-        </div>
-      )}
+      <ClinicalCertificateStatus scope="system" />
 
       {/* RAS Document — styled as official medical form, paper-like */}
       <div className="panel-3d p-8 max-w-4xl print:border-none print:rounded-none print:p-4 print:shadow-none">
@@ -148,7 +140,7 @@ export default function RASDetail() {
           <div className="flex items-start justify-between">
             <div>
               <h2 className="text-xl font-black text-gray-900 dark:text-gray-100 uppercase tracking-widest">
-                REGISTRO DE ADMINISTRAÇÃO DE SUBSTÂNCIAS
+                REGISTRO DE ATENDIMENTOS,<br />SUBSTÂNCIAS E PROCEDIMENTOS
               </h2>
               <p className="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mt-0.5">
                 Protocolo de Injetáveis — Medicina Estética
@@ -156,7 +148,7 @@ export default function RASDetail() {
             </div>
             <div className="text-right text-sm text-gray-600 dark:text-gray-400">
               <p className="text-[10px] font-black uppercase tracking-widest">
-                RAS N.° <strong className="text-gray-900 dark:text-gray-100 text-base">{String(ras.id).padStart(6, "0")}</strong>
+                RASP N.° <strong className="text-gray-900 dark:text-gray-100 text-base">{String(ras.id).padStart(6, "0")}</strong>
               </p>
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
                 Sessão ID: <strong className="text-gray-900 dark:text-gray-100">{ras.sessionId}</strong>
@@ -229,8 +221,10 @@ export default function RASDetail() {
             <tbody>
               {ras.substances.map((sub, idx) => (
                 <tr key={idx} className={`border border-gray-300 dark:border-gray-700 ${idx % 2 === 0 ? "" : "bg-gray-50 dark:bg-gray-900/40"}`}>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 font-black text-gray-900 dark:text-gray-100 uppercase tracking-tight text-xs">{sub.substanceName}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs">{sub.dose}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 font-black text-gray-900 dark:text-gray-100 uppercase tracking-tight text-xs">{nomeSubstanciaProtocolo(sub.substanceName)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs">
+                    {dosePrescritaExibivel(sub.dose) || "Revisão clínica necessária"}
+                  </td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-center font-black tabular-nums text-xs">{sub.sessionNumber}/{sub.totalSessions}</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs">{sub.route}</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs">{sub.lot ?? "—"}</td>
@@ -322,7 +316,7 @@ export default function RASDetail() {
 
         {/* Footer */}
         <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-800 text-[10px] font-bold text-gray-400 dark:text-gray-600 text-center uppercase tracking-widest">
-          Documento gerado pelo Paxter — desenvolvido pela Padcon · {format(new Date(), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+          Documento gerado pelo PaxMed — desenvolvido pela Padcon · {format(new Date(), "dd/MM/yyyy HH:mm", { locale: ptBR })}
         </div>
       </div>
     </div>

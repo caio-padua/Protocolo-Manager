@@ -19,7 +19,7 @@ export class ClinicalIdentityRequestError extends Error {
   constructor(message: string, public status: number) { super(message); }
 }
 
-export function useClinicalIdentity(clientId: number | null | undefined) {
+export function useClinicalIdentity(clientId: number | null | undefined, options?: { refetchOnWindowFocus?: boolean }) {
   // Token remains in the auth helper, never in a query key or a diagnostic.
   const [sessionVersion, setSessionVersion] = useState(0);
   useEffect(() => {
@@ -40,6 +40,7 @@ export function useClinicalIdentity(clientId: number | null | undefined) {
     staleTime: 0,
     gcTime: 0,
     retry: false,
+    refetchOnWindowFocus: options?.refetchOnWindowFocus ?? false,
     queryFn: async ({ signal }) => {
       const token = getCollabToken();
       if (!token) throw new ClinicalIdentityRequestError("Faça login de colaborador para identificar o médico.", 401);

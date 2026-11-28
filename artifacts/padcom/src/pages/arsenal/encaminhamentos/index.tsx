@@ -99,7 +99,7 @@ export default function EncaminhamentosPage() {
   const profissional = useMemo(() => profissionais.find((p) => p.id === profId) ?? null, [profissionais, profId]);
 
   useEffect(() => {
-    fetch(`${BASE}/api/clients`)
+    fetch(`${BASE}/api/clients`, { headers: collabAuthHeaders() })
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setClientes(Array.isArray(d) ? d : []))
       .catch(() => setClientes([]));

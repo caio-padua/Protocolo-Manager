@@ -1,48 +1,22 @@
 ---
-name: Gerar o PDF do protocolo DISPARA e-mail ao paciente
-description: Rota de geração tem efeito colateral de envio real; testar com ela manda mensagem de verdade para o cliente
+name: Separação entre prévia e emissão clínica
+description: Não confundir geração, validação clínica e entrega externa ao verificar documentos.
 ---
 
-# `GET /protocols/:id/document-pdf` não é uma rota de leitura
+# Prévia não autoriza emissão nem entrega
 
-Apesar do verbo GET, essa rota **tem efeitos colaterais reais e irreversíveis**:
+Conferir aparência de um documento não autoriza comunicar o cliente, compartilhar
+arquivos ou iniciar cadernos jurídicos.
+Validar um protocolo clínico também não deve ser usado como simples ferramenta
+para produzir uma amostra visual.
 
-1. Sobe o protocolo em PDF para a pasta compartilhada do Drive.
-2. Sobe para a pasta pessoal do paciente.
-3. Gera o RAS FAP e sobe nos dois lugares.
-4. **Envia e-mail ao paciente** com os dois anexos (gate: `client.email && isGmailConnected()`).
-5. Dispara os cadernos jurídicos no primeiro envio.
+**Why:** houve envio repetido de mensagens ao conferir documentos porque geração
+e entrega eram tratadas como a mesma operação.
+O verbo de uma rota não garante ausência de efeitos externos, e descrições
+históricas podem ficar desatualizadas quando a aplicação separa esses caminhos.
 
-**Why:** foi desenhada como "emitir o documento", não como "renderizar". Chamá-la
-em laço de validação manda uma mensagem de verdade para uma pessoa de verdade a
-cada iteração — descoberto na marra em 13/08/2026, depois de várias chamadas
-seguidas durante o ciclo de correção de um PDF.
-
-**How to apply:** para validar aparência de PDF, **nunca** iterar batendo nessa
-rota. Chamar o gerador direto (`generateProtocolDocumentPdf`) num script Node
-avulso que só escreve o arquivo em `/tmp`, e reservar a rota para a emissão
-verdadeira, uma única vez, quando o documento já estiver aprovado visualmente.
-
-**Contraste seguro:** `GET /protocols/:id/carta-pdf` (Carta Premium) é read-only de verdade — só gera e devolve o PDF (headers X-Cert-*), sem Drive/e-mail. Pode ser usada em laço de validação (verificado 13/08/2026).
-
-Regra geral: antes de usar uma rota em laço de teste, ler o corpo dela até o fim
-procurando envio de mensagem, upload e gravação — o verbo HTTP não é garantia.
-
-# `POST /protocols/:id/validate` também escreve para o paciente
-
-Validar um protocolo é o único caminho que **gera as sessões** (apaga as antigas
-e recria uma por semana). No fim dele há um segundo efeito escondido: manda
-e-mail de boas-vindas ao paciente com o `.ics` da agenda completa, sob o mesmo
-portão `client.email && isGmailConnected()`.
-
-**Why:** faz sentido no fluxo real, mas destrói qualquer tentativa de montar um
-protocolo espelho para conferência interna — o paciente recebe "Bem-vindo ao seu
-protocolo" de um protocolo que ainda não foi aprovado.
-
-**How to apply:** para protocolo de conferência, validar com
-`?skipOnboardingEmail=true`. A supressão é explícita, o padrão continua enviando
-e o log registra `Onboarding NAO enviado: supressao explicita`. Conferir essa
-linha no log depois, como prova de que nada saiu.
-
-Rota realmente segura para só desenhar a Carta Premium, sem nenhum efeito
-colateral: `GET /protocols/:id/carta-pdf`.
+**How to apply:** antes de testar, ler o fluxo atual até o fim e distinguir
+geração, persistência, validação e entrega.
+Regressão usa dados sintéticos e integrações simuladas.
+Operação real exige autorização específica e prova por canal; não presumir
+que baixar um documento significa que ele foi enviado ao Drive.

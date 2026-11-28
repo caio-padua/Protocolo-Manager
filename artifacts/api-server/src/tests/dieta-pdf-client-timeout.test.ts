@@ -55,7 +55,7 @@ async function emitirPdfFetch(
 
   if (!r.ok) {
     pdfWinClose();
-    const err = await r.json().catch(() => ({}));
+    const err = await r.json().catch((): { error?: string } => ({}));
     throw new Error(err.error || "Falha ao gerar o plano nutricional.");
   }
 
@@ -79,10 +79,10 @@ function hangingFetch(_url: string, init: RequestInit): Promise<FetchResult> {
 // ---------------------------------------------------------------------------
 
 describe("emitirPdf — AbortController e tratamento de timeout", () => {
-  let closeSpy: ReturnType<typeof vi.fn>;
+  let closeSpy: () => void;
 
   beforeEach(() => {
-    closeSpy = vi.fn();
+    closeSpy = vi.fn<() => void>();
   });
 
   it("T1 — fetch que nunca resolve é cancelado e lança mensagem amigável", async () => {

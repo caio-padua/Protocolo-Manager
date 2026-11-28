@@ -183,11 +183,25 @@ function sanitizarFormula(raw: unknown): LembreteFormulaJson | null {
   return {
     nome,
     ativoPrincipal: s(o.ativoPrincipal),
+    ...(Array.isArray(o.substancias)
+      ? {
+          substancias: o.substancias
+            .map((x) => {
+              const r = (x ?? {}) as Record<string, unknown>;
+              const nomeS = s(r.nome);
+              const rotulo = s(r.rotulo);
+              return nomeS && rotulo ? { rotulo, nome: nomeS, dose: s(r.dose) } : null;
+            })
+            .filter((x): x is { rotulo: string; nome: string; dose: string | undefined } => x !== null),
+        }
+      : {}),
     dose: s(o.dose),
     horario: s(o.horario),
     observacaoRefeicao: s(o.observacaoRefeicao),
     posologia: s(o.posologia),
     ...(o.posologiaManual === true ? { posologiaManual: true } : {}),
+    ...(Array.isArray(o.alertas) && o.alertas.every((a) => typeof a === "string") && o.alertas.length
+      ? { alertas: o.alertas as string[] } : {}),
   };
 }
 
@@ -206,6 +220,8 @@ function marcarPosologiaManual(
   for (const per of novos) {
     for (const f of per.formulas) {
       const antes = antigasPorChave.get(`${per.sigla ?? ""}::${f.nome}`);
+      // A tela não conhece `alertas`: a trava de dúvida não pode cair por uma edição.
+      if (!f.alertas?.length && antes?.alertas?.length) f.alertas = antes.alertas;
       if (!f.posologia) {
         delete f.posologiaManual;
       } else if (antes && (antes.posologia ?? "") !== f.posologia) {

@@ -1,0 +1,321 @@
+# Demanda única: procedimentos, protocolos e agendas
+
+## Objetivo
+
+Concluir sequencialmente os pedidos desta conversa, com provas verificáveis e
+sem apresentar como concluído o que não foi demonstrado.
+
+## Sequência e critérios
+
+1. **Catálogo e profissionais.** Seleção da apresentação exata, inclusive
+   homônimos e produtos compostos; nome e dose separados; dose clínica
+   confirmada sem volume ou concentração; vínculo automático por campo com a
+   apresentação de origem, sem apagar valores clínicos já emitidos; categorias
+   reais combináveis, inclusive três, e alternativas profissionais. Consultas
+   não são categorias. Aplicação de substância: enfermagem; implante: médico e
+   enfermagem; consulta e procedimento estético: médico. Permitir escolhas
+   clínicas explícitas sem inventar profissionais ou agendas.
+2. **Protocolos.** Integrar os procedimentos sem duplicar produtos ou quebrar
+   protocolos existentes. Consulta sem produto ou dose. Distinguir dose
+   prescrita de composição e concentração; preservar o cadastro da substância.
+3. **Reservas e datas.** Classificar recursos por ocorrência; consulta exige
+   médico, enfermagem exige enfermagem e implante exige ambos. Reservar todos os
+   recursos necessários de forma transacional e respeitar as durações e a grade.
+   Não presumir a ordem de consulta e aplicação na mesma visita. Confirmar que
+   datas civis não mudam de dia em fusos diferentes.
+4. **Agenda interna e Google.** Usar vínculos da clínica do cliente e os locais
+   autorizados; exibir disponibilidade real, revalidar conflitos e exceções
+   autorizadas, preservar compromissos e auditar. Sincronizar com identificação
+   estável, sem duplicar, e informar falha ou resultado incerto. Não alterar a
+   política pública de 24 horas nem permissões genericamente.
+5. **Documentos e comunicação.** Preservar e testar separadamente validação,
+   impressão e envio do RASP FAP, protocolo, carta e documentos pertinentes.
+   Nome do procedimento e dose prescrita sem volume ou concentração; preservar
+   tipografia, dados e documentos emitidos. Telegram e e-mail apenas para
+   destinos de teste identificados; não enviar a pessoas reais.
+6. **Isolamento entre clínicas.** Identidade, unidade e destino de documentos
+   devem pertencer à clínica autorizada; sem valores fixos ou pasta compartilhada
+   como alternativa silenciosa. Examinar a proteção das rotas do cockpit e
+   RASP com e sem sessão, e com clínicas diferentes.
+7. **Menus e funções existentes.** Preservar entradas e funções atuais, sem
+   alterar o layout ou o Cockpit. Retificação expressa do médico: o Cockpit e
+   toda mudança de layout estão fora desta demanda.
+
+## Método e provas
+
+Uma implementação por vez: desenhar, especificar, prever falhas, construir,
+revisar independentemente, testar e registrar evidências. A autorização atual
+abrange a sequência, mas não dispensa parar diante de uma decisão clínica ainda
+não tomada, operação externa sem destino controlado ou risco de perda de dados.
+Usar banco descartável e dados sintéticos para regressão e concorrência. Para
+efeitos externos, distinguir simulação de prova real e não declarar entrega ao
+Google sem verificar o evento verdadeiro. Registrar comando, resultado, versão,
+permissões, persistência, erros e limitações; sem evidência não há homologação.
+
+## Restrições
+
+Não publicar; não enviar mensagens a pessoas reais; não destruir cadastros,
+reservas ou eventos; não reiniciar serviço que regrave dados sem comprovar
+uma inicialização segura. Preservar o menu. Alterações manuais e documentos já
+emitidos não são sobrescritos silenciosamente. Não inventar doses, agenda,
+profissionais, permissões nem sequenciamento clínico.
+
+## Investigação de reinício do servidor
+
+A entrada do servidor executa migrações, sementes, recuperação e limpeza;
+há ainda rotinas executadas na importação das rotas e sincronização externa
+no carregamento da aplicação. Portanto, apenas compilar não coloca as mudanças
+do servidor em funcionamento, e reiniciar sem um controle comprovado pode
+alterar dados ou serviços. A atualização segura tem de cobrir tanto os efeitos
+na importação quanto os executados antes e depois da abertura da porta.
+
+Uma eventual inicialização protegida deve ser de uso explícito em desenvolvimento,
+não alterar a inicialização normal em produção, preservar autenticação e menus,
+mostrar claramente serviços automáticos suspensos e ser testada com banco isolado
+e acesso externo bloqueado. Não instalar a migração da versão antes de atualizar
+os escritores: versões antigas teriam sua edição bloqueada pelo banco. Não ativar
+o modo protegido na aplicação em uso antes de testar seus efeitos operacionais,
+inclusive na sincronização periódica da agenda.
+
+A primeira tentativa foi reprovada na revisão independente. Ela desligava a
+sincronização periódica e a hidratação do cofre, e algumas requisições de
+leitura ainda podem criar registros. Além disso, um processo acessível sem
+perímetro adequado não é seguro apenas por usar o ambiente de desenvolvimento.
+Essa tentativa foi retirada do código e não foi ativada. O servidor atual
+continua sem prova de reinício seguro. A solução precisa preservar as operações
+necessárias, controlar as primeiras requisições e provar autenticação,
+persistência e isolamento externo antes de qualquer ativação.
+
+### Retomada: prova reproduzível antes da ativação
+
+O primeiro passo é reproduzir as provas existentes sem iniciar a entrada normal
+do servidor. O procedimento de teste deve usar uma rede isolada pelo sistema
+operacional, um banco PostgreSQL descartável criado pelos próprios testes,
+credenciais sintéticas e uma interface temporária acessível somente dentro da
+rede isolada. A configuração do ambiente deve ser limpa antes da execução;
+se o isolamento não puder ser criado ou se houver arquivos locais de ambiente
+que a interface possa carregar, o procedimento deve parar sem iniciar o teste.
+
+As duas suítes de procedimentos exercitam autorização, separação entre clínicas,
+gravação, leitura e interface em navegador. Na interface, algumas respostas são
+simuladas e as requisições de procedimentos são encaminhadas às rotas reais
+com sessão e banco sintéticos. Essa prova não substitui a sessão autenticada do
+ambiente atual nem demonstra a inicialização completa do servidor.
+
+Falhas previstas: conexão externa acidental, uso do banco configurado, leitura
+de credenciais existentes, processos temporários deixados ativos, arquivos de
+ambiente carregados implicitamente e teste apresentado como ativação. As
+barreiras são isolamento de rede, ambiente limpo, banco descartável, recusa
+explícita diante de arquivos de ambiente, encerramento dos processos temporários
+e apresentação separada dos limites da prova.
+
+Em 13/11/2026, a execução isolada anterior passou em 35 testes; dois testes da
+sincronização de campos vinculados permaneceram desativados. A consulta somente
+de leitura ao banco de desenvolvimento do Replit encontrou as cinco tabelas do
+cadastro e as três colunas exigidas pela verificação inicial da rota. Isso não
+comprova a compatibilidade integral do banco nem o salvamento no servidor em uso.
+O reinício e a homologação continuam bloqueados até haver procedimento completo,
+validação autenticada no ambiente atual e revisão independente.
+
+Comando reproduzível: `bash scripts/testar-cadastro-procedimentos-isolado.sh`.
+O procedimento passou nas duas suítes, com 35 testes aprovados e dois
+desativados. As verificações separadas de ausência de isolamento e presença de
+arquivo de ambiente interromperam o procedimento antes da interface; nenhum
+processo temporário permaneceu ao final. O procedimento não executa a entrada
+normal do servidor nem constitui um modo seguro de ativação.
+
+Para preparar uma futura ativação, testar também a agenda com relógio e
+serviços simulados: um início deve disparar uma leitura imediata, repetir após
+60 segundos e compartilhar uma leitura já em andamento. Essa prova não confirma
+acesso ao Google nem permite afirmar que os efeitos operacionais completos da
+agenda foram verificados.
+
+O teste `agenda-google-ciclo-isolado.test.ts` confirmou esses dois
+comportamentos com serviços simulados. Ele e os testes existentes de integração
+da agenda somaram 15 aprovações em rede isolada. A leitura de calendário real
+não foi executada.
+
+O levantamento estático percorreu 390 arquivos locais alcançáveis a partir da
+entrada do servidor. Foram identificadas rotinas com escrita durante a
+importação das rotas, além de sincronização externa e sementes na importação
+da aplicação. O levantamento não prova ausência de efeitos em dependências
+externas ou chamadas dinâmicas. A sincronização periódica da agenda inicia uma
+leitura imediatamente e pode atualizar registros locais; por isso, não basta
+desligá-la silenciosamente nem presumir que o reinício preservará todos os
+dados. Algumas primeiras consultas também podem criar estruturas.
+
+O bloqueio concreto permanece: ainda não foi identificado e comprovado um
+procedimento que controle todos esses efeitos preservando a agenda, o cofre, a
+autenticação e o perímetro de acesso. A revisão independente necessária também
+não está disponível nesta execução. Não iniciar o servidor normal nem declarar
+salvamento autenticado no ambiente atual com base apenas nas provas isoladas.
+
+## Estado inicial
+
+- O catálogo de produtos foi disponibilizado na tela e testado em ambiente
+  isolado; a conferência visual autenticada real permanece pendente.
+- Três categorias simultâneas e médicos alternativos foram testados em banco
+  isolado; o cadastro não está integrado a protocolos nem agendas.
+- A atualização automática dos campos importados ainda não existe.
+- Os demais itens exigem confirmação do estado atual antes de execução; não
+  presumir que estão corrigidos ou que estão quebrados.
+
+## Situação da sincronização
+
+A sincronização automática permanece desabilitada após revisão independente:
+
+1. Detectar persistentemente uma dose que muda e retorna ao valor anterior.
+2. Impedir que desvincular a origem contorne a conferência médica.
+3. Detectar edições simultâneas e impedir que uma sobrescreva a outra.
+4. Serializar duas substituições simultâneas da composição de um produto.
+
+O quarto item foi corrigido na rota e testado em banco isolado. Os três
+primeiros permanecem pendentes. Enquanto isso, leituras devolvem os valores
+persistidos, a criação e a edição de vínculos são recusadas e a capacidade é
+informada como indisponível. A nova versão do servidor não foi ativada no
+ambiente real, porque ainda não há prova de uma inicialização sem escritas.
+Clientes antigos que enviem uma dose sem confirmação poderão ter a gravação
+recusada pelo servidor novo; a compatibilidade precisa de revisão.
+
+## Retomada — revisão monotônica da dose
+
+O identificador da apresentação é a origem; o valor prescrito e documentos
+anteriores permanecem independentes. A revisão da dose deve ser um contador
+persistido no banco, alterado na mesma transação de qualquer mudança de nome,
+dose padrão ou componentes que influenciem a sugestão, inclusive alterações
+feitas fora da tela. Componentes adquirem os bloqueios das apresentações na
+ordem dos identificadores; alterações concorrentes que falhem não avançam a
+revisão. A confirmação guarda a revisão observada, nunca apenas o texto.
+
+| Falha | Consequência | Barreira e prova |
+| --- | --- | --- |
+| Dose A → B → A | Falsa aparência de revisão | Contador monotônico; teste com as três alterações. |
+| Dois escritores simultâneos | Revisão perdida ou mistura | Bloqueio no banco; teste com transações concorrentes. |
+| Excluir ou mover componente | Composição muda sem aviso | Contador das duas apresentações; teste de inserção, alteração e exclusão. |
+| Origem ausente ou não migrada | Dose inventada ou função insegura | Falhar explicitamente; manter a ligação desativada até completar a integração. |
+| Reinicialização no ambiente atual | Regravação de cadastro | Não executar migrações na inicialização; testes em banco descartável. |
+| Troca ou retirada de origem | Revisão médica contornada | Impedir salvamento sem confronto transacional da revisão anterior e atual. |
+
+O contador é uma infraestrutura, não comprova a integração nem autoriza retirar
+o bloqueio de segurança existente. A migração deve ser aditiva e validada em
+banco descartável antes de qualquer aplicação ao ambiente de desenvolvimento.
+
+A conferência transacional bloqueia as apresentações anterior e nova antes de
+ler as revisões. Se uma origem antiga mudou, foi removida ou foi substituída,
+exige confirmação médica da revisão atual da origem antiga; a nova origem
+também exige revisão e confirmação. A função de conferência deve ser chamada
+dentro da mesma transação que salva o procedimento. A identidade médica tem de
+ser validada pelo servidor, não aceita como declaração do navegador. Esta etapa
+isolada não integra a tela nem libera o cadastro.
+
+### Resultado da revisão independente
+
+A primeira versão foi reprovada: a trava dos componentes era adquirida depois
+da verificação de chave estrangeira, permitindo espera circular em movimentos
+concorrentes; faltavam teste do caso e validação dos limites da revisão.
+Corrigir a aquisição antes da alteração, testar movimentos opostos e manter
+a função indisponível enquanto não houver integração transacional completa.
+Os bloqueios das apresentações usam NO KEY UPDATE, compatível com a verificação
+de chaves estrangeiras, e seguem a ordem dos identificadores. Um escritor direto
+que bloqueie primeiro um componente ainda pode concorrer com a rota que bloqueia
+primeiro a apresentação; se houver impasse, o banco deve abortar integralmente
+uma transação. Esse cenário também precisa ser exercitado antes da ativação.
+Na rota de componentes, uma transação abortada por impasse deve devolver
+conflito com instrução para recarregar, e não erro de preenchimento. Repetir
+automaticamente a gravação não é seguro, pois outra pessoa pode ter alterado a
+composição. A migração deve recusar gatilho existente com definição inesperada
+em vez de presumir que ele foi atualizado.
+Originalmente, substituir componentes por uma lista idêntica alterava o
+contador e podia exigir revisão desnecessária. A comparação descrita abaixo foi
+implementada e testada; ainda não está ativa no servidor em uso.
+
+### Composição idêntica enviada novamente
+
+A rota de edição compara, dentro da transação e após bloquear a apresentação,
+todos os campos preservados e a ordem dos componentes. Se forem idênticos, não
+apaga nem recria componentes; mantém seus identificadores e a revisão da dose.
+Alteração do indicador de composto continua registrada, mesmo com lista igual.
+Qualquer diferença, inclusive ordem, nome, unidade, observação ou vínculo,
+conserva a substituição transacional existente. O bloqueio de revisão automática
+permanece ativo: esta correção não libera a sincronização sozinha.
+
+Provas em banco isolado: repetição sem alteração preserva identificadores e
+revisão; alteração de um componente, da ordem e do indicador de composto é
+registrada; sessões concorrentes não misturam componentes; falhas revertem
+integralmente; autorização existente é preservada. Não alterar o banco de
+desenvolvimento nem reiniciar o serviço com rotinas de escrita.
+
+### Concorrência na edição de procedimentos
+
+Cada procedimento recebe uma versão crescente persistida, mantida em qualquer
+alteração da sua linha. Uma edição informa a versão que viu ao abrir o
+formulário. Após bloquear o registro na transação, o servidor compara essa
+versão; se não coincidir, devolve conflito e conserva todos os dados anteriores.
+O banco também exige uma confirmação temporária da versão e identidade na mesma
+transação, impedindo a escrita por servidores antigos durante a atualização.
+Isso exige atualizar os escritores antes da migração; qualquer tentativa antiga
+de alteração depois da migração falha, nunca sobrescreve silenciosamente.
+Reativação e inativação também informam a versão lida. A versão é texto decimal
+no contrato para preservar a precisão dos números grandes. O suporte é anunciado
+apenas se a estrutura está presente; a sincronização automática permanece
+bloqueada até a proteção da revisão clínica estar integrada. A migração é
+explícita e não é executada na inicialização. Servidores antigos continuam
+reconhecidos sem supor suporte; um servidor novo recusa edição sem a versão
+quando a estrutura está instalada. O formulário preserva o rascunho no conflito.
+Testar duas edições da mesma versão, mudança direta, clínicas diferentes,
+versões inválidas, ausência da estrutura e inativação em banco isolado.
+
+## Complemento de conferência do cadastro
+
+O catálogo de substâncias apresentado na tela não representa procedimentos já
+cadastrados. Não criar procedimentos em massa. Chamar o campo do cadastro de
+“dose padrão”, distinguindo-o da prescrição individual que será feita no
+protocolo. Quando um produto composto estiver selecionado, mostrar cada nome
+de componente e sua dose e unidade de origem; valor ausente ou unidade não
+interpretável aparece como não identificado. Não alterar o valor salvo nem
+documentos já emitidos. Confirmar a exibição com dados sintéticos em navegador.
+
+Cada necessidade profissional terá identidade própria: duas necessidades podem
+ter a mesma categoria e local, exigindo duas pessoas diferentes. Alternativas
+dentro de uma necessidade representam uma única pessoa. A escolha padrão não
+será inventada. Esta mudança precisa persistência e teste no servidor e ainda
+não está integrada. A revisão do fluxo de protocolo também deve tratar
+consulta sem produto ou dose, captura de catálogo dentro da transação e
+identificação da ocorrência pelo item, não pela substância.
+
+Na edição do catálogo, permitir até três necessidades simultâneas, incluindo
+duas da mesma categoria e local, com quantas alternativas autorizadas o
+contrato já permite. Exigir que exista ao menos uma combinação de pessoas
+distintas para todas as necessidades. Necessidades gravadas ainda não têm
+identidade estável exposta ao protocolo; não considerá-las integradas à reserva.
+
+### Identificação direta de apresentações
+
+As duas listas exibem, sem abrir detalhes, o nome, dose total identificável,
+apresentação, concentração e via informadas no cadastro, além do identificador.
+Ausência ou conflito não vira valor presumido. A seleção preserva o identificador
+e preenche somente a dose no campo, não concentração ou volume.
+
+Dados legados no formato “quantidade / volume” só podem gerar uma sugestão
+quando a apresentação for uma ampola única, o volume final estruturado coincidir
+com o denominador e não houver informação conflitante de volume ou concentração.
+Sem esses dados não se deduz o total. Valores dos componentes compostos permanecem
+um único ato, identificados por nome e unidade. Revisão clínica permanece
+obrigatória. A revisão monotônica precisa incluir os campos de apresentação
+usados nesse cálculo, além da dose, nome e componentes.
+
+A revisão independente encontrou risco de sugestão diante de informações
+contraditórias. Para um composto com dose textual, os nomes, quantidades e
+unidades devem corresponder a todos os componentes; caso contrário, não sugerir.
+Se houver volume textual no composto, também deve coincidir com a apresentação
+estruturada. Uma concentração legada cujo significado não possa ser validado
+não pode servir de prova da dose. Alertas devem preservar os valores de origem.
+
+O lançador antigo usa o cadastro de substâncias diretamente e a criação exige
+identificador de substância e dose; não renomear o seletor para procedimentos
+sem alterar o contrato, a persistência e os consumidores do protocolo.
+Sua sugestão de dose não pode extrair o numerador de "dose / volume" quando
+o volume total da apresentação não está comprovado. O preenchimento deve usar
+as mesmas salvaguardas aplicadas ao cadastro de procedimentos. Filtragem por
+procedimentos, categoria, preferidos e subtipos de implante permanece pendente
+da integração real, com dados de classificação explicitamente cadastrados.

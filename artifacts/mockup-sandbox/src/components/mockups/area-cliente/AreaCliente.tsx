@@ -89,10 +89,10 @@ const BENEFICIOS: Benef[] = [
 /* ---- Círculos PAXTER (revelados ao tocar a coroa) — implícitos, sem preço ---- */
 type Tier = { nome: string; essencia: string };
 const TIERS: Tier[] = [
-  { nome: "BRONZE", essencia: "O cuidado essencial do seu protocolo." },
+  { nome: "PRATA", essencia: "O cuidado essencial do seu protocolo." },
   { nome: "OURO", essencia: "Acompanhamento ampliado e prioridade no atendimento." },
-  { nome: "PLATINA", essencia: "Concierge dedicada e mais solicitações inclusas." },
-  { nome: "NOIR", essencia: "Tudo incluso. O círculo mais reservado." },
+  { nome: "PLATINUM", essencia: "Concierge dedicada e mais solicitações inclusas." },
+  { nome: "DIAMOND", essencia: "Tudo incluso. O círculo mais reservado." },
 ];
 
 /* Progresso em RETÂNGULOS segmentados (sem barra arredondada) */

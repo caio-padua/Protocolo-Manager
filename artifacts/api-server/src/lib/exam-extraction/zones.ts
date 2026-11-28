@@ -202,7 +202,16 @@ export function overrideZones(
   }>,
 ): Zone[] | null {
   if (!rows.length) return null;
-  const ordered = [...rows].sort((a, b) => a.ordem - b.ordem);
+  // Algumas instalações acumularam cópias idênticas no banco a cada reinício.
+  // Compactamos apenas representações exatamente iguais na leitura; não
+  // removemos registros nem escolhemos entre limites ou rótulos diferentes.
+  const seen = new Set<string>();
+  const ordered = rows.filter((row) => {
+    const fingerprint = JSON.stringify([row.ordem, row.faixaName, row.low, row.high, row.color]);
+    if (seen.has(fingerprint)) return false;
+    seen.add(fingerprint);
+    return true;
+  }).sort((a, b) => a.ordem - b.ordem);
   const keyByIndex: ZoneKey[] = ["below", "t1", "t2", "t3", "above"];
   return ordered.map((r, i) => ({
     key: keyByIndex[Math.min(i, 4)],
@@ -227,4 +236,30 @@ export function classifyIntoZones(value: number | null, zones: Zone[] | null): Z
     if (okLow && okHigh) return z;
   }
   return null;
+}
+
+/**
+ * Escolha do CONJUNTO de faixas institucionais (exam_analyte_ranges) de um analito.
+ * Extraída, sem mudar de regra, da rota de evolução para que a GRAVAÇÃO e a LEITURA usem a mesma.
+ * - analito sexo-dependente + sexo do cliente conhecido: só as faixas daquele sexo;
+ *   se aquele sexo estiver vazio, cai na faixa geral ('any');
+ * - nos demais casos: só a faixa geral ('any').
+ * Nunca mistura faixas de sexos diferentes. Sem conjunto aplicável => [] (pendência de curadoria).
+ */
+export function escolherFaixasInstitucionais<T extends { sex: string | null }>(
+  todas: T[],
+  sexoDependente: boolean,
+  sexoCliente: "male" | "female" | null,
+): T[] {
+  if (sexoDependente && sexoCliente) {
+    const doSexo = todas.filter((r) => r.sex === sexoCliente);
+    if (doSexo.length) return doSexo;
+  }
+  return todas.filter((r) => (r.sex ?? "any") === "any");
+}
+
+/** Sexo do cadastro (clients.ficha_clinica.sexo: 'M' | 'F') no vocabulário das faixas. */
+export function sexoDaFicha(ficha: unknown): "male" | "female" | null {
+  const raw = String((ficha as { sexo?: string } | null)?.sexo ?? "").trim().toUpperCase();
+  return raw === "M" ? "male" : raw === "F" ? "female" : null;
 }

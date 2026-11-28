@@ -38,9 +38,626 @@ tags:
   - name: site-content
     description: Conteúdo editável (fraseologia de botões, textos de pagamento, vídeos)
   - name: agenda
-    description: Motor de Agenda — recursos, janelas, exceções e liberação anti-ilha
+    description: Agenda Configuração — agendas de atendimento, janelas, exceções e liberação anti-ilha
+  - name: telegram
+    description: Atendimento e histórico do Telegram com escopo por clínica
+  - name: evolution
+    description: Integração WhatsApp, identidade e homologação supervisionada
+  - name: sinapses
+    description: Ligações clínicas propostas e aprovadas entre perguntas e saídas do catálogo
 
 paths:
+  /assinaturas/fallback/saude:
+    get:
+      operationId: getAssinaturasFallbackSaude
+      tags: [health]
+      summary: Contagem de cadernos aguardando envio real, exclusiva do CEO
+      responses:
+        "200":
+          description: Pendências do ZapSign
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssinaturasFallbackSaude"
+        "401":
+          description: Sessão necessária
+        "403":
+          description: Exclusivo do administrador da plataforma
+  /assinaturas/fallback/reenviar:
+    post:
+      operationId: reenviarAssinaturasFallback
+      tags: [health]
+      summary: Reenvia até dez cadernos ao ZapSign real
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssinaturasFallbackConfirmacao"
+      responses:
+        "200":
+          description: Resultado do lote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssinaturasFallbackResultado"
+        "400":
+          description: Confirmação obrigatória
+        "401":
+          description: Sessão necessária
+        "403":
+          description: Exclusivo do administrador da plataforma
+        "503":
+          description: Serviço indisponível ou não configurado
+  /cockpit/{clientId}/telegram-inbox:
+    get:
+      operationId: getClientTelegramInbox
+      tags: [telegram]
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: clientId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: quantidade
+          in: query
+          schema: { type: integer, enum: [20, 50, 100], default: 20 }
+        - name: direcao
+          in: query
+          schema: { type: string, enum: [todas, entrada, saida], default: todas }
+        - name: pagina
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+      responses:
+        "200":
+          description: Mensagens da conversa e estado seguro do atendimento automático.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TelegramInboxResponse" }
+        "404": { description: Cliente não encontrado na clínica autenticada. }
+        "503": { description: Estado do atendimento indisponível. }
+  /cockpit/{clientId}/telegram-inbox/atendimento:
+    get:
+      operationId: getClientTelegramAtendimento
+      tags: [telegram]
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: clientId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Vínculo, modo, autorização individual e condições operacionais sem identificador do chat.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TelegramClientAtendimentoStatus" }
+        "404": { description: Cliente não encontrado na clínica autenticada. }
+        "503": { description: Estado do atendimento indisponível. }
+    put:
+      operationId: updateClientTelegramAtendimento
+      tags: [telegram]
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: clientId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TelegramClientAtendimentoUpdate" }
+      responses:
+        "200":
+          description: Autorização individual alterada sem modificar o modo global.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TelegramClientAtendimentoUpdated" }
+        "400": { description: Cliente ou estado de autorização inválido. }
+        "403": { description: Alteração restrita à sessão autenticada do CEO da plataforma. }
+        "404": { description: Cliente não encontrado na clínica autenticada. }
+        "409": { description: Modo global ou vínculo impede a alteração. }
+        "503": { description: Autorização não pôde ser salva. }
+  /telegram-inbox/exam-followups/config:
+    get:
+      operationId: listTelegramExamFollowupConfig
+      tags: [telegram]
+      security: [{ collaboratorBearer: [] }]
+      summary: Listar o intervalo de acompanhamento de exames por clínica
+      responses:
+        "200":
+          description: Clínicas ativas e configuração sem dados de clientes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TelegramExamFollowupConfigList" }
+        "403": { description: Acesso restrito ao CEO da plataforma. }
+    put:
+      operationId: updateTelegramExamFollowupConfig
+      tags: [telegram]
+      security: [{ collaboratorBearer: [] }]
+      summary: Configurar ou desativar o acompanhamento de exames
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TelegramExamFollowupConfigUpdate" }
+      responses:
+        "200":
+          description: Intervalo salvo; desativar cancela etapas futuras.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TelegramExamFollowupConfigSaved" }
+        "400": { description: Clínica ou intervalo inválido. }
+        "403": { description: Acesso restrito ao CEO da plataforma. }
+        "404": { description: Clínica ativa não encontrada. }
+  /mensageria/credito:
+    get:
+      operationId: getMensageriaCredito
+      tags: [payments]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Carteira da empresa autenticada no ambiente determinado pelo servidor.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MensageriaCredito" }
+        "401": { description: Sessão inválida. }
+  /mensageria/credito/recargas:
+    post:
+      operationId: solicitarMensageriaRecarga
+      tags: [payments]
+      security: [{ collaboratorBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreditoRecargaInput" }
+      responses:
+        "201":
+          description: Solicitação registrada, ainda sem pagamento ou crédito.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreditoRecargaSolicitada" }
+        "400": { description: Valor inválido. }
+        "401": { description: Sessão inválida. }
+  /catalogo/minha-clinica:
+    get:
+      operationId: getCatalogoClinica
+      tags: [payments]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Contrato e carteira da própria clínica, sem custos internos ou margem.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogoClinicaResumo" }
+        "401": { description: Sessão inválida. }
+        "503": { description: Catálogo indisponível neste ambiente. }
+  /fornecedores:
+    get:
+      operationId: listFornecedores
+      tags: [fornecedores]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Fornecedores da clínica autenticada.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Fornecedor" } }
+        "401": { description: Sessão inválida. }
+        "403": { description: Acesso não autorizado. }
+        "503": { description: Estrutura não instalada. }
+    post:
+      operationId: createFornecedor
+      tags: [fornecedores]
+      security: [{ collaboratorBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FornecedorEntrada" }
+      responses:
+        "201":
+          description: Fornecedor cadastrado.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Fornecedor" }
+        "400": { description: Dados inválidos. }
+        "401": { description: Sessão inválida. }
+        "403": { description: Acesso não autorizado. }
+        "409": { description: Cadastro duplicado. }
+        "503": { description: Estrutura não instalada. }
+  /fornecedores/{id}:
+    put:
+      operationId: updateFornecedor
+      tags: [fornecedores]
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FornecedorAtualizacao" }
+      responses:
+        "200":
+          description: Fornecedor atualizado.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Fornecedor" }
+        "400": { description: Dados inválidos. }
+        "401": { description: Sessão inválida. }
+        "403": { description: Acesso não autorizado. }
+        "404": { description: Fornecedor não encontrado nesta clínica. }
+        "409": { description: Cadastro duplicado ou versão desatualizada. }
+        "503": { description: Estrutura não instalada. }
+  /procedimentos/opcoes-profissionais:
+    get:
+      operationId: listProcedimentoOpcoesProfissionais
+      tags: [procedimentos]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Áreas, locais e profissionais vinculados à clínica autenticada.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [locais, areas, profissionais]
+                properties:
+                  locais:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name]
+                      properties:
+                        id: { type: integer }
+                        name: { type: string }
+                  areas:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name]
+                      properties:
+                        id: { type: integer }
+                        name: { type: string }
+                  profissionais:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, nome, areaId, localId, agendas]
+                      properties:
+                        id: { type: integer }
+                        nome: { type: string }
+                        areaId: { type: integer }
+                        localId: { type: integer }
+                        agendas:
+                          type: array
+                          items:
+                            type: object
+                            required: [nome, origem]
+                            properties:
+                              nome: { type: string }
+                              origem: { type: string, enum: [Sistema, Google] }
+        "401": { description: Sessão inválida. }
+  /procedimentos:
+    get:
+      operationId: listProcedimentos
+      tags: [procedimentos]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Procedimentos da clínica autenticada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListaProcedimentos"
+        "401": { description: Sessão inválida. }
+        "403": { description: Clínica não autorizada. }
+        "503": { description: Estrutura de proteção incompleta. }
+    post:
+      operationId: createProcedimento
+      tags: [procedimentos]
+      security: [{ collaboratorBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProcedimentoEntrada" }
+      responses:
+        "201":
+          description: Procedimento cadastrado.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Procedimento" }
+        "400": { description: Dados inválidos. }
+        "401": { description: Sessão inválida. }
+        "403": { description: Edição não autorizada. }
+        "503": { description: Estrutura de proteção incompleta. }
+  /procedimentos/{id}:
+    put:
+      operationId: updateProcedimento
+      tags: [procedimentos]
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProcedimentoEntrada" }
+      responses:
+        "200":
+          description: Procedimento atualizado.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Procedimento" }
+        "400": { description: Dados inválidos. }
+        "401": { description: Sessão inválida. }
+        "403": { description: Edição não autorizada. }
+        "404": { description: Procedimento não encontrado. }
+        "409": { description: O procedimento foi alterado desde a abertura do formulário. }
+        "503": { description: Estrutura de proteção incompleta. }
+  /paxmed-2b/empresas/{empresaId}:
+    parameters:
+      - name: empresaId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: getPaxmed2bEmpresa
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Identidade empresarial, ou nula.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paxmed2bEmpresaResposta" }
+        "401": { description: Sessão inválida. }
+        "403": { description: Empresa não autorizada. }
+    put:
+      operationId: savePaxmed2bEmpresa
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Paxmed2bEmpresaEntrada" }
+      responses:
+        "200":
+          description: Identidade empresarial salva.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paxmed2bEmpresaResposta" }
+        "400": { description: Texto ou imagem inválida. }
+        "401": { description: Sessão inválida. }
+        "403": { description: Empresa não autorizada. }
+        "409": { description: Configuração foi alterada. }
+  /paxmed-2b/empresas/{empresaId}/simbolo/upload:
+    parameters:
+      - name: empresaId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    post:
+      operationId: requestPaxmed2bEmpresaSimboloUpload
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Endereço temporário de envio privado.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paxmed2bUpload" }
+        "401": { description: Sessão inválida. }
+        "403": { description: Empresa não autorizada. }
+  /paxmed-2b/empresas/{empresaId}/simbolo:
+    parameters:
+      - name: empresaId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: getPaxmed2bEmpresaSimbolo
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Símbolo dourado para conferência.
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+        "401": { description: Sessão inválida. }
+        "403": { description: Empresa não autorizada. }
+        "404": { description: Símbolo não configurado. }
+  /paxmed-2b/empresas/{empresaId}/pre-visualizacao:
+    parameters:
+      - name: empresaId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: previewPaxmed2bEmpresa
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Prova sintética sem validade clínica ou código de verificação.
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "401": { description: Sessão inválida. }
+        "403": { description: Empresa não autorizada. }
+        "404": { description: Identidade não configurada. }
+  /paxmed-2b/clinicas:
+    get:
+      operationId: listPaxmed2bClinicas
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Unidades cuja identidade o colaborador pode configurar.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paxmed2bClinicas" }
+        "401": { description: Sessão ausente ou inválida. }
+        "403": { description: Clínica não autorizada. }
+  /paxmed-2b/clinicas/{locationId}:
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: getPaxmed2bIdentidade
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Identidade da unidade, ou nula se ainda não foi configurada.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paxmed2bIdentidadeResposta" }
+        "401": { description: Sessão ausente ou inválida. }
+        "403": { description: Clínica não autorizada. }
+    put:
+      operationId: savePaxmed2bIdentidade
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Paxmed2bIdentidadeEntrada" }
+      responses:
+        "200":
+          description: Identidade configurada.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paxmed2bIdentidadeResposta" }
+        "400": { description: Dados ou imagem inválidos. }
+        "401": { description: Sessão ausente ou inválida. }
+        "403": { description: Clínica não autorizada. }
+        "409": { description: Configuração alterada por outra sessão. }
+  /paxmed-2b/clinicas/{locationId}/simbolo/upload:
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    post:
+      operationId: requestPaxmed2bSimboloUpload
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Endereço temporário de envio direto para o armazenamento privado.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paxmed2bUpload" }
+        "401": { description: Sessão ausente ou inválida. }
+        "403": { description: Clínica não autorizada. }
+  /paxmed-2b/clinicas/{locationId}/simbolo:
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: getPaxmed2bSimbolo
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Símbolo dourado para conferência.
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+        "401": { description: Sessão ausente ou inválida. }
+        "403": { description: Clínica não autorizada. }
+        "404": { description: Símbolo não configurado. }
+  /clinical-demonstrations/{clientId}:
+    parameters:
+      - name: clientId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: listClinicalDemonstrations
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: kind
+          in: query
+          required: true
+          schema: { type: string, enum: [prescricao, exames] }
+      responses:
+        "200":
+          description: Demonstrações privadas do médico e cliente autorizados
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicalDemonstration" }
+        "401": { description: Autenticação necessária }
+        "403": { description: Acesso não autorizado }
+    post:
+      operationId: createClinicalDemonstration
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: modelo
+          in: query
+          required: false
+          description: Prova optativa do Modelo 2B, disponível somente em desenvolvimento.
+          schema: { type: string, enum: [paxmed-2b] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicalDemonstrationInput" }
+      responses:
+        "201":
+          description: Documento de teste criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicalDemonstration" }
+        "400": { description: Dados inválidos }
+        "401": { description: Autenticação necessária }
+        "403": { description: Acesso não autorizado }
+        "422": { description: Certificado ou itens inválidos }
+  /clinical-demonstrations/{clientId}/{id}:
+    get:
+      operationId: getClinicalDemonstration
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: clientId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Documento de teste assinado
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "401": { description: Autenticação necessária }
+        "403": { description: Acesso não autorizado }
+        "404": { description: Documento não encontrado }
   /exam-sets/{clientId}:
     parameters:
       - name: clientId
@@ -141,6 +758,26 @@ paths:
               schema: { $ref: "#/components/schemas/ExamRequestHistory" }
         "401": { description: Login obrigatorio }
         "403": { description: Vinculo clinico nao autorizado }
+  /exam-requests/{clientId}/followups/{followupId}/close:
+    post:
+      operationId: closeExamRequestTelegramFollowup
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      summary: Encerrar um acompanhamento de exames sem alterar o pedido original
+      parameters:
+        - { name: clientId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: followupId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExamRequestFollowupCloseInput" }
+      responses:
+        "200": { description: Acompanhamento encerrado no escopo clínico autorizado. }
+        "400": { description: Identificador ou motivo inválido. }
+        "401": { description: Login obrigatório. }
+        "403": { description: Vínculo clínico não autorizado. }
+        "404": { description: Acompanhamento ativo não encontrado para este cliente. }
   /exam-requests/send:
     post:
       operationId: sendExamRequestDocuments
@@ -497,6 +1134,57 @@ paths:
               schema:
                 $ref: "#/components/schemas/Client"
 
+  /clients/clinicas-origem:
+    get:
+      operationId: listClientOriginClinics
+      tags: [clients]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Clínicas ativas e empresa da sessão.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [empresaAtualId, clinicas]
+                properties:
+                  empresaAtualId: { type: integer }
+                  clinicas:
+                    type: array
+                    items: { $ref: "#/components/schemas/ClientOriginClinic" }
+        "401": { description: Sessão inválida. }
+  /clients/agenda-opcoes:
+    get:
+      operationId: listClientAgendaOptions
+      tags: [clients]
+      parameters:
+        - name: clinicaId
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Locais e agendas da clínica autorizada.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClientAgendaOptions" }
+        "403": { description: Clínica não autorizada. }
+  /clients/visit-preference-options:
+    get:
+      operationId: getClientVisitPreferenceOptions
+      tags: [clients]
+      summary: Referências de dias e horários por tipo de atendimento
+      security:
+        - collaboratorBearer: []
+      responses:
+        "200":
+          description: Grades do expediente ativo da empresa
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientVisitPreferenceOptions"
+        "401": { description: Colaborador não autenticado }
+
   /clients/{id}:
     get:
       operationId: getClient
@@ -746,6 +1434,19 @@ paths:
           required: true
           schema:
             type: integer
+        - name: scheduledTime
+          in: query
+          required: false
+          description: Horário local da clínica para as novas sessões; não altera sessões existentes.
+          schema:
+            type: string
+            pattern: "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$"
+        - name: skipOnboardingEmail
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["true", "false"]
       responses:
         "200":
           description: Protocol validated and sessions generated
@@ -753,6 +1454,126 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Protocol"
+        "400":
+          description: Parâmetros inválidos
+        "401":
+          description: Sessão de colaborador ausente ou expirada
+        "404":
+          description: Registro inexistente ou sem autorização
+        "409":
+          description: Estado do protocolo incompatível ou sessões existentes que exigem conferência
+
+  /protocols/{id}/scheduling/preview:
+    post:
+      operationId: previewProtocolScheduling
+      tags: [protocols]
+      summary: Calcular prévia de agenda de protocolo
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProtocolSchedulingPreviewInput" }
+      responses:
+        "200":
+          description: Prévia sem gravação
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProtocolSchedulingPreviewEnvelope" }
+        "400": { description: Pedido inválido. }
+        "401": { description: Sessão de colaborador ausente ou expirada. }
+        "404": { description: Protocolo ou agenda não encontrados. }
+        "409": { description: Agenda indisponível ou protocolo incompatível. }
+        "422": { description: Dados clínicos incompletos ou incompatíveis. }
+
+  /protocols/{id}/scheduling/confirm:
+    post:
+      operationId: confirmProtocolScheduling
+      tags: [protocols]
+      summary: Confirmar e reservar protocolo
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProtocolSchedulingConfirmInput" }
+      responses:
+        "201":
+          description: Visitas reservadas no sistema
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProtocolSchedulingConfirmEnvelope" }
+        "400": { description: Confirmação inválida. }
+        "401": { description: Sessão de colaborador ausente ou expirada. }
+        "404": { description: Protocolo ou agenda não encontrados. }
+        "409": { description: Prévia desatualizada ou horário ocupado. }
+        "422": { description: Dados incompatíveis com o motor de agenda. }
+
+  /protocols/{id}/recovery/preview:
+    post:
+      operationId: previewProtocolRecovery
+      tags: [protocols]
+      summary: Conferir recuperação de sessões antigas
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProtocolSchedulingPreviewInput" }
+      responses:
+        "200":
+          description: Prévia sem gravação, com as sessões antigas preservadas
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProtocolSchedulingPreviewEnvelope" }
+        "400": { description: Pedido inválido. }
+        "401": { description: Sessão de colaborador ausente ou expirada. }
+        "404": { description: Protocolo ou agenda não encontrados. }
+        "409": { description: Sessões antigas não correspondem exatamente ou agenda indisponível. }
+        "422": { description: Dados clínicos incompletos ou incompatíveis. }
+
+  /protocols/{id}/recovery/confirm:
+    post:
+      operationId: confirmProtocolRecovery
+      tags: [protocols]
+      summary: Confirmar recuperação sem recriar sessões ou aplicações
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProtocolSchedulingConfirmInput" }
+      responses:
+        "201":
+          description: Sessões existentes atualizadas no sistema
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProtocolSchedulingConfirmEnvelope" }
+        "400": { description: Confirmação inválida. }
+        "401": { description: Sessão de colaborador ausente ou expirada. }
+        "404": { description: Protocolo ou agenda não encontrados. }
+        "409": { description: Fotografia desatualizada ou recuperação insegura. }
+        "422": { description: Dados incompatíveis com o motor de agenda. }
 
   /protocols/{id}/generate-ics:
     post:
@@ -901,6 +1722,9 @@ paths:
               properties:
                 substanceId:
                   type: integer
+                applicationId:
+                  type: integer
+                  description: Identificador da ocorrência específica, obrigatório quando há mais de uma aplicação da mesma substância na sessão.
                 confirmed:
                   type: boolean
                 notes:
@@ -1180,6 +2004,74 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ProfessionalArea"
+    post:
+      operationId: createProfessionalArea
+      tags: [clients]
+      summary: Cadastrar categoria profissional no catálogo compartilhado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfessionalCategoryInput"
+      responses:
+        "201":
+          description: Categoria criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfessionalArea"
+
+  /professional-work-areas:
+    get:
+      operationId: listProfessionalWorkAreas
+      tags: [clients]
+      summary: Listar áreas de atuação
+      responses:
+        "200":
+          description: Áreas disponíveis
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProfessionalWorkArea"
+    post:
+      operationId: createProfessionalWorkArea
+      tags: [clients]
+      summary: Cadastrar área de atuação
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfessionalWorkAreaInput"
+      responses:
+        "201":
+          description: Área criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfessionalWorkArea"
+
+  /professionals/{id}/work-areas:
+    get:
+      operationId: getProfessionalWorkAreas
+      tags: [clients]
+      summary: Listar áreas do profissional na clínica da sessão
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Identificadores das áreas vinculadas
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { type: integer }
 
   /professional-specialties:
     get:
@@ -2430,6 +3322,29 @@ paths:
                 items:
                   $ref: "#/components/schemas/AgendaWindow"
 
+  /agenda/ocupacao:
+    get:
+      operationId: getAgendaOcupacao
+      tags: [agenda]
+      summary: Occupancy per agenda in a period (occupied slots / planned slots)
+      parameters:
+        - name: de
+          in: query
+          required: true
+          schema: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+        - name: ate
+          in: query
+          required: true
+          schema: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+      responses:
+        "200":
+          description: One entry per active agenda of the clinic
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgendaOcupacao"
   /agenda/exceptions:
     get:
       operationId: listAgendaExceptions
@@ -2507,6 +3422,160 @@ paths:
               schema:
                 $ref: "#/components/schemas/AgendaSettings"
 
+  /agenda/integration:
+    get:
+      operationId: getAgendaIntegration
+      tags: [agenda]
+      responses:
+        "200":
+          description: Estado e permissões de leitura
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaIntegrationState"
+  /agenda/integration/refresh:
+    post:
+      operationId: refreshAgendaIntegration
+      tags: [agenda]
+      responses:
+        "202":
+          description: Atualização de leitura solicitada
+  /agenda/integration/read-settings:
+    put:
+      operationId: updateAgendaReadSettings
+      tags: [agenda]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgendaReadSettingsInput"
+      responses:
+        "200":
+          description: Preferência salva
+  /agenda/integration/personal-owner:
+    put:
+      operationId: updateAgendaPersonalOwner
+      tags: [agenda]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgendaPersonalOwnerInput"
+      responses:
+        "200":
+          description: Titular salvo
+  /agenda/requests:
+    get:
+      operationId: listAgendaChangeRequests
+      tags: [agenda]
+      responses:
+        "200":
+          description: Solicitações do autor ou administrador autorizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaChangeRequestList"
+    post:
+      operationId: createAgendaChangeRequest
+      tags: [agenda]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgendaWindowChangeInput"
+      responses:
+        "201":
+          description: Solicitação pendente
+  /agenda/requests/{id}/decision:
+    post:
+      operationId: decideAgendaChangeRequest
+      tags: [agenda]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgendaChangeDecisionInput"
+      responses:
+        "200":
+          description: Decisão registrada
+
+  /agenda/google-compromissos:
+    get:
+      operationId: getGoogleAgendaCommitments
+      tags: [agenda]
+      summary: Consultar compromissos Google importados no período autenticado
+      parameters:
+        - name: de
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+        - name: ate
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+      responses:
+        "200":
+          description: Compromissos da empresa autenticada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoogleAgendaCommitments"
+        "400":
+          description: Período inválido ou superior a 62 dias
+        "401":
+          description: Autenticação obrigatória
+        "403":
+          description: Empresa não selecionada
+        "500":
+          description: Falha na consulta
+
+  /agenda/google-compromissos/{id}/descricao:
+    get:
+      operationId: getGoogleAgendaCommitmentDescription
+      tags: [agenda]
+      summary: Consultar a descrição importada de um compromisso selecionado
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: inicio
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Descrição importada, sem vínculo clínico confirmado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoogleAgendaCommitmentDescription"
+        "400":
+          description: Identificador ou início inválido
+        "401":
+          description: Autenticação obrigatória
+        "403":
+          description: Acesso restrito ao proprietário
+        "404":
+          description: Compromisso não encontrado neste acesso
+        "500":
+          description: Falha na consulta
   /agenda/slots:
     get:
       operationId: getAgendaSlots
@@ -2551,6 +3620,94 @@ paths:
       responses:
         "201":
           description: Session booked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookAgendaSessionResponse"
+
+  /agenda/encaixe/politica:
+    get:
+      operationId: getAgendaEncaixePolitica
+      tags: [agenda]
+      summary: Diz se o acesso atual pode usar o encaixe rápido interno e qual a antecedência em minutos
+      description: >-
+        O servidor decide pela identidade da sessão e pela matriz de Governança. Sem sessão responde 401; sessão sem
+        permissão responde 200 com autorizado=false e o motivo. Nenhum parâmetro do navegador escolhe o canal.
+      responses:
+        "200":
+          description: Política do encaixe interno para este acesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaEncaixePolitica"
+  /agenda/encaixe/disponibilidade:
+    get:
+      operationId: getAgendaEncaixeDisponibilidade
+      tags: [agenda]
+      summary: Horários de início possíveis para um encaixe interno, com o trecho inteiro conferido
+      description: >-
+        Mesma decisão da confirmação. Confere agenda, profissional em TODAS as agendas, cliente (se informado),
+        compromissos do Google e o frescor da integração. 403 se o acesso não for autorizado ao encaixe.
+      parameters:
+        - { name: resourceId, in: query, required: true, schema: { type: integer } }
+        - { name: date, in: query, required: true, schema: { type: string }, description: YYYY-MM-DD }
+        - { name: durationMinutes, in: query, required: true, schema: { type: integer, minimum: 5, maximum: 480 } }
+        - { name: clientId, in: query, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: Disponibilidade do dia
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaEncaixeDisponibilidade"
+  /agenda/encaixe:
+    post:
+      operationId: bookAgendaEncaixe
+      tags: [agenda]
+      summary: Confirma um encaixe rápido interno (consulta avulsa) com antecedência curta
+      description: >-
+        Canal interno decidido no servidor. Corpo estrito: não aceita canal, empresa nem antecedência. 201 grava;
+        200 com duplicada=true devolve a marcação idêntica recém-criada; 409 traz codigo e alternativas. O Google é
+        chamado depois da gravação e sua falha nunca desfaz a marcação.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgendaEncaixeBody"
+      responses:
+        "200":
+          description: Repetição idêntica; devolve a marcação existente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaEncaixeResposta"
+        "201":
+          description: Encaixe marcado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaEncaixeResposta"
+  /agenda/book-avulsa:
+    post:
+      operationId: bookAvulsaSession
+      tags: [agenda]
+      summary: Marca uma consulta avulsa (sem protocolo) na agenda escolhida; a empresa vem do acesso
+      description: >-
+        Caminho explícito de consulta avulsa. O corpo NÃO tem protocolId (se vier, é recusado) e a sessão nasce com
+        protocolId nulo. Agenda e cliente precisam ser da empresa do acesso (404 caso contrário). Horário ocupado do
+        profissional ou do cliente responde 409 com mensagem genérica. Com syncGoogle=true o evento é criado no Google
+        da agenda FORA da transação, sem enviar convite; falha ou resultado incerto volta em googleSyncWarning e a
+        marcação permanece salva.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookAvulsaBody"
+      responses:
+        "201":
+          description: Consulta avulsa marcada
           content:
             application/json:
               schema:
@@ -2994,6 +4151,250 @@ paths:
               schema:
                 $ref: "#/components/schemas/FinancialGoalsSummary"
 
+  /evolution/homologacao/config:
+    get:
+      operationId: getEvolutionHomologacaoConfig
+      tags: [evolution]
+      security: [{ collaboratorBearer: [] }]
+      summary: Lê parâmetros editáveis da homologação do WhatsApp
+      responses:
+        "200":
+          description: Modelos, texto supervisionado, assistente e estado do motor
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvolutionHomologacaoConfig" }
+        "401": { description: Sessão sem clínica identificada. }
+        "403": { description: Somente administrador da clínica. }
+    put:
+      operationId: updateEvolutionHomologacaoConfig
+      tags: [evolution]
+      security: [{ collaboratorBearer: [] }]
+      summary: Salva parâmetros editáveis da homologação
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EvolutionHomologacaoConfigUpdate" }
+      responses:
+        "200":
+          description: Configuração salva
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvolutionHomologacaoConfigSaved" }
+        "400": { description: Campos inválidos. }
+        "401": { description: Sessão sem clínica identificada. }
+        "403": { description: Somente administrador da clínica. }
+        "500": { description: Falha ao salvar os parâmetros. }
+
+  /evolution/teste:
+    post:
+      operationId: sendEvolutionIsolatedTest
+      tags: [evolution]
+      security: [{ collaboratorBearer: [] }]
+      summary: Envia um texto escrito pela equipe para um único contato autorizado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EvolutionIsolatedTestInput" }
+      responses:
+        "200":
+          description: Envio aceito ou resultado por partes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvolutionIsolatedTestResult" }
+        "400": { description: "Número, confirmação ou texto inválidos." }
+        "401": { description: Sessão sem clínica identificada. }
+        "403": { description: Número não autorizado. }
+        "502": { description: Uma das partes do envio falhou. }
+
+  /evolution/homologacao/clientes:
+    get:
+      operationId: getEvolutionHomologacaoClients
+      tags: [evolution]
+      security: [{ collaboratorBearer: [] }]
+      summary: Lista clientes ativos com telefone protegido
+      responses:
+        "200":
+          description: Cadastros da clínica com números mascarados
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvolutionHomologacaoClients" }
+        "401": { description: Sessão sem clínica identificada. }
+        "403": { description: Somente administrador da clínica. }
+
+  /evolution/homologacao/vinculo:
+    put:
+      operationId: updateEvolutionHomologacaoLink
+      tags: [evolution]
+      security: [{ collaboratorBearer: [] }]
+      summary: Confirma vínculo explícito entre cliente e telefone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EvolutionHomologacaoLinkUpdate" }
+      responses:
+        "200":
+          description: Vínculo salvo sem alterar o telefone cadastral
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvolutionHomologacaoLinkResult" }
+        "400": { description: "Cliente, telefone ou confirmação inválidos." }
+        "401": { description: Sessão sem clínica identificada. }
+        "403": { description: Telefone não autorizado ou usuário sem permissão. }
+        "404": { description: Cliente ativo não encontrado nesta clínica. }
+        "409": { description: Telefone associado a outro cadastro. }
+
+  /evolution/homologacao/planejar:
+    post:
+      operationId: planEvolutionHomologacaoResponse
+      tags: [evolution]
+      security: [{ collaboratorBearer: [] }]
+      summary: Executa o motor real sem registrar nem enviar pergunta simulada
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EvolutionHomologacaoPlanInput" }
+      responses:
+        "200":
+          description: Resposta e fonte de decisão do motor
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvolutionHomologacaoPlanResult" }
+        "400": { description: Cadastro ou pergunta inválidos. }
+        "401": { description: Sessão sem clínica identificada. }
+        "403": { description: Telefone não autorizado ou usuário sem permissão. }
+        "404": { description: Cliente ativo não encontrado nesta clínica. }
+        "500": { description: O motor não conseguiu montar o plano. }
+
+  /evolution/homologacao/enviar-resposta:
+    post:
+      operationId: sendEvolutionHomologacaoResponse
+      tags: [evolution]
+      security: [{ collaboratorBearer: [] }]
+      summary: Envia individualmente a resposta do motor com aviso de simulação
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EvolutionHomologacaoSendInput" }
+      responses:
+        "200":
+          description: Provedor aceitou a mensagem individual
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvolutionHomologacaoSendResult" }
+        "400": { description: "Confirmação, cadastro ou pergunta inválidos." }
+        "401": { description: Sessão sem clínica identificada. }
+        "403": { description: Telefone não autorizado ou usuário sem permissão. }
+        "404": { description: Cliente ativo não encontrado nesta clínica. }
+        "409": { description: Motor sem resposta ou texto de teste ausente. }
+        "502": { description: Provedor recusou o envio. }
+        "500": { description: Falha ao gerar ou enviar; conferir o histórico antes de repetir. }
+
+  /cadastros/sinapses/painel:
+    get:
+      operationId: getSinapsesClinicasPainel
+      tags: [sinapses]
+      summary: Lista perguntas, destinos, ligações ativas e propostas
+      responses:
+        "200":
+          description: Painel completo para a tela de sinapses.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SinapseClinicalPanel" }
+        "500": { description: Falha ao consultar os catálogos. }
+  /cadastros/sinapses/propostas/carga-inicial:
+    post:
+      operationId: generateInitialSinapseProposals
+      tags: [sinapses]
+      security: [{ collaboratorBearer: [] }]
+      summary: Grava propostas idempotentes sem ativá-las
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SinapseProposalGenerationInput" }
+      responses:
+        "201":
+          description: Quantidade gravada e avisos sobre códigos ausentes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SinapseProposalGenerationResult" }
+        "401": { description: Colaborador não autenticado. }
+        "403": { description: Colaborador sem permissão para escrever. }
+  /cadastros/sinapses/propostas/{id}:
+    patch:
+      operationId: updateSinapseProposal
+      tags: [sinapses]
+      security: [{ collaboratorBearer: [] }]
+      summary: Altera o destino de uma proposta ainda pendente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SinapseProposalUpdate" }
+      responses:
+        "200":
+          description: Proposta atualizada.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SinapseProposal" }
+        "400": { description: Categoria ou destino incompatível. }
+        "401": { description: Colaborador não autenticado. }
+        "403": { description: Colaborador sem permissão para escrever. }
+        "404": { description: Proposta ou destino não encontrado. }
+        "409": { description: Proposta revisada ou repetida. }
+  /cadastros/sinapses/propostas/{id}/aprovar:
+    post:
+      operationId: approveSinapseProposal
+      tags: [sinapses]
+      security: [{ collaboratorBearer: [] }]
+      summary: Move uma proposta pendente para as ligações ativas da tela
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Proposta aprovada; o motor clínico não consome essa tabela.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SinapseProposalStatusResult" }
+        "401": { description: Colaborador não autenticado. }
+        "403": { description: Colaborador sem permissão para escrever. }
+        "404": { description: Proposta não encontrada. }
+        "409": { description: Proposta já revisada ou destino inativo. }
+  /cadastros/sinapses/propostas/{id}/recusar:
+    post:
+      operationId: rejectSinapseProposal
+      tags: [sinapses]
+      security: [{ collaboratorBearer: [] }]
+      summary: Recusa uma proposta sem apagar seu registro
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Proposta preservada como recusada.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SinapseProposalStatusResult" }
+        "401": { description: Colaborador não autenticado. }
+        "403": { description: Colaborador sem permissão para escrever. }
+        "404": { description: Proposta não encontrada. }
+        "409": { description: Proposta já revisada. }
+
 components:
   securitySchemes:
     collaboratorBearer:
@@ -3001,6 +4402,505 @@ components:
       scheme: bearer
       bearerFormat: HMAC
   schemas:
+    AssinaturasFallbackConfirmacao:
+      type: object
+      required: [confirmar]
+      properties:
+        confirmar:
+          type: boolean
+          enum: [true]
+    AssinaturasFallbackSaude:
+      type: object
+      required: [aguardandoReenvioReal, bloqueados]
+      properties:
+        aguardandoReenvioReal: { type: integer, minimum: 0 }
+        bloqueados: { type: integer, minimum: 0 }
+    AssinaturasFallbackResultado:
+      allOf:
+        - $ref: "#/components/schemas/AssinaturasFallbackSaude"
+        - type: object
+          required: [reenviados, falhas, bloqueados]
+          properties:
+            reenviados: { type: integer }
+            falhas: { type: integer }
+    TelegramInboxResponse:
+      type: object
+      additionalProperties: false
+      required: [mensagens, naoLidas, temMais]
+      properties:
+        mensagens:
+          type: array
+          items: { $ref: "#/components/schemas/TelegramInboxMessage" }
+        naoLidas: { type: integer, minimum: 0 }
+        temMais: { type: boolean }
+    EvolutionHomologacaoConfig:
+      type: object
+      additionalProperties: false
+      required: [empresaId, modelos, textoTeste, motorAtivo, nomeAssistente]
+      properties:
+        empresaId: { type: integer, minimum: 1 }
+        modelos:
+          type: object
+          additionalProperties: false
+          required: [selecao, interprete, conferente, aprendizagem]
+          properties:
+            selecao: { type: string }
+            interprete: { type: string }
+            conferente: { type: string }
+            aprendizagem: { type: string }
+        textoTeste: { type: string }
+        motorAtivo: { type: boolean }
+        nomeAssistente: { type: string }
+    EvolutionHomologacaoConfigSaved:
+      type: object
+      additionalProperties: false
+      required: [ok]
+      properties:
+        ok: { type: boolean, enum: [true] }
+    EvolutionIsolatedTestInput:
+      type: object
+      additionalProperties: false
+      required: [numero, texto, confirmo]
+      properties:
+        numero: { type: string, minLength: 8, maxLength: 20 }
+        texto: { type: string, minLength: 1, maxLength: 4000 }
+        contexto: { type: string, maxLength: 60 }
+        confirmo: { type: boolean, enum: [true] }
+    EvolutionIsolatedTestPart:
+      type: object
+      additionalProperties: false
+      required: [parte, de, caracteres, http]
+      properties:
+        parte: { type: integer, minimum: 1 }
+        de: { type: integer, minimum: 1 }
+        caracteres: { type: integer, minimum: 0 }
+        http: { type: integer }
+        ok: { type: boolean }
+        id: { type: integer }
+        status: { type: string }
+        erro: { type: ["string", "null"] }
+    EvolutionIsolatedTestResult:
+      type: object
+      additionalProperties: true
+      required: [partes]
+      properties:
+        ok: { type: boolean }
+        partesTotal: { type: integer, minimum: 1 }
+        partes:
+          type: array
+          items: { $ref: "#/components/schemas/EvolutionIsolatedTestPart" }
+    EvolutionHomologacaoConfigUpdate:
+      type: object
+      additionalProperties: false
+      required: [modelos, textoTeste, nomeAssistente, motorAtivo]
+      properties:
+        modelos:
+          type: object
+          additionalProperties: false
+          required: [selecao, interprete, conferente, aprendizagem]
+          properties:
+            selecao: { type: string, maxLength: 100 }
+            interprete: { type: string, maxLength: 100 }
+            conferente: { type: string, maxLength: 100 }
+            aprendizagem: { type: string, maxLength: 100 }
+        textoTeste: { type: string, maxLength: 4000 }
+        nomeAssistente: { type: string, maxLength: 80 }
+        motorAtivo: { type: boolean }
+    EvolutionHomologacaoClient:
+      type: object
+      additionalProperties: false
+      required: [id, nome, telefone, telefoneMascarado, vinculoExplicito]
+      properties:
+        id: { type: integer, minimum: 1 }
+        nome: { type: string }
+        telefone: { type: ["string", "null"] }
+        telefoneMascarado: { type: ["string", "null"] }
+        vinculoExplicito: { type: boolean }
+    EvolutionHomologacaoClients:
+      type: object
+      additionalProperties: false
+      required: [clientes]
+      properties:
+        clientes:
+          type: array
+          items: { $ref: "#/components/schemas/EvolutionHomologacaoClient" }
+    EvolutionHomologacaoLinkUpdate:
+      type: object
+      additionalProperties: false
+      required: [clienteId, confirmo]
+      properties:
+        clienteId: { type: integer, minimum: 1 }
+        telefone: { type: string, minLength: 8, maxLength: 20 }
+        telefoneFinal: { type: string, pattern: '^\d{4}$' }
+        confirmo: { type: boolean, enum: [true] }
+    EvolutionHomologacaoLinkResult:
+      type: object
+      additionalProperties: false
+      required: [ok, telefoneMascarado]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        telefoneMascarado: { type: string }
+    EvolutionHomologacaoPlanInput:
+      type: object
+      additionalProperties: false
+      required: [clienteId, pergunta]
+      properties:
+        clienteId: { type: integer, minimum: 1 }
+        pergunta: { type: string, minLength: 1, maxLength: 1000 }
+    EvolutionHomologacaoPlanResult:
+      type: object
+      additionalProperties: false
+      required: [simulacao, mensagemDeEntradaRegistrada, resposta, desfecho, caminhoResolucao, motor, efeitosExecutados]
+      properties:
+        simulacao: { type: boolean, enum: [true] }
+        mensagemDeEntradaRegistrada: { type: boolean, enum: [false] }
+        resposta: { type: ["string", "null"] }
+        desfecho: { type: string }
+        caminhoResolucao: { type: string }
+        orientacaoId: { type: integer, minimum: 1 }
+        motor:
+          type: object
+          additionalProperties: false
+          required: [decisao, interpretadorChamado, conferidorChamado, modeloSelecionado]
+          properties:
+            decisao: { type: string }
+            interpretadorChamado: { type: boolean }
+            conferidorChamado: { type: boolean }
+            modeloSelecionado: { type: boolean }
+        efeitosExecutados:
+          type: array
+          items: { type: string }
+    EvolutionHomologacaoSendInput:
+      type: object
+      additionalProperties: false
+      required: [clienteId, pergunta, confirmo]
+      properties:
+        clienteId: { type: integer, minimum: 1 }
+        pergunta: { type: string, minLength: 1, maxLength: 1000 }
+        contexto: { type: string, maxLength: 60 }
+        confirmo: { type: boolean, enum: [true] }
+    EvolutionHomologacaoSendResult:
+      type: object
+      additionalProperties: true
+      required: [simulacao, perguntaRegistradaComoEntrada, respostaGeradaPor, desfecho, caminhoResolucao, inferenciaIA]
+      properties:
+        simulacao: { type: boolean, enum: [true] }
+        perguntaRegistradaComoEntrada: { type: boolean, enum: [false] }
+        respostaGeradaPor: { type: string, enum: ["motor PAXMED"] }
+        desfecho: { type: string }
+        caminhoResolucao: { type: string }
+        inferenciaIA: { type: boolean }
+    TelegramInboxMessage:
+      type: object
+      additionalProperties: false
+      required: [id, texto, recebidaEm, lida, direcao]
+      properties:
+        id: { type: integer, minimum: 1 }
+        texto: { type: string }
+        recebidaEm: { type: string, format: date-time }
+        lida: { type: boolean }
+        direcao: { type: string, enum: [entrada, saida] }
+        atendimento:
+          $ref: "#/components/schemas/TelegramInboxMessageAtendimento"
+    TelegramInboxMessageAtendimento:
+      type: object
+      additionalProperties: false
+      required: [estado, desfecho, orientacaoAprovada]
+      properties:
+        estado: { type: string, enum: [pendente, processando, concluido, falhou, esgotado, incerto] }
+        desfecho: { type: [string, "null"] }
+        orientacaoAprovada: { type: boolean }
+    TelegramClientAtendimentoStatus:
+      type: object
+      additionalProperties: false
+      required: [clienteId, vinculado, vinculoUnico, modoGlobal, botConfigurado, canalAtivo, autorizadoIndividualmente, modoPermiteResposta, pausadoParaEquipe, creditoDisponivel, creditoMotivo, respostaAutomaticaAtiva, podeAlterarAutorizacaoIndividual]
+      properties:
+        clienteId: { type: integer, minimum: 1 }
+        vinculado: { type: boolean }
+        vinculoUnico: { type: boolean }
+        modoGlobal: { type: string, enum: [desligado, lista, ligado] }
+        botConfigurado: { type: boolean }
+        canalAtivo: { type: boolean }
+        autorizadoIndividualmente: { type: boolean }
+        modoPermiteResposta: { type: boolean }
+        pausadoParaEquipe: { type: boolean }
+        creditoDisponivel: { type: boolean }
+        creditoMotivo: { type: [string, "null"], enum: [sem_saldo, null] }
+        respostaAutomaticaAtiva: { type: boolean }
+        podeAlterarAutorizacaoIndividual: { type: boolean }
+    TelegramClientAtendimentoUpdate:
+      type: object
+      additionalProperties: false
+      required: [autorizado]
+      properties:
+        autorizado: { type: boolean }
+    TelegramClientAtendimentoUpdated:
+      type: object
+      additionalProperties: false
+      required: [ok, autorizado]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        autorizado: { type: boolean }
+    CreditoRecargaInput:
+      type: object
+      required: [valorCentavos]
+      properties:
+        valorCentavos: { type: integer, minimum: 1, maximum: 9007199254740991 }
+    CreditoRecargaSolicitada:
+      type: object
+      required: [id, status, creditado, ambiente]
+      properties:
+        id: { type: integer }
+        status: { type: string, enum: [solicitada] }
+        creditado: { type: boolean, enum: [false] }
+        ambiente: { type: string, enum: [teste, real] }
+    MensageriaCredito:
+      type: object
+      additionalProperties: true
+      required: [ambiente, saldoCentavos, extrato, recargas, tarifas]
+      properties:
+        ambiente: { type: string, enum: [teste, real] }
+        saldoCentavos: { type: integer, minimum: 0 }
+        mensagensAguardandoRetomada: { type: integer, minimum: 0 }
+        extrato: { type: array, items: { type: object, additionalProperties: true } }
+        recargas: { type: array, items: { type: object, additionalProperties: true } }
+        tarifas: { type: array, items: { type: object, additionalProperties: true } }
+    CatalogoClinicaResumo:
+      type: object
+      required: [ambienteCredito, saldoCentavos, contrato, extrato, recargas, tarifas]
+      properties:
+        ambienteCredito: { type: string, enum: [teste, real] }
+        saldoCentavos: { type: integer, minimum: 0 }
+        mensagensAguardandoRetomada: { type: integer, minimum: 0 }
+        contrato: { type: [object, "null"], additionalProperties: true }
+        extrato: { type: array, items: { type: object, additionalProperties: true } }
+        recargas: { type: array, items: { type: object, additionalProperties: true } }
+        tarifas: { type: array, items: { type: object, additionalProperties: true } }
+    FornecedorEntrada:
+      type: object
+      required: [nome, razaoSocial, cnpj, endereco, telefone, email, site, instagram, fabricante, fornecedor, fonte, ativo]
+      properties:
+        nome: { type: string, minLength: 1, maxLength: 200 }
+        razaoSocial: { type: string, nullable: true, maxLength: 500 }
+        cnpj: { type: string, nullable: true, maxLength: 500 }
+        endereco: { type: string, nullable: true, maxLength: 500 }
+        telefone: { type: string, nullable: true, maxLength: 500 }
+        email: { type: string, nullable: true, maxLength: 500 }
+        site: { type: string, nullable: true, maxLength: 500 }
+        instagram: { type: string, nullable: true, maxLength: 500 }
+        fabricante: { type: boolean, nullable: true }
+        fornecedor: { type: boolean, nullable: true }
+        fonte: { type: string, nullable: true, maxLength: 500 }
+        ativo: { type: boolean }
+    FornecedorAtualizacao:
+      allOf:
+        - $ref: "#/components/schemas/FornecedorEntrada"
+        - type: object
+          required: [versao]
+          properties:
+            versao: { type: integer, minimum: 1 }
+    Fornecedor:
+      allOf:
+        - $ref: "#/components/schemas/FornecedorEntrada"
+        - type: object
+          required: [id, empresaId, versao, criadoEm, atualizadoEm]
+          properties:
+            id: { type: integer }
+            empresaId: { type: integer }
+            versao: { type: integer }
+            criadoEm: { type: string, format: date-time }
+            atualizadoEm: { type: string, format: date-time }
+    ListaProcedimentos:
+      type: object
+      required: [empresaId, empresaNome, procedimentos]
+      properties:
+        empresaId: { type: integer }
+        empresaNome: { type: string }
+        duracaoSegundosHabilitada:
+          type: boolean
+          description: Confirma que o servidor e o banco preservam a duração em segundos inteiros.
+        profissionaisNecessariosHabilitado:
+          type: boolean
+          description: Confirma o contrato de profissionais necessários e dose separados.
+        vinculosCamposHabilitados:
+          type: boolean
+          description: Confirma suporte a campos vinculados ao catálogo.
+        versaoEdicaoHabilitada:
+          type: boolean
+          description: Confirma proteção contra edição simultânea.
+        procedimentos:
+          type: array
+          items: { $ref: "#/components/schemas/Procedimento" }
+    ProcedimentoEntrada:
+      type: object
+      additionalProperties: false
+      required: [nome, descricao, duracaoMinutos, ativo, produtoIds, dose, profissionaisNecessarios]
+      properties:
+        nome: { type: string, minLength: 1, maxLength: 200 }
+        tipo:
+          anyOf:
+            - { type: string, enum: [consulta, enfermagem, medico] }
+            - { type: "null" }
+          description: Classificação histórica, preservada sem atribuição automática.
+        dose:
+          anyOf:
+            - { type: string, maxLength: 500 }
+            - { type: "null" }
+        fontesCampos:
+          $ref: "#/components/schemas/ProcedimentoFontesCampos"
+        confirmarDoseAtual:
+          type: boolean
+          description: Confirma explicitamente a dose atual quando ela é vinculada.
+        versaoEdicao:
+          type: string
+          pattern: '^(0|[1-9][0-9]{0,18})$'
+          description: Versão lida ao abrir o procedimento para edição.
+        profissionaisNecessarios:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            required: [areaId, localId, professionalIds]
+            properties:
+              areaId: { type: integer, minimum: 1 }
+              localId: { type: integer, minimum: 1 }
+              professionalIds:
+                type: array
+                minItems: 1
+                maxItems: 30
+                items: { type: integer, minimum: 1 }
+        descricao:
+          anyOf:
+            - { type: string, maxLength: 2000 }
+            - { type: "null" }
+        duracaoMinutos:
+          anyOf:
+            - { type: number, minimum: 0.01, maximum: 1440 }
+            - { type: "null" }
+        ativo: { type: boolean }
+        produtoIds:
+          type: array
+          maxItems: 100
+          items: { type: integer, minimum: 1 }
+    ProcedimentoFontesCampos:
+      type: object
+      additionalProperties: false
+      properties:
+        nome: { type: integer, minimum: 1 }
+        dose: { type: integer, minimum: 1 }
+        duracaoMinutos: { type: integer, minimum: 1 }
+    Procedimento:
+      allOf:
+        - $ref: "#/components/schemas/ProcedimentoEntrada"
+        - type: object
+          required: [id, empresaId]
+          properties:
+            dosePendenteRevisao: { type: boolean }
+            camposOrigemIndisponivel:
+              type: array
+              items: { type: string }
+            id: { type: integer }
+            empresaId: { type: integer }
+    Paxmed2bEmpresa:
+      type: object
+      required: [nomeCabecalho, rodapeLinha1, rodapeLinha2, rodapeLinha3, versao]
+      properties:
+        nomeCabecalho: { type: string }
+        rodapeLinha1: { type: string }
+        rodapeLinha2: { type: string }
+        rodapeLinha3: { type: string }
+        simboloExemplo: { type: boolean }
+        dadosExemplo: { type: boolean }
+        versao: { type: integer }
+    Paxmed2bEmpresaResposta:
+      type: object
+      required: [identidade]
+      properties:
+        identidade:
+          anyOf:
+            - $ref: "#/components/schemas/Paxmed2bEmpresa"
+            - type: "null"
+    Paxmed2bEmpresaEntrada:
+      type: object
+      additionalProperties: false
+      required: [nomeCabecalho, rodapeLinha1, rodapeLinha2, rodapeLinha3, versao]
+      properties:
+        nomeCabecalho: { type: string, minLength: 1, maxLength: 80 }
+        rodapeLinha1: { type: string, minLength: 1, maxLength: 80 }
+        rodapeLinha2: { type: string, minLength: 1, maxLength: 80 }
+        rodapeLinha3: { type: string, minLength: 1, maxLength: 80 }
+        versao: { type: integer, minimum: 0 }
+        uploadId: { type: string, format: uuid }
+    Paxmed2bClinica:
+      type: object
+      required: [id, nome]
+      properties:
+        id: { type: integer }
+        nome: { type: string }
+    Paxmed2bClinicas:
+      type: object
+      required: [clinicas]
+      properties:
+        clinicas:
+          type: array
+          items: { $ref: "#/components/schemas/Paxmed2bClinica" }
+    Paxmed2bIdentidade:
+      type: object
+      required: [nome, enderecoLinha1, enderecoLinha2, versao]
+      properties:
+        nome: { type: string }
+        enderecoLinha1: { type: string }
+        enderecoLinha2: { type: string }
+        versao: { type: integer }
+    Paxmed2bIdentidadeResposta:
+      type: object
+      required: [identidade]
+      properties:
+        identidade:
+          anyOf:
+            - $ref: "#/components/schemas/Paxmed2bIdentidade"
+            - type: "null"
+    Paxmed2bIdentidadeEntrada:
+      type: object
+      additionalProperties: false
+      required: [nome, enderecoLinha1, enderecoLinha2, versao]
+      properties:
+        nome: { type: string, minLength: 1, maxLength: 80 }
+        enderecoLinha1: { type: string, minLength: 1, maxLength: 80 }
+        enderecoLinha2: { type: string, minLength: 1, maxLength: 80 }
+        versao: { type: integer, minimum: 0 }
+        uploadId: { type: string, format: uuid }
+    Paxmed2bUpload:
+      type: object
+      required: [uploadId, uploadUrl]
+      properties:
+        uploadId: { type: string, format: uuid }
+        uploadUrl: { type: string, format: uri }
+    ClinicalDemonstration:
+      type: object
+      required: [id, kind, createdAt]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [prescricao, exames] }
+        createdAt: { type: string }
+    ClinicalDemonstrationInput:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [prescricao, exames] }
+        prescriptionItems:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { $ref: "#/components/schemas/PrescriptionItemInput" }
+        examItems:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: "#/components/schemas/ExamRequestEmitItem" }
+        observacao: { type: ["string", "null"], maxLength: 2000 }
     EmpresaCodigoSemanticoInput:
       type: object
       additionalProperties: false
@@ -3098,7 +4998,7 @@ components:
         createdAt: { type: string, format: date-time }
     ExamRequestHistory:
       type: object
-      required: [documents, nextOffset, dispatches, pendingOperations]
+      required: [documents, nextOffset, dispatches, pendingOperations, followups]
       properties:
         documents:
           type: array
@@ -3110,6 +5010,9 @@ components:
         pendingOperations:
           type: array
           items: { $ref: "#/components/schemas/ExamRequestPendingOperation" }
+        followups:
+          type: array
+          items: { $ref: "#/components/schemas/ExamRequestTelegramFollowup" }
     ExamRequestPendingOperation:
       type: object
       required: [operationKey, state, createdAt, documentIds, channels, results]
@@ -3133,6 +5036,84 @@ components:
         state: { type: string }
         documentIds: { type: array, items: { type: integer } }
         createdAt: { type: string, format: date-time }
+    ExamRequestTelegramFollowup:
+      type: object
+      required:
+        - id
+        - state
+        - intervalHours
+        - providerAcceptedAt
+        - receiptDueAt
+        - bookingDueAt
+        - receiptSentAt
+        - bookingSentAt
+        - receiptAnswer
+        - bookingAnswer
+        - receiptDeliveryState
+        - bookingDeliveryState
+        - receiptAckState
+        - bookingAckState
+        - teamAlertState
+        - closeReason
+        - requiresReview
+        - createdAt
+        - closedAt
+      properties:
+        id: { type: integer }
+        state:
+          type: string
+          enum: [awaiting_dispatch, receipt_pending, receipt_sending, receipt_waiting, booking_pending, booking_sending, booking_waiting, completed, closed, cancelled, needs_review]
+        intervalHours: { type: integer, minimum: 1, maximum: 72 }
+        providerAcceptedAt: { type: [string, "null"], format: date-time }
+        receiptDueAt: { type: [string, "null"], format: date-time }
+        bookingDueAt: { type: [string, "null"], format: date-time }
+        receiptSentAt: { type: [string, "null"], format: date-time }
+        bookingSentAt: { type: [string, "null"], format: date-time }
+        receiptAnswer: { type: [string, "null"], enum: [received, not_received, help, ambiguous, null] }
+        bookingAnswer: { type: [string, "null"], enum: [booked, not_booked, help, ambiguous, null] }
+        receiptDeliveryState: { type: string, enum: [not_sent, sending, accepted, simulated, failed, unknown] }
+        bookingDeliveryState: { type: string, enum: [not_sent, sending, accepted, simulated, failed, unknown] }
+        receiptAckState: { type: string, enum: [not_sent, sending, accepted, simulated, failed, unknown] }
+        bookingAckState: { type: string, enum: [not_sent, sending, accepted, simulated, failed, unknown] }
+        teamAlertState: { type: string, enum: [not_needed, sending, accepted, simulated, failed, unknown] }
+        closeReason: { type: [string, "null"] }
+        requiresReview: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        closedAt: { type: [string, "null"], format: date-time }
+    ExamRequestFollowupCloseInput:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, enum: [pedido_cancelado, cliente_resolveu, encerrado_pela_equipe] }
+    TelegramExamFollowupConfigList:
+      type: object
+      required: [clinicas]
+      properties:
+        clinicas:
+          type: array
+          items: { $ref: "#/components/schemas/TelegramExamFollowupClinicConfig" }
+    TelegramExamFollowupClinicConfig:
+      type: object
+      required: [empresaId, nome, intervalHours]
+      properties:
+        empresaId: { type: integer, minimum: 1 }
+        nome: { type: string }
+        intervalHours: { type: [integer, "null"], minimum: 1, maximum: 72 }
+    TelegramExamFollowupConfigUpdate:
+      type: object
+      additionalProperties: false
+      required: [empresaId, intervalHours]
+      properties:
+        empresaId: { type: integer, minimum: 1 }
+        intervalHours: { type: [integer, "null"], minimum: 1, maximum: 72 }
+    TelegramExamFollowupConfigSaved:
+      type: object
+      required: [ok, empresaId, intervalHours]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        empresaId: { type: integer, minimum: 1 }
+        intervalHours: { type: [integer, "null"], minimum: 1, maximum: 72 }
     ExamDocumentDispatchInput:
       type: object
       required: [operationKey, clientId, documentIds, channels, confirmed]
@@ -3324,6 +5305,12 @@ components:
         fileName: { type: string, nullable: true }
         cpf: { type: string, nullable: true }
         updatedAt: { type: string, nullable: true }
+        state:
+          type: string
+          enum: [valid, expired, not_yet_valid, missing, invalid, owner_mismatch, unavailable]
+        professionalType: { type: string, nullable: true }
+        validFrom: { type: string, format: date-time, nullable: true }
+        validTo: { type: string, format: date-time, nullable: true }
 
     ReconciliationItem:
       type: object
@@ -3547,6 +5534,26 @@ components:
       required: [ok]
       properties:
         ok: { type: boolean }
+    AgendaExternalAddress:
+      type: object
+      required: [cep, logradouro, bairro, cidade, uf, numero]
+      properties:
+        cep:
+          type: string
+        logradouro:
+          type: string
+        bairro:
+          type: string
+        cidade:
+          type: string
+        uf:
+          type: string
+        numero:
+          type: string
+        complemento:
+          type: string
+          nullable: true
+
     AgendaResource:
       type: object
       required: [id, name, kind, modality, color, slotMinutes, active, sortOrder]
@@ -3555,6 +5562,10 @@ components:
           type: integer
         name:
           type: string
+        displayName:
+          type: string
+          nullable: true
+          description: Apelido que o dono da clínica quer ver no botão da agenda. O nome completo (name) não muda e continua sendo a referência do Google.
         kind:
           type: string
         modality:
@@ -3569,6 +5580,52 @@ components:
         locationId:
           type: integer
           nullable: true
+        empresaId:
+          type: integer
+          nullable: true
+        canManage:
+          type: boolean
+        professionalName:
+          type: string
+          nullable: true
+          description: Nome do profissional titular da agenda (nulo em agenda compartilhada).
+        locationName:
+          type: string
+          nullable: true
+          description: Nome do local cadastrado da agenda. Agenda e local são cadastros distintos.
+        externalAddress:
+          allOf:
+            - $ref: "#/components/schemas/AgendaExternalAddress"
+          nullable: true
+        externalAddressText:
+          type: string
+          nullable: true
+        locationAddressText:
+          type: string
+          nullable: true
+          description: Endereço atual da sede, só quando a agenda é presencial (local) e o local é a sede da empresa.
+        externalAddressStatus:
+          type: string
+          nullable: true
+          enum: [confirmado, pendente]
+        mapsUrl:
+          type: string
+          nullable: true
+        wazeUrl:
+          type: string
+          nullable: true
+        categoryId:
+          type: integer
+          nullable: true
+        categoryName:
+          type: string
+          nullable: true
+        categoryStatus:
+          type: string
+          enum: [confirmada, pendente]
+        sharing:
+          type: string
+          enum: [individual, compartilhada]
         active:
           type: boolean
         sortOrder:
@@ -3576,12 +5633,15 @@ components:
 
     CreateAgendaResourceBody:
       type: object
-      required: [name, kind, modality]
+      required: [name, categoryId, modality]
       properties:
         name:
           type: string
-        kind:
+        displayName:
           type: string
+          nullable: true
+        categoryId:
+          type: integer
         modality:
           type: string
         color:
@@ -3594,6 +5654,8 @@ components:
         locationId:
           type: integer
           nullable: true
+        externalAddress:
+          $ref: "#/components/schemas/AgendaExternalAddress"
         sortOrder:
           type: integer
 
@@ -3602,8 +5664,11 @@ components:
       properties:
         name:
           type: string
-        kind:
+        displayName:
           type: string
+          nullable: true
+        categoryId:
+          type: integer
         modality:
           type: string
         color:
@@ -3616,6 +5681,8 @@ components:
         locationId:
           type: integer
           nullable: true
+        externalAddress:
+          $ref: "#/components/schemas/AgendaExternalAddress"
         active:
           type: boolean
         sortOrder:
@@ -3635,6 +5702,14 @@ components:
           type: string
         endTime:
           type: string
+        repeatWeeks:
+          type: integer
+          minimum: 1
+          maximum: 105
+          description: "Padrão de repetição: 1 toda semana; 2, 3, 4, 6 ou 8 a cada N semanas (exige anchorDate); 101 a 104 = 1ª a 4ª ocorrência do dia no mês; 105 = última do mês."
+        anchorDate:
+          type: string
+          nullable: true
 
     AgendaWindowInput:
       type: object
@@ -3646,6 +5721,14 @@ components:
           type: string
         endTime:
           type: string
+        repeatWeeks:
+          type: integer
+          minimum: 1
+          maximum: 105
+          description: "Padrão de repetição: 1 toda semana; 2, 3, 4, 6 ou 8 a cada N semanas (exige anchorDate); 101 a 104 = 1ª a 4ª ocorrência do dia no mês; 105 = última do mês."
+        anchorDate:
+          type: string
+          nullable: true
 
     ReplaceAgendaWindowsBody:
       type: object
@@ -3655,7 +5738,18 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AgendaWindowInput"
+        expectedWindows:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaWindowInput"
 
+    AgendaOcupacao:
+      type: object
+      required: [resourceId, capacidade, ocupadas]
+      properties:
+        resourceId: { type: integer }
+        capacidade: { type: integer, description: "Planned slots in the period" }
+        ocupadas: { type: integer, description: "Slots covered by system appointments inside the windows" }
     AgendaException:
       type: object
       required: [id, date, kind]
@@ -3691,7 +5785,7 @@ components:
 
     AgendaSettings:
       type: object
-      required: [id, blockMinutes, triggerPercent, minLeadHours]
+      required: [id, blockMinutes, triggerPercent, minLeadHours, internalLeadMinutes]
       properties:
         id:
           type: integer
@@ -3701,6 +5795,12 @@ components:
           type: integer
         minLeadHours:
           type: integer
+          description: Antecedência em HORAS da marcação padrão (paciente, protocolo, Pit Stop, concierge). Não vale para o encaixe interno.
+        internalLeadMinutes:
+          type: integer
+          minimum: 0
+          maximum: 1440
+          description: Antecedência em MINUTOS do encaixe rápido interno (equipe autorizada). Padrão sugerido 5.
 
     UpdateAgendaSettingsBody:
       type: object
@@ -3711,6 +5811,10 @@ components:
           type: integer
         minLeadHours:
           type: integer
+        internalLeadMinutes:
+          type: integer
+          minimum: 0
+          maximum: 1440
 
     AgendaSubBlock:
       type: object
@@ -3742,6 +5846,248 @@ components:
           nullable: true
         subBlockIndex:
           type: integer
+
+    AgendaProposedWindow:
+      type: object
+      required: [weekday, startTime, endTime]
+      properties:
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+        startTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+        endTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+        repeatWeeks:
+          type: integer
+          minimum: 1
+          maximum: 105
+          description: "Padrão de repetição: 1 toda semana; 2, 3, 4, 6 ou 8 a cada N semanas (exige anchorDate); 101 a 104 = 1ª a 4ª ocorrência do dia no mês; 105 = última do mês."
+        anchorDate:
+          type: string
+          nullable: true
+    AgendaWindowChangeInput:
+      type: object
+      required: [resourceId, reason, windows]
+      properties:
+        resourceId:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          minLength: 8
+          maxLength: 500
+        windows:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/AgendaProposedWindow"
+        expectedWindows:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/AgendaProposedWindow"
+    AgendaChangeDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [aprovar, recusar]
+    AgendaPersonalOwnerInput:
+      type: object
+      required: [locationId, professionalId]
+      properties:
+        locationId:
+          type: integer
+          minimum: 1
+        professionalId:
+          type: [integer, "null"]
+          minimum: 1
+    AgendaReadSettingsInput:
+      type: object
+      required: [locationId, enabled]
+      properties:
+        locationId:
+          type: integer
+          minimum: 1
+        enabled:
+          type: boolean
+    AgendaIntegrationCalendar:
+      type: object
+      required: [id, name, color, role, enabled, lastSuccess, lastAttempt, error, personalOwnerId, canManage]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        color:
+          type: string
+        role:
+          type: [string, "null"]
+        enabled:
+          type: [boolean, "null"]
+        lastSuccess:
+          type: [string, "null"]
+        lastAttempt:
+          type: [string, "null"]
+        error:
+          type: [string, "null"]
+        personalOwnerId:
+          type: [integer, "null"]
+        canManage:
+          type: boolean
+    AgendaIntegrationResource:
+      type: object
+      required: [id, name, locationId]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        locationId:
+          type: [integer, "null"]
+          description: Agenda sem local fisico (Home Care, Outro local) tem locationId nulo.
+    AgendaIntegrationProfessional:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        categoryId:
+          type: integer
+          nullable: true
+    AgendaIntegrationState:
+      type: object
+      required: [agendas, professionals, resources, globalSettingsOwnerOnly, canManageGlobalSettings, companyId]
+      properties:
+        agendas:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaIntegrationCalendar"
+        professionals:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaIntegrationProfessional"
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaIntegrationResource"
+        globalSettingsOwnerOnly:
+          type: boolean
+        canManageGlobalSettings:
+          type: boolean
+        companyId:
+          type: integer
+        companyName:
+          type: [string, "null"]
+    AgendaChangeRequest:
+      type: object
+      required: [id, resourceId, resource, reason, state, windows, createdAt, locationId, requestedBy, canDecide]
+      properties:
+        id:
+          type: integer
+        resourceId:
+          type: integer
+        resource:
+          type: string
+        reason:
+          type: string
+        state:
+          type: string
+        windows:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaProposedWindow"
+        createdAt:
+          type: string
+        locationId:
+          type: integer
+        requestedBy:
+          type: integer
+        canDecide:
+          type: boolean
+    AgendaChangeRequestList:
+      type: object
+      required: [requests]
+      properties:
+        requests:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaChangeRequest"
+    GoogleAgendaCommitmentDescription:
+      type: object
+      required: [descricao]
+      properties:
+        descricao:
+          type: ["string", "null"]
+    GoogleAgendaCommitment:
+      type: object
+      required: [id, titulo, inicio, fim, data, horario, diaInteiro, agenda, agendaId, cor, recorrente]
+      properties:
+        id:
+          type: string
+        titulo:
+          type: string
+        inicio:
+          type: string
+        fim:
+          type: string
+        data:
+          type: string
+        horario:
+          type: string
+        diaInteiro:
+          type: boolean
+        agenda:
+          type: string
+        agendaId:
+          type: integer
+          description: Chave numérica da origem. Positivo = id do local; negativo = menos o id de uma agenda sem local (Home Care, Outro local).
+        agendaRecursoId:
+          type: integer
+          nullable: true
+          description: Id da agenda de atendimento (Agenda Configuração) dona do calendário; nulo quando é um calendário só do Google (Geral, Pessoal, Feriados).
+        cor:
+          type: string
+        recorrente:
+          type: boolean
+    GoogleAgendaCommitments:
+      type: object
+      required: [desde, eventos, agendas]
+      properties:
+        desde:
+          type: string
+        eventos:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoogleAgendaCommitment"
+        agendas:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoogleAgendaOption"
+    GoogleAgendaOption:
+      type: object
+      required: [id, nome, cor]
+      properties:
+        id:
+          type: integer
+          description: Mesma chave de agendaId dos compromissos (positivo = local; negativo = agenda sem local).
+        agendaRecursoId:
+          type: integer
+          nullable: true
+        papel:
+          type: string
+          nullable: true
+        nome:
+          type: string
+        cor:
+          type: string
 
     AgendaSlotsResponse:
       type: object
@@ -3786,6 +6132,133 @@ components:
         simulate:
           type: boolean
 
+    AgendaEncaixePolitica:
+      type: object
+      required: [canal, autorizado, antecedenciaMinutos, antecedenciaConfigurada, antecedenciaSugeridaMinutos]
+      properties:
+        canal: { type: string }
+        autorizado: { type: boolean }
+        motivo: { type: string, nullable: true }
+        codigo: { type: string, nullable: true }
+        antecedenciaMinutos: { type: integer }
+        antecedenciaConfigurada: { type: boolean }
+        antecedenciaSugeridaMinutos: { type: integer }
+
+    AgendaEncaixeSlot:
+      type: object
+      required: [time, state]
+      properties:
+        time: { type: string }
+        state: { type: string, enum: [aberto, bloqueado, ocupado] }
+        reason:
+          type: string
+          nullable: true
+          enum: [ocupado, passado, antecedencia, compromisso, integracao, profissional, cliente, intervalo]
+        message: { type: string, nullable: true }
+
+    AgendaEncaixeAlternativas:
+      type: object
+      required: [mesmoDia]
+      properties:
+        mesmoDia:
+          type: array
+          items: { type: string }
+        proximoDia:
+          type: object
+          nullable: true
+          required: [date, time]
+          properties:
+            date: { type: string }
+            time: { type: string }
+
+    AgendaEncaixeDisponibilidade:
+      type: object
+      required: [canal, resourceId, date, agora, antecedenciaMinutos, integracao, clienteVerificado, durationMinutes, slotMinutes, slots, alternativas]
+      properties:
+        canal: { type: string }
+        resourceId: { type: integer }
+        date: { type: string }
+        agora: { type: string }
+        antecedenciaMinutos: { type: integer }
+        motivoDia: { type: string, nullable: true }
+        integracao:
+          type: object
+          required: [atualizada]
+          properties:
+            atualizada: { type: boolean }
+            mensagem: { type: string, nullable: true }
+        clienteVerificado: { type: boolean }
+        durationMinutes: { type: integer }
+        slotMinutes: { type: integer }
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaEncaixeSlot"
+        alternativas:
+          $ref: "#/components/schemas/AgendaEncaixeAlternativas"
+
+    AgendaEncaixeBody:
+      type: object
+      additionalProperties: false
+      required: [resourceId, clientId, date, time, durationMinutes]
+      properties:
+        resourceId: { type: integer }
+        clientId: { type: integer }
+        date: { type: string, description: YYYY-MM-DD }
+        time: { type: string, description: HH:mm }
+        durationMinutes: { type: integer, minimum: 5, maximum: 480 }
+        syncGoogle: { type: boolean }
+
+    AgendaEncaixeResposta:
+      type: object
+      required: [canal, duplicada, session]
+      properties:
+        canal: { type: string }
+        duplicada: { type: boolean }
+        session:
+          $ref: "#/components/schemas/AgendaBookedSession"
+        googleEventId: { type: string, nullable: true }
+        googleSyncWarning: { type: string }
+
+    AgendaEncaixeRecusa:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        codigo: { type: string, nullable: true }
+        alternativas:
+          allOf:
+            - $ref: "#/components/schemas/AgendaEncaixeAlternativas"
+          nullable: true
+
+    BookAvulsaBody:
+      type: object
+      additionalProperties: false
+      required: [resourceId, clientId, date, time]
+      properties:
+        resourceId:
+          type: integer
+        clientId:
+          type: integer
+        date:
+          type: string
+          description: YYYY-MM-DD
+        time:
+          type: string
+          description: HH:mm, início de um período da agenda
+        durationMinutes:
+          type: integer
+          minimum: 5
+          maximum: 480
+        serviceType:
+          type: string
+        unit:
+          type: string
+        syncGoogle:
+          type: boolean
+        simulate:
+          type: boolean
+
     AgendaBookedSession:
       type: object
       required: [id, protocolId, clientId, scheduledDate, scheduledTime, status]
@@ -3794,6 +6267,11 @@ components:
           type: integer
         protocolId:
           type: integer
+          nullable: true
+          description: Nulo na consulta avulsa (sem protocolo).
+        durationMinutes:
+          type: integer
+          nullable: true
         clientId:
           type: integer
         resourceId:
@@ -4145,6 +6623,110 @@ components:
           items:
             $ref: "#/components/schemas/SimulacaoSinalAlarme"
 
+    ClientVisitPreferenceTime:
+      type: object
+      required: [weekday, time]
+      properties:
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+        time:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+    ClientVisitPreferenceCategory:
+      type: object
+      required: [weekdays, times]
+      properties:
+        weekdays:
+          type: array
+          maxItems: 7
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+        times:
+          type: array
+          maxItems: 504
+          items:
+            $ref: "#/components/schemas/ClientVisitPreferenceTime"
+        priority:
+          type: array
+          description: "Ordem explícita de pares dia e horário; ausência não indica ordem."
+          maxItems: 504
+          items:
+            $ref: "#/components/schemas/ClientVisitPreferenceTime"
+    ClientVisitPreferences:
+      type: object
+      required: [medical, nursing]
+      properties:
+        medical:
+          $ref: "#/components/schemas/ClientVisitPreferenceCategory"
+        nursing:
+          $ref: "#/components/schemas/ClientVisitPreferenceCategory"
+    ClientVisitPreferenceOptionsCategory:
+      type: object
+      required: [days, mismatchedResources]
+      properties:
+        days:
+          type: array
+          items:
+            type: object
+            required: [weekday, times]
+            properties:
+              weekday:
+                type: integer
+              times:
+                type: array
+                items:
+                  type: string
+        mismatchedResources:
+          type: array
+          items:
+            type: string
+    ClientVisitPreferenceOptions:
+      type: object
+      required: [medical, nursing]
+      properties:
+        medical:
+          $ref: "#/components/schemas/ClientVisitPreferenceOptionsCategory"
+        nursing:
+          $ref: "#/components/schemas/ClientVisitPreferenceOptionsCategory"
+    ClientAgendaOptions:
+      type: object
+      required: [locais, agendas, enfermagemPadraoId, medicoPadraoId]
+      properties:
+        locais:
+          type: array
+          items: { $ref: "#/components/schemas/ClientAgendaLocation" }
+        agendas:
+          type: array
+          items: { $ref: "#/components/schemas/ClientAgendaOption" }
+        enfermagemPadraoId: { type: integer, nullable: true }
+        medicoPadraoId: { type: integer, nullable: true }
+    ClientAgendaLocation:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+    ClientAgendaOption:
+      type: object
+      required: [id, name, kind, locationId]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        kind: { type: string }
+        locationId: { type: integer }
+    ClientOriginClinic:
+      type: object
+      required: [id, nome]
+      properties:
+        id: { type: integer }
+        nome: { type: string }
+        nick: { type: string, nullable: true }
+        razaoSocial: { type: string, nullable: true }
+        cnpj: { type: string, nullable: true }
     Client:
       type: object
       properties:
@@ -4179,14 +6761,34 @@ components:
         locationId:
           type: integer
           nullable: true
+        clinicaOrigemEmpresaId:
+          type: integer
+          nullable: true
+        agendaEnfermagemPadraoId:
+          type: integer
+          nullable: true
+        agendaMedicoPadraoId:
+          type: integer
+          nullable: true
         photoUrl:
           type: string
           nullable: true
+        classificacao:
+          type: string
+          enum: [A, B, C, D]
+        plano:
+          type: string
+          enum: [prata, ouro, platinum, diamond]
         preferredAgendaResourceIds:
           type: array
           items:
             type: integer
           nullable: true
+        visitPreferences:
+          $ref: "#/components/schemas/ClientVisitPreferences"
+        visitPreferencesRevision:
+          type: integer
+          minimum: 0
         notes:
           type: string
           nullable: true
@@ -4236,14 +6838,43 @@ components:
         locationId:
           type: integer
           nullable: true
+        clinicaOrigemEmpresaId:
+          type: integer
+          nullable: true
+        clinicaOrigemEsperada:
+          type: integer
+          nullable: true
+        agendaEnfermagemPadraoId:
+          type: integer
+          nullable: true
+        agendaMedicoPadraoId:
+          type: integer
+          nullable: true
+        agendaEnfermagemEsperada:
+          type: integer
+          nullable: true
+        agendaMedicoEsperada:
+          type: integer
+          nullable: true
         photoUrl:
           type: string
           nullable: true
+        classificacao:
+          type: string
+          enum: [A, B, C, D]
+        plano:
+          type: string
+          enum: [prata, ouro, platinum, diamond]
         preferredAgendaResourceIds:
           type: array
           items:
             type: integer
           nullable: true
+        visitPreferences:
+          $ref: "#/components/schemas/ClientVisitPreferences"
+        visitPreferencesRevision:
+          type: integer
+          minimum: 0
         notes:
           type: string
           nullable: true
@@ -4289,8 +6920,17 @@ components:
           type: number
         procedureType:
           type: string
+        viaUso:
+          type: string
+          nullable: true
+        frequenciaBase:
+          type: string
+          nullable: true
+        doctorParticipation:
+          type: boolean
+          nullable: true
         durationMinutes:
-          type: integer
+          type: number
         description:
           type: string
           nullable: true
@@ -4352,6 +6992,45 @@ components:
           type: string
           nullable: true
         categoryType:
+          type: string
+          nullable: true
+        codigoPadcom:
+          type: string
+          nullable: true
+        subCategoria:
+          type: string
+          nullable: true
+        disponivel:
+          type: boolean
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        blocoId:
+          type: string
+          nullable: true
+        grau:
+          type: string
+          nullable: true
+        areaSemantica:
+          type: string
+          nullable: true
+        exigeValidacaoHumana:
+          type: boolean
+          nullable: true
+        unidadeId:
+          type: integer
+          nullable: true
+        posologiaEstruturada:
+          type: object
+          additionalProperties: true
+          nullable: true
+        concentrationMg:
+          type: string
+          nullable: true
+        volumeAmpola:
           type: string
           nullable: true
         composicao:
@@ -4418,8 +7097,11 @@ components:
           type: number
         procedureType:
           type: string
+        doctorParticipation:
+          type: boolean
+          nullable: true
         durationMinutes:
-          type: integer
+          type: number
         description:
           type: string
           nullable: true
@@ -4580,6 +7262,12 @@ components:
           enum: [suggested, validated, active, completed, cancelled]
         startDate:
           type: string
+        scheduledTime:
+          type: string
+          description: Horário local salvo para a validação das sessões.
+        schedulingMode:
+          type: string
+          enum: [weekly, exact]
         endDate:
           type: string
           nullable: true
@@ -4663,6 +7351,10 @@ components:
           type: string
         frequency:
           type: string
+        catalogSnapshot:
+          allOf:
+            - $ref: "#/components/schemas/ProtocolSubstanceSnapshot"
+          nullable: true
       required:
         - id
         - substanceId
@@ -4677,6 +7369,182 @@ components:
         - startDate
         - frequency
 
+    ProtocolSubstanceSnapshot:
+      type: object
+      description: Fotografia dos dados do cadastro usados ao criar este item; não inclui estoque.
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category:
+          type: string
+        color:
+          type: string
+        defaultDose:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        maxSessionsPerWeek:
+          type: integer
+          nullable: true
+        intervalDays:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        pricePerUnit:
+          type: number
+        procedureType:
+          type: string
+        viaUso:
+          type: string
+          nullable: true
+        frequenciaBase:
+          type: string
+          nullable: true
+        doctorParticipation:
+          type: boolean
+          nullable: true
+        durationMinutes:
+          type: number
+        description:
+          type: string
+          nullable: true
+        mainFunction:
+          type: string
+          nullable: true
+        perceivedEffects:
+          type: string
+          nullable: true
+        timeToEffect:
+          type: string
+          nullable: true
+        starRating:
+          type: integer
+        bodySystemEffects:
+          type: object
+          additionalProperties:
+            type: number
+          nullable: true
+        categoryMeters:
+          type: object
+          additionalProperties:
+            type: number
+          nullable: true
+        longevityBenefit:
+          type: string
+          nullable: true
+        qualityOfLifeImpact:
+          type: string
+          nullable: true
+        sleepBenefit:
+          type: string
+          nullable: true
+        energyBenefit:
+          type: string
+          nullable: true
+        libidoBenefit:
+          type: string
+          nullable: true
+        physicalPerformance:
+          type: string
+          nullable: true
+        muscleStrength:
+          type: string
+          nullable: true
+        mentalClarity:
+          type: string
+          nullable: true
+        skinHairNails:
+          type: string
+          nullable: true
+        immuneSupport:
+          type: string
+          nullable: true
+        contraindications:
+          type: string
+          nullable: true
+        scientificEvidence:
+          type: string
+          nullable: true
+        categoryType:
+          type: string
+          nullable: true
+        codigoPadcom:
+          type: string
+          nullable: true
+        subCategoria:
+          type: string
+          nullable: true
+        disponivel:
+          type: boolean
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        blocoId:
+          type: string
+          nullable: true
+        grau:
+          type: string
+          nullable: true
+        composicao:
+          type: string
+          nullable: true
+        posologia:
+          type: string
+          nullable: true
+        areaSemantica:
+          type: string
+          nullable: true
+        exigeValidacaoHumana:
+          type: boolean
+          nullable: true
+        unidadeId:
+          type: integer
+          nullable: true
+        posologiaEstruturada:
+          type: object
+          additionalProperties: true
+          nullable: true
+        concentrationMg:
+          type: string
+          nullable: true
+        volumeAmpola:
+          type: string
+          nullable: true
+        isBlend:
+          type: boolean
+        presentationQuantity:
+          type: number
+          nullable: true
+        presentationUnit:
+          type: string
+          nullable: true
+        ampouleVolumeMl:
+          type: number
+          nullable: true
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubstanceBlendComponent"
+      required:
+        - id
+        - name
+        - category
+        - color
+        - pricePerUnit
+        - procedureType
+        - durationMinutes
+        - isBlend
+        - components
+
     CreateProtocolBody:
       type: object
       properties:
@@ -4689,6 +7557,12 @@ components:
           enum: [suggested, validated, active, completed, cancelled]
         startDate:
           type: string
+        scheduledTime:
+          type: string
+          pattern: "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$"
+        schedulingMode:
+          type: string
+          enum: [weekly, exact]
         professionalId:
           type: integer
           nullable: true
@@ -4705,6 +7579,7 @@ components:
           nullable: true
         items:
           type: array
+          minItems: 1
           items:
             $ref: "#/components/schemas/CreateProtocolItemBody"
       required:
@@ -4721,14 +7596,21 @@ components:
       properties:
         substanceId:
           type: integer
+          minimum: 1
         dose:
           type: string
+          minLength: 1
         totalSessions:
           type: integer
+          minimum: 1
         intervalDays:
           type: integer
+          minimum: 1
         frequency:
           type: string
+        startDate:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
       required:
         - substanceId
         - dose
@@ -4767,6 +7649,237 @@ components:
           type: string
           nullable: true
 
+    ProtocolSchedulingPreviewInput:
+      type: object
+      additionalProperties: false
+      properties:
+        nursingResourceId:
+          type: ["integer", "null"]
+          minimum: 1
+
+    ProtocolSchedulingConfirmInput:
+      type: object
+      additionalProperties: false
+      properties:
+        nursingResourceId:
+          type: ["integer", "null"]
+          minimum: 1
+        fingerprint:
+          type: string
+          minLength: 1
+          maxLength: 200
+      required: [fingerprint]
+
+    ProtocolSchedulingPreviewEnvelope:
+      type: object
+      properties:
+        preview:
+          $ref: "#/components/schemas/ProtocolSchedulingPreview"
+        googleWarning:
+          oneOf:
+            - $ref: "#/components/schemas/ProtocolGoogleReadinessWarning"
+            - type: "null"
+      required: [preview, googleWarning]
+
+    ProtocolSchedulingConfirmEnvelope:
+      type: object
+      properties:
+        protocolStatus:
+          type: string
+          enum: [validated]
+        preview:
+          $ref: "#/components/schemas/ProtocolSchedulingPreview"
+        reserved:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReservedProtocolVisit"
+      required: [protocolStatus, preview, reserved]
+
+    ProtocolGoogleReadinessWarning:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+      required: [code, message]
+
+    ProtocolSchedulingPreview:
+      type: object
+      properties:
+        protocolId:
+          type: integer
+        nursingResourceId:
+          type: integer
+        nursingResourceName:
+          type: string
+        nursingLocationId:
+          type: integer
+        nursingLocationName:
+          type: string
+        visits:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProtocolSchedulingVisit"
+        visitCount:
+          type: integer
+        firstDate:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        lastDate:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        requiresRoutineConfirmation:
+          type: boolean
+        searchWasPruned:
+          type: boolean
+        matchesClientPreference:
+          type: boolean
+        fingerprint:
+          type: string
+        snapshot:
+          type: string
+        recoverySessionCount:
+          type: integer
+        diagnostics:
+          $ref: "#/components/schemas/ProtocolSchedulingDiagnostics"
+      required:
+        - protocolId
+        - nursingResourceId
+        - nursingResourceName
+        - nursingLocationId
+        - nursingLocationName
+        - visits
+        - visitCount
+        - firstDate
+        - lastDate
+        - requiresRoutineConfirmation
+        - searchWasPruned
+        - matchesClientPreference
+        - fingerprint
+        - snapshot
+        - diagnostics
+
+    ProtocolSchedulingVisit:
+      type: object
+      properties:
+        date:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        time:
+          type: string
+          pattern: "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$"
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+        nursingPeriods:
+          type: integer
+        reservedMinutes:
+          type: integer
+        applications:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProtocolSchedulingApplication"
+      required: [date, time, weekday, nursingPeriods, reservedMinutes, applications]
+
+    ProtocolSchedulingApplication:
+      type: object
+      properties:
+        substanceId:
+          type: integer
+        substanceName:
+          type: string
+        dose:
+          type: string
+        sessionNumber:
+          type: integer
+        totalSessions:
+          type: integer
+        nominalDate:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        shiftDays:
+          type: integer
+      required:
+        - substanceId
+        - substanceName
+        - dose
+        - sessionNumber
+        - totalSessions
+        - nominalDate
+        - shiftDays
+
+    ProtocolSchedulingDiagnostics:
+      type: object
+      properties:
+        datesRead:
+          type: integer
+        nursingDatesWithoutSchedule:
+          type: array
+          items: { type: string }
+        nursingDatesWithException:
+          type: array
+          items: { type: string }
+        integrationPendingDates:
+          type: array
+          items: { type: string }
+        nursingDatesWithoutOpenSlot:
+          type: array
+          items: { type: string }
+        doctorDatesWithoutSchedule:
+          type: array
+          items: { type: string }
+        doctorDatesWithException:
+          type: array
+          items: { type: string }
+        doctorIntegrationPendingDates:
+          type: array
+          items: { type: string }
+        doctorDatesWithoutOpenSlot:
+          type: array
+          items: { type: string }
+      required:
+        - datesRead
+        - nursingDatesWithoutSchedule
+        - nursingDatesWithException
+        - integrationPendingDates
+        - nursingDatesWithoutOpenSlot
+        - doctorDatesWithoutSchedule
+        - doctorDatesWithException
+        - doctorIntegrationPendingDates
+        - doctorDatesWithoutOpenSlot
+
+    ReservedProtocolVisit:
+      type: object
+      properties:
+        sessionId:
+          type: integer
+        date:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        time:
+          type: string
+          pattern: "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$"
+        nursingPeriods:
+          type: integer
+        reservedMinutes:
+          type: integer
+        applications:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReservedProtocolApplication"
+      required: [sessionId, date, time, nursingPeriods, reservedMinutes, applications]
+
+    ReservedProtocolApplication:
+      type: object
+      properties:
+        substanceId:
+          type: integer
+        sessionNumber:
+          type: integer
+      required: [substanceId, sessionNumber]
+
     Session:
       type: object
       properties:
@@ -4796,6 +7909,21 @@ components:
         unit:
           type: string
           nullable: true
+        resourceId:
+          type: integer
+          nullable: true
+          description: Agenda (recurso) onde a sessão está marcada; nulo quando a sessão não tem agenda ligada.
+        agendaNome:
+          type: string
+          nullable: true
+        agendaCor:
+          type: string
+          nullable: true
+          description: Cor da agenda (a mesma do cadastro e do Google), usada na linha do tempo.
+        durationMinutes:
+          type: integer
+          nullable: true
+          description: Duração gravada na sessão ou, na falta dela, a regra do .ics pelas aplicações do dia.
         serviceType:
           type: string
           enum: [clinic, homecare]
@@ -4847,7 +7975,17 @@ components:
         availability:
           type: string
           enum: [disp, prox]
+        displayState:
+          type: string
+          enum: [disp, prox, applied, notPerformed, unavailable, review]
+          description: Estado derivado dos registros reais da aplicação.
         appliedAt:
+          type: string
+          nullable: true
+        confirmedBy:
+          type: integer
+          nullable: true
+        confirmedAt:
           type: string
           nullable: true
         notes:
@@ -4867,6 +8005,9 @@ components:
     CreateSessionBody:
       type: object
       properties:
+        resourceId:
+          type: integer
+          minimum: 1
         protocolId:
           type: integer
         clientId:
@@ -5285,6 +8426,9 @@ components:
         areaId:
           type: integer
           nullable: true
+        workAreaIds:
+          type: array
+          items: { type: integer }
         specialtyId:
           type: integer
           nullable: true
@@ -5358,6 +8502,9 @@ components:
         areaId:
           type: integer
           nullable: true
+        workAreaIds:
+          type: array
+          items: { type: integer }
         specialtyId:
           type: integer
           nullable: true
@@ -5456,6 +8603,29 @@ components:
         - label
         - logradouro
         - cidade
+
+    ProfessionalCategoryInput:
+      type: object
+      required: [name, professionalType]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100 }
+        professionalType: { type: string, enum: [medico, nao_medico] }
+
+    ProfessionalWorkAreaInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100 }
+
+    ProfessionalWorkArea:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        requiredForCategories:
+          type: array
+          items: { type: string }
 
     ProfessionalArea:
       type: object
@@ -6169,6 +9339,10 @@ components:
     EmitBody:
       type: object
       properties:
+        signatureMode:
+          type: string
+          enum: [signed, unsigned_expired]
+          default: signed
         approvalRequestId:
           type: integer
           minimum: 1
@@ -6418,6 +9592,15 @@ components:
       properties:
         prescriptionId:
           type: integer
+        signatureStatus:
+          type: string
+          enum: [signed, unsigned_expired, legacy_unknown]
+        certificateValidTo:
+          type: string
+          format: date-time
+          nullable: true
+        warning:
+          type: string
         recipes:
           type: array
           items:
@@ -6432,6 +9615,8 @@ components:
             $ref: "#/components/schemas/PharmacyDispatch"
       required:
         - prescriptionId
+        - signatureStatus
+        - certificateValidTo
         - recipes
         - sncrAlerts
         - pharmacyDispatches
@@ -6454,6 +9639,13 @@ components:
           nullable: true
         status:
           type: string
+        signatureStatus:
+          type: string
+          enum: [signed, unsigned_expired, legacy_unknown]
+        certificateValidTo:
+          type: string
+          format: date-time
+          nullable: true
         createdAt:
           type: string
         emittedAt:
@@ -6480,6 +9672,13 @@ components:
           nullable: true
         status:
           type: string
+        signatureStatus:
+          type: string
+          enum: [signed, unsigned_expired, legacy_unknown]
+        certificateValidTo:
+          type: string
+          format: date-time
+          nullable: true
         createdAt:
           type: string
         emittedAt:
@@ -7096,3 +10295,162 @@ components:
         catalogInserted: { type: integer }
         catalogTotal: { type: integer }
         settingsCreated: { type: boolean }
+    SinapseCategoria:
+      type: string
+      enum: [EXAME, PRESCRICAO, INJETAVEL_IM, INJETAVEL_SC, INJETAVEL_EV, IMPLANTE]
+    SinapseQuestion:
+      type: object
+      additionalProperties: false
+      required: [perguntaId, pergunta, bloco, eSinalAlarme]
+      properties:
+        perguntaId: { type: string }
+        pergunta: { type: string }
+        bloco: { type: ["string", "null"] }
+        eSinalAlarme: { type: boolean }
+    SinapseDestination:
+      type: object
+      additionalProperties: false
+      required: [tipo, id, nome]
+      properties:
+        tipo: { type: string, enum: [exame, bloco_exames, formula, injetavel, implante] }
+        id: { type: integer }
+        nome: { type: string }
+        detalhe: { type: ["string", "null"] }
+        incompleto: { type: boolean }
+    SinapseLink:
+      type: object
+      additionalProperties: false
+      required: [id, perguntaId, categoria, destinoTipo, destinoId, cloneDe]
+      properties:
+        id: { type: integer }
+        perguntaId: { type: string }
+        categoria: { $ref: "#/components/schemas/SinapseCategoria" }
+        destinoTipo: { type: string, enum: [exame, bloco_exames, formula, injetavel, implante] }
+        destinoId: { type: integer }
+        cloneDe: { type: ["integer", "null"] }
+    SinapseProposal:
+      type: object
+      additionalProperties: false
+      required: [id, perguntaId, categoria, destinoTipo, destinoId, eixo, justificativa, status]
+      properties:
+        id: { type: integer }
+        perguntaId: { type: string }
+        categoria: { $ref: "#/components/schemas/SinapseCategoria" }
+        destinoTipo: { type: string, enum: [exame, bloco_exames, formula, injetavel, implante] }
+        destinoId: { type: integer }
+        eixo: { type: string }
+        justificativa: { type: string }
+        status: { type: string, enum: [PENDENTE, APROVADA, RECUSADA] }
+    SinapseClinicalPanel:
+      type: object
+      additionalProperties: false
+      required: [perguntas, destinos, injetaveisSemVia, sinapses, propostas]
+      properties:
+        perguntas:
+          type: array
+          items: { $ref: "#/components/schemas/SinapseQuestion" }
+        destinos:
+          type: object
+          additionalProperties: false
+          required: [EXAME, PRESCRICAO, INJETAVEL_IM, INJETAVEL_SC, INJETAVEL_EV, IMPLANTE]
+          properties:
+            EXAME: { type: array, items: { $ref: "#/components/schemas/SinapseDestination" } }
+            PRESCRICAO: { type: array, items: { $ref: "#/components/schemas/SinapseDestination" } }
+            INJETAVEL_IM: { type: array, items: { $ref: "#/components/schemas/SinapseDestination" } }
+            INJETAVEL_SC: { type: array, items: { $ref: "#/components/schemas/SinapseDestination" } }
+            INJETAVEL_EV: { type: array, items: { $ref: "#/components/schemas/SinapseDestination" } }
+            IMPLANTE: { type: array, items: { $ref: "#/components/schemas/SinapseDestination" } }
+        injetaveisSemVia: { type: integer }
+        sinapses:
+          type: array
+          items: { $ref: "#/components/schemas/SinapseLink" }
+        propostas:
+          type: array
+          items: { $ref: "#/components/schemas/SinapseProposal" }
+    SinapseProposalGenerationInput:
+      type: object
+      additionalProperties: false
+    SinapseProposalGenerationResult:
+      type: object
+      additionalProperties: false
+      required: [inseridas, propostasEncontradas, porCategoria, destinosElegiveisPorCategoria, destinosCobertosPorCategoria, destinosSemLigacaoPorCategoria, inelegiveis, codigosAusentes, perguntasIgnoradas]
+      properties:
+        inseridas: { type: integer }
+        propostasEncontradas: { type: integer }
+        porCategoria:
+          type: object
+          additionalProperties: false
+          required: [EXAME, PRESCRICAO, INJETAVEL_IM, INJETAVEL_SC, INJETAVEL_EV, IMPLANTE]
+          properties:
+            EXAME: { type: integer }
+            PRESCRICAO: { type: integer }
+            INJETAVEL_IM: { type: integer }
+            INJETAVEL_SC: { type: integer }
+            INJETAVEL_EV: { type: integer }
+            IMPLANTE: { type: integer }
+        destinosElegiveisPorCategoria:
+          type: object
+          additionalProperties: false
+          required: [EXAME, PRESCRICAO, INJETAVEL_IM, INJETAVEL_SC, INJETAVEL_EV, IMPLANTE]
+          properties:
+            EXAME: { type: integer }
+            PRESCRICAO: { type: integer }
+            INJETAVEL_IM: { type: integer }
+            INJETAVEL_SC: { type: integer }
+            INJETAVEL_EV: { type: integer }
+            IMPLANTE: { type: integer }
+        destinosCobertosPorCategoria:
+          type: object
+          additionalProperties: false
+          required: [EXAME, PRESCRICAO, INJETAVEL_IM, INJETAVEL_SC, INJETAVEL_EV, IMPLANTE]
+          properties:
+            EXAME: { type: integer }
+            PRESCRICAO: { type: integer }
+            INJETAVEL_IM: { type: integer }
+            INJETAVEL_SC: { type: integer }
+            INJETAVEL_EV: { type: integer }
+            IMPLANTE: { type: integer }
+        destinosSemLigacaoPorCategoria:
+          type: object
+          additionalProperties: false
+          required: [EXAME, PRESCRICAO, INJETAVEL_IM, INJETAVEL_SC, INJETAVEL_EV, IMPLANTE]
+          properties:
+            EXAME: { type: integer }
+            PRESCRICAO: { type: integer }
+            INJETAVEL_IM: { type: integer }
+            INJETAVEL_SC: { type: integer }
+            INJETAVEL_EV: { type: integer }
+            IMPLANTE: { type: integer }
+        inelegiveis:
+          type: object
+          additionalProperties: false
+          required: [blocosDeExamesVazios, injetaveisSemVia]
+          properties:
+            blocosDeExamesVazios: { type: integer }
+            injetaveisSemVia: { type: integer }
+        codigosAusentes:
+          type: array
+          items: { type: string }
+        perguntasIgnoradas:
+          type: array
+          items:
+            type: object
+            required: [perguntaId, motivo]
+            properties:
+              perguntaId: { type: string }
+              motivo: { type: string }
+    SinapseProposalUpdate:
+      type: object
+      additionalProperties: false
+      required: [categoria, destinoTipo, destinoId]
+      properties:
+        categoria: { $ref: "#/components/schemas/SinapseCategoria" }
+        destinoTipo: { type: string, enum: [exame, bloco_exames, formula, injetavel, implante] }
+        destinoId: { type: integer, minimum: 1 }
+    SinapseProposalStatusResult:
+      type: object
+      additionalProperties: false
+      required: [id, status]
+      properties:
+        id: { type: integer }
+        status: { type: string, enum: [APROVADA, RECUSADA] }

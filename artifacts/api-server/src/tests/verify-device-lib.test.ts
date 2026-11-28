@@ -281,6 +281,32 @@ describe("getOrCreateChallenge — idempotência e concorrência", () => {
     expect(r.isNew).toBe(true);
   });
 
+  it("dez chamadas consecutivas do mesmo par reutilizam o ID com só um INSERT", async () => {
+    const executions: ReturnType<typeof vi.fn>[] = [];
+    let exists = false;
+    mockDb.transaction.mockImplementation(async (fn: TxFn) => {
+      const txExecute = vi.fn()
+        .mockResolvedValueOnce({ rows: [] }) // lock
+        .mockResolvedValueOnce({ rows: exists ? [{ id: 415 }] : [] })
+        .mockImplementationOnce(async () => {
+          exists = true;
+          return { rows: [{ id: 415 }] };
+        });
+      executions.push(txExecute);
+      return fn({ execute: txExecute });
+    });
+
+    const opts = { cpf: "12345678901", fingerprint: "fp-repeated" };
+    const results = [];
+    for (let i = 0; i < 10; i++) results.push(await getOrCreateChallenge(opts));
+    expect(results).toEqual([
+      { challengeId: 415, isNew: true },
+      ...Array.from({ length: 9 }, () => ({ challengeId: 415, isNew: false })),
+    ]);
+    // Lock + SELECT em todos; INSERT só na primeira transação.
+    expect(executions.map((execute) => execute.mock.calls.length)).toEqual([3, ...Array(9).fill(2)]);
+  });
+
   // ── D3: duas chamadas concorrentes → mesmo challengeId, 1 INSERT no total ─
   // Prova o comportamento do advisory lock serializado:
   //   - Chamada 1: adquire lock, SELECT vazio → INSERT → id=1

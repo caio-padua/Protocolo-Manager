@@ -4,10 +4,12 @@ import { z } from "zod/v4";
 
 export const sessionsTable = pgTable("sessions", {
   id: serial("id").primaryKey(),
-  protocolId: integer("protocol_id").notNull(),
+  // NULL = consulta avulsa (marcada na agenda, sem protocolo). Nunca presumir um protocolo para ela.
+  protocolId: integer("protocol_id"),
   clientId: integer("client_id").notNull(),
   professionalId: integer("professional_id"),
   resourceId: integer("resource_id"),
+  durationMinutes: integer("duration_minutes"),
   scheduledDate: text("scheduled_date").notNull(),
   scheduledTime: text("scheduled_time").notNull(),
   status: text("status").notNull().default("scheduled"),
@@ -17,6 +19,9 @@ export const sessionsTable = pgTable("sessions", {
   notes: text("notes"),
   googleEventId: text("google_event_id"),
   googleCalendarId: text("google_calendar_id"),
+  googleSyncPendingOperation: text("google_sync_pending_operation"),
+  googleSyncPendingEventId: text("google_sync_pending_event_id"),
+  googleSyncPendingCalendarId: text("google_sync_pending_calendar_id"),
   rescheduleCount: integer("reschedule_count").notNull().default(0),
   rescheduledAt: text("rescheduled_at"),
   rescheduledBy: text("rescheduled_by"),
@@ -27,6 +32,8 @@ export const sessionsTable = pgTable("sessions", {
   // Texto livre (label + endereço formatado) para simplicidade de consulta nos PDFs.
   serviceAddress: text("service_address"),
   empresaId: integer("empresa_id"),
+  // Retirada da agenda sem destruir a sessão e suas aplicações clínicas.
+  agendaArchived: boolean("agenda_archived").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -40,6 +47,8 @@ export const substanceApplicationsTable = pgTable("substance_applications", {
   status: text("status").notNull().default("pending"),
   availability: text("availability").notNull().default("disp"),
   appliedAt: text("applied_at"),
+  confirmedBy: integer("confirmed_by"),
+  confirmedAt: text("confirmed_at"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

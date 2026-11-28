@@ -93,7 +93,7 @@ export function htmlParaPdfBuffer(htmlHidratado: string): Promise<Buffer> {
         size: "A4",
         margin: MARGEM,
         info: {
-          Title: "Documento Instituto Padua",
+          Title: "Documento Instituto Pádua",
           Producer: "Paxter — Motor Clinico",
           CreationDate: new Date(),
         },
@@ -143,7 +143,7 @@ export function htmlParaPdfBuffer(htmlHidratado: string): Promise<Buffer> {
 
       doc.fontSize(8).fillColor("#666666").font("Helvetica")
         .text(
-          `Instituto Padua  ·  Documento gerado em ${new Date().toLocaleString("pt-BR")}`,
+          `Instituto Pádua  ·  Documento gerado em ${new Date().toLocaleString("pt-BR")}`,
           MARGEM,
           ALTURA_A4 - MARGEM + 8,
           { width: larguraUtil, align: "center" },

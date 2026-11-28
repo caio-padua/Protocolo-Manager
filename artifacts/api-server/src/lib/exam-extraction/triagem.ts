@@ -24,6 +24,8 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { normalizeAnalyteName } from "./persist";
 import { chaveFaixa, chaveVariante, slugInterno, VARIANTE_MIN } from "./zones";
 import { getSetting } from "../secure-settings";
+import { logger } from "../logger";
+import { avaliarEvidenciaAnalito } from "./evidencia-analito";
 
 // ---------------------------------------------------------------------------
 // Opcoes de automacao (Configuracao de Exames — tela do CEO). O motor obedece:
@@ -208,9 +210,24 @@ export function buildCatalogEntry(
 export function classifyRawName(
   raw: string,
   catalog: CatalogEntryFull[],
+  ctx?: { unit?: string | null; method?: string | null },
 ): Classification {
   const key = normalizeAnalyteName(raw);
   if (!key) return { kind: "nao_exame", code: null, reason: "grafia vazia" };
+
+  // Evidência de identidade (vitamina D): nome genérico, conflito nome x unidade ou grafia nova da
+  // forma ficam PENDENTES para conferência; nunca viram apelido nem exame novo sozinhos.
+  const evid = avaliarEvidenciaAnalito(
+    { nome: raw, unidade: ctx?.unit ?? null, metodo: ctx?.method ?? null },
+    catalog.map((e) => ({ code: e.code, displayName: e.displayName, keys: e.keys })),
+  );
+  if (evid.veredito === "pendente" || evid.veredito === "candidato") {
+    return {
+      kind: "ambiguo",
+      code: evid.veredito === "candidato" ? evid.code : null,
+      reason: `evidência analítica: ${evid.evidencias.map((x) => x.detalhe).join("; ")}`,
+    };
+  }
 
   // (a) casamento exato com nome/apelido do catalogo
   for (const e of catalog) {
@@ -576,9 +593,10 @@ export async function triageOnImport(
   rawName: string,
   catalog: CatalogEntryFull[],
   opts: TriagemOptions = DEFAULT_OPTS,
+  ctx?: { unit?: string | null; method?: string | null },
 ): Promise<string | null> {
   try {
-    const cls = classifyRawName(rawName, catalog);
+    const cls = classifyRawName(rawName, catalog, ctx);
     if (cls.kind === "apelido" && cls.code) {
       if (!opts.autoAbsorver) {
         await upsertTriagem(rawName, "ambiguo", cls.code, "apelido aguardando conferência humana");
@@ -601,7 +619,10 @@ export async function triageOnImport(
       cls.reason,
     );
     return null;
-  } catch {
+  } catch (e) {
+    // Observabilidade técnica sem PII: só código/tipo do erro e tamanho do nome. O upload segue (sem código).
+    const err = e as { code?: string; name?: string };
+    logger.error({ errCode: err.code ?? null, errName: err.name ?? "Error", nameLen: rawName.length }, "[TRIAGEM_FALHA] triageOnImport falhou; resultado segue sem código para curadoria");
     return null;
   }
 }

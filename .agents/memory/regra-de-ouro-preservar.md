@@ -17,7 +17,7 @@ O CEO está investindo sua vida neste sistema. Nenhuma linha de código, tabela,
 |---|---|---|
 | Preciso remover uma tabela | Adicionar coluna `arquivado_em` (soft delete) | DROP TABLE |
 | Preciso remover uma coluna | Deixar a coluna, parar de usar | DROP COLUMN |
-| Uma tela ficou obsoleta | Tirar do menu — manter o arquivo | Deletar o arquivo .tsx |
+| Uma tela ficou obsoleta | Manter visível no menu e, quando solicitado, desconectar seu efeito operacional | Tirar do menu ou deletar o arquivo .tsx |
 | Um schema precisa mudar | ADD COLUMN + migração nova | ALTER COLUMN / DROP |
 | Uma rota não é mais usada | Manter a rota, documentar como legado | Deletar a rota |
 | Código precisa ser refatorado | Criar arquivo novo _v2, manter o antigo | Sobrescrever e apagar |
@@ -26,6 +26,9 @@ O CEO está investindo sua vida neste sistema. Nenhuma linha de código, tabela,
 ## Por Que Existe
 
 O CEO disse literalmente: "estou dando a minha vida nisso". O sistema tem histórico clínico real, dados de pacientes reais, anos de construção. Uma exclusão irreversível pode destruir algo que nunca volta.
+
+**Why:** Em 08/11/2026, o responsável esclareceu que ferramentas desativadas
+devem continuar visíveis e funcionais para eventual reabilitação.
 
 ## Exceções
 

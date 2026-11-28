@@ -18,7 +18,13 @@ export const clientsTable = pgTable("clients", {
   status: text("status").notNull().default("active"),
   locationId: integer("location_id"),
   empresaId: integer("empresa_id"),
+  clinicaOrigemEmpresaId: integer("clinica_origem_empresa_id"),
+  agendaEnfermagemPadraoId: integer("agenda_enfermagem_padrao_id"),
+  agendaMedicoPadraoId: integer("agenda_medico_padrao_id"),
   photoUrl: text("photo_url"),
+  // Classificacao interna A a D (inicial D) e nivel (plano) prata/ouro/platinum/diamond (inicial prata)
+  classificacao: text("classificacao").notNull().default("D"),
+  plano: text("plano").notNull().default("prata"),
   notes: text("notes"),
   validationPassword: text("validation_password"),
   validationPasswordSentAt: timestamp("validation_password_sent_at", { withTimezone: true }),
@@ -41,6 +47,11 @@ export const clientsTable = pgTable("clients", {
   codigoSemantico: text("codigo_semantico"),
   fichaClinica: jsonb("ficha_clinica").default({}),
   needsReview: boolean("needs_review").notNull().default(false),
+  // Cadastro que representa o celular oficial da empresa/licenca; so o CEO liga (rota /clients/:id/canal-clinica).
+  numeroOficialEmpresa: boolean("numero_oficial_empresa").notNull().default(false),
+  // Pré-cadastro obrigatório em /area: exigido só para convidados; completo_em marca o fim.
+  preCadastroExigido: boolean("pre_cadastro_exigido").notNull().default(false),
+  preCadastroCompletoEm: timestamp("pre_cadastro_completo_em", { withTimezone: true }),
   deletedAt: timestamp("deleted_at", { withTimezone: true }).default(sql`NULL`),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
@@ -49,6 +60,13 @@ export const clientsTable = pgTable("clients", {
 export const insertClientSchema = createInsertSchema(clientsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type Client = typeof clientsTable.$inferSelect;
+
+// Configuração da clínica para novos cadastros; escolhas individuais permanecem no cliente.
+export const clientClinicAgendaDefaultsTable = pgTable("client_clinic_agenda_defaults", {
+  empresaId: integer("empresa_id").primaryKey(),
+  enfermagemResourceId: integer("enfermagem_resource_id"),
+  medicoResourceId: integer("medico_resource_id"),
+});
 
 // Junção AGENDA PREFERENCIAL: liga um cliente a uma ou mais agendas (agenda_resources =
 // profissional × clínica). É metadado de preferência do cliente; NÃO altera o motor de agenda.
@@ -59,6 +77,7 @@ export const clientPreferredAgendasTable = pgTable(
     id: serial("id").primaryKey(),
     clientId: integer("client_id").notNull(),
     agendaResourceId: integer("agenda_resource_id").notNull(),
+    active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
@@ -67,3 +86,27 @@ export const clientPreferredAgendasTable = pgTable(
 );
 
 export type ClientPreferredAgenda = typeof clientPreferredAgendasTable.$inferSelect;
+
+export type ClientVisitPreferenceCategory = {
+  weekdays: number[];
+  times: { weekday: number; time: string }[];
+  priority?: { weekday: number; time: string }[];
+};
+export type ClientVisitPreferences = {
+  medical: ClientVisitPreferenceCategory;
+  nursing: ClientVisitPreferenceCategory;
+};
+
+// Histórico aditivo: uma versão nova nunca apaga a preferência anterior.
+export const clientVisitPreferenceRevisionsTable = pgTable("client_visit_preference_revisions", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull(),
+  empresaId: integer("empresa_id").notNull(),
+  preferences: jsonb("preferences").$type<ClientVisitPreferences>().notNull(),
+  createdBy: integer("created_by").notNull(),
+  // Em operações delegadas, createdBy é o autorizador legado, não o executor.
+  executorKind: text("executor_kind").notNull().default("professional"),
+  executorLabel: text("executor_label"),
+  authorizerProfessionalId: integer("authorizer_professional_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

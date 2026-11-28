@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { tituloProprio } from "@/lib/utils";
 import { useListClients, useListPayments, getListPaymentsQueryKey, type Payment } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
+import { mascaraReais, reaisDeTexto, textoDeReais } from "./pax-finance-ui";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -113,7 +114,7 @@ export default function LancadorNfse() {
     setValueUnlocked(false); // re-protege o valor ao trocar de cobranca
     const p = (payments || []).find((x) => String(x.id) === v) || null;
     if (p) {
-      setValue(String(p.amount));
+      setValue(textoDeReais(p.amount));
       setServiceDescription(p.description?.trim() || `Protocolo injetável — ${client?.name ?? ""}`.trim());
     }
   }
@@ -139,7 +140,7 @@ export default function LancadorNfse() {
     }
   }
 
-  const valueNum = parseFloat(value.replace(",", "."));
+  const valueNum = reaisDeTexto(value);
   const valueValid = !isNaN(valueNum) && valueNum > 0;
   // Valor protegido (somente leitura) quando data-bound de uma cobranca e ainda nao destravado.
   const valueLocked = origem === "payment" && !!payment && !valueUnlocked;
@@ -343,7 +344,7 @@ export default function LancadorNfse() {
                   <button
                     type="button"
                     onClick={() => {
-                      setValue(String(payment.amount));
+                      setValue(textoDeReais(payment.amount));
                       setValueUnlocked(false);
                     }}
                     className="text-[11px] font-semibold text-muted-foreground inline-flex items-center gap-1 hover:underline"
@@ -358,7 +359,7 @@ export default function LancadorNfse() {
               placeholder="0,00"
               value={value}
               readOnly={valueLocked}
-              onChange={(e) => setValue(e.target.value)}
+              onChange={(e) => setValue(mascaraReais(e.target.value))}
               className={`bevel-3d h-11 ${valueLocked ? "opacity-70 cursor-not-allowed" : ""}`}
             />
             {valueLocked ? (

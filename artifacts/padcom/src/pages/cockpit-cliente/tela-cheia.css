@@ -1,0 +1,13 @@
+/* Gráfico em tela inteira: fundo sólido, rolagem, gráfico alto. */
+.tela-cheia-alvo:fullscreen, .tela-cheia-alvo.tela-cheia-fallback { background: hsl(var(--card)); padding: 20px 24px; overflow: auto; margin: 0; max-width: none; width: 100%; height: 100%; box-sizing: border-box; border-radius: 0; }
+.tela-cheia-alvo.tela-cheia-fallback { position: fixed; inset: 0; z-index: 2147483000; width: auto; height: auto; }
+.tela-cheia-alvo:fullscreen [style*="height: 240px"], .tela-cheia-alvo:fullscreen [style*="height: 260px"], .tela-cheia-alvo:fullscreen .h-56, .tela-cheia-alvo:fullscreen .h-\[46vh\],
+.tela-cheia-alvo.tela-cheia-fallback [style*="height: 240px"], .tela-cheia-alvo.tela-cheia-fallback [style*="height: 260px"], .tela-cheia-alvo.tela-cheia-fallback .h-56 { height: 68vh !important; min-height: 320px; }
+
+/* Moldura ao redor: o gráfico nunca encosta nas bordas da tela (apresentação ao cliente na TV). */
+.tela-cheia-alvo:fullscreen, .tela-cheia-alvo.tela-cheia-fallback {
+  border: clamp(24px, 5vmin, 64px) solid #e4d8b8; padding: clamp(16px, 3vmin, 40px);
+  background-clip: padding-box; box-shadow: inset 0 0 0 3px #b8924d, inset 0 0 0 6px #e4d8b8; }
+.dark .tela-cheia-alvo:fullscreen, .dark .tela-cheia-alvo.tela-cheia-fallback { border-color: #0a1730; box-shadow: inset 0 0 0 3px #b8924d, inset 0 0 0 6px #0a1730; }
+.tela-cheia-alvo:fullscreen [style*="height: 240px"], .tela-cheia-alvo:fullscreen [style*="height: 260px"], .tela-cheia-alvo:fullscreen .h-56,
+.tela-cheia-alvo.tela-cheia-fallback [style*="height: 240px"], .tela-cheia-alvo.tela-cheia-fallback [style*="height: 260px"], .tela-cheia-alvo.tela-cheia-fallback .h-56 { height: 58vh !important; }

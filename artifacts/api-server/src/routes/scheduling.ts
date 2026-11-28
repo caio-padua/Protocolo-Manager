@@ -9,7 +9,7 @@ import {
   professionalSpecialtiesTable,
   clientsTable,
 } from "@workspace/db";
-import { eq, and, desc, asc, sql } from "drizzle-orm";
+import { eq, and, desc, asc, ne, sql } from "drizzle-orm";
 import {
   createSchedulingToken,
   verifySchedulingToken,
@@ -27,7 +27,7 @@ import {
   asaasGetCharge,
   asaasGetPixQrCode,
 } from "../lib/asaas.js";
-import { computeConciergeOffer } from "../lib/agenda-concierge.js";
+import { computeConciergeOffer, pickConciergeResource } from "../lib/agenda-concierge.js";
 import { getSetting } from "../lib/secure-settings.js";
 import { finalizeConciergeBooking } from "../lib/concierge-finalize.js";
 import { getPenalidade, registrarFalha } from "../lib/concierge-penalidade.js";
@@ -38,46 +38,6 @@ const router: IRouter = Router();
 
 // Valor padrao do sinal Concierge (R$). Configuravel por pay.conciergeValue.
 const CONCIERGE_AMOUNT_DEFAULT = 150;
-
-// ── Device OTP: criação lazy das tabelas ──────────────────────────────────────
-// device_verification_codes — armazena o código gerado (TTL 10 min)
-// device_verified_sessions — marca o dispositivo como verificado (TTL 30 dias)
-// Ambas criadas em raw SQL para não depender de Drizzle push em produção.
-let _verifyTablesReady: Promise<void> | null = null;
-
-async function ensureVerifyTables(): Promise<void> {
-  if (_verifyTablesReady) return _verifyTablesReady;
-  _verifyTablesReady = (async () => {
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS device_verification_codes (
-        id SERIAL PRIMARY KEY,
-        device_fingerprint TEXT NOT NULL,
-        cpf TEXT NOT NULL,
-        code TEXT NOT NULL,
-        expires_at TIMESTAMPTZ NOT NULL,
-        used_at TIMESTAMPTZ,
-        failed_attempts INTEGER NOT NULL DEFAULT 0
-      )
-    `);
-    // Retrocompatível: adiciona a coluna em tabelas criadas antes desta versão.
-    await db.execute(sql`
-      ALTER TABLE device_verification_codes
-        ADD COLUMN IF NOT EXISTS failed_attempts INTEGER NOT NULL DEFAULT 0
-    `);
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS device_verified_sessions (
-        id SERIAL PRIMARY KEY,
-        device_fingerprint TEXT NOT NULL,
-        cpf TEXT NOT NULL,
-        expires_at TIMESTAMPTZ NOT NULL
-      )
-    `);
-  })().catch((err: unknown) => {
-    _verifyTablesReady = null;
-    throw err;
-  });
-  return _verifyTablesReady;
-}
 
 // Mapeia o status cru da cobranca Asaas para o nosso vocabulario interno.
 function mapAsaasPaymentStatus(
@@ -228,7 +188,7 @@ async function loadBookableProfessionals(): Promise<
   const profs = await db
     .select()
     .from(professionalsTable)
-    .where(and(eq(professionalsTable.active, true), eq(professionalsTable.isPrimaryDoctor, false)))
+    .where(and(eq(professionalsTable.active, true), eq(professionalsTable.isPrimaryDoctor, false), ne(professionalsTable.category, "administrador_clinica")))
     .orderBy(asc(professionalsTable.name));
 
   const resources = await db
@@ -539,6 +499,21 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
     }
   }
 
+  // A solicitação não pode aceitar uma hora que o motor real bloqueou.
+  // Não cria sessão clínica nem cobrança; a confirmação continua no fluxo próprio.
+  let caioResourceId: number | null = null;
+  if (entrada === "dr_caio") {
+    if (!data.chosenDate || !data.chosenTime) {
+      res.status(400).json({error:"Escolha uma data e um horário liberados na agenda."});return;
+    }
+    const resource = await pickConciergeResource();
+    const available = resource ? await computeResourceSlots(resource.id,data.chosenDate) : null;
+    if (!available?.result.slots.some((slot)=>slot.time===data.chosenTime && slot.state==="aberto")) {
+      res.status(409).json({error:"Horário indisponível; consulte novamente os horários liberados."});return;
+    }
+    caioResourceId = resource!.id;
+  }
+
   // Braco de pagamento default por entrada (estrutura; sem cobranca real).
   const paymentArm =
     data.paymentArm ??
@@ -569,7 +544,7 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
       chosenTime: data.chosenTime ?? null,
       path: data.path ?? null,
       paymentArm: paymentArm ?? null,
-      resourceId: isCaio ? null : (isAssist ? assistantResourceId : null),
+      resourceId: isCaio ? caioResourceId : (isAssist ? assistantResourceId : null),
     })
     .returning();
 
@@ -1034,6 +1009,13 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
         // Só entrega quando o desafio acabou de ser criado (isNew=true).
         // Desafios reutilizados não disparam novo envio — usar
         // /scheduling/send-verification-code (com cooldown 60s) para reenvio.
+        // Criação do desafio não comprova envio; preservar só a confirmação real.
+        if (!isNew) {
+          const sentRow = await db.execute<{ code_sent_at: string | null }>(sql`
+            SELECT code_sent_at FROM device_contact_verifications WHERE id = ${cid} LIMIT 1
+          `);
+          codeSent = sentRow.rows[0]?.code_sent_at != null;
+        }
         if (isNew) {
           const codeRow = await db.execute<{ code: string }>(sql`
             SELECT code FROM device_contact_verifications WHERE id = ${cid} LIMIT 1
@@ -1051,7 +1033,7 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
             if (phoneDigits) maskedPhone = `(***) *****-${phoneDigits.slice(-4)}`;
 
             const otpMessage =
-              `Seu código de verificação PAXTER: ${codeVal}\n\n` +
+              `Seu código de verificação PaxMed: ${codeVal}\n\n` +
               `Válido por 10 minutos. Não compartilhe este código com ninguém.`;
 
             // Caminho 1: WhatsApp (se o paciente tem telefone).
@@ -1067,6 +1049,12 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
                 const tg = await sendTelegram(patient.telegramChatId, otpMessage);
                 codeSent = tg.sent;
               } catch { /* best-effort */ }
+            }
+            if (codeSent) {
+              await db.execute(sql`
+                UPDATE device_contact_verifications SET code_sent_at = NOW()
+                WHERE id = ${cid}
+              `);
             }
           }
         }
@@ -1134,6 +1122,8 @@ router.patch("/scheduling/requests/:id", async (req, res): Promise<void> => {
 // POST /scheduling/send-verification-code — gera um OTP de 6 dígitos e envia
 // via WhatsApp para o telefone do paciente identificado pelo CPF. Público (funil
 // /agendar).
+// Entrada de reenvio do fluxo canônico: persiste em device_contact_verifications,
+// como getOrCreateChallenge e verifyDeviceCode. Preservar o contrato de /agendar.
 //
 // SEGURANÇA: rate limit autoritativo totalmente dentro de uma única transação
 // com pg_advisory_xact_lock por (fingerprint, CPF). O lock serializa requisições
@@ -1143,7 +1133,6 @@ router.patch("/scheduling/requests/:id", async (req, res): Promise<void> => {
 router.post("/scheduling/send-verification-code", async (req, res): Promise<void> => {
   const rawCpf  = String(req.body?.cpf  ?? "").replace(/\D/g, "");
 
-  const rawChallengeId = req.body?.challengeId;
   if (rawCpf.length < 11) {
     res.status(400).json({ error: "CPF inválido." });
     return;
@@ -1248,7 +1237,7 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
     // NUNCA incluir o código numa URL/link de fallback — exporia o OTP a
     // qualquer chamador que conheça o CPF (ataque de SMS pumping).
     const otpMessage =
-      `Seu código de verificação PAXTER: ${code}\n\n` +
+      `Seu código de verificação PaxMed: ${code}\n\n` +
       `Válido por 10 minutos. Não compartilhe este código com ninguém.`;
     const sendResult = await sendWhatsapp(phone, otpMessage, {
       contexto: "device_verification",
@@ -1264,7 +1253,7 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
         try {
           const { sendTelegram } = await import("../lib/telegram.js");
           const tgMessage =
-            `Seu código de verificação PAXTER: *${code}*\n\nVálido por 10 minutos. Não compartilhe este código com ninguém.`;
+            `Seu código de verificação PaxMed: *${code}*\n\nVálido por 10 minutos. Não compartilhe este código com ninguém.`;
           const tgResult = await sendTelegram(telegramChatId, tgMessage);
           if (tgResult.sent) {
             res.json({ sent: true, via: "telegram", maskedPhone, challengeId: newChallengeId });

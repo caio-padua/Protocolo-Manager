@@ -127,14 +127,14 @@ export default function AgendarStatus() {
             href={PAXTER_SITE_URL}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="PAXTER — site institucional"
+            aria-label="PaxMed — site institucional"
             className="rounded-xl flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
           >
             <PaxterSymbolGlass size={32} tone="dark" />
           </a>
           <div>
             <h1 className="text-primary font-black text-xl tracking-[0.16em] uppercase leading-none">
-              PAXTER
+              PAXMED
             </h1>
             <p className="text-accent text-[10px] uppercase tracking-widest mt-0.5">
               STATUS DO AGENDAMENTO
@@ -229,7 +229,7 @@ export default function AgendarStatus() {
           ) : null}
 
           <p className="text-center text-muted-foreground text-[10px] uppercase tracking-widest">
-            Instituto Pádua · Paxter — desenvolvido pela Padcon
+            Instituto Pádua · PaxMed — desenvolvido pela Padcon
           </p>
         </div>
       </main>

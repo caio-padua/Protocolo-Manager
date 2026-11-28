@@ -1,0 +1,26 @@
+import { useState, type CSSProperties, type ReactNode } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { BotaoTelaCheia } from "./BotaoTelaCheia";
+import "./pulso-niveis.css";
+
+// Painel calmo (recuado) com botão para minimizar e maximizar. Usado na Área do Cliente e nas réguas de níveis.
+export function PainelPulso({ titulo, acoes, canto, children, style, className = "", iniciaAberto = true, rotulo, ampliavel = false }: {
+  titulo: ReactNode; acoes?: ReactNode; canto?: ReactNode; children: ReactNode; style?: CSSProperties; className?: string; iniciaAberto?: boolean; rotulo?: string; ampliavel?: boolean;
+}) {
+  const [aberto, setAberto] = useState(iniciaAberto);
+  return (
+    <section className={`panel-3d-sub pn-painel ${className}`} style={style} aria-label={rotulo}>
+      <header className="pn-painel-topo">
+        <h3 className="pn-painel-titulo">{titulo}</h3>
+        {acoes}
+        <button type="button" className="btn-3d-soft pn-mini" onClick={() => setAberto((a) => !a)} aria-expanded={aberto}
+          aria-label={aberto ? "Minimizar painel" : "Maximizar painel"} title={aberto ? "Minimizar" : "Maximizar"}>
+          {aberto ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
+        </button>
+        {canto}
+        {ampliavel && aberto && <BotaoTelaCheia />}
+      </header>
+      {aberto && <div className="pn-painel-corpo">{children}</div>}
+    </section>
+  );
+}

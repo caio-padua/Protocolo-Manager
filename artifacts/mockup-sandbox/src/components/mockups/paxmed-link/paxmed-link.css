@@ -1,0 +1,91 @@
+@import url("https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700&display=swap");
+
+.pxl-root {
+  width: 1200px; height: 630px; position: relative; overflow: hidden; isolation: isolate;
+  font-family: "EB Garamond", Georgia, serif; color: #e9edf6;
+  background: linear-gradient(180deg, #13233f 0%, #0d1830 100%);
+}
+
+/* TECIDO — terno risca de giz navy (mesma receita do .dark .leva-fabric do sistema) */
+.pxl-tecido {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.9;
+  background-image: repeating-linear-gradient(
+    160deg,
+    transparent 0px, transparent 9px,
+    rgba(190, 215, 255, 0.22) 9px, rgba(190, 215, 255, 0.22) 10.5px,
+    transparent 10.5px, transparent 13px,
+    rgba(190, 215, 255, 0.10) 13px, rgba(190, 215, 255, 0.10) 13.5px,
+    transparent 13.5px, transparent 22px
+  );
+}
+.pxl-root::after { /* vinheta suave: o tecido respira nas bordas */
+  content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: radial-gradient(ellipse 80% 85% at 50% 48%, transparent 40%, rgba(5, 10, 24, 0.55) 100%);
+}
+
+/* PAINEL UP BEVEL — navy em degradê, topo iluminado reto, aro fino azulado, sombra de base */
+.pxl-painel {
+  position: absolute; z-index: 2; border-radius: 14px; box-sizing: border-box;
+  background: linear-gradient(180deg, #1b3866 0%, #142c55 38%, #0e2142 100%);
+  border: 1px solid rgba(130, 170, 215, 0.22);
+  border-top-color: rgba(255, 255, 255, 0.26);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.32),
+    inset 2px 0 0 rgba(255, 255, 255, 0.05),
+    inset -2px 0 0 rgba(0, 0, 0, 0.25),
+    0 4px 0 #091428,
+    0 22px 40px rgba(2, 6, 18, 0.65);
+}
+.pxl-painel::before { /* verniz reto no topo */
+  content: ""; position: absolute; left: 1px; right: 1px; top: 1px; height: 30%; border-radius: 13px 13px 0 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0)); pointer-events: none;
+}
+.pxl-painel-sim { left: 52px; top: 76px; width: 470px; height: 478px; padding: 26px; }
+.pxl-painel-txt { left: 560px; top: 76px; width: 588px; height: 478px; padding: 26px; display: flex; flex-direction: column; gap: 22px; }
+
+/* POÇO (côncavo) — onde a marca em ouro entra, como o quadradinho do ícone no print */
+.pxl-poco {
+  position: relative; border-radius: 10px; flex: none;
+  background: linear-gradient(180deg, #08142a 0%, #0c1b36 100%);
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.07), 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.pxl-poco-sim { width: 100%; height: 100%; }
+.pxl-poco-nome { width: 100%; height: 112px; }
+
+.pxl-arte { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.pxl-arte img { display: block; width: 100%; height: 100%; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.55)); }
+.pxl-sim { width: 365px; height: 368.5px; }
+.pxl-nome { width: 470px; height: 78.7px; }
+
+/* LUZ só dentro do metal — ciclo de 7 s, descanso curto */
+.pxl-luz { position: absolute; inset: 0; overflow: hidden; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; mix-blend-mode: screen; }
+.pxl-raio {
+  position: absolute; top: -20%; bottom: -20%; left: 0; width: 34%;
+  background: linear-gradient(100deg, transparent 0%, rgba(255, 244, 205, 0) 12%, rgba(255, 246, 214, 0.88) 50%, rgba(255, 244, 205, 0) 88%, transparent 100%);
+  transform: translateX(-130%) skewX(-18deg);
+  animation: pxlVarre 7s ease-in-out infinite;
+}
+.pxl-luz-nome .pxl-raio { animation-delay: 0.45s; }
+@keyframes pxlVarre {
+  0%, 12% { transform: translateX(-130%) skewX(-18deg); }
+  58%, 100% { transform: translateX(330%) skewX(-18deg); }
+}
+.pxl-estatico .pxl-raio { animation: none; }
+.pxl-estatico .pxl-luz-sim .pxl-raio { transform: translateX(95%) skewX(-18deg); width: 30%; }
+.pxl-estatico .pxl-luz-nome .pxl-raio { transform: translateX(150%) skewX(-18deg); width: 26%; }
+
+/* TEXTO — espaço entre linhas */
+.pxl-texto { display: flex; flex-direction: column; justify-content: space-between; flex: 1; padding: 6px 6px 2px; }
+.pxl-texto p { margin: 0; }
+.pxl-p1 { font-size: 35px; line-height: 1.28; font-weight: 600; color: #f1f4fb; }
+.pxl-p2 { font-size: 31px; line-height: 1.28; font-weight: 600; color: #f1f4fb; }
+.pxl-confira {
+  display: flex; align-items: center; gap: 16px; font-size: 40px; font-weight: 700; letter-spacing: 3px; line-height: 1;
+  background: linear-gradient(180deg, #fbe7a6 0%, #d9a944 55%, #a8751f 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.pxl-confira i { display: block; flex: 1; height: 1.5px; background: linear-gradient(90deg, rgba(224, 178, 84, 0.85), rgba(224, 178, 84, 0)); }
+.pxl-confira i:first-child { flex: 0 0 34px; background: rgba(224, 178, 84, 0.85); }
+
+@media (prefers-reduced-motion: reduce) { .pxl-raio { animation: none; } }

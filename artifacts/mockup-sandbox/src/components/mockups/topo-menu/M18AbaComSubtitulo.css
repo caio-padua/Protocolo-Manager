@@ -1,0 +1,5 @@
+.m18-aba { --cor: #12294c; position: absolute; left: 0; top: 5px; display: inline-flex; flex-direction: column; justify-content: center; gap: 1px; height: 40px; padding: 0 20px 2px 18px; background: var(--cor); border-radius: 0 0 11px 0; white-space: nowrap;
+  box-shadow: inset -1px 0 0 rgba(255,255,255,.12), inset 0 -1px 0 rgba(201,162,74,.7), 0 3px 0 rgba(6,17,34,.55), 0 8px 12px -6px rgba(4,13,27,.8); }
+.m18-aba::after { content: ""; position: absolute; top: 0; right: -12px; width: 12px; height: 12px; pointer-events: none; background: radial-gradient(circle at 100% 100%, transparent 11.5px, var(--cor) 12px); }
+.m18-t { font-family: "EB Garamond", Georgia, serif; font-weight: 800; font-size: 14px; line-height: 1.1; letter-spacing: .02em; color: #f1e8d0; text-shadow: 0 -.5px 0 rgba(255,255,255,.5), 0 1px 0 #8a7a50, 0 1.6px 1.6px rgba(0,0,0,.6); }
+.m18-s { font-family: "EB Garamond", Georgia, serif; font-style: italic; font-weight: 400; font-size: 10.5px; line-height: 1.1; letter-spacing: .02em; color: #aebbd2; }

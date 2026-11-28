@@ -1,13 +1,22 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { codigoTelegramSemantico } from "../lib/telegram-codigo";
+import { contarCadastrosComCodigo } from "../lib/telegram-contato";
+import { carregarHorarioPadraoDaAgenda } from "../lib/agenda-horario-padrao";
 import { eq, ilike, or, inArray, and, isNull, isNotNull } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
-import { db, clientsTable, clientPreferredAgendasTable, agendaResourcesTable } from "@workspace/db";
+import { db, clientsTable, clientPreferredAgendasTable, empresasTable, clientClinicAgendaDefaultsTable, agendaResourcesTable, locationsTable } from "@workspace/db";
 import { sendWhatsapp, isWhatsappConfigured } from "../lib/whatsapp";
 import { sendTelegramOnboardingEmail } from "../lib/email-service";
-import { emitirLinkMagico } from "../lib/telegram-magic-link";
+import { emitirLinkMagico, BOT_USERNAME, BOT_LINK } from "../lib/telegram-magic-link";
 import { requireCollaborator } from "./collaborator";
+import { REDES, RedesInvalidas, lerRedesDaTabela, normalizarRedes, salvarRedesNaTabela } from "../lib/redes-sociais";
+import { getPreferredAgendas, setPreferredAgendas, validateClientLocation, validateDefaultAgenda, InvalidPreferredAgendas } from "../lib/client-preferred-agendas";
+import { getVisitOptions, getVisitPreferences, setVisitPreferences, VisitPreferenceError } from "../lib/client-visit-preferences";
+import { ClientProtocolAgendaError, loadClientProtocolAgendas } from "../lib/protocol-client-agendas";
+import type { ClientVisitPreferences } from "@workspace/db";
 import { logIntegracao } from "./agentes-integracoes";
 import { sql } from "drizzle-orm";
+import { cnpjValido } from "../lib/cnpj";
 import {
   ListClientsQueryParams,
   CreateClientBody,
@@ -45,11 +54,74 @@ const router: IRouter = Router();
 
 type ClientRow = typeof clientsTable.$inferSelect;
 
+// Clínica de origem é informativa: jamais altera a empresa que protege o prontuário.
+async function validateClinicaOrigem(executor: Pick<typeof db, "select">, id: number | null | undefined) {
+  if (id == null) throw new InvalidPreferredAgendas("Selecione uma clínica de origem.");
+  const [company] = await executor.select({ id: empresasTable.id }).from(empresasTable).where(and(
+    eq(empresasTable.id, id), eq(empresasTable.tipo, "clinic"),
+    eq(empresasTable.ativa, true), eq(empresasTable.status, "ATIVO"),
+  ));
+  if (!company) throw new InvalidPreferredAgendas("A clínica de origem não existe ou está inativa.");
+}
+
+class ClinicaOrigemConflict extends Error {}
+
+// Cadastro marcado como celular oficial da empresa: dados pessoais/clinicos ficam somente leitura tambem no servidor.
+export class CanalOficialBloqueio extends Error {}
+const CAMPOS_PESSOAIS_CANAL = ["cpf", "email", "birthDate", "address", "pais", "instagram", "comoConheceu", "notes", "complemento", "fichaClinica", "photoUrl"] as const;
+function normalizarCampo(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  return typeof v === "string" ? v.trim() : JSON.stringify(v);
+}
+export function validarBloqueioCanalOficial(existing: Record<string, unknown>, clientData: Record<string, unknown>, visitPreferences: unknown): void {
+  if (existing.numeroOficialEmpresa !== true) return;
+  const mudados = CAMPOS_PESSOAIS_CANAL.filter((k) => k in clientData && normalizarCampo(clientData[k]) !== normalizarCampo(existing[k]));
+  if (visitPreferences !== undefined) mudados.push("visitPreferences" as never);
+  if ("status" in clientData && clientData.status !== existing.status) mudados.push("status" as never);
+  if (mudados.length) {
+    throw new CanalOficialBloqueio(`Este cadastro é o celular oficial da empresa: dados pessoais ficam somente leitura (${mudados.join(", ")}).`);
+  }
+}
+
+type AgendaUpdate = {
+  clinicaOrigemEmpresaId?: number | null;
+  agendaEnfermagemPadraoId?: number | null;
+  agendaMedicoPadraoId?: number | null;
+};
+async function checkAgendaUpdate(
+  tx: any, empresaId: number, existing: ClientRow, data: AgendaUpdate,
+  expectedOrigin: number | null | undefined, expectedNursing: number | null | undefined,
+  expectedDoctor: number | null | undefined,
+) {
+  const originChanged = data.clinicaOrigemEmpresaId !== undefined && data.clinicaOrigemEmpresaId !== existing.clinicaOrigemEmpresaId;
+  const nursingChanged = data.agendaEnfermagemPadraoId !== undefined;
+  const doctorChanged = data.agendaMedicoPadraoId !== undefined;
+  if (!(originChanged || nursingChanged || doctorChanged)) return;
+  const checkBoth = nursingChanged || doctorChanged || (originChanged && (existing.agendaEnfermagemPadraoId !== null || existing.agendaMedicoPadraoId !== null));
+  if (expectedOrigin === undefined || expectedOrigin !== existing.clinicaOrigemEmpresaId ||
+      (checkBoth && (expectedNursing === undefined || expectedNursing !== existing.agendaEnfermagemPadraoId ||
+                     expectedDoctor === undefined || expectedDoctor !== existing.agendaMedicoPadraoId))) {
+    throw new ClinicaOrigemConflict("A clínica ou uma agenda mudou. Recarregue o cadastro antes de salvar.");
+  }
+  const origin = data.clinicaOrigemEmpresaId === undefined ? existing.clinicaOrigemEmpresaId : data.clinicaOrigemEmpresaId;
+  if (originChanged || nursingChanged) await validateDefaultAgenda(tx, empresaId, origin, data.agendaEnfermagemPadraoId === undefined ? existing.agendaEnfermagemPadraoId : data.agendaEnfermagemPadraoId, "enfermagem");
+  if (originChanged || doctorChanged) await validateDefaultAgenda(tx, empresaId, origin, data.agendaMedicoPadraoId === undefined ? existing.agendaMedicoPadraoId : data.agendaMedicoPadraoId, "medico");
+}
+
 // Serializa um cliente para o contrato (datas em ISO, campos nullable normalizados) e
 // anexa a lista de agendas preferenciais (junção client_preferred_agendas).
-function serializeClient(c: ClientRow, preferredAgendaResourceIds: number[]) {
+function serializeClient(c: ClientRow, preferredAgendaResourceIds: number[],
+  visit?: { preferences: ClientVisitPreferences; revision: number }) {
+  const {
+    validationPassword,
+    passwordHash: _passwordHash,
+    passwordSetToken: _passwordSetToken,
+    telegramMagicToken: _telegramMagicToken,
+    ...safeClient
+  } = c;
   return {
-    ...c,
+    ...safeClient,
+    hasValidationPassword: Boolean(validationPassword),
     birthDate: c.birthDate ?? null,
     address: c.address ?? null,
     pais: c.pais ?? null,
@@ -57,53 +129,27 @@ function serializeClient(c: ClientRow, preferredAgendaResourceIds: number[]) {
     comoConheceu: c.comoConheceu ?? null,
     notes: c.notes ?? null,
     preferredAgendaResourceIds,
+    ...(visit ? { visitPreferences: visit.preferences, visitPreferencesRevision: visit.revision } : {}),
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
   };
 }
 
-async function getPreferredAgendas(clientId: number): Promise<number[]> {
-  const rows = await db
-    .select({ agendaResourceId: clientPreferredAgendasTable.agendaResourceId })
-    .from(clientPreferredAgendasTable)
-    .where(eq(clientPreferredAgendasTable.clientId, clientId));
-  return rows.map((r) => r.agendaResourceId);
+export function requireClientWriter(req: Request, res: Response, next: NextFunction) {
+  requireCollaborator(req, res, () => {
+    if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
+      res.status(401).json({ error: "Entre com seu acesso profissional para alterar clientes." });
+      return;
+    }
+    next();
+  });
 }
 
-// Substitui (não acumula) as agendas preferenciais do cliente. `ids === undefined` significa
-// "não mexer"; um array (mesmo vazio) significa "passe a valer exatamente este conjunto".
-async function setPreferredAgendas(clientId: number, ids: number[] | null | undefined): Promise<void> {
-  if (ids === undefined) return;
-  await db.delete(clientPreferredAgendasTable).where(eq(clientPreferredAgendasTable.clientId, clientId));
-  const unique = Array.from(new Set((ids ?? []).filter((n) => Number.isInteger(n) && n > 0)));
-  if (unique.length === 0) return;
-  // Data-bound de verdade: só persiste agendas ATIVAS que pertençam à clínica do cliente.
-  // IDs que não passam (clínica errada, inativas, inexistentes) são descartados em silêncio.
-  const [client] = await db
-    .select({ locationId: clientsTable.locationId })
-    .from(clientsTable)
-    .where(eq(clientsTable.id, clientId));
-  if (!client?.locationId) return;
-  const resources = await db
-    .select({
-      id: agendaResourcesTable.id,
-      active: agendaResourcesTable.active,
-      locationId: agendaResourcesTable.locationId,
-    })
-    .from(agendaResourcesTable)
-    .where(inArray(agendaResourcesTable.id, unique));
-  const valid = resources
-    .filter((r) => r.active && r.locationId === client.locationId)
-    .map((r) => r.id);
-  if (valid.length > 0) {
-    await db
-      .insert(clientPreferredAgendasTable)
-      .values(valid.map((agendaResourceId) => ({ clientId, agendaResourceId })))
-      .onConflictDoNothing();
+router.get("/clients", requireCollaborator, async (req, res): Promise<void> => {
+  if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
+    res.status(401).json({ error: "Entre com seu acesso profissional." });
+    return;
   }
-}
-
-router.get("/clients", async (req, res): Promise<void> => {
   const query = ListClientsQueryParams.safeParse(req.query);
   if (!query.success) {
     res.status(400).json({ error: query.error.message });
@@ -163,7 +209,7 @@ router.get("/clients", async (req, res): Promise<void> => {
           agendaResourceId: clientPreferredAgendasTable.agendaResourceId,
         })
         .from(clientPreferredAgendasTable)
-        .where(inArray(clientPreferredAgendasTable.clientId, ids))
+        .where(and(inArray(clientPreferredAgendasTable.clientId, ids), eq(clientPreferredAgendasTable.active, true)))
     : [];
   const byClient = new Map<number, number[]>();
   for (const j of junctions) {
@@ -175,13 +221,201 @@ router.get("/clients", async (req, res): Promise<void> => {
   res.json(clients.map((c) => serializeClient(c, byClient.get(c.id) ?? [])));
 });
 
+router.get("/clients/clinicas-origem", requireCollaborator, async (req, res): Promise<void> => {
+  if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
+    res.status(401).json({ error: "Entre com seu acesso profissional." }); return;
+  }
+  const clinicas = await db.select({
+    id: empresasTable.id, nome: empresasTable.nome, nick: empresasTable.nick,
+    razaoSocial: empresasTable.razaoSocial, cnpj: empresasTable.cnpj,
+  }).from(empresasTable).where(and(
+    eq(empresasTable.tipo, "clinic"), eq(empresasTable.ativa, true),
+    eq(empresasTable.status, "ATIVO"),
+  ));
+  res.json({ empresaAtualId: req.tenantContext.empresaId, clinicas });
+});
+
+router.get("/clients/agenda-opcoes", requireClientWriter, async (req, res): Promise<void> => {
+  const clinicaId = Number(req.query.clinicaId);
+  if (!Number.isSafeInteger(clinicaId) || clinicaId <= 0) { res.status(400).json({ error: "Clínica inválida." }); return; }
+  if (clinicaId !== req.tenantContext.empresaId) { res.status(403).json({ error: "Agendas desta clínica não estão autorizadas nesta sessão." }); return; }
+  const locais = await db.select({ id: locationsTable.id, name: locationsTable.name }).from(locationsTable)
+    .where(and(eq(locationsTable.empresaId, clinicaId), eq(locationsTable.active, "true"))).orderBy(locationsTable.name);
+  const agendas = await db.select({ id: agendaResourcesTable.id, name: agendaResourcesTable.name,
+    kind: agendaResourcesTable.kind, locationId: locationsTable.id }).from(agendaResourcesTable)
+    .innerJoin(locationsTable, eq(locationsTable.id, agendaResourcesTable.locationId))
+    .where(and(eq(locationsTable.empresaId, clinicaId), eq(locationsTable.active, "true"),
+      eq(agendaResourcesTable.active, true)))
+    .orderBy(agendaResourcesTable.sortOrder, agendaResourcesTable.name);
+  const [defaults] = await db.select().from(clientClinicAgendaDefaultsTable)
+    .where(eq(clientClinicAgendaDefaultsTable.empresaId, clinicaId));
+  res.json({
+    locais, agendas,
+    enfermagemPadraoId: agendas.some(a => a.kind === "enfermagem" && a.id === defaults?.enfermagemResourceId) ? defaults!.enfermagemResourceId : null,
+    medicoPadraoId: agendas.some(a => a.kind === "medico" && a.id === defaults?.medicoResourceId) ? defaults!.medicoResourceId : null,
+  });
+});
+
+router.get("/clients/:id/protocol-agenda-options", requireClientWriter, async (req, res): Promise<void> => {
+  const clientId = Number(req.params.id);
+  if (!Number.isSafeInteger(clientId) || clientId <= 0) {
+    res.status(400).json({ code: "cliente_invalido", error: "Cliente inválido." });
+    return;
+  }
+  if (!req.tenantContext?.empresaId) {
+    res.status(401).json({ code: "sessao_profissional_ausente", error: "Entre com seu acesso profissional." });
+    return;
+  }
+  try {
+    const options = await loadClientProtocolAgendas(clientId, req.tenantContext.empresaId);
+    if (!options.medicalAgenda) {
+      res.status(409).json({
+        code: "agenda_medica_indefinida",
+        error: "Vincule uma agenda médica ao cadastro do cliente antes de lançar o protocolo.",
+      });
+      return;
+    }
+    res.json({
+      clientId,
+      clinic: options.clinic,
+      nursingAgendaId: options.nursingAgenda.id,
+      medicalAgendaId: options.medicalAgenda.id,
+      nursingAgendas: options.nursingAgendas,
+      medicalAgendas: options.medicalAgendas,
+      nursingAgenda: options.nursingAgenda,
+      medicalAgenda: options.medicalAgenda,
+      nurses: options.nurses,
+      doctors: options.doctors,
+      // Lido do cadastro de janelas da Agenda Configuração; null = a agenda não tem expediente cadastrado.
+      horarioPadrao: {
+        enfermagem: await carregarHorarioPadraoDaAgenda(options.nursingAgenda.id),
+        medico: await carregarHorarioPadraoDaAgenda(options.medicalAgenda.id),
+      },
+    });
+  } catch (error) {
+    if (error instanceof ClientProtocolAgendaError) {
+      res.status(error.status).json({ code: error.code, error: error.message });
+      return;
+    }
+    throw error;
+  }
+});
+
+router.get("/clients/visit-preference-options", requireCollaborator, async (req, res): Promise<void> => {
+  if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
+    res.status(401).json({ error: "Entre com seu acesso profissional." }); return;
+  }
+  res.json(await getVisitOptions(db, req.tenantContext.empresaId));
+});
+
+// Leitura individual usada pela tela de edição. A identidade e a empresa são
+// verificadas no servidor antes de devolver os dados do cliente.
+async function dadosEmpresaCanal(empresaId: number) {
+  const [e] = await db.select({
+    nome: empresasTable.nome, nomeFantasia: empresasTable.nomeFantasia, razaoSocial: empresasTable.razaoSocial,
+    cnpj: empresasTable.cnpj, endereco: empresasTable.endereco, numero: empresasTable.numero, bairro: empresasTable.bairro,
+    cidade: empresasTable.cidade, estado: empresasTable.estado, cep: empresasTable.cep,
+  }).from(empresasTable).where(eq(empresasTable.id, empresaId)).limit(1);
+  return e ?? null;
+}
+
+// Canal oficial da clinica: marca o cadastro que corresponde ao celular (WhatsApp/Telegram) da empresa.
+// Leitura: qualquer profissional da clinica. Escrita: SOMENTE o CEO (administrador da plataforma).
+// Nao altera nenhum outro campo (nome, CPF, telefone, chat do Telegram, situacao).
+router.get("/clients/:id/canal-clinica", requireClientWriter, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) { res.status(400).json({ error: "Cliente inválido." }); return; }
+  const empresaId = req.tenantContext.empresaId;
+  const [c] = await db.select({ ativo: clientsTable.numeroOficialEmpresa }).from(clientsTable)
+    .where(and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId))).limit(1);
+  if (!c) { res.status(404).json({ error: "Cliente não encontrado." }); return; }
+  const e = c.ativo ? await dadosEmpresaCanal(empresaId) : null;
+  res.json({ ativo: c.ativo, cnpj: e?.cnpj ?? null, empresa: e, podeAlterar: req.tenantContext.isPlatformOwner === true });
+});
+
+router.put("/clients/:id/canal-clinica", requireClientWriter, async (req, res): Promise<void> => {
+  if (req.tenantContext.isPlatformOwner !== true) {
+    res.status(403).json({ error: "Somente o CEO pode marcar o cadastro como celular oficial da empresa." });
+    return;
+  }
+  const id = Number(req.params.id);
+  const ativo = req.body?.ativo;
+  const confirmarHistorico = req.body?.confirmarHistorico === true;
+  if (!Number.isSafeInteger(id) || id <= 0 || typeof ativo !== "boolean") {
+    res.status(400).json({ error: "Informe o cliente e ativo (verdadeiro ou falso)." });
+    return;
+  }
+  const empresaId = req.tenantContext.empresaId;
+  try {
+    const out = await db.transaction(async (tx) => {
+      const [atual] = await tx.select({ ativo: clientsTable.numeroOficialEmpresa }).from(clientsTable)
+        .where(and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId), isNull(clientsTable.deletedAt))).for("update");
+      if (!atual) return { status: 404 as const };
+      const hist = await tx.execute(sql`SELECT (EXISTS (SELECT 1 FROM protocols WHERE client_id = ${id})
+        OR EXISTS (SELECT 1 FROM exam_results WHERE client_id = ${id})) AS tem`);
+      const temHistorico = (hist.rows[0] as { tem?: boolean } | undefined)?.tem === true;
+      if (ativo && !atual.ativo) {
+        const [emp] = await tx.select({ cnpj: empresasTable.cnpj }).from(empresasTable).where(eq(empresasTable.id, empresaId)).limit(1);
+        if (!cnpjValido(emp?.cnpj)) return { status: 422 as const };
+      }
+      if (ativo && !atual.ativo && temHistorico && !confirmarHistorico) return { status: 409 as const, historico: true };
+      if (atual.ativo === ativo) return { status: 200 as const, ativo };
+      await tx.update(clientsTable).set({ numeroOficialEmpresa: ativo }).where(and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId)));
+      await tx.execute(sql`INSERT INTO canal_clinica_auditoria (empresa_id, client_id, professional_id, acao, antes, depois, tinha_historico, confirmou_historico)
+        VALUES (${empresaId}, ${id}, ${req.tenantContext.professionalId}, ${ativo ? "ligar" : "desligar"}, ${atual.ativo}, ${ativo}, ${temHistorico}, ${confirmarHistorico})`);
+      return { status: 200 as const, ativo };
+    });
+    if (out.status === 404) { res.status(404).json({ error: "Cliente não encontrado ou removido." }); return; }
+    if (out.status === 422) { res.status(422).json({ code: "CNPJ_INVALIDO", error: "CNPJ não cadastrado ou inválido na empresa. Cadastre o CNPJ em Empresas antes de ligar." }); return; }
+    if (out.status === 409) {
+      res.status(409).json({ code: "HISTORICO_CLINICO", error: "Este cadastro já tem histórico clínico (protocolos ou exames). Nada será apagado ou convertido; confirme para marcá-lo como celular oficial da empresa." });
+      return;
+    }
+    const e = out.ativo ? await dadosEmpresaCanal(empresaId) : null;
+    res.json({ ativo: out.ativo, cnpj: e?.cnpj ?? null, empresa: e, podeAlterar: true });
+  } catch (err) {
+    if ((err as { code?: string }).code === "23505") {
+      res.status(409).json({ error: "Já existe outro cadastro marcado como celular oficial desta empresa. Desmarque-o primeiro." });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.get("/clients/:id", requireCollaborator, async (req, res): Promise<void> => {
+  if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
+    res.status(401).json({ error: "Entre com seu acesso profissional." });
+    return;
+  }
+  const params = GetClientParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const [client] = await db.select().from(clientsTable).where(and(
+    eq(clientsTable.id, params.data.id),
+    eq(clientsTable.empresaId, req.tenantContext.empresaId),
+    isNull(clientsTable.deletedAt),
+  ));
+  if (!client) {
+    res.status(404).json({ error: "Cliente não encontrado." });
+    return;
+  }
+  res.json(serializeClient(client, await getPreferredAgendas(client.id),
+    await getVisitPreferences(db, req.tenantContext.empresaId, client.id)));
+});
+
 // ─── Ações em lote ─────────────────────────────────────────────────────────
 // POST /api/clients/bulk
 // body: { ids: number[], action: "activate" | "deactivate" | "delete" | "restore" }
 // "delete"  → soft-delete (deleted_at = now)
 // "restore" → restaura (deleted_at = null), máx 5 anos
 // "activate" / "deactivate" → muda status (só clientes não apagados)
-router.post("/clients/bulk", async (req, res): Promise<void> => {
+router.post("/clients/bulk", requireCollaborator, async (req, res): Promise<void> => {
+  if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
+    res.status(401).json({ error: "Entre com seu acesso profissional." });
+    return;
+  }
   const { ids, action } = req.body ?? {};
 
   if (!Array.isArray(ids) || ids.length === 0) {
@@ -200,73 +434,96 @@ router.post("/clients/bulk", async (req, res): Promise<void> => {
   }
 
   const CINCO_ANOS_MS = 5 * 365.25 * 24 * 3600 * 1000;
+  const sameCompany = eq(clientsTable.empresaId, req.tenantContext.empresaId);
+  let affected = 0;
 
   if (action === "delete") {
-    await db
+    const changed = await db
       .update(clientsTable)
       .set({ deletedAt: new Date() })
-      .where(and(inArray(clientsTable.id, safeIds), isNull(clientsTable.deletedAt)));
+      .where(and(inArray(clientsTable.id, safeIds), sameCompany, isNull(clientsTable.deletedAt)))
+      .returning({ id: clientsTable.id });
+    affected = changed.length;
   } else if (action === "restore") {
     // Só restaura dentro dos 5 anos
     const limite = new Date(Date.now() - CINCO_ANOS_MS);
-    await db
+    const changed = await db
       .update(clientsTable)
       .set({ deletedAt: null })
       .where(
         and(
           inArray(clientsTable.id, safeIds),
+          sameCompany,
           isNotNull(clientsTable.deletedAt),
           sql`deleted_at > ${limite.toISOString()}`,
         )
-      );
+      ).returning({ id: clientsTable.id });
+    affected = changed.length;
   } else if (action === "activate") {
-    await db
+    const changed = await db
       .update(clientsTable)
       .set({ status: "active" })
-      .where(and(inArray(clientsTable.id, safeIds), isNull(clientsTable.deletedAt)));
+      .where(and(inArray(clientsTable.id, safeIds), sameCompany, isNull(clientsTable.deletedAt)))
+      .returning({ id: clientsTable.id });
+    affected = changed.length;
   } else if (action === "deactivate") {
-    await db
+    const changed = await db
       .update(clientsTable)
       .set({ status: "inactive" })
-      .where(and(inArray(clientsTable.id, safeIds), isNull(clientsTable.deletedAt)));
+      .where(and(inArray(clientsTable.id, safeIds), sameCompany, isNull(clientsTable.deletedAt)))
+      .returning({ id: clientsTable.id });
+    affected = changed.length;
   }
 
-  res.json({ ok: true, affected: safeIds.length });
+  res.json({ ok: true, affected });
 });
 
 // ATENCAO: as rotas abaixo foram restauradas em 14/08/2026 apos um merge automatico
 // ter apagado o INSERT desta rota e transformado o PUT em um GET duplicado.
 // Nao substituir o db.insert por db.select aqui: esta rota CADASTRA paciente novo.
-router.post("/clients", async (req, res): Promise<void> => {
+router.post("/clients", requireClientWriter, async (req, res): Promise<void> => {
   const parsed = CreateClientBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
-  const clientData = parsed.data;
-  // preferredAgendaResourceIds e locationId podem estar presentes no body mas ausentes
-  // no tipo gerado pelo dist desatualizado do api-zod; ler diretamente do req.body.
-  const bodyExtra = req.body as { preferredAgendaResourceIds?: number[] | null; locationId?: number | null };
-  const preferredAgendaResourceIds = bodyExtra.preferredAgendaResourceIds ?? undefined;
-  const locationId = bodyExtra.locationId ?? undefined;
+  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, clinicaOrigemEsperada: _expected, agendaEnfermagemEsperada: _nursing, agendaMedicoEsperada: _doctor, ...clientData } = parsed.data;
+  const locationId = clientData.locationId ?? null;
   const empresaId = req.tenantContext.empresaId;
 
-  const [created] = await db
-    .insert(clientsTable)
-    .values({ ...clientData, empresaId, locationId })
-    .returning();
-
-  if (!created) {
-    res.status(500).json({ error: "Falha ao criar cliente" });
-    return;
+  try {
+    const result = await db.transaction(async (tx) => {
+      const clinicaOrigemEmpresaId = clientData.clinicaOrigemEmpresaId ?? empresaId;
+      await validateClinicaOrigem(tx, clinicaOrigemEmpresaId);
+      const [defaults] = clinicaOrigemEmpresaId === empresaId
+        ? await tx.select().from(clientClinicAgendaDefaultsTable).where(eq(clientClinicAgendaDefaultsTable.empresaId, empresaId)) : [];
+      const agendaEnfermagemPadraoId = clientData.agendaEnfermagemPadraoId === undefined ? (defaults?.enfermagemResourceId ?? null) : clientData.agendaEnfermagemPadraoId;
+      const agendaMedicoPadraoId = clientData.agendaMedicoPadraoId === undefined ? (defaults?.medicoResourceId ?? null) : clientData.agendaMedicoPadraoId;
+      await validateDefaultAgenda(tx, empresaId, clinicaOrigemEmpresaId, agendaEnfermagemPadraoId, "enfermagem");
+      await validateDefaultAgenda(tx, empresaId, clinicaOrigemEmpresaId, agendaMedicoPadraoId, "medico");
+      if (locationId !== null && clinicaOrigemEmpresaId !== empresaId) throw new InvalidPreferredAgendas("O local deve pertencer à clínica autorizada.");
+      const [created] = await tx.insert(clientsTable)
+        .values({ ...clientData, empresaId, locationId, clinicaOrigemEmpresaId, agendaEnfermagemPadraoId, agendaMedicoPadraoId }).returning();
+      if (!created) throw new Error("Falha ao criar cliente");
+      await validateClientLocation(tx, empresaId, created.locationId);
+      await setPreferredAgendas(tx, created, preferredAgendaResourceIds);
+      const visit = await setVisitPreferences(tx, empresaId, created.id, req.tenantContext.professionalId!,
+        visitPreferences, visitPreferencesRevision);
+      return serializeClient(created, await getPreferredAgendas(created.id, tx), visit);
+    });
+    res.status(201).json(result);
+  } catch (error) {
+    if (error instanceof VisitPreferenceError) { res.status(error.status).json({ error: error.message }); return; }
+    if (error instanceof InvalidPreferredAgendas) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    throw error;
   }
-
-  await setPreferredAgendas(created.id, preferredAgendaResourceIds ?? undefined);
-  res.status(201).json(serializeClient(created, await getPreferredAgendas(created.id)));
 });
 
-router.put("/clients/:id", async (req, res): Promise<void> => {
+router.put("/clients/:id", requireClientWriter, async (req, res): Promise<void> => {
   const params = UpdateClientParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -281,22 +538,57 @@ router.put("/clients/:id", async (req, res): Promise<void> => {
 
   const empresaId = req.tenantContext.empresaId;
   const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
-  const clientData = parsed.data;
-  let client: ClientRow | undefined;
-  if (Object.keys(clientData).length > 0) {
-    [client] = await db.update(clientsTable).set(clientData).where(tenantWhere).returning();
-  } else {
-    [client] = await db.select().from(clientsTable).where(tenantWhere);
+  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, clinicaOrigemEsperada, agendaEnfermagemEsperada, agendaMedicoEsperada, ...clientData } = parsed.data;
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [existing] = await tx.select().from(clientsTable).where(tenantWhere).for("update");
+      if (!existing) return null;
+      validarBloqueioCanalOficial(existing as Record<string, unknown>, clientData as Record<string, unknown>, visitPreferences);
+      await checkAgendaUpdate(tx, empresaId, existing, clientData, clinicaOrigemEsperada, agendaEnfermagemEsperada, agendaMedicoEsperada);
+      if (clientData.clinicaOrigemEmpresaId !== undefined) {
+        if (clinicaOrigemEsperada === undefined || clinicaOrigemEsperada !== existing.clinicaOrigemEmpresaId) {
+          throw new ClinicaOrigemConflict("A clínica de origem mudou ou não pôde ser conferida. Recarregue antes de salvar.");
+        }
+        if (clientData.clinicaOrigemEmpresaId !== existing.clinicaOrigemEmpresaId) {
+          await validateClinicaOrigem(tx, clientData.clinicaOrigemEmpresaId);
+          const location = clientData.locationId === undefined ? existing.locationId : clientData.locationId;
+          if (location !== null) await validateClientLocation(tx, clientData.clinicaOrigemEmpresaId!, location);
+        }
+      }
+      if (clientData.locationId !== undefined && clientData.locationId !== existing.locationId) {
+        const origin = clientData.clinicaOrigemEmpresaId === undefined ? existing.clinicaOrigemEmpresaId : clientData.clinicaOrigemEmpresaId;
+        if (clientData.locationId !== null && origin !== empresaId) throw new InvalidPreferredAgendas("O local deve pertencer à clínica autorizada.");
+        await validateClientLocation(tx, empresaId, clientData.locationId);
+      }
+      if (preferredAgendaResourceIds === undefined && clientData.locationId !== undefined &&
+          clientData.locationId !== existing.locationId &&
+          (await getPreferredAgendas(existing.id, tx)).length > 0) {
+        throw new InvalidPreferredAgendas("Ao trocar o local, confira e escolha novamente as agendas preferenciais.");
+      }
+      const [client] = Object.keys(clientData).length
+        ? await tx.update(clientsTable).set(clientData).where(tenantWhere).returning()
+        : [existing];
+      await setPreferredAgendas(tx, client, preferredAgendaResourceIds);
+      const visit = await setVisitPreferences(tx, empresaId, client.id, req.tenantContext.professionalId!,
+        visitPreferences, visitPreferencesRevision);
+      return serializeClient(client, await getPreferredAgendas(client.id, tx), visit);
+    });
+    if (!result) { res.status(404).json({ error: "Client not found" }); return; }
+    res.json(result);
+  } catch (error) {
+    if (error instanceof CanalOficialBloqueio) { res.status(403).json({ error: error.message }); return; }
+    if (error instanceof ClinicaOrigemConflict) { res.status(409).json({ error: error.message }); return; }
+    if (error instanceof VisitPreferenceError) { res.status(error.status).json({ error: error.message }); return; }
+    if (error instanceof InvalidPreferredAgendas) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    throw error;
   }
-  if (!client) {
-    res.status(404).json({ error: "Client not found" });
-    return;
-  }
-  res.json(serializeClient(client, await getPreferredAgendas(client.id)));
 });
 
 
-router.patch("/clients/:id", async (req, res): Promise<void> => {
+router.patch("/clients/:id", requireClientWriter, async (req, res): Promise<void> => {
   const params = UpdateClientParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -311,18 +603,53 @@ router.patch("/clients/:id", async (req, res): Promise<void> => {
 
   const empresaId = req.tenantContext.empresaId;
   const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
-  const clientData = parsed.data;
-  let client: ClientRow | undefined;
-  if (Object.keys(clientData).length > 0) {
-    [client] = await db.update(clientsTable).set(clientData).where(tenantWhere).returning();
-  } else {
-    [client] = await db.select().from(clientsTable).where(tenantWhere);
+  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, clinicaOrigemEsperada, agendaEnfermagemEsperada, agendaMedicoEsperada, ...clientData } = parsed.data;
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [existing] = await tx.select().from(clientsTable).where(tenantWhere).for("update");
+      if (!existing) return null;
+      validarBloqueioCanalOficial(existing as Record<string, unknown>, clientData as Record<string, unknown>, visitPreferences);
+      await checkAgendaUpdate(tx, empresaId, existing, clientData, clinicaOrigemEsperada, agendaEnfermagemEsperada, agendaMedicoEsperada);
+      if (clientData.clinicaOrigemEmpresaId !== undefined) {
+        if (clinicaOrigemEsperada === undefined || clinicaOrigemEsperada !== existing.clinicaOrigemEmpresaId) {
+          throw new ClinicaOrigemConflict("A clínica de origem mudou ou não pôde ser conferida. Recarregue antes de salvar.");
+        }
+        if (clientData.clinicaOrigemEmpresaId !== existing.clinicaOrigemEmpresaId) {
+          await validateClinicaOrigem(tx, clientData.clinicaOrigemEmpresaId);
+          const location = clientData.locationId === undefined ? existing.locationId : clientData.locationId;
+          if (location !== null) await validateClientLocation(tx, clientData.clinicaOrigemEmpresaId!, location);
+        }
+      }
+      if (clientData.locationId !== undefined && clientData.locationId !== existing.locationId) {
+        const origin = clientData.clinicaOrigemEmpresaId === undefined ? existing.clinicaOrigemEmpresaId : clientData.clinicaOrigemEmpresaId;
+        if (clientData.locationId !== null && origin !== empresaId) throw new InvalidPreferredAgendas("O local deve pertencer à clínica autorizada.");
+        await validateClientLocation(tx, empresaId, clientData.locationId);
+      }
+      if (preferredAgendaResourceIds === undefined && clientData.locationId !== undefined &&
+          clientData.locationId !== existing.locationId &&
+          (await getPreferredAgendas(existing.id, tx)).length > 0) {
+        throw new InvalidPreferredAgendas("Ao trocar o local, confira e escolha novamente as agendas preferenciais.");
+      }
+      const [client] = Object.keys(clientData).length
+        ? await tx.update(clientsTable).set(clientData).where(tenantWhere).returning()
+        : [existing];
+      await setPreferredAgendas(tx, client, preferredAgendaResourceIds);
+      const visit = await setVisitPreferences(tx, empresaId, client.id, req.tenantContext.professionalId!,
+        visitPreferences, visitPreferencesRevision);
+      return serializeClient(client, await getPreferredAgendas(client.id, tx), visit);
+    });
+    if (!result) { res.status(404).json({ error: "Client not found" }); return; }
+    res.json(result);
+  } catch (error) {
+    if (error instanceof CanalOficialBloqueio) { res.status(403).json({ error: error.message }); return; }
+    if (error instanceof ClinicaOrigemConflict) { res.status(409).json({ error: error.message }); return; }
+    if (error instanceof VisitPreferenceError) { res.status(error.status).json({ error: error.message }); return; }
+    if (error instanceof InvalidPreferredAgendas) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    throw error;
   }
-  if (!client) {
-    res.status(404).json({ error: "Client not found" });
-    return;
-  }
-  res.json(serializeClient(client, await getPreferredAgendas(client.id)));
 });
 
 router.get("/cep/:cep", async (req, res): Promise<void> => {
@@ -356,19 +683,47 @@ router.get("/cep/:cep", async (req, res): Promise<void> => {
 // Exemplos: "CARLUCIA SANTOS FERNANDES" + CPF "···678-90" → "DES7890"
 //           "JOAO SILVA"               + CPF "···432-10" → "VAS4321" ← usa 3 letras de SILVA
 // Elimina dependência de e-mail: o CEO pode repassar o código verbalmente.
-function codigoTelegramSemantico(nome: string, cpf: string | null | undefined): string {
-  const sobrenome = nome.trim().split(/\s+/).pop() ?? nome;
-  // Normaliza acentos (FERNANDES → FERNANDES, ÁVILA → AVILA)
-  const limpo = sobrenome
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^A-Za-z]/g, "")
-    .toUpperCase();
-  const sufixoNome = limpo.slice(-3).padStart(3, "X");    // ex: "DES"
-  const digCpf    = (cpf ?? "").replace(/\D/g, "");
-  const sufixoCpf = digCpf.slice(-4).padStart(4, "0");    // ex: "7890"
-  return `${sufixoNome}${sufixoCpf}`;
-}
+
+// ── GET /api/clients/:id/comunicacao ─────────────────────────────────────────
+// Painel "Comunicação" do cadastro: estado do Telegram e da Área do Cliente.
+// Somente leitura; colaborador autenticado; isolado por empresa.
+router.get("/clients/:id/comunicacao", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "clientId inválido" }); return; }
+  const [c] = await db
+    .select({
+      telegramChatId: clientsTable.telegramChatId,
+      validationPassword: clientsTable.validationPassword,
+      validationPasswordSentAt: clientsTable.validationPasswordSentAt,
+      email: clientsTable.email,
+      phone: clientsTable.phone,
+      cpf: clientsTable.cpf,
+      birthDate: clientsTable.birthDate,
+      passwordHash: clientsTable.passwordHash,
+    })
+    .from(clientsTable)
+    .where(and(eq(clientsTable.id, id), eq(clientsTable.empresaId, req.tenantContext.empresaId)))
+    .limit(1);
+  if (!c) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+  const codigoRepetido = c.validationPassword ? (await contarCadastrosComCodigo(c.validationPassword, id)) > 0 : false;
+  res.json({
+    botUsername: BOT_USERNAME,
+    botLink: BOT_LINK,
+    telegram: {
+      vinculado: Boolean(c.telegramChatId),
+      senhaGerada: Boolean(c.validationPassword),
+      senha: c.validationPassword ?? null,
+      senhaGeradaEm: c.validationPasswordSentAt ? c.validationPasswordSentAt.toISOString() : null,
+      codigoRepetido,
+    },
+    contato: { temEmail: Boolean(c.email), temTelefone: Boolean(c.phone) },
+    areaCliente: {
+      temCpf: Boolean(c.cpf && c.cpf.replace(/\D/g, "").length === 11),
+      temDataNascimento: Boolean(c.birthDate),
+      temSenhaPropria: Boolean(c.passwordHash),
+    },
+  });
+});
 
 // ── POST /api/clients/:id/activate-telegram ───────────────────────────────────
 // Gera código semântico (sobrenome + CPF), salva no banco e envia e-mail se
@@ -423,21 +778,11 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
     return;
   }
 
-  // Dispara e-mail de onboarding somente se o paciente tiver e-mail.
-  // Falha no e-mail NÃO bloqueia — código retorna na resposta para o CEO repassar.
-  let emailEnviado = false;
-  if (client.email) {
-    try {
-      // Link mágico: o paciente ativa em um toque, sem digitar a senha.
-      // Se a emissão falhar, o e-mail ainda vai com o caminho da senha.
-      const linkMagico = await emitirLinkMagico(id);
-      if (linkMagico) emailEnviado = true;
-    } catch (err) {
-      console.warn("Email de onboarding falhou (não bloqueante):", err);
-    }
-  }
-
-  res.json({ ok: true, code: senha, emailEnviado });
+  // Gerar o código NÃO envia nada ao cliente. O e-mail só sai pelo botão explícito
+  // "Enviar e-mail de ativação" (resend-telegram-onboarding); o link individual é gerado
+  // em /clients/:id/telegram-link para a equipe repassar.
+  const codigoRepetido = (await contarCadastrosComCodigo(senha, id)) > 0;
+  res.json({ ok: true, code: senha, emailEnviado: false, codigoRepetido });
 });
 
 // ── Reenvio do onboarding Telegram com a senha existente ────────────────────
@@ -476,12 +821,38 @@ router.post("/clients/:id/resend-telegram-onboarding", requireCollaborator, asyn
   }
 
   try {
-    // Cada reenvio emite um link mágico novo — o e-mail mais recente é o que vale.
-    await emitirLinkMagico(id);
-    res.json({ ok: true, message: `E-mail reenviado para ${client.email} com a senha existente` });
+    // Cada envio emite um link mágico novo — o e-mail mais recente é o que vale.
+    const link = await emitirLinkMagico(id);
+    const envio = await sendTelegramOnboardingEmail({
+      clientName: client.name,
+      clientEmail: client.email,
+      validationPassword: client.validationPassword,
+      magicLink: link?.url,
+    });
+    if (!envio.success) { res.status(502).json({ error: "O serviço de e-mail não aceitou o envio. Use o link individual." }); return; }
+    res.json({ ok: true, message: "E-mail de ativação enviado ao cliente." });
   } catch (err) {
     res.status(500).json({ error: "erro_resend_telegram_onboarding", detalhe: String(err) });
   }
+});
+
+// ── POST /api/clients/:id/telegram-link ──────────────────────────────────────
+// Gera o link individual de vinculação (uso único, 7 dias) para a equipe repassar.
+// Não envia nada. Gerar de novo invalida o link anterior. Recusa se já vinculado.
+router.post("/clients/:id/telegram-link", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "clientId inválido" }); return; }
+  const [c] = await db
+    .select({ telegramChatId: clientsTable.telegramChatId, status: clientsTable.status })
+    .from(clientsTable)
+    .where(and(eq(clientsTable.id, id), eq(clientsTable.empresaId, req.tenantContext.empresaId)))
+    .limit(1);
+  if (!c) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+  if (c.status !== "active") { res.status(409).json({ error: "Cadastro inativo" }); return; }
+  if (c.telegramChatId) { res.status(409).json({ error: "Telegram já vinculado" }); return; }
+  const link = await emitirLinkMagico(id);
+  if (!link) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+  res.json({ url: link.url, expiraEm: link.expiraEm.toISOString() });
 });
 
 // ── DELETE /api/clients/:id/telegram ─────────────────────────────────────────
@@ -536,7 +907,7 @@ async function dispararBoasVindas(clientId: number, nome: string, telefone: stri
     `Olá, ${nomeFormatado}! 🌿\n\n` +
     `Bem-vindo(a) ao Instituto Padua — cuidado real, resultado clínico.\n\n` +
     `Seu cadastro foi concluído com sucesso. Em breve nossa equipe entrará em contato para agendar sua consulta de avaliação.\n\n` +
-    `Qualquer dúvida, estamos aqui!\n— Equipe PAXTER`;
+    `Qualquer dúvida, estamos aqui!\n— Equipe PaxMed`;
   try {
     const resultado = await sendWhatsapp(telefone, mensagem, { clienteId: clientId });
     await logIntegracao({
@@ -582,6 +953,43 @@ router.get("/clientes/:id/telegram-status", requireCollaborator, async (req, res
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
+});
+
+// ─── Redes sociais do cliente (Instagram segue na coluna clients.instagram) ───
+async function clienteDaEmpresa(req: Request, id: number) {
+  const [c] = await db.select().from(clientsTable).where(and(
+    eq(clientsTable.id, id), eq(clientsTable.empresaId, req.tenantContext.empresaId), isNull(clientsTable.deletedAt),
+  ));
+  return c ?? null;
+}
+router.get("/clients/:id/redes-sociais", requireClientWriter, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) { res.status(400).json({ error: "Cliente inválido." }); return; }
+  const c = await clienteDaEmpresa(req, id);
+  if (!c) { res.status(404).json({ error: "Cliente não encontrado." }); return; }
+  const redes = await lerRedesDaTabela("cliente", id);
+  if (c.instagram?.trim()) redes.instagram = c.instagram.trim();
+  res.json({ catalogo: REDES, redes, somenteLeitura: c.numeroOficialEmpresa === true });
+});
+router.put("/clients/:id/redes-sociais", requireClientWriter, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) { res.status(400).json({ error: "Cliente inválido." }); return; }
+  const c = await clienteDaEmpresa(req, id);
+  if (!c) { res.status(404).json({ error: "Cliente não encontrado." }); return; }
+  if (c.numeroOficialEmpresa === true) { res.status(409).json({ error: "Este cadastro é o celular oficial da empresa: redes sociais ficam somente leitura." }); return; }
+  let redes: Record<string, string>;
+  try { redes = normalizarRedes((req.body as { redes?: unknown } | undefined)?.redes); }
+  catch (e) { if (e instanceof RedesInvalidas) { res.status(400).json({ error: e.message }); return; } throw e; }
+  const { instagram, ...outras } = redes;
+  await salvarRedesNaTabela("cliente", id, outras);
+  if (instagram !== undefined) {
+    await db.update(clientsTable).set({ instagram: instagram || null, updatedAt: new Date() })
+      .where(and(eq(clientsTable.id, id), eq(clientsTable.empresaId, req.tenantContext.empresaId)));
+  }
+  const atuais = await lerRedesDaTabela("cliente", id);
+  const [depois] = await db.select({ instagram: clientsTable.instagram }).from(clientsTable).where(eq(clientsTable.id, id));
+  if (depois?.instagram?.trim()) atuais.instagram = depois.instagram.trim();
+  res.json({ ok: true, redes: atuais });
 });
 
 export default router;

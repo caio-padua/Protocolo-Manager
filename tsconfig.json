@@ -22,10 +22,16 @@
       "path": "./lib/posologia"
     },
     {
+      "path": "./lib/avaliacoes-corporais"
+    },
+    {
       "path": "./lib/governanca"
     },
     {
       "path": "./lib/password-policy"
+    },
+    {
+      "path": "./lib/procedimentos-shared"
     }
   ]
 }

@@ -105,7 +105,7 @@ const CATEGORIAS: Categoria[] = [
   {
     id: "autorizacoes",
     label: "Autorizações e Registros",
-    descricao: "Uso de imagem · RAS com valor jurídico",
+    descricao: "Uso de imagem · RASP com valor jurídico",
     icon: Camera,
     faixa: "bg-slate-400",
     codigos: ["CIMG", "RAS-JUR"],

@@ -22,6 +22,7 @@
 
 import type pino from "pino";
 import { getWebhookInfo, sendTelegram } from "./telegram.js";
+import { chatAlertaOuNull } from "./telegram-config.js";
 import { ReplitConnectors } from "@replit/connectors-sdk";
 
 // ---------------------------------------------------------------------------
@@ -170,7 +171,7 @@ export async function runGuardCycle(logger: pino.Logger): Promise<void> {
       await sendSlackAlert(msg);
 
       // Também tenta alertar via Telegram se chatId do CEO estiver configurado
-      const ceoChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID;
+      const ceoChatId = await chatAlertaOuNull();
       if (ceoChatId) {
         void sendTelegram(
           ceoChatId,
@@ -204,8 +205,19 @@ export async function runGuardCycle(logger: pino.Logger): Promise<void> {
 export function startWebhookGuard(logger: pino.Logger): void {
   logger.info("telegram-webhook-guard: iniciado (verificação a cada 5 minutos)");
 
+  // Exclusividade: o guarda existe na API e no worker (e em réplicas). Só um processo verifica por janela (4 min);
+  // os demais pulam o ciclo. Sem isso o Telegram seria consultado e o CEO alertado em dobro.
+  const cicloExclusivo = async () => {
+    try {
+      const { executarUmaVezPorJanela } = await import("./exclusividade-tarefas.js");
+      const r = await executarUmaVezPorJanela("telegram-webhook-guard", 4 * 60_000, () => runGuardCycle(logger));
+      if (!r.executou) logger.info({ motivo: r.motivo }, "telegram-webhook-guard: ciclo pulado (outro processo já verificou)");
+    } catch (err) {
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, "telegram-webhook-guard: falha no controle de exclusividade");
+    }
+  };
   // Primeira verificação 30 segundos após o boot (dar tempo ao processo subir)
-  setTimeout(() => void runGuardCycle(logger), 30_000);
+  setTimeout(() => void cicloExclusivo(), 30_000);
   // Depois a cada 5 minutos
-  setInterval(() => void runGuardCycle(logger), 5 * 60_000);
+  setInterval(() => void cicloExclusivo(), 5 * 60_000);
 }

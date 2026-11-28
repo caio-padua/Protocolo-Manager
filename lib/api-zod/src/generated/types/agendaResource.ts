@@ -5,16 +5,39 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+import type { AgendaExternalAddress } from "./agendaExternalAddress";
+import type { AgendaResourceCategoryStatus } from "./agendaResourceCategoryStatus";
+import type { AgendaResourceExternalAddressStatus } from "./agendaResourceExternalAddressStatus";
+import type { AgendaResourceSharing } from "./agendaResourceSharing";
 
 export interface AgendaResource {
   id: number;
   name: string;
+  /** Apelido que o dono da clínica quer ver no botão da agenda. O nome completo (name) não muda e continua sendo a referência do Google. */
+  displayName?: string | null;
   kind: string;
   modality: string;
   color: string;
   slotMinutes: number;
   professionalId?: number | null;
   locationId?: number | null;
+  empresaId?: number | null;
+  canManage?: boolean;
+  /** Nome do profissional titular da agenda (nulo em agenda compartilhada). */
+  professionalName?: string | null;
+  /** Nome do local cadastrado da agenda. Agenda e local são cadastros distintos. */
+  locationName?: string | null;
+  externalAddress?: AgendaExternalAddress | null;
+  externalAddressText?: string | null;
+  /** Endereço atual da sede, só quando a agenda é presencial (local) e o local é a sede da empresa. */
+  locationAddressText?: string | null;
+  externalAddressStatus?: AgendaResourceExternalAddressStatus;
+  mapsUrl?: string | null;
+  wazeUrl?: string | null;
+  categoryId?: number | null;
+  categoryName?: string | null;
+  categoryStatus?: AgendaResourceCategoryStatus;
+  sharing?: AgendaResourceSharing;
   active: boolean;
   sortOrder: number;
 }

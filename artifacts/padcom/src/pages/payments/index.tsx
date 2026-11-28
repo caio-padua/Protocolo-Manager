@@ -1,4 +1,7 @@
-import { useListPayments, useUpdatePayment } from "@workspace/api-client-react";
+import { useListPayments, useUpdatePayment, type Payment } from "@workspace/api-client-react";
+
+// A API devolve o número de parcelas, que o contrato gerado ainda não declara.
+type PaymentComParcelas = Payment & { installments?: number | null };
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -116,7 +119,7 @@ export default function Payments() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {payments.map(payment => (
+              {(payments as PaymentComParcelas[]).map(payment => (
                 <div key={payment.id} className="flex items-center gap-4 p-3 panel-3d-sub neon-hover transition-all">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 flex-wrap mb-1">
@@ -125,7 +128,6 @@ export default function Payments() {
                         {PAYMENT_STATUS_LABELS[payment.status] ?? payment.status}
                       </span>
                     </div>
-                    <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{payment.protocolTitle}</div>
                     <div className="flex items-center gap-4 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mt-1 flex-wrap">
                       {payment.dueDate && (
                         <span>Venc: {format(new Date(payment.dueDate), "dd/MM/yyyy", { locale: ptBR })}</span>

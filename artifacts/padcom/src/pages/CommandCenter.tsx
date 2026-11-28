@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import {
   Building2, Users, Calendar, TrendingUp, AlertTriangle,
   Wifi, WifiOff, RefreshCw, ChevronLeft, ChevronRight,
@@ -540,7 +541,7 @@ function PainelCustoIA() {
 
 // ── Painel de Onboarding Digital ─────────────────────────────────────────────
 
-interface OnboardingStats {
+export interface OnboardingStats {
   ok: boolean;
   total: number;
   pacientesUnicos: number;
@@ -574,7 +575,19 @@ const SECAO_ICONS: Record<string, typeof Smartphone> = {
   telegram:   MessageCircle,
 };
 
-function PainelOnboarding() {
+export async function loadOnboardingStats(): Promise<OnboardingStats> {
+  const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+  const response = await fetch(`${base}/api/onboarding/stats`, {
+    cache: "no-store",
+    headers: collabAuthHeaders(),
+  });
+  if (!response.ok) throw new Error("Erro ao carregar dados de onboarding.");
+  const data: OnboardingStats = await response.json();
+  if (!data.ok) throw new Error("Erro ao carregar dados de onboarding.");
+  return data;
+}
+
+export function PainelOnboarding() {
   const [stats, setStats]       = useState<OnboardingStats | null>(null);
   const [loading, setLoading]   = useState(true);
   const [erro, setErro]         = useState<string | null>(null);
@@ -582,17 +595,12 @@ function PainelOnboarding() {
   const fetchStats = () => {
     setLoading(true);
     setErro(null);
-    const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
-    fetch(`${base}/api/onboarding/stats`, { cache: "no-store" })
-      .then((r) => {
-        if (!r.ok) throw new Error("Erro ao carregar dados de onboarding.");
-        return r.json();
+    loadOnboardingStats()
+      .then(setStats)
+      .catch(() => {
+        setStats(null);
+        setErro("Erro de conexão.");
       })
-      .then((d: OnboardingStats) => {
-        if (d.ok) setStats(d);
-        else setErro("Erro ao carregar dados de onboarding.");
-      })
-      .catch(() => setErro("Erro de conexão."))
       .finally(() => setLoading(false));
   };
 
@@ -649,7 +657,7 @@ function PainelOnboarding() {
       )}
 
       {/* Dados */}
-      {!loading && stats && stats.total > 0 && (
+      {!loading && !erro && stats && stats.total > 0 && (
         <>
           {/* KPI total + pacientes únicos */}
           <div className="grid grid-cols-2 gap-3">
@@ -668,25 +676,36 @@ function PainelOnboarding() {
           </div>
 
           {/* Lista de pacientes que abriram */}
-          {stats.pacientes && stats.pacientes.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
+          <section aria-label="Pacientes que abriram o guia" className="space-y-3 min-w-0">
+              <h3 className="bevel-3d px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-primary">
                 Pacientes que abriram o guia
-              </p>
-              <div className="concave-3d rounded-lg divide-y divide-border/20 max-h-48 overflow-y-auto">
+              </h3>
+              {stats.pacientes.length > 0 ? (
+              <ul aria-label="Últimos acessos ao Guia Digital" className="concave-3d divide-y divide-border/20 max-h-64 overflow-y-auto">
                 {stats.pacientes.map((p) => (
-                  <div key={p.client_id} className="flex items-center justify-between px-3 py-2 gap-2">
-                    <span className="text-[11px] font-bold text-foreground uppercase tracking-tight truncate">
+                  <li key={p.client_id} data-testid={`row-onboarding-paciente-${p.client_id}`} className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center px-3 py-3 gap-1 sm:gap-3">
+                    <span className="min-w-0 break-words font-serif text-sm font-bold text-foreground uppercase tracking-tight">
                       {p.nome}
                     </span>
-                    <span className="text-[10px] text-muted-foreground/60 tabular-nums shrink-0">
-                      {new Date(p.ultimo_acesso).toLocaleDateString("pt-BR")}
-                    </span>
-                  </div>
+                    <div className="text-[11px] text-muted-foreground sm:text-right">
+                      <span className="block text-[9px] uppercase tracking-wider">Último acesso · Brasília</span>
+                      <time dateTime={new Date(p.ultimo_acesso).toISOString()} className="tabular-nums">
+                        {new Date(p.ultimo_acesso).toLocaleString("pt-BR", {
+                          timeZone: "America/Sao_Paulo",
+                          day: "2-digit", month: "2-digit", year: "numeric",
+                          hour: "2-digit", minute: "2-digit",
+                        })}
+                      </time>
+                    </div>
+                  </li>
                 ))}
-              </div>
-            </div>
-          )}
+              </ul>
+              ) : (
+                <p className="concave-3d px-3 py-4 text-xs text-muted-foreground">
+                  Nenhum paciente identificado nos acessos dos últimos 30 dias.
+                </p>
+              )}
+          </section>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Por dispositivo */}

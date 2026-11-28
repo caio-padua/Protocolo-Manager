@@ -209,7 +209,7 @@ interface Fonts {
 
 function drawPageHeader(page: PDFPage, fonts: Fonts, titulo: string, subtitulo: string, pageNum: number, totalPages: number) {
   page.drawRectangle({ x: 0, y: PAGE_H - 38, width: PAGE_W, height: 38, color: NAVY });
-  dt(page, "PADAXOR", { x: ML, y: PAGE_H - 25, size: 11, font: fonts.bold, color: GOLD });
+  dt(page, "PAXMED", { x: ML, y: PAGE_H - 25, size: 11, font: fonts.bold, color: GOLD });
   dt(page, "Clinical Intelligence System", { x: ML, y: PAGE_H - 35, size: 5.5, font: fonts.regular, color: rgb(0.7, 0.7, 0.7) });
   const safeTitulo = safe(titulo);
   const safeSub = safe(subtitulo);
@@ -218,7 +218,7 @@ function drawPageHeader(page: PDFPage, fonts: Fonts, titulo: string, subtitulo: 
   page.drawRectangle({ x: 0, y: PAGE_H - 40, width: PAGE_W, height: 2, color: GOLD });
   const now = brtNow();
   const dateStr = now.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
-  const footer = `PADAXOR - Nutricao Clinica - Documento personalizado e intransferivel - ${dateStr} - Pag. ${pageNum} de ${totalPages}`;
+  const footer = `PaxMed - Nutricao Clinica - Documento personalizado e intransferivel - ${dateStr} - Pag. ${pageNum} de ${totalPages}`;
   page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: MB - 4, color: NAVY });
   dt(page, footer, { x: ML, y: 18, size: 5.5, font: fonts.regular, color: rgb(0.65, 0.65, 0.65) });
 }
@@ -621,6 +621,38 @@ async function buildStrategyPage(
   return page;
 }
 
+/** Altura que uma opção de refeição ocupa (cabeçalho + tabela + respiro), igual ao desenho real. */
+function alturaOpcaoRefeicao(opcao: OpcaoRefeicao): number {
+  return 18 + 14 * (1 + opcao.itens.length) + 6 + 8;
+}
+
+/**
+ * Regra do CEO: opção de refeição nunca é cortada nem descartada. Se a opção inteira,
+ * mais 1 linha em branco, não cabe no que resta da página, ela vai inteira para uma
+ * página de continuação. Retorna os grupos de opções, um grupo por página.
+ */
+export function agruparOpcoesPorPagina(opcoes: OpcaoRefeicao[]): OpcaoRefeicao[][] {
+  const topoUtil = PAGE_H - 55 - 50;        // abaixo do cabeçalho da refeição
+  const topoContinuacao = PAGE_H - 55;      // continuação não repete o cabeçalho da refeição
+  const linhaEmBranco = 11;
+  const grupos: OpcaoRefeicao[][] = [];
+  let atual: OpcaoRefeicao[] = [];
+  let y = topoUtil;
+  for (const opcao of opcoes) {
+    const h = alturaOpcaoRefeicao(opcao);
+    const cabe = y - h - linhaEmBranco >= MB;
+    if (!cabe && atual.length > 0) {
+      grupos.push(atual);
+      atual = [];
+      y = topoContinuacao;
+    }
+    atual.push(opcao);
+    y -= h;
+  }
+  if (atual.length > 0 || grupos.length === 0) grupos.push(atual);
+  return grupos;
+}
+
 async function buildRefeicaoPage(
   pdfDoc: PDFDocument,
   fonts: Fonts,
@@ -628,24 +660,27 @@ async function buildRefeicaoPage(
   ref: RefeicaoPlano,
   pageNum: number,
   totalPages: number,
+  opcoes: OpcaoRefeicao[] = ref.opcoes,
+  continuacao = false,
 ): Promise<PDFPage> {
   const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
   drawPageHeader(page, fonts, "Plano Nutricional Personalizado", input.nomePaciente, pageNum, totalPages);
 
   let y = PAGE_H - 55;
 
-  // Header da refeição
-  page.drawRectangle({ x: ML, y: y - 38, width: CW, height: 40, color: NAVY });
-  dt(page, ref.nome, { x: ML + 8, y: y - 12, size: 12, font: fonts.bold, color: GOLD });
-  dt(page, ref.subtitulo, { x: ML + 8, y: y - 24, size: 8, font: fonts.regular, color: CREAM });
-  dt(page, `Horário sugerido: ${ref.horario}  ·  ${ref.faixaKcal}  ·  Proteína: ${ref.proteinaFaixa}`, {
-    x: ML + 8, y: y - 34, size: 6.5, font: fonts.regular, color: rgb(0.78, 0.78, 0.78)
-  });
-  y -= 50;
+  if (!continuacao) {
+    // Header da refeição
+    page.drawRectangle({ x: ML, y: y - 38, width: CW, height: 40, color: NAVY });
+    dt(page, ref.nome, { x: ML + 8, y: y - 12, size: 12, font: fonts.bold, color: GOLD });
+    dt(page, ref.subtitulo, { x: ML + 8, y: y - 24, size: 8, font: fonts.regular, color: CREAM });
+    dt(page, `Horário sugerido: ${ref.horario}  ·  ${ref.faixaKcal}  ·  Proteína: ${ref.proteinaFaixa}`, {
+      x: ML + 8, y: y - 34, size: 6.5, font: fonts.regular, color: rgb(0.78, 0.78, 0.78)
+    });
+    y -= 50;
+  }
 
-  // 3 opções
-  for (const opcao of ref.opcoes.slice(0, 3)) {
-    if (y < MB + 80) break;
+  // Opções desta página (cada uma inteira; o agrupamento já garante que cabem)
+  for (const opcao of opcoes) {
     y = drawOpcaoRefeicao(page, fonts, opcao, y);
     y -= 8;
   }
@@ -786,7 +821,8 @@ export async function gerarDietaPdf(input: DietaPdfInput, signal?: AbortSignal):
   const plano = await gerarConteudoPlano(input, signal);
 
   // 2. Calcular total de páginas
-  const totalPages = 2 + plano.refeicoes.length + 1; // capa + estratégia + 1/refeição + suplementação
+  const gruposPorRefeicao = plano.refeicoes.map((r) => agruparOpcoesPorPagina(r.opcoes));
+  const totalPages = 2 + gruposPorRefeicao.reduce((n, g) => n + g.length, 0) + 1; // capa + estratégia + páginas de refeição + suplementação
 
   // 3. Montar o documento
   const pdfDoc = await PDFDocument.create();
@@ -797,9 +833,9 @@ export async function gerarDietaPdf(input: DietaPdfInput, signal?: AbortSignal):
 
   // Metadata
   pdfDoc.setTitle(`Plano Nutricional — ${input.nomePaciente}`);
-  pdfDoc.setAuthor("PADAXOR Clinical Intelligence System");
+  pdfDoc.setAuthor("PaxMed Clinical Intelligence System");
   pdfDoc.setSubject("Plano Alimentar Personalizado");
-  pdfDoc.setCreator("PADAXOR · Instituto Pádua");
+  pdfDoc.setCreator("PaxMed · Instituto Pádua");
   pdfDoc.setLanguage("pt-BR");
 
   let pageNum = 1;
@@ -811,8 +847,11 @@ export async function gerarDietaPdf(input: DietaPdfInput, signal?: AbortSignal):
   await buildStrategyPage(pdfDoc, fonts, input, plano, pageNum++, totalPages);
 
   // Páginas 3-8: Refeições
-  for (const ref of plano.refeicoes) {
-    await buildRefeicaoPage(pdfDoc, fonts, input, ref, pageNum++, totalPages);
+  for (let ri = 0; ri < plano.refeicoes.length; ri++) {
+    const ref = plano.refeicoes[ri];
+    for (let gi = 0; gi < gruposPorRefeicao[ri].length; gi++) {
+      await buildRefeicaoPage(pdfDoc, fonts, input, ref, pageNum++, totalPages, gruposPorRefeicao[ri][gi], gi > 0);
+    }
   }
 
   // Última página: Suplementação + Monitoramento + Assinatura

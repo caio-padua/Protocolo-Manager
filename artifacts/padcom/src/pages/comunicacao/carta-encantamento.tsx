@@ -531,7 +531,7 @@ export default function CartaEncantamento() {
               {ass ? (
                 <div className="panel-3d-sub space-y-3 p-3">
                   <h4 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
-                    <Award className="h-3.5 w-3.5" /> Assinatura (marca PAXTER)
+                    <Award className="h-3.5 w-3.5" /> Assinatura (marca PaxMed)
                   </h4>
                   <CampoEditavel bloco={ass} campo="saudacao_fechamento" rotulo="Fechamento" onSaved={substituirBloco} />
                   <CampoEditavel bloco={ass} campo="nome" rotulo="Nome" onSaved={substituirBloco} />

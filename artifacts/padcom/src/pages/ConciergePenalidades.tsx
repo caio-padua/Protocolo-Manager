@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import {
   ShieldOff,
   RefreshCw,
@@ -279,7 +280,7 @@ export default function ConciergePenalidades() {
 
   // Carrega lista de clientes uma única vez
   useEffect(() => {
-    fetch(`${base}/api/clients?limit=5000`)
+    fetch(`${base}/api/clients?limit=5000`, { headers: collabAuthHeaders() })
       .then((r) => r.json())
       .then((d) => {
         const arr = Array.isArray(d) ? d : (d.clients ?? []);

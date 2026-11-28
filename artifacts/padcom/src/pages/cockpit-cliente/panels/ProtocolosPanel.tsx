@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatCivilDate } from "@/lib/civil-date";
 import {
   useListProtocols, useListSessions,
 } from "@workspace/api-client-react";
@@ -9,6 +9,8 @@ import { formatStatus, getStatusColor } from "@/lib/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import NovoProtocolo from "@/pages/protocols/new";
+import EmitidosEncaminhar from "@/components/encaminhamento/EmitidosEncaminhar";
 import {
   Activity, Plus, ChevronDown, ChevronRight,
   Calendar, Clock, ExternalLink,
@@ -17,12 +19,21 @@ import {
 const NAVY = "#16294a";
 const GOLD = "#9a7b32";
 
-interface Props { clientId: number; }
+interface Props {
+  clientId: number;
+  client: { id: number; name: string; cpf?: string | null };
+  novoAberto: boolean;
+  emAndamento: boolean;
+  onEmAndamento: (pending: boolean) => void;
+  onNovo: () => void;
+  onFechar: () => void;
+  onCriado: () => void;
+}
 
-export default function ProtocolosPanel({ clientId }: Props) {
+export default function ProtocolosPanel({ clientId, client, novoAberto, emAndamento, onEmAndamento, onNovo, onFechar, onCriado }: Props) {
   const [expanded, setExpanded] = useState<number | null>(null);
 
-  const { data: protocols, isLoading: loadingProtocols } = useListProtocols(
+  const { data: protocols, isLoading: loadingProtocols, isError: protocolsError, refetch: retryProtocols } = useListProtocols(
     { clientId },
     { query: { enabled: !!clientId, queryKey: ["protocols", clientId] } },
   );
@@ -31,6 +42,17 @@ export default function ProtocolosPanel({ clientId }: Props) {
     { clientId },
     { query: { enabled: !!clientId, queryKey: ["sessions", clientId] } },
   );
+
+  if (protocolsError && !emAndamento) {
+    return (
+      <div className="panel-3d p-6" role="alert">
+        <p>Não foi possível consultar os protocolos deste cliente. O cadastro está indisponível até confirmar o acesso.</p>
+        <Button className="btn-3d-soft mt-4" onClick={() => void retryProtocols()}>Tentar novamente</Button>
+      </div>
+    );
+  }
+
+  if (loadingProtocols) return <Skeleton className="h-28 rounded-lg panel-3d-sub" />;
 
   return (
     <div className="space-y-6">
@@ -45,7 +67,7 @@ export default function ProtocolosPanel({ clientId }: Props) {
             <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-1">{k.label}</div>
             <div
               className="text-3xl font-black tabular-nums"
-              style={{ color: k.color, fontFamily: "'EB Garamond', serif" }}
+              style={{ color: k.label === "Total" ? "hsl(var(--foreground))" : k.color, fontFamily: "'EB Garamond', serif" }}
             >
               {k.value}
             </div>
@@ -55,12 +77,21 @@ export default function ProtocolosPanel({ clientId }: Props) {
 
       {/* Novo protocolo */}
       <div className="flex justify-end">
-        <Link href={`/protocols/new?clientId=${clientId}`}>
-          <Button className="btn-3d">
+        {novoAberto ? (
+          <Button className="btn-3d-soft" onClick={onFechar} disabled={emAndamento}>FECHAR CADASTRO</Button>
+        ) : (
+          <Button className="btn-3d" onClick={onNovo}>
             <Plus className="w-4 h-4 mr-2" /> NOVO PROTOCOLO
           </Button>
-        </Link>
+        )}
       </div>
+
+      {novoAberto && (
+        <section className="panel-3d p-4 md:p-6" aria-label="Cadastro de protocolo">
+          <h2 className="mb-4 text-lg font-bold uppercase text-primary">Novo protocolo</h2>
+          <NovoProtocolo key={clientId} clientId={clientId} clientIdentity={client} embedded onCreated={onCriado} onBusyChange={onEmAndamento} />
+        </section>
+      )}
 
       {/* Lista com accordion */}
       {loadingProtocols ? (
@@ -92,7 +123,7 @@ export default function ProtocolosPanel({ clientId }: Props) {
                       <div className="flex items-center gap-3 mt-1 flex-wrap">
                         <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
-                          Início: {format(new Date(protocol.startDate), "dd/MM/yyyy")}
+                          Início: {formatCivilDate(protocol.startDate, "dd/MM/yyyy")}
                         </span>
                         <div className="screen-3d px-2 py-0.5 text-[10px] font-black tabular-nums">
                           {protocol.completedSessions} / {protocol.totalSessions} sessões
@@ -140,10 +171,10 @@ export default function ProtocolosPanel({ clientId }: Props) {
                             <div className="flex items-center gap-4">
                               <div className="concave-3d flex flex-col items-center justify-center w-12 h-12 shrink-0 border-none text-center">
                                 <span className="text-[9px] uppercase font-black text-muted-foreground/60 leading-none">
-                                  {format(new Date(session.scheduledDate), "MMM", { locale: ptBR })}
+                                  {formatCivilDate(session.scheduledDate, "MMM", { locale: ptBR })}
                                 </span>
                                 <span className="text-lg font-black text-primary leading-none tabular-nums">
-                                  {format(new Date(session.scheduledDate), "dd")}
+                                  {formatCivilDate(session.scheduledDate, "dd")}
                                 </span>
                               </div>
                               <div>
@@ -177,6 +208,8 @@ export default function ProtocolosPanel({ clientId }: Props) {
           })}
         </div>
       )}
+
+      <EmitidosEncaminhar clientId={clientId} tipos={["protocolo", "ras_fap", "carta_tratamento"]} titulo="Documentos de protocolo emitidos: encaminhar, baixar e guardar" />
     </div>
   );
 }

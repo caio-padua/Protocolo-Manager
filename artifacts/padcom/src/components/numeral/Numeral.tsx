@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════════
-   O MOSTRADOR — molde unico do numeral Paxter
+   O MOSTRADOR — molde unico do numeral PaxMed
    ------------------------------------------------------------------------------
    CONCEITO (proposto ao CEO em 13/08/2026):
    Numero nao e digito. Numero e uma EXPRESSAO com anatomia — simbolo de moeda,
@@ -116,6 +116,24 @@ function estiloCentavos(molde: Molde): CSSProperties {
   return { fontSize: "1em", fontWeight: "inherit", opacity: 0.82 };
 }
 
+/**
+ * Molde PLANILHA (pedido do CEO em 19/11/2026): numero de tabela que se le de relance.
+ * Inter (fonte operacional do sistema) com algarismos tabulares e alinhados a linha de
+ * base, aberturas abertas (ss01: 6 e 9 nao se fecham, 3 e 8 nao se confundem), peso 800.
+ * Simbolo pequeno na linha de base e centavos menores: o olho pousa no inteiro.
+ */
+const BASE_PLANILHA: CSSProperties = {
+  fontFamily: 'Inter, system-ui, sans-serif',
+  fontVariantNumeric: "tabular-nums lining-nums",
+  fontFeatureSettings: '"tnum" 1, "lnum" 1, "ss01" 1, "cv05" 1',
+  display: "inline-flex",
+  alignItems: "baseline",
+  whiteSpace: "nowrap",
+  letterSpacing: "-0.015em",
+};
+const SIMBOLO_PLANILHA: CSSProperties = { fontSize: "0.6em", fontWeight: 600, opacity: 0.7, letterSpacing: "0.02em" };
+const CENTAVOS_PLANILHA: CSSProperties = { fontSize: "0.7em", fontWeight: 700, opacity: 0.9, marginLeft: "0.04em" };
+
 /** Dado ausente nunca vira zero: mostra travessao e diz que esta indisponivel. */
 function Ausente({ className, style }: { className?: string; style?: CSSProperties }) {
   return (
@@ -148,6 +166,8 @@ type Comum = {
   /** peso do corpo principal. 800 e o maximo REAL do EB Garamond — nunca 900. */
   peso?: number;
   molde?: Molde;
+  /** numero de tabela: leitura de relance (ver BASE_PLANILHA). */
+  planilha?: boolean;
   className?: string;
   style?: CSSProperties;
 };
@@ -173,6 +193,7 @@ export function Valor({
   semCentavos = false,
   molde = "pleno",
   peso = 700,
+  planilha = false,
   className = "",
   style,
   cifrao,
@@ -190,14 +211,14 @@ export function Valor({
   const legivel = `${negativo ? "-" : ""}${moeda} ${inteiro}${semCentavos ? "" : `,${centavos}`}`;
 
   return (
-    <span className={className} aria-label={legivel} style={{ ...BASE, fontWeight: peso, ...style }}>
+    <span className={className} aria-label={legivel} style={{ ...(planilha ? BASE_PLANILHA : BASE), fontWeight: peso, ...style }}>
       {negativo && <span>&minus;</span>}
-      <span style={cifrao ? estiloCifrao(cifrao) : estiloSimbolo(molde)}>
+      <span style={planilha ? SIMBOLO_PLANILHA : cifrao ? estiloCifrao(cifrao) : estiloSimbolo(molde)}>
         {moeda}
         {ESPACO}
       </span>
       <span>{inteiro}</span>
-      {!semCentavos && <span style={estiloCentavos(molde)}>,{centavos}</span>}
+      {!semCentavos && <span style={planilha ? CENTAVOS_PLANILHA : estiloCentavos(molde)}>,{centavos}</span>}
     </span>
   );
 }
@@ -211,6 +232,7 @@ export function Percentual({
   casas = 1,
   molde = "pleno",
   peso = 700,
+  planilha = false,
   className = "",
   style,
 }: Comum & { valor: number | null | undefined; casas?: number }) {
@@ -220,10 +242,10 @@ export function Percentual({
   const legivel = `${inteiro}${decimal !== undefined ? `,${decimal}` : ""}%`;
 
   return (
-    <span className={className} aria-label={legivel} style={{ ...BASE, fontWeight: peso, ...style }}>
+    <span className={className} aria-label={legivel} style={{ ...(planilha ? BASE_PLANILHA : BASE), fontWeight: peso, ...style }}>
       <span>{inteiro}</span>
-      {decimal !== undefined && <span style={estiloCentavos(molde)}>,{decimal}</span>}
-      <span style={{ ...estiloSimbolo(molde), marginLeft: "0.06em" }}>%</span>
+      {decimal !== undefined && <span style={planilha ? CENTAVOS_PLANILHA : estiloCentavos(molde)}>,{decimal}</span>}
+      <span style={{ ...(planilha ? SIMBOLO_PLANILHA : estiloSimbolo(molde)), marginLeft: "0.06em" }}>%</span>
     </span>
   );
 }

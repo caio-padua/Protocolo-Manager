@@ -1,22 +1,24 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearch } from "wouter";
 import { useListSessions, useConfirmSubstanceApplication } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { collabAuthHeaders, getCollabToken } from "@/lib/collab-auth";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import {
   format, startOfWeek, endOfWeek, addWeeks, subWeeks,
   startOfMonth, endOfMonth, addMonths, subMonths,
-  addDays, subDays, isSameDay, isSameMonth, eachDayOfInterval,
+  addDays, subDays, isSameDay, isSameMonth, eachDayOfInterval, getISOWeek,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  ChevronLeft, ChevronRight, Clock, Home, Building2, User, MapPin, Stethoscope,
+  Clock, Home, Building2, User, MapPin, Stethoscope,
   CheckCircle2, Search, Download, CalendarPlus, Send, MoreHorizontal, Calendar,
   KeyRound, ShieldCheck, Copy, Loader2, Mail, MailCheck, ClipboardList,
-  LayoutGrid, List, Columns3,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -28,6 +30,16 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { NursingAssessmentForm } from "@/components/nursing-assessment-form";
 import { RescheduleDrawer } from "@/components/RescheduleDrawer";
+import { GoogleCommitments } from "./GoogleCommitments";
+import { GradeMesGoogle } from "./GradeMesGoogle";
+import { FiltroAgendas } from "./FiltroAgendas";
+import { BarraAgenda } from "./BarraAgenda";
+import { chaveDaSessao } from "./filtro-agendas";
+import { ConfirmacaoCliente } from "./ConfirmacaoCliente";
+import { useGoogleRefreshCycle } from "./agenda-integration-api";
+import { rotuloAtendimento, lerParametrosAgenda, agoraEmBrasilia, type VisaoAgenda } from "./timeline-logica";
+import { GradeTimeline, type SessaoLinha, type SelecaoDaGrade } from "./GradeTimeline";
+import { ConsultaAvulsaDialog, type PreencherConsulta } from "./ConsultaAvulsaDialog";
 
 type ViewMode = "dia" | "semana" | "mes";
 
@@ -51,7 +63,7 @@ function buildGoogleCalendarLink(session: {
   const startDt = `${dateStr}T${String(h).padStart(2, "0")}${String(m).padStart(2, "0")}00`;
   const endH = String(h + 1).padStart(2, "0");
   const endDt = `${dateStr}T${endH}${String(m).padStart(2, "0")}00`;
-  const title = encodeURIComponent(`PAXTER: ${session.clientName} — Semana ${session.weekNumber}`);
+  const title = encodeURIComponent(`PaxMed: ${session.clientName} — Semana ${session.weekNumber}`);
   const dispNames = session.substanceApplications
     .filter(a => a.availability === "disp")
     .map(a => `${a.substanceName} ${a.sessionNumber}/${a.totalSessions}`)
@@ -93,15 +105,7 @@ function MetaField({ label, value, icon: Icon, accent }: { label: string; value:
   );
 }
 
-function getProcedureLabel(session: any): string {
-  const apps = session.substanceApplications?.filter((a: any) => a.availability === "disp") ?? [];
-  if (apps.length === 0) return "Aplicação";
-  const types = new Set(apps.map((a: any) => a.procedureType ?? "iv"));
-  if (types.has("implant")) return "Implante";
-  if (types.has("im") && !types.has("iv")) return "Aplicação IM";
-  if (types.has("iv")) return "Aplicação EV";
-  return "Aplicação";
-}
+const getProcedureLabel = rotuloAtendimento;
 
 function getUnitLabel(session: any): string {
   if (session.serviceType === "homecare") return "Nurse Care Domiciliar";
@@ -140,17 +144,26 @@ function SessionCard({
   onSendPostEmail: (s: any) => void;
   onReschedule: (s: any) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  const [notAppliedCandidate, setNotAppliedCandidate] = useState<any>(null);
   const whatsappLink = buildWhatsAppLink(session);
   const dispApps = session.substanceApplications.filter((a: any) => a.availability === "disp");
-  const allConfirmed = dispApps.length > 0 && dispApps.every((a: any) => a.appliedAt);
-  const someConfirmed = dispApps.some((a: any) => a.appliedAt) && !allConfirmed;
+  const isApplied = (a: any) => a.displayState === "applied";
+  const isPending = (a: any) => a.displayState === "disp";
+  const allConfirmed = dispApps.length > 0 && dispApps.every(isApplied);
+  const someConfirmed = dispApps.some(isApplied) && !allConfirmed;
   const proxCount = session.substanceApplications.filter((a: any) => a.availability === "prox").length;
-  const confirmableCount = dispApps.filter((a: any) => !a.appliedAt).length;
+  const confirmableCount = dispApps.filter(isPending).length;
   const visibleApps = expanded ? session.substanceApplications : dispApps;
+  // K7: demais substâncias do protocolo ficam constantes na tela (a enfermagem responde "quais são as do protocolo").
+  const protocolSummary = (session as any).protocolSummary as
+    { visitCount: number; protocolCount: number; constants: any[] } | null | undefined;
+  const constantSubstances = protocolSummary?.constants ?? [];
 
   const statusBarColor =
-    session.status === "completed" ? "bg-green-500/80" :
+    session.status === "completed" && allConfirmed ? "bg-green-500/80" :
+    session.status === "completed" && someConfirmed ? "bg-amber-500/80" :
+    session.status === "completed" ? "bg-slate-400/80" :
     session.status === "missed" ? "bg-red-500/80" :
     session.status === "cancelled" ? "bg-slate-400/80" :
     someConfirmed ? "bg-amber-500/80" :
@@ -204,7 +217,7 @@ function SessionCard({
                   {session.status === "completed" && (
                     <DropdownMenuItem onClick={() => onSendPostEmail(session)} disabled={emailSending === session.id} className="gap-2 font-bold uppercase tracking-widest text-[10px]">
                       {emailSending === session.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailCheck className="h-4 w-4 text-green-500" />}
-                      E-mail Pós-Aplicação (RAS)
+                      E-mail Pós-Aplicação (RASP)
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
@@ -257,7 +270,7 @@ function SessionCard({
                 value={getProcedureLabel(session)}
                 accent
               />
-              <MetaField label="Protocolo" value={(session as any).protocolTitle ?? `Protocolo #${session.protocolId}`} />
+              <MetaField label="Protocolo" value={(session as any).protocolTitle ?? (session.protocolId == null ? "Consulta avulsa (sem protocolo)" : `Protocolo #${session.protocolId}`)} />
               <MetaField label="Profissional" value={session.professionalName} icon={User} />
               {(session as any).nurseName && (
                 <MetaField label="Enfermeira" value={(session as any).nurseName} icon={Stethoscope} />
@@ -279,8 +292,8 @@ function SessionCard({
                         checked={false}
                         disabled={confirmMutation.isPending}
                         onCheckedChange={() => {
-                          dispApps.filter((a: any) => !a.appliedAt).forEach((a: any) =>
-                            confirmMutation.mutate({ id: session.id, data: { substanceId: a.substanceId, confirmed: true } })
+                          dispApps.filter(isPending).forEach((a: any) =>
+                            confirmMutation.mutate({ id: session.id, data: { substanceId: a.substanceId, applicationId: a.id, confirmed: true } })
                           );
                         }}
                         aria-label="Marcar todas como aplicadas"
@@ -295,17 +308,26 @@ function SessionCard({
                     <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Substâncias</span>
                   )}
                 </div>
-                {proxCount > 0 && (
+                {(proxCount > 0 || constantSubstances.length > 0) && (
                   <button
                     type="button"
                     onClick={() => setExpanded(e => !e)}
                     className="btn-3d-soft flex items-center gap-1 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-primary"
                   >
                     <Search className="h-3 w-3" />
-                    {expanded ? "Só do dia" : `Ver todas (${session.substanceApplications.length})`}
+                    {expanded ? "Só do dia" : `Ver todas (${session.substanceApplications.length + constantSubstances.length})`}
                   </button>
                 )}
               </div>
+
+              {protocolSummary && (
+                <div
+                  className="px-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground"
+                  data-testid={`visit-substance-count-${session.id}`}
+                >
+                  Nesta visita: {protocolSummary.visitCount} de {protocolSummary.protocolCount} substâncias do protocolo
+                </div>
+              )}
 
               {visibleApps.length === 0 ? (
                 <div className="px-2 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50">
@@ -314,10 +336,13 @@ function SessionCard({
               ) : (
                 visibleApps.map((app: any) => {
                   const isDisp = app.availability === "disp";
+                  const applied = isApplied(app);
+                  const pending = isPending(app);
+                  const notApplied = app.displayState === "notPerformed";
                   return (
                     <div
                       key={app.id}
-                      className="bevel-3d grid grid-cols-[14px_minmax(0,1fr)_0.75rem_3rem_4.5rem_2rem] items-center gap-x-2 px-2.5 py-2"
+                      className="bevel-3d grid grid-cols-[14px_minmax(0,1fr)_0.75rem_3rem_4.5rem_5.5rem] items-center gap-x-2 px-2.5 py-2"
                     >
                       <span
                         className="h-3.5 w-3.5 rounded-[3px] ring-1 ring-black/15 shadow-inner shrink-0"
@@ -330,26 +355,37 @@ function SessionCard({
                       <span className="text-[11px] font-bold tabular-nums text-right text-muted-foreground/80">
                         {app.sessionNumber > 0 ? `${app.sessionNumber}/${app.totalSessions}` : "—"}
                       </span>
-                      {app.appliedAt ? (
+                      {applied ? (
                         <span className="text-[9px] font-black uppercase tracking-wider text-center text-green-600">Aplicada</span>
-                      ) : isDisp ? (
+                      ) : notApplied ? (
+                        <span className="text-[9px] font-black uppercase tracking-wider text-center text-red-700">Não aplicada</span>
+                      ) : isDisp && pending ? (
                         <span className="text-[9px] font-black uppercase tracking-wider text-center text-amber-600">A aplicar</span>
-                      ) : (
+                      ) : app.displayState === "prox" ? (
                         <span className="text-[9px] font-black uppercase tracking-wider text-center text-slate-400">Próxima</span>
+                      ) : app.displayState === "unavailable" ? (
+                        <span className="text-[9px] font-black uppercase tracking-wider text-center text-slate-400">Indisponível</span>
+                      ) : (
+                        <span className="text-[9px] font-black uppercase tracking-wider text-center text-red-700">Conferir</span>
                       )}
-                      {app.appliedAt ? (
+                      {applied ? (
                         <CheckCircle2 className="h-5 w-5 text-green-600 justify-self-center" />
-                      ) : isDisp && canConfirm ? (
-                        <Checkbox
-                          className="justify-self-center"
-                          checked={false}
-                          disabled={confirmMutation.isPending}
-                          aria-label={`Confirmar ${app.substanceName}`}
-                          onCheckedChange={() => confirmMutation.mutate({
-                            id: session.id,
-                            data: { substanceId: app.substanceId, confirmed: true },
-                          })}
-                        />
+                      ) : isDisp && pending && canConfirm ? (
+                        <div className="flex justify-center items-center gap-1">
+                          <Checkbox
+                            checked={false}
+                            disabled={confirmMutation.isPending}
+                            aria-label={`Confirmar ${app.substanceName}`}
+                            onCheckedChange={() => confirmMutation.mutate({
+                              id: session.id,
+                              data: { substanceId: app.substanceId, applicationId: app.id, confirmed: true },
+                            })}
+                          />
+                          <button type="button" className="btn-3d-soft px-1 py-1 text-[9px]"
+                            aria-label={`Registrar ${app.substanceName} não aplicada`}
+                            disabled={confirmMutation.isPending}
+                            onClick={() => setNotAppliedCandidate(app)}>Não aplicada</button>
+                        </div>
                       ) : (
                         <span className="justify-self-center" />
                       )}
@@ -357,10 +393,55 @@ function SessionCard({
                   );
                 })
               )}
+
+              {expanded && constantSubstances.map((c: any) => (
+                <div
+                  key={`constante-${c.substanceId}`}
+                  data-testid={`constant-substance-${session.id}-${c.substanceId}`}
+                  className="bevel-3d grid grid-cols-[14px_minmax(0,1fr)_0.75rem_3rem_4.5rem_5.5rem] items-center gap-x-2 px-2.5 py-2 opacity-60"
+                >
+                  <span
+                    className="h-3.5 w-3.5 rounded-[3px] ring-1 ring-black/15 shadow-inner shrink-0"
+                    style={{ backgroundColor: c.substanceColor || "#94a3b8" }}
+                  />
+                  <span className="min-w-0 truncate text-xs font-bold uppercase tracking-tight text-foreground">
+                    {c.substanceName}
+                  </span>
+                  <span className="justify-self-center h-7 w-px bg-foreground/15" />
+                  <span className="text-[11px] font-bold tabular-nums text-right text-muted-foreground/80">
+                    {`—/${c.totalSessions}`}
+                  </span>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-center text-slate-400">Não nesta visita</span>
+                  <span className="justify-self-center" />
+                </div>
+              ))}
+              {session.status !== "cancelled" && session.status !== "missed" && (
+                <ConfirmacaoCliente sessionId={session.id} enabled={Boolean(getCollabToken())} />
+              )}
             </div>
           </div>
         </CardContent>
       </div>
+      <AlertDialog open={!!notAppliedCandidate} onOpenChange={(open) => { if (!open) setNotAppliedCandidate(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Registrar aplicação não realizada?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {notAppliedCandidate?.substanceName} será registrada como não aplicada. Isso não registra falta do cliente.
+              Uma correção posterior exige um processo de retificação.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (notAppliedCandidate) confirmMutation.mutate({
+                id: session.id, data: { substanceId: notAppliedCandidate.substanceId,
+                  applicationId: notAppliedCandidate.id, confirmed: false },
+              });
+            }}>Registrar não aplicada</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
@@ -444,9 +525,20 @@ export default function Agenda() {
   const today = useMemo(() => new Date(), []);
 
   // ── ESTADO DE NAVEGAÇÃO ───────────────────────────────────────────────────
-  const [viewMode, setViewMode] = useState<ViewMode>("semana");
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // Links como /agenda?data=2026-11-12&modo=dia (vindos do Pit Stop) abrem direto no dia e na visão pedidos.
+  const search = useSearch();
+  const [viewMode, setViewMode] = useState<ViewMode>(() => lerParametrosAgenda(search).modo ?? "semana");
+  const [currentDate, setCurrentDate] = useState(() => lerParametrosAgenda(search).data ?? new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  // Dia e Semana abrem na linha do tempo; "Lista" mantém os cartões com todas as ações de antes.
+  const [visao, setVisao] = useState<VisaoAgenda>(() => lerParametrosAgenda(search).visao ?? "linha");
+  useEffect(() => {
+    const p = lerParametrosAgenda(search);
+    if (p.modo) setViewMode(p.modo);
+    if (p.data) setCurrentDate(p.data);
+    if (p.visao) setVisao(p.visao);
+    if (p.modo || p.data) setSelectedDay(null);
+  }, [search]);
 
   // ── MODAIS ────────────────────────────────────────────────────────────────
   const [codeModalOpen, setCodeModalOpen] = useState(false);
@@ -470,6 +562,17 @@ export default function Agenda() {
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [rescheduleSession, setRescheduleSession] = useState<any>(null);
 
+  // ── CONSULTA AVULSA (sem protocolo) ───────────────────────────────────────
+  const [avulsa, setAvulsa] = useState<PreencherConsulta | null>(null);
+  function novoAgendamento() {
+    // Botão: dia aberto na Agenda Diária, ou hoje (Brasília) nas outras visões. Horário e duração ficam editáveis.
+    const data = viewMode === "dia" ? format(currentDate, "yyyy-MM-dd") : agoraEmBrasilia(new Date()).data;
+    setAvulsa({ data, ini: null, fim: null });
+  }
+  function aoSelecionarNaGrade(sel: SelecaoDaGrade) {
+    setAvulsa({ data: sel.data, ini: sel.ini, fim: sel.fim });
+  }
+
   // ── RANGE DE DATAS POR MODO ───────────────────────────────────────────────
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
@@ -486,7 +589,13 @@ export default function Agenda() {
     viewMode === "semana" ? format(weekEnd, "yyyy-MM-dd") :
     format(monthEnd, "yyyy-MM-dd");
 
-  const { data: sessions, isLoading, refetch } = useListSessions({ dateFrom, dateTo });
+  const { data: sessoesDoPeriodo, isLoading, refetch } = useListSessions({ dateFrom, dateTo });
+  // Filtro único de agendas (Dia, Semana, Mês e Lista). Guarda o que foi DESMARCADO e NÃO é lembrado ao sair da tela:
+  // uma agenda escondida nunca fica escondida sem aviso (o painel mostra "N agendas ocultas").
+  const [ocultas, setOcultas] = useState<ReadonlySet<string>>(new Set());
+  const sessions = useMemo(
+    () => (sessoesDoPeriodo ? sessoesDoPeriodo.filter((s) => !ocultas.has(chaveDaSessao(s))) : sessoesDoPeriodo),
+    [sessoesDoPeriodo, ocultas]);
 
   // Mapa date-string → sessões (usado no modo Mês — sempre calculado, hooks não podem ser condicionais)
   const sessionsByDate = useMemo(() => {
@@ -501,7 +610,15 @@ export default function Agenda() {
 
   const confirmMutation = useConfirmSubstanceApplication({
     mutation: {
-      onSuccess: () => { toast({ title: "Substância confirmada!" }); refetch(); },
+      onSuccess: (response, variables) => {
+        toast({ title: variables.data.confirmed ? "Aplicação registrada" : "Aplicação registrada como não realizada" });
+        // O registro vale mesmo quando o Google Agenda não acompanhou; o aviso diz o que fazer.
+        const googleSyncWarning = (response as { googleSyncWarning?: string } | undefined)?.googleSyncWarning;
+        if (googleSyncWarning) {
+          toast({ title: "Google Agenda não atualizado", description: googleSyncWarning, variant: "destructive" });
+        }
+        refetch();
+      },
       onError: () => { toast({ title: "Erro ao confirmar", variant: "destructive" }); },
     },
   });
@@ -525,12 +642,22 @@ export default function Agenda() {
   }
 
   // ── LABEL DO PERÍODO ──────────────────────────────────────────────────────
+  const mesmoMes = weekStart.getMonth() === weekEnd.getMonth();
   const periodLabel =
     viewMode === "dia"
-      ? format(currentDate, "EEEE, dd 'de' MMM yyyy", { locale: ptBR })
+      ? format(currentDate, "EEE, dd 'de' MMM yyyy", { locale: ptBR }).replace(".", "")
       : viewMode === "semana"
-      ? `${format(weekStart, "dd 'de' MMM", { locale: ptBR })} — ${format(weekEnd, "dd 'de' MMM yyyy", { locale: ptBR })}`
+      ? `${format(weekStart, mesmoMes ? "dd" : "dd MMM", { locale: ptBR }).replace(".", "")} — ${format(weekEnd, "dd MMM yyyy", { locale: ptBR }).replace(".", "")}`
       : format(currentDate, "MMMM yyyy", { locale: ptBR });
+  // Linha pequena sob o período: diz ONDE o usuário está em relação a hoje, sem ele precisar contar datas.
+  const noPeriodoAtual =
+    viewMode === "dia" ? isSameDay(currentDate, today)
+    : viewMode === "semana" ? isSameDay(weekStart, startOfWeek(today, { weekStartsOn: 1 }))
+    : isSameMonth(currentDate, today);
+  const periodCaption =
+    viewMode === "dia" ? (noPeriodoAtual ? "Hoje" : format(currentDate, "EEEE", { locale: ptBR }))
+    : viewMode === "semana" ? (noPeriodoAtual ? "Esta semana" : `Semana ${getISOWeek(weekStart)}`)
+    : (noPeriodoAtual ? "Este mês" : "Mês");
 
   // ── AÇÕES ICS / EMAIL / CAL ───────────────────────────────────────────────
   function downloadWeekICS() {
@@ -588,26 +715,19 @@ export default function Agenda() {
   async function syncToGoogleCalendar(session: any) {
     setCalSyncing(session.id);
     try {
-      const res = await fetch(`/api/google-calendar/sync-session/${session.id}`, { method: "POST" });
+      const res = await fetch(`/api/google-calendar/sync-session/${session.id}`, { method: "POST", headers: collabAuthHeaders() });
       const data = await res.json();
-      if (res.ok && data.success) toast({ title: "Sincronizado!", description: `Sessão de ${session.clientName} adicionada ao Google Agenda.` });
+      if (res.ok && data.success) toast({ title: "Sincronizado!", description: `Sessão de ${session.clientName} sincronizada com o Google Agenda.` });
       else toast({ title: "Erro ao sincronizar", description: data.error, variant: "destructive" });
     } catch { toast({ title: "Erro de conexão", variant: "destructive" }); }
     finally { setCalSyncing(null); }
   }
 
-  async function syncPeriodToGoogleCalendar() {
-    setCalSyncing(-1);
-    try {
-      const res = await fetch("/api/google-calendar/sync-week", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dateFrom, dateTo }),
-      });
-      const data = await res.json();
-      if (res.ok) toast({ title: "Período sincronizado!", description: `${data.synced} sessões adicionadas ao Google Agenda.` });
-      else toast({ title: "Erro", description: data.error, variant: "destructive" });
-    } catch { toast({ title: "Erro de conexão", variant: "destructive" }); }
-    finally { setCalSyncing(null); }
+  // Leitura autenticada (somente leitura): pede ao servidor para reler o Google.
+  // Nao envia nada ao Google. O estado e acompanhado por consulta ate concluir.
+  const googleRefresh = useGoogleRefreshCycle();
+  function refreshFromGoogle() {
+    googleRefresh.start((msg) => toast({ title: "Atualização recusada", description: msg, variant: "destructive" }));
   }
 
   async function sendPreSessionEmail(session: any) {
@@ -626,11 +746,17 @@ export default function Agenda() {
     try {
       const res = await fetch(`/api/email/send-post-session/${session.id}`, { method: "POST" });
       const data = await res.json();
-      if (res.ok) toast({ title: "E-mail enviado!", description: `RAS pós-aplicação enviado para ${session.clientName}.` });
+      if (res.ok) toast({ title: "E-mail enviado!", description: `RASP pós-aplicação enviado para ${session.clientName}.` });
       else toast({ title: "Erro ao enviar e-mail", description: data.error, variant: "destructive" });
     } catch { toast({ title: "Erro de conexão", variant: "destructive" }); }
     finally { setEmailSending(null); }
   }
+
+  const usaLinhaDoTempo = viewMode !== "mes" && visao === "linha";
+  const diasDaLinha = useMemo(() => {
+    if (viewMode === "dia") return [new Date(`${dateFrom}T12:00:00`)];
+    return Array.from({ length: 7 }, (_, i) => addDays(new Date(`${dateFrom}T12:00:00`), i));
+  }, [viewMode, dateFrom]);
 
   const sharedCardProps = {
     confirmMutation,
@@ -652,65 +778,50 @@ export default function Agenda() {
   return (
     <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-      {/* ── CABEÇALHO ── */}
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-3xl font-black tracking-tight uppercase">Agenda</h1>
-          <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-1">
-            {viewMode === "dia" ? "Visão diária" : viewMode === "semana" ? "Uma visita consolidada por semana" : "Visão mensal — clique num dia para ver detalhes"}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Toggle Dia / Semana / Mês */}
-          <div className="concave-3d flex items-center p-0.5 gap-0.5">
-            {([
-              { id: "dia", label: "Dia", Icon: List },
-              { id: "semana", label: "Semana", Icon: Columns3 },
-              { id: "mes", label: "Mês", Icon: LayoutGrid },
-            ] as { id: ViewMode; label: string; Icon: any }[]).map(({ id, label, Icon }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => { setViewMode(id); setSelectedDay(null); }}
-                className={`${viewMode === id ? "bevel-3d text-primary" : "btn-3d-soft text-muted-foreground"} flex items-center gap-1.5 rounded-[4px] px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all`}
-              >
-                <Icon className="h-3.5 w-3.5" /> {label}
-              </button>
-            ))}
-          </div>
-
-          {/* Navegação prev / período / next */}
-          <div className="flex items-center gap-1 p-1 concave-3d">
-            <Button variant="ghost" size="sm" onClick={navPrev} className="h-8 w-8 p-0">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="bevel-3d px-3 py-1.5 text-[11px] font-black uppercase tracking-widest min-w-[200px] text-center capitalize">
-              {periodLabel}
-            </div>
-            <Button variant="ghost" size="sm" onClick={navNext} className="h-8 w-8 p-0">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <Button variant="outline" size="sm" onClick={goToday} className="btn-3d-soft h-9 px-3 uppercase tracking-widest text-[11px] font-bold">Hoje</Button>
-          <Button variant="outline" size="sm" onClick={downloadWeekICS} className="btn-3d-soft gap-2 h-9 px-3 uppercase tracking-widest text-[11px] font-bold" disabled={!sessions?.length}>
-            <Download className="h-3.5 w-3.5" /> ICS
-          </Button>
-          <Button variant="outline" size="sm" onClick={syncPeriodToGoogleCalendar} className="btn-3d gap-2 h-9 px-3 uppercase tracking-widest text-[11px] font-bold" disabled={!sessions?.length || calSyncing === -1}>
-            {calSyncing === -1 ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarPlus className="h-3.5 w-3.5" />}
-            Sync
-          </Button>
-        </div>
-      </div>
+      {/* ── BARRA CONGELADA: comandos + agendas (fica no topo ao rolar) ── */}
+      <BarraAgenda
+        modo={viewMode} aoMudarModo={(m) => { setViewMode(m); setSelectedDay(null); }}
+        visao={visao} aoMudarVisao={setVisao}
+        periodo={periodLabel} legenda={periodCaption} noPeriodoAtual={noPeriodoAtual}
+        aoAnterior={navPrev} aoProximo={navNext} aoHoje={goToday} aoNovo={novoAgendamento}
+        aoBaixarIcs={downloadWeekICS} icsDesligado={!sessions?.length}
+        aoAtualizarGoogle={refreshFromGoogle} googleAtualizando={googleRefresh.running}
+        filtro={(
+          <FiltroAgendas de={dateFrom} ate={dateTo} sessoes={(sessoesDoPeriodo ?? []) as unknown as Parameters<typeof FiltroAgendas>[0]["sessoes"]}
+            ocultas={ocultas} onChange={setOcultas} />
+        )}
+      />
 
       {/* ── CORPO ── */}
+      <ConsultaAvulsaDialog aberto={avulsa !== null} preencher={avulsa} onFechar={() => setAvulsa(null)} onMarcada={() => { refetch(); }} />
+      {!usaLinhaDoTempo && <GoogleCommitments de={dateFrom} ate={dateTo} ocultas={ocultas} />}
       {isLoading ? (
         <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-[6px]" />)}</div>
       ) : (
         <>
-          {/* ═══ MODO DIA ═══ */}
-          {viewMode === "dia" && (
+          {/* ═══ DIA e SEMANA: LINHA DO TEMPO (padrão) ═══ */}
+          {usaLinhaDoTempo && (
+            <GradeTimeline
+              modo={viewMode === "dia" ? "dia" : "semana"}
+              dias={diasDaLinha}
+              sessoes={(sessions ?? []) as unknown as SessaoLinha[]}
+              ocultas={ocultas}
+              onAbrirDia={(d) => { setCurrentDate(d); setViewMode("dia"); setSelectedDay(null); }}
+              onReagendar={sharedCardProps.onReschedule}
+              onSelecionar={aoSelecionarNaGrade}
+              renderCartao={(s) => (
+                <SessionCard
+                  session={s}
+                  isToday={isSameDay(new Date(`${s.scheduledDate}T12:00:00`), today)}
+                  canConfirm={s.status !== "completed" && s.status !== "cancelled" && s.status !== "missed"}
+                  {...sharedCardProps}
+                />
+              )}
+            />
+          )}
+
+          {/* ═══ MODO DIA (lista) ═══ */}
+          {viewMode === "dia" && !usaLinhaDoTempo && (
             <DaySessionList
               day={currentDate}
               sessions={sessions ?? []}
@@ -720,7 +831,7 @@ export default function Agenda() {
           )}
 
           {/* ═══ MODO SEMANA ═══ */}
-          {viewMode === "semana" && (() => {
+          {viewMode === "semana" && !usaLinhaDoTempo && (() => {
             const days = Array.from({ length: 7 }, (_, i) => {
               const d = new Date(weekStart);
               d.setDate(d.getDate() + i);
@@ -784,93 +895,20 @@ export default function Agenda() {
 
           {/* ═══ MODO MÊS ═══ */}
           {viewMode === "mes" && (() => {
-            // Gera grade: começa na segunda-feira da semana do 1º dia do mês
-            const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-            const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
-            const allDays = eachDayOfInterval({ start: gridStart, end: gridEnd });
-
             const activeDay = selectedDay ?? (isSameMonth(today, currentDate) ? today : null);
             const activeDayStr = activeDay ? format(activeDay, "yyyy-MM-dd") : null;
             const activeDaySessions = activeDayStr ? (sessionsByDate[activeDayStr] ?? []) : [];
 
-            const DAY_NAMES = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-
             return (
-              <div className="space-y-4">
-                {/* Grade do calendário */}
-                <div className="panel-3d rounded-[6px] overflow-hidden">
-                  {/* Cabeçalho de dias */}
-                  <div className="grid grid-cols-7 border-b border-muted/20">
-                    {DAY_NAMES.map(d => (
-                      <div key={d} className="py-2 text-center text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
-                        {d}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Células do mês */}
-                  <div className="grid grid-cols-7">
-                    {allDays.map((day, idx) => {
-                      const dayStr = format(day, "yyyy-MM-dd");
-                      const daySessions = sessionsByDate[dayStr] ?? [];
-                      const isCurrentMonth = isSameMonth(day, currentDate);
-                      const isDayToday = isSameDay(day, today);
-                      const isSelected = activeDay ? isSameDay(day, activeDay) : false;
-                      const hasSessions = daySessions.length > 0;
-
-                      // dots por status (máx 4 visíveis)
-                      const dots = daySessions.slice(0, 4);
-
-                      return (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setSelectedDay(isSameDay(day, activeDay ?? new Date(0)) ? null : day)}
-                          className={[
-                            "relative flex flex-col items-center py-2 px-1 min-h-[68px] transition-all border-b border-r border-muted/10 last:border-r-0",
-                            !isCurrentMonth ? "opacity-30" : "",
-                            isSelected ? "concave-3d" : hasSessions ? "hover:bg-accent/5 cursor-pointer" : "cursor-default",
-                            isDayToday ? "ring-inset ring-1 ring-accent/60" : "",
-                          ].join(" ")}
-                        >
-                          {/* Número do dia */}
-                          <span className={[
-                            "text-[13px] font-black tabular-nums leading-none mb-1",
-                            isDayToday ? "text-accent" : isSelected ? "text-primary" : isCurrentMonth ? "text-foreground" : "text-muted-foreground",
-                          ].join(" ")}>
-                            {format(day, "d")}
-                          </span>
-
-                          {/* Dots de sessão */}
-                          {hasSessions && (
-                            <div className="flex flex-wrap justify-center gap-[3px] mt-0.5">
-                              {dots.map((s, i) => (
-                                <span
-                                  key={i}
-                                  className="h-1.5 w-1.5 rounded-full"
-                                  style={{ backgroundColor: STATUS_DOT_COLOR[s.status] ?? "#45B8CC" }}
-                                />
-                              ))}
-                              {daySessions.length > 4 && (
-                                <span className="text-[8px] font-black text-muted-foreground leading-none mt-px">
-                                  +{daySessions.length - 4}
-                                </span>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Contagem total */}
-                          {hasSessions && (
-                            <span className="absolute bottom-1 right-1.5 text-[9px] font-black tabular-nums text-muted-foreground/50">
-                              {daySessions.length}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
+              <GradeMesGoogle
+                currentDate={currentDate}
+                today={today}
+                sessionsByDate={sessionsByDate}
+                selectedDay={selectedDay}
+                onSelectDay={setSelectedDay}
+                statusColor={STATUS_DOT_COLOR}
+                ocultas={ocultas}
+              >
                 {/* Legenda de cores */}
                 <div className="flex items-center gap-4 flex-wrap px-1">
                   {Object.entries(STATUS_DOT_COLOR).map(([status, color]) => (
@@ -931,7 +969,7 @@ export default function Agenda() {
                     Clique em um dia para ver os atendimentos
                   </p>
                 )}
-              </div>
+              </GradeMesGoogle>
             );
           })()}
 
@@ -986,7 +1024,7 @@ export default function Agenda() {
                     if (!phone) { toast({ title: "Cliente sem telefone", variant: "destructive" }); return; }
                     const dateStr = codeModalSession?.scheduledDate ? format(new Date(codeModalSession.scheduledDate + "T12:00:00"), "dd/MM/yyyy") : "";
                     const proc = getProcedureLabel(codeModalSession);
-                    const msg = encodeURIComponent(`PAXTER | ${proc} | ${generatedCode}\n\nOlá ${codeModalSession?.clientName?.split(" ")[0]}!\n\nSeu código de validação para a sessão de ${dateStr} é:\n\n🔑 *${generatedCode}*\n\nApresente este código à enfermeira no momento da aplicação.`);
+                    const msg = encodeURIComponent(`PaxMed | ${proc} | ${generatedCode}\n\nOlá ${codeModalSession?.clientName?.split(" ")[0]}!\n\nSeu código de validação para a sessão de ${dateStr} é:\n\n🔑 *${generatedCode}*\n\nApresente este código à enfermeira no momento da aplicação.`);
                     window.open(`https://wa.me/55${phone}?text=${msg}`, "_blank");
                   }}
                 >

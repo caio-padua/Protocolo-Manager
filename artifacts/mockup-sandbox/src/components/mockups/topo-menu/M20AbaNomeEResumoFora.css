@@ -1,0 +1,5 @@
+/* Aba plana, peca unica. Nome em marfim liso (sem degrade, sem sombra); resumo fora da aba, em azul-ardosia sobre o creme. */
+.m20-wrap { position: absolute; left: 0; top: 5px; }
+.m20-svg { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.m20-nome { position: relative; padding: 7px 20px 8px 18px; white-space: nowrap; font-family: "EB Garamond", Georgia, serif; font-weight: 800; font-size: 15px; line-height: 1; letter-spacing: .02em; color: #e8edf5; }
+.m20-resumo { position: absolute; top: 2px; white-space: nowrap; font-family: "EB Garamond", Georgia, serif; font-style: italic; font-weight: 500; font-size: 13px; line-height: 1.2; letter-spacing: .01em; color: #4d5f80; padding-top: 5px; }

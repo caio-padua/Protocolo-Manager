@@ -23,4 +23,17 @@ Fluxo de status do documento de exame:
 - Default SEGURO = `true` (ausente => true). LIGADO: Evolução só mostra docs `conferido` (C2). DESLIGADO: mostra `recebido|conferido_1|conferido` (inclui lidos só pela IA).
 - Afeta SÓ a Evolução, não a Mesa de Validação.
 
-**Why / armadilha:** as rotas `/settings/*` exigem `requireCollaborator`. Fetch cru do frontend NÃO herda o token dos hooks gerados (setAuthTokenGetter só cabeia o api-client). Tem de mandar `Authorization: Bearer ${getCollabToken()}` manualmente, senão 401 silencioso e o toggle "não salva". Rotas de `/exames-lab/*` e `/professionals` seguem sem auth (padrão single-tenant do app).
+**Visibilidade preliminar no portal (decisão do produto):**
+- É um interruptor separado, por clínica, com padrão desligado; nunca reaproveitar ou acoplar ao toggle global de conferência humana.
+- Se ligado, o portal pode mostrar IA/C1 apenas com identidade e vínculo confirmados; sinalizar como preliminar e não usar esses valores para faixa, tendência, gráfico, prescrição ou relatório final.
+- A decisão não altera status de conferência nem autoriza emissão ou download clínico definitivo.
+
+**Why:** o cliente pode precisar conferir um upload antes da conclusão clínica, mas visualizar um resultado extraído não equivale a validação médica.
+
+**How to apply:** qualquer mudança na evolução do portal deve preservar o caminho C2 atual, a separação por clínica e a proibição de transformar preliminares em dados clínicos definitivos.
+
+**Armadilha histórica:** uma requisição direta do navegador não herda automaticamente a autenticação dos clientes gerados.
+
+**Why:** autorização de uma requisição depende da sessão enviada, não do acesso visual à página.
+
+**How to apply:** reutilizar o mecanismo de autenticação apropriado ao consumidor e verificar a autorização atual da rota, sem presumir acesso público por comportamento histórico.

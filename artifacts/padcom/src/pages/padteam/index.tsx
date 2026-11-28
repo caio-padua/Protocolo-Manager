@@ -30,6 +30,7 @@ interface Demanda {
   client_nome?: string;
   prazo_em?: string;
   criado_em: string;
+  trello_card_id?: string | null;
 }
 
 interface Member {
@@ -766,9 +767,9 @@ function AbaHierarquia() {
 
 function AbaGovernanca() {
   const [subAba, setSubAba] = useState<"sla"|"justificativas"|"escalamentos"|"disciplinar">("sla");
-  const [slas, setSlas] = useState<Record<string, unknown>[]>([]);
+  const [slas, setSlas] = useState<Demanda[]>([]);
   const [justs, setJusts] = useState<Record<string, unknown>[]>([]);
-  const [escalamentos, setEscalamentos] = useState<Record<string, unknown>[]>([]);
+  const [escalamentos, setEscalamentos] = useState<Demanda[]>([]);
   const [disciplinar, setDisciplinar] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -816,8 +817,8 @@ function AbaGovernanca() {
       {!loading && subAba === "sla" && (
         <div className="space-y-2">
           <div className="text-xs text-muted-foreground">Demandas abertas ordenadas por prazo — semáforo indica urgência.</div>
-          {(slas as Demanda[]).length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Nenhuma demanda aberta com SLA ativo.</p>}
-          {(slas as Demanda[]).map(d => (
+          {slas.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Nenhuma demanda aberta com SLA ativo.</p>}
+          {slas.map(d => (
             <div key={d.id} className="flex items-center gap-3 rounded-[6px] border border-border bg-card px-3 py-2">
               <div className={`w-3 h-3 rounded-full shrink-0 ${semaforo(d).split(" ")[0]}`} />
               <div className="flex-1 min-w-0">
@@ -841,8 +842,8 @@ function AbaGovernanca() {
       {!loading && subAba === "escalamentos" && (
         <div className="space-y-2">
           <div className="text-xs text-muted-foreground">Demandas escaladas — requerem atenção do gestor.</div>
-          {(escalamentos as Demanda[]).length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Nenhuma demanda escalada no momento.</p>}
-          {(escalamentos as Demanda[]).map(d => (
+          {escalamentos.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Nenhuma demanda escalada no momento.</p>}
+          {escalamentos.map(d => (
             <div key={d.id} className="flex items-center gap-3 rounded-[6px] border border-red-500/30 bg-red-500/5 px-3 py-2">
               <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
               <div className="flex-1 min-w-0">

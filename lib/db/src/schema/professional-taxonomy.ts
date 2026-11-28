@@ -1,4 +1,6 @@
-import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, primaryKey } from "drizzle-orm/pg-core";
+import { professionalsTable } from "./professionals";
+import { empresasTable } from "./empresas";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -42,3 +44,36 @@ export type InsertProfessionalArea = z.infer<typeof insertProfessionalAreaSchema
 export type InsertProfessionalSpecialty = z.infer<typeof insertProfessionalSpecialtySchema>;
 export type ProfessionalArea = typeof professionalAreasTable.$inferSelect;
 export type ProfessionalSpecialty = typeof professionalSpecialtiesTable.$inferSelect;
+
+export const professionalWorkAreasTable = pgTable("professional_work_areas", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  active: boolean("active").notNull().default(true),
+  createdBy: integer("created_by").notNull().references(() => professionalsTable.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const professionalWorkAreaLinksTable = pgTable("professional_work_area_links", {
+  empresaId: integer("empresa_id").notNull().references(() => empresasTable.id),
+  professionalId: integer("professional_id").notNull().references(() => professionalsTable.id),
+  workAreaId: integer("work_area_id").notNull().references(() => professionalWorkAreasTable.id),
+  active: boolean("active").notNull().default(true),
+}, (t) => [primaryKey({ columns: [t.empresaId, t.professionalId, t.workAreaId] })]);
+
+export const professionalWorkAreaHistoryTable = pgTable("professional_work_area_history", {
+  id: serial("id").primaryKey(),
+  empresaId: integer("empresa_id").notNull().references(() => empresasTable.id),
+  professionalId: integer("professional_id").notNull().references(() => professionalsTable.id),
+  workAreaId: integer("work_area_id").notNull().references(() => professionalWorkAreasTable.id),
+  actorId: integer("actor_id").notNull().references(() => professionalsTable.id),
+  active: boolean("active").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const professionalCategoryHistoryTable = pgTable("professional_category_history", {
+  id: serial("id").primaryKey(),
+  categoryId: integer("category_id").notNull().references(() => professionalAreasTable.id),
+  actorId: integer("actor_id").notNull().references(() => professionalsTable.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

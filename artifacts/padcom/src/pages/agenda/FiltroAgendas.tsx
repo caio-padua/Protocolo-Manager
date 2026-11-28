@@ -1,0 +1,282 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, Eye, EyeOff, Lock, Minus, Plus } from "lucide-react";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { useGetAgendaOcupacao, useListAgendaResources } from "@workspace/api-client-react";
+import { agendaResourcesFrescas } from "@/lib/agenda-propagacao";
+import { rotuloDaForma } from "@/lib/agenda-forma";
+import { useGoogleCompromissos } from "./useGoogleCompromissos";
+import { Percentual } from "@/components/numeral/Numeral";
+import { corSegura } from "./timeline-logica";
+import {
+  alternarAgenda, contagem, alternarGrupo, mostrarTodas, montarGrupos, ocultarTodas, nomeCurtoDaAgenda, quantasOcultas, rotuloDaEquipe, soEstaAgenda, todasAsChaves,
+  type AgendaDoFiltro,
+} from "./filtro-agendas";
+
+/**
+ * Filtro de agendas da Agenda Diária: UMA barra contínua de agendas (clique liga/desliga, dois cliques = só esta) com + e − na
+ * ponta que abrem/fecham o painel completo, agrupado por categoria, com "só esta", grupos recolhíveis e a mesma escolha
+ * valendo para Dia, Semana, Mês e Lista, para as sessões do sistema e para os compromissos do Google.
+ * As agendas vêm da Agenda Configuração (mesma fonte das outras telas): criar, renomear ou desligar lá muda aqui.
+ */
+/** Quanto tempo a nuvenzinha fica antes de esvanecer (2 s: o CEO achou 3,5 s demais; só segue na tela enquanto ele mexe o mouse). */
+const DICA_FICA_MS = 2000;
+
+export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
+  de: string; ate: string;
+  sessoes: { resourceId?: number | null; agendaNome?: string | null; agendaCor?: string | null }[];
+  ocultas: ReadonlySet<string>;
+  onChange: (proximas: ReadonlySet<string>) => void;
+}) {
+  const recursos = useListAgendaResources(agendaResourcesFrescas);
+  const google = useGoogleCompromissos(de, ate);
+  const ocupacao = useGetAgendaOcupacao({ de, ate });
+  const refazerOcupacao = ocupacao.refetch;
+  // Marcar, remarcar ou cancelar muda a lista de atendimentos do período: a barrinha acompanha.
+  useEffect(() => { void refazerOcupacao(); }, [sessoes.length, refazerOcupacao]);
+  const ocupacaoPorChave = useMemo(() => new Map((ocupacao.data ?? []).map((o) => [`r${o.resourceId}`, o])), [ocupacao.data]);
+  const [recolhidos, setRecolhidos] = useState<ReadonlySet<string>>(new Set());
+  // Nuvenzinha: abre quase na hora, fica ~3,5 s e esvanece; mexer o mouse de novo faz aparecer de novo.
+  const [dicaAberta, setDicaAberta] = useState<string | null>(null);
+  const tEntrar = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const tSair = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const limparTempos = () => { clearTimeout(tEntrar.current); clearTimeout(tSair.current); };
+  const mostrarDica = useCallback((chave: string, atraso: number) => {
+    clearTimeout(tEntrar.current);
+    tEntrar.current = setTimeout(() => {
+      setDicaAberta(chave);
+      clearTimeout(tSair.current);
+      tSair.current = setTimeout(() => setDicaAberta(null), DICA_FICA_MS);
+    }, atraso);
+  }, []);
+  // Sair do botão NÃO fecha a nuvenzinha: ela segue o próprio tempo e esvanece. Só cancela uma abertura que ainda não aconteceu.
+  const cancelarAbertura = useCallback(() => { clearTimeout(tEntrar.current); }, []);
+  useEffect(() => limparTempos, []);
+  const [painelAberto, setPainelAberto] = useState(false); // nasce como barra estreita (tela e celular); o + abre o painel por grupo
+
+  const grupos = useMemo(() => montarGrupos({
+    agendas: (recursos.data ?? []).map((r) => ({
+      id: r.id, name: r.name, displayName: r.displayName, color: r.color, modality: r.modality, categoryName: r.categoryName, professionalName: r.professionalName, slotMinutes: r.slotMinutes, externalAddressText: r.externalAddressText, locationAddressText: r.locationAddressText, active: r.active,
+    })),
+    sessoes,
+    calendarios: google.data?.agendas ?? [],
+    compromissos: google.data?.eventos ?? [],
+  }), [recursos.data, sessoes, google.data]);
+  const todas = useMemo(() => todasAsChaves(grupos), [grupos]);
+  const nOcultas = quantasOcultas(ocultas, todas);
+
+  const alternarRecolhido = (categoria: string) => setRecolhidos((s) => {
+    const n = new Set(s);
+    if (n.has(categoria)) n.delete(categoria); else n.add(categoria);
+    return n;
+  });
+
+  return (
+    <section className="space-y-1.5" data-testid="filtro-agendas" aria-label="Filtro de agendas"
+      onKeyDown={(e) => { if (e.key === "Escape" && painelAberto) setPainelAberto(false); }}>
+      <div className="ag-faixa">
+        {painelAberto ? (
+          <p className="concave-3d flex min-h-9 min-w-0 flex-1 items-center px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+            Agendas exibidas · escolha abaixo
+          </p>
+        ) : (
+          <div className="ag-trilho concave-3d" role="group" aria-label="Agendas exibidas" data-testid="agendas-faixa">
+            {grupos.map((g) => (
+              <div key={g.categoria} className="ag-grupo-faixa" role="presentation">
+                {g.agendas.map((a) => {
+                  const marcada = !ocultas.has(a.chave);
+                  const soEsta = marcada && todas.filter((c) => c !== a.chave).every((c) => ocultas.has(c));
+                  const detalhe = [a.forma ? rotuloDaForma(a.forma) : null, `${a.sessoes} atend.`, a.google > 0 ? `${a.google} Google` : a.somenteGoogle ? "Google" : null]
+                    .filter(Boolean).join(" · ");
+                  const o = ocupacaoPorChave.get(a.chave);
+                  return (
+                    <div key={a.chave} className="ag-cel" style={{ ["--ev" as string]: corSegura(a.cor) }}>
+                      <HoverCard open={dicaAberta === a.chave}>
+                        <HoverCardTrigger asChild>
+                          <button type="button" role="checkbox" aria-checked={marcada} data-testid={`chip-agenda-${a.chave}`}
+                            onPointerEnter={() => mostrarDica(a.chave, 40)}
+                            onPointerMove={() => { if (dicaAberta !== a.chave) mostrarDica(a.chave, 40); }}
+                            onPointerLeave={cancelarAbertura}
+                            onClick={() => onChange(alternarAgenda(ocultas, a.chave))}
+                            onDoubleClick={() => onChange(soEsta ? mostrarTodas() : soEstaAgenda(ocultas, a.chave, todas))}
+                            className={`${marcada ? "bevel-3d" : "concave-3d"} ag-chip`}>
+                            <span className="ag-chip-equipe">{rotuloDaEquipe(g.categoria)}</span>
+                            <span className="ag-chip-nome">
+                              {a.somenteGoogle && <Lock className="ag-chip-cad" aria-label="Somente leitura (Google)" />}
+                              <span className="ag-chip-nome-txt">{a.apelido || nomeCurtoDaAgenda(a.nome, g.categoria)}</span>
+                            </span>
+                            <OcupacaoDaAgenda o={a.somenteGoogle ? undefined : o} carregando={ocupacao.isLoading} falhou={ocupacao.isError} somenteGoogle={a.somenteGoogle} chave={a.chave} />
+                            <span className="ag-vidro" aria-hidden />
+                          </button>
+                        </HoverCardTrigger>
+                        {/* Nuvenzinha pequena e translúcida, no canto inferior direito do botão: não cobre as outras agendas nem captura o mouse. */}
+                        <HoverCardContent side="bottom" align="end" sideOffset={14} collisionPadding={8} avoidCollisions={false}
+                          className="ag-dica" style={{ ["--ev" as string]: corSegura(a.cor) }} data-testid={`dica-agenda-${a.chave}`}>
+                          {/* Sem título: o botão já diz a profissão e a agenda. Duas colunas; o endereço ocupa a linha de baixo inteira. */}
+                          <dl className="ag-dica-lista">
+                            <div><dt>Atendimentos</dt><dd data-testid={`dica-qtd-${a.chave}`}>
+                              {a.somenteGoogle ? contagem(a.google, ["compromisso do Google", "compromissos do Google"])
+                                : `${contagem(a.sessoes)}${a.google > 0 ? ` · ${a.google} Google` : ""}`}
+                            </dd></div>
+                            {!a.somenteGoogle && (
+                              <div><dt>Ocupação</dt><dd data-testid={`dica-ocup-${a.chave}`}>{textoOcupacao(o)}</dd></div>
+                            )}
+                            {a.minutos != null && <div><dt>Tempo</dt><dd data-testid={`dica-tempo-${a.chave}`}>{a.minutos} min</dd></div>}
+                            <div><dt>Profissional</dt><dd>{a.somenteGoogle ? "Somente leitura" : a.profissional ?? "Compartilhada"}</dd></div>
+                            {a.endereco && <div className="ag-dica-largo"><dt>Endereço</dt><dd className="ag-dica-endereco" data-testid={`dica-endereco-${a.chave}`}>{a.endereco}</dd></div>}
+                          </dl>
+                        </HoverCardContent>
+                      </HoverCard>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+            {grupos.length === 0 && <span className="px-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Nenhuma agenda encontrada</span>}
+          </div>
+        )}
+        <div className="ag-ponta">
+          {/* Sem contador "N de N" e sem aviso de agendas ocultas aqui (decisão do CEO): o botão apagado já mostra o que está desligado; "Mostrar todas" fica no painel do +. */}
+          <button type="button" aria-expanded={painelAberto} onClick={() => setPainelAberto((v) => !v)} data-testid="filtro-agendas-recolher"
+            aria-label={painelAberto ? "Minimizar agendas" : "Maximizar agendas"} title={painelAberto ? "Minimizar: voltar para a barra" : "Maximizar: ver agendas por grupo, com “Só esta”"}
+            className="ag-maxmin bevel-3d">
+            {painelAberto ? <Minus className="h-4 w-4" aria-hidden /> : <Plus className="h-4 w-4" aria-hidden />}
+          </button>
+        </div>
+
+        {painelAberto && (
+          <div className="ag-gaveta panel-3d-sub space-y-2 p-3" data-testid="filtro-agendas-gaveta">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <p className="mr-auto text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Dica: na barra, dois cliques numa agenda mostram só ela.</p>
+              <button type="button" onClick={() => onChange(mostrarTodas())} disabled={nOcultas === 0}
+                className="btn-3d-soft flex min-h-9 items-center gap-1.5 px-3 text-[10px] font-black uppercase tracking-widest disabled:opacity-50" data-testid="filtro-mostrar-todas">
+                <Eye className="h-3.5 w-3.5" aria-hidden />Mostrar todas
+              </button>
+              <button type="button" onClick={() => onChange(ocultarTodas(todas))} disabled={todas.length === 0 || nOcultas === todas.length}
+                className="btn-3d-soft flex min-h-9 items-center gap-1.5 px-3 text-[10px] font-black uppercase tracking-widest disabled:opacity-50" data-testid="filtro-limpar">
+                <EyeOff className="h-3.5 w-3.5" aria-hidden />Limpar seleção
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {grupos.map((g) => {
+                const chaves = g.agendas.map((a) => a.chave);
+                const visiveis = chaves.filter((c) => !ocultas.has(c)).length;
+                const estado: boolean | "mixed" = visiveis === chaves.length ? true : visiveis === 0 ? false : "mixed";
+                const recolhido = recolhidos.has(g.categoria);
+                return (
+                  <div key={g.categoria} className="concave-3d space-y-1 p-2" role="group" aria-label={`Agendas de ${g.categoria}`} data-testid={`grupo-${g.categoria}`}>
+                    <div className="flex items-center gap-1.5">
+                      <button type="button" role="checkbox" aria-checked={estado} onClick={() => onChange(alternarGrupo(ocultas, chaves))}
+                        aria-label={`Marcar ou desmarcar todas as agendas de ${g.categoria}`}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center" data-testid={`grupo-marcar-${g.categoria}`}>
+                        <Caixa estado={estado} cor="#64748b" />
+                      </button>
+                      <button type="button" aria-expanded={!recolhido} onClick={() => alternarRecolhido(g.categoria)}
+                        className="flex min-h-8 min-w-0 flex-1 items-center gap-1.5 text-left text-[10px] font-black uppercase tracking-widest" data-testid={`grupo-recolher-${g.categoria}`}>
+                        <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${recolhido ? "-rotate-90" : ""}`} aria-hidden />
+                        <span className="truncate">{g.categoria}</span>
+                        <span className="ml-auto tabular-nums text-muted-foreground">{visiveis}/{chaves.length}</span>
+                      </button>
+                    </div>
+                    {!recolhido && (
+                      <ul className="space-y-1">
+                        {g.agendas.map((a) => (
+                          <LinhaAgenda key={a.chave} a={a} marcada={!ocultas.has(a.chave)}
+                            soEsta={!ocultas.has(a.chave) && todas.filter((c) => c !== a.chave).every((c) => ocultas.has(c))}
+                            onAlternar={() => onChange(alternarAgenda(ocultas, a.chave))}
+                            onSoEsta={() => onChange(soEstaAgenda(ocultas, a.chave, todas))} />
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {recursos.isError && (
+        <p role="alert" className="concave-3d px-3 py-1.5 text-[11px] font-bold text-amber-700">
+          Não foi possível consultar as agendas cadastradas agora: só aparecem as que têm atendimento ou compromisso no período.
+        </p>
+      )}
+      {google.isError && (
+        <p role="alert" className="concave-3d px-3 py-1.5 text-[11px] font-bold text-amber-700">Google indisponível agora: os números do Google não estão atualizados.</p>
+      )}
+      {nOcultas === todas.length && todas.length > 0 && (
+        <p role="status" className="concave-3d px-3 py-1.5 text-[11px] font-bold text-muted-foreground" data-testid="filtro-nenhuma">
+          Nenhuma agenda selecionada: a grade fica vazia. Marque uma agenda ou use “Mostrar todas”.
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** Texto da linha "Ocupação" da nuvenzinha. Sem a porcentagem: ela já está no botão. */
+function textoOcupacao(o?: { capacidade: number; ocupadas: number }): string {
+  if (!o) return "Indisponível agora";
+  if (o.capacidade === 0) return "Sem vagas previstas";
+  return `${o.ocupadas} de ${o.capacidade} vagas`;
+}
+
+/** Canto direito do botão da agenda: porcentagem de ocupação (vagas ocupadas / vagas previstas no período) e a sigla "OCUP" embaixo. */
+function OcupacaoDaAgenda({ o, carregando, falhou, somenteGoogle, chave }: {
+  o?: { capacidade: number; ocupadas: number }; carregando: boolean; falhou: boolean; somenteGoogle: boolean; chave: string;
+}) {
+  // Sem vagas previstas = 0% (pedido do CEO). Ocupadas nunca passa da capacidade (cálculo do servidor), então 0 vagas = 0 ocupadas de verdade.
+  const sem = !o || o.capacidade === 0;
+  const pct = o ? (o.capacidade > 0 ? Math.round((o.ocupadas / o.capacidade) * 100) : 0) : null;
+  const estado = somenteGoogle ? "somente-leitura" : carregando ? "carregando" : falhou ? "indisponivel" : sem ? "sem-vagas" : pct! >= 100 ? "cheia" : "ok";
+  const dica = {
+    "somente-leitura": "Somente leitura (Google): sem vagas do sistema",
+    carregando: "Calculando a ocupação…",
+    indisponivel: "Ocupação indisponível agora",
+    "sem-vagas": "Sem vagas previstas no período exibido",
+    cheia: `${o?.ocupadas} de ${o?.capacidade} vagas ocupadas no período exibido`,
+    ok: `${o?.ocupadas} de ${o?.capacidade} vagas ocupadas no período exibido`,
+  }[estado];
+  return (
+    <span className="ag-ocup" data-testid={`ocupacao-${chave}`} data-estado={estado} data-cheia={estado === "cheia" ? "sim" : "nao"} aria-label={dica}>
+      {estado === "ok" || estado === "cheia" || estado === "sem-vagas" ? <Percentual valor={pct} casas={0} peso={700} className="ag-ocup-pct" /> : <span className="ag-ocup-pct" aria-label={dica}>{estado === "carregando" ? "…" : "—"}</span>}
+      <span className="ag-ocup-sigla" aria-hidden>Ocup</span>
+    </span>
+  );
+}
+
+function Caixa({ estado, cor }: { estado: boolean | "mixed"; cor: string }) {
+  return (
+    <span className="flex h-4 w-4 items-center justify-center rounded-[3px] ring-1 ring-black/20" style={{ backgroundColor: estado ? cor : "transparent" }} aria-hidden>
+      {estado === true && <Check className="h-3 w-3 text-white mix-blend-difference" strokeWidth={4} />}
+      {estado === "mixed" && <Minus className="h-3 w-3 text-foreground" strokeWidth={4} />}
+    </span>
+  );
+}
+
+function LinhaAgenda({ a, marcada, soEsta, onAlternar, onSoEsta }: {
+  a: AgendaDoFiltro; marcada: boolean; soEsta: boolean; onAlternar: () => void; onSoEsta: () => void;
+}) {
+  const cor = corSegura(a.cor);
+  return (
+    <li className={`${marcada ? "panel-3d-sub" : "opacity-60"} flex items-center gap-1`} data-testid={`filtro-agenda-${a.chave}`}>
+      <button type="button" role="checkbox" aria-checked={marcada} onClick={onAlternar}
+        title={a.somenteGoogle ? `${a.nome} (Google, somente leitura)` : a.nome}
+        className="flex min-h-9 min-w-0 flex-1 items-center gap-2 px-2 text-left">
+        <Caixa estado={marcada} cor={cor} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[10px] font-bold uppercase tracking-tight">{a.nome}</span>
+          <span className="block truncate text-[9px] font-semibold text-muted-foreground">
+            {a.forma ? `${rotuloDaForma(a.forma)} · ` : ""}{a.sessoes} atend.
+            {a.google > 0 && <> · <Lock className="inline h-2.5 w-2.5" aria-hidden /> {a.google} Google</>}
+            {a.somenteGoogle && a.google === 0 && " · Google"}
+          </span>
+        </span>
+      </button>
+      <button type="button" aria-pressed={soEsta} onClick={onSoEsta}
+        title={soEsta ? "Voltar a mostrar todas as agendas" : "Mostrar só esta agenda"}
+        className={`${soEsta ? "bevel-3d text-primary" : "btn-3d-soft text-muted-foreground"} mr-1 min-h-9 shrink-0 px-2 text-[9px] font-black uppercase tracking-widest`}
+        data-testid={`so-esta-${a.chave}`}>
+        Só esta
+      </button>
+    </li>
+  );
+}

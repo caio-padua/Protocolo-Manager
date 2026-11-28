@@ -140,6 +140,7 @@ export async function enviarMensagemPaxter(
         // 1ª mensagem: banner estático (PNG) + texto. Decisão CEO 15/07/2026.
         const r = await sendWhatsapp(phone, renderWhatsappCaption(doc), {
           mediaUrl: bannerUrl,
+          ...(ctx.corpoParaLog ? { corpoParaLog: ctx.corpoParaLog } : {}),
         });
         resultados.push({ canal, sent: r.sent, via: r.via, link: r.link, error: r.error });
         // 2ª mensagem: figurinha animada no final (best-effort, não afeta resultado).

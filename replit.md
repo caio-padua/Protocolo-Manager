@@ -1,3 +1,8 @@
+> ## LEITURA OBRIGATORIA NO INICIO DE TODA DEMANDA
+>
+> 1. `.agents/skills/paxter-loop/CODIGO-PAXTER.md` (a Biblia / Codigo Penal do projeto)
+> 2. `.agents/COMUNICACAO-DR-CAIO.md` (como falar com o Dr. Caio)
+
 > ## ORDEM PERMANENTE — SATELITE DE CONHECIMENTO (14/08/2026)
 >
 > **Antes de implementar qualquer capacidade, leia a nota da capacidade no PADUA BRAIN.**
@@ -12,7 +17,7 @@
 
 ## Overview
 
-Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica de medicina estetica (Brasil). Monorepo pnpm com TypeScript. Marca interna do produto: **Padcon Conect** (com 1 N); marca VISIVEL ao cliente: **PAXTER** (Clinical Intelligence System). Tagline: "Motor Clinico | Protocolos Injetaveis".
+Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica de medicina estetica (Brasil). Monorepo pnpm com TypeScript. Marca interna do produto: **Padcon Conect** (com 1 N); nome do SISTEMA (visivel ao cliente): **PaxMed** (Clinical Intelligence System). Tagline: "Motor Clinico | Protocolos Injetaveis".
 
 Agente da plataforma: **Dr. Replit Paxter** (renomeado de Dr. Replit Manager em 18/06/2026, decisao do CEO Dr. Caio). Sistema de design proprio documentado na skill `skill-layout-paxter`.
 
@@ -28,8 +33,10 @@ mora num arquivo durável apontado abaixo (e o Git guarda o histórico).
 | Loop de oito fases, antecipação e integridade | `.agents/skills/paxter-loop/SKILL.md` | Ao iniciar funcionalidade não-trivial |
 | Sistema de design (3D, tokens, padrões, controles) | `.agents/skills/skill-layout-paxter/SKILL.md` + `references/` | Antes de criar/redesenhar QUALQUER tela |
 | Armadilhas técnicas finas e lições | `.agents/memory/` (índice em `MEMORY.md`) | Antes de implementar; ao aprender algo |
+| Mapa visual do ecossistema (PAXMED, PAXCARE, Lovable, Manager, Railway), índice e catálogo de sites/botões/contratos | `README.md`, `docs/arquitetura/MAPA-DO-ECOSSISTEMA.md`, `docs/arquitetura/INDICE-DE-ARQUITETURA.md` | Para orientar-se no ecossistema; antes de mexer em sites, domínios ou Railway |
 | Funcionalidades e estrutura detalhada (telas, rotas, schemas, integrações Google, portal do cliente) | `docs/PADCOM-FUNCIONALIDADES.md` | Ao mexer numa funcionalidade existente |
 | Conceito Raiz — sistemas primos IHE x Manager (deduplicação `id_ihe`, dívidas técnicas Onda 1) | `docs/CONCEITO-RAIZ-PRIMOS.md` | Em qualquer onda de integração/transmutação |
+| Empresa x Local x Profissional x Agenda x Pit Stop (glossário, vínculos, regras aprovadas, proibições) | `docs/REFERENCIA-AGENDA-PROFISSIONAL-LOCAL.md` | Ao mexer em agenda, equipe de procedimento, local, lançador ou Pit Stop |
 | Alvo escrito de cada funcionalidade | `specs/<nome>.md` | Ao especificar/construir uma onda |
 | Cartas para outros primos (IHE, Claude, Manus) | `cartas/` (índice em `cartas/INDEX.md`) | Ao comunicar outro sistema/agente |
 | Pack portável das skills (semear/certificar primos) | `paxter-pack/` (README, SEED, MANIFEST) + `scripts` `paxter:pack`/`paxter:audit` | Ao criar um sistema novo ou auditar um existente |
@@ -41,7 +48,7 @@ vai ao dono certo deste mapa, nunca fica só na conversa; toda inserção é anu
 
 ## Branding
 
-- **Marca visível ao cliente**: PAXTER (Clinical Intelligence System) — chrome navy + ouro; símbolo = PaxterSymbolGlass; wordmark = arte oficial (nunca texto digitado). Detalhe na skill `skill-layout-paxter` e nas memórias `paxter-*`.
+- **IDENTIDADE (decisão definitiva do Dr. Caio, 14/11/2026)**: **PaxMed é o nome do SISTEMA licenciado**. **Instituto Pádua é uma CLÍNICA que usa uma licença**; outras clínicas aparecem com o próprio nome. **"Paxter" foi descontinuado** e não pode mais aparecer como marca em tela, app, ícone, prévia, e-mail, WhatsApp, Telegram ou PDF. A assistente virtual se apresenta com o NOME DA CLÍNICA (campo `empresas.nome`), nunca como "PaxMed" e sem nome inventado. Nomes técnicos internos (pastas, pacotes, classes CSS, componentes `Paxter*`, skills, chaves de localStorage, colunas) NÃO mudam sem ordem escrita. Wordmark = arte oficial (nunca texto digitado); a arte antiga "PAXTER" ainda precisa ser trocada pela arte PaxMed (ver `artifacts/api-server/assets/paxmed-wordmark.png`). Visual: chrome navy + ouro; símbolo = PaxterSymbolGlass. Detalhe na skill `skill-layout-paxter` e nas memórias `paxter-*`.
 - **Exceção**: receituário emite como Instituto Padua.
 - **Estilo visual**: linguagem 3D skeuomórfica (bevel/well/painel 3D), bordas 6px, MAIUSCULO nos labels KPI, TDAH-friendly (alto contraste, hierarquia clara), sem infantilidades.
 - **Status**: verde = concluído (emerald preservado); cor de status NUNCA trocada em massa.

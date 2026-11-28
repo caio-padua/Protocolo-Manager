@@ -1,5 +1,5 @@
+import { registrarMarcoExame } from "../lib/exam-marcos";
 import { Router, type IRouter, type Request, type Response } from "express";
-import { createHash } from "node:crypto";
 import multer from "multer";
 import {
   db,
@@ -13,7 +13,6 @@ import {
   professionalsTable,
 } from "@workspace/db";
 import { eq, ne, desc, and, or, inArray, isNull, isNotNull, sql } from "drizzle-orm";
-import { resolveEmpresaId } from "../middleware/tenantContext";
 import { z } from "zod/v4";
 import {
   resolveDirection,
@@ -25,15 +24,20 @@ import {
   VARIANTE_MIN,
   type Direction,
   type Zone,
+  escolherFaixasInstitucionais,
+  sexoDaFicha,
 } from "../lib/exam-extraction/zones";
 import { getSetting } from "../lib/secure-settings";
+import { resumirDocumentos } from "../lib/exam-progresso-resultados";
 import { saveInternalCopy, hasInternalCopy, getInternalCopy } from "../lib/exam-file-store";
 import { requireCollaborator } from "./collaborator";
+import examConferenceRouter from "./exam-conference";
 import { extractPdfText } from "../lib/exam-extraction/pdf-text";
-import { extractExamFromText, extractExamFromMedia } from "../lib/exam-extraction/extract";
+import { extractExamFromText } from "../lib/exam-extraction/extract";
 import { extractExamWithClaude, CLAUDE_MODEL_NAME } from "../lib/exam-extraction/extract-anthropic";
 import { extractExamWithOpenAI, OPENAI_MODEL } from "../lib/exam-extraction/extract-openai";
 import type { ExtractedExam } from "../lib/exam-extraction/schema";
+import { composeExamCandidates, type ExtractionCandidate } from "../lib/exam-extraction/reconciliation";
 import {
   persistExtractedResults,
   finalizeDocument,
@@ -73,10 +77,70 @@ import {
 import { sendWhatsapp } from "../lib/whatsapp";
 import { sendGmailMessage } from "../lib/google-gmail";
 import { moduleGuard } from "../middleware/moduleGuard";
+import { protectCurationMutation } from "../lib/exam-curation-access";
 import { mirrorExamToR2, examR2Key } from "../lib/examR2Storage";
+import { hashExamDocument, automaticExamRecoveryAllowed } from "../lib/exam-extraction/ingestion-policy";
+import { rejectUnversionedReprocessing } from "../lib/exam-extraction/reprocessing-safety";
+import { runIdentityGate } from "../lib/exam-extraction/identity-gate";
+import { identidadeNaoBloqueadaSql } from "../lib/exam-visibility-policy";
+import { createExamIdentityRouter } from "./exam-identity";
+import { createExamIdentityGovernanceRouter } from "./exam-identity-governance";
+import {
+  requireClientInSession,
+  requireDocumentInSession,
+  sessionEmpresaId,
+} from "../lib/exam-tenant";
 
 const router: IRouter = Router();
 router.use(moduleGuard("exames_lab"));
+router.use(protectCurationMutation);
+router.use(examConferenceRouter);
+
+// ── Isolamento por clínica (specs/depuracao-exames-etapa-2-identidade-tenant.md, 3.3) ──
+// Toda rota que toca dado de UM cliente/documento exige colaborador ativo e confere que o
+// cliente pertence à clínica da sessão. Falha = 404 (não revela existência).
+function scopeDocumentParam(req: Request, res: Response, next: () => void): void {
+  void requireDocumentInSession(req, res, Number(req.params.ref))
+    .then((scope) => { if (scope) next(); })
+    .catch((err) => {
+      logger.error({ err }, "[ExamesLab] falha ao conferir clínica do documento");
+      if (!res.headersSent) res.status(500).json({ error: "Falha ao conferir a clínica do documento." });
+    });
+}
+function scopeClientParam(req: Request, res: Response, next: () => void): void {
+  void requireClientInSession(req, res, Number(req.params.ref))
+    .then((scope) => { if (scope) next(); })
+    .catch((err) => {
+      logger.error({ err }, "[ExamesLab] falha ao conferir clínica do cliente");
+      if (!res.headersSent) res.status(500).json({ error: "Falha ao conferir a clínica do cliente." });
+    });
+}
+router.use("/exames-lab/documento/:ref", requireCollaborator, scopeDocumentParam);
+router.use("/exames-lab/documentos/:ref", requireCollaborator, scopeDocumentParam);
+router.use("/exames-lab/doc-status/:ref", requireCollaborator, scopeDocumentParam);
+router.use("/exames-lab/evolucao/:ref", requireCollaborator, scopeClientParam);
+// Reprocessamento hoje é recusado (409), mas a rota também confere a clínica do documento.
+router.use("/exames-lab/reprocessar/:ref", requireCollaborator, scopeDocumentParam);
+router.use(
+  [
+    // Catálogo, triagem e curadoria: antes aceitavam leitura anônima. Agora exigem colaborador
+    // (o console já envia o token em todas as chamadas a /api/exames-lab/).
+    "/exames-lab/faixas",
+    "/exames-lab/direcoes",
+    "/exames-lab/catalogo-faixas",
+    "/exames-lab/catalogo",
+    "/exames-lab/triagem",
+    "/exames-lab/exames",
+    "/exames-lab/reassignments",
+    "/exames-lab/documentos",
+    "/exames-lab/resultados",
+    "/exames-lab/ingest",
+    "/exames-lab/monitor",
+    "/exames-lab/recovery",
+    "/exames-lab/demo-conversao",
+  ],
+  requireCollaborator,
+);
 
 /** Deduz o mime-type pela extensão do nome do arquivo. */
 export function guessMime(fileName: string): string {
@@ -159,17 +223,17 @@ interface LlmStep {
   analitos?: number;
   ms?: number;
   error?: string;
+  /** Trilha da composição das leituras (conflitos, exclusões, fontes, confiança). */
+  detalhe?: unknown;
 }
 
 /** Mescla analitos de dois resultados (union por nome normalizado). */
 function mergeExtractions(base: ExtractedExam, extra: ExtractedExam): ExtractedExam {
-  const baseNames = new Set(
-    (base.tests ?? []).map((t) => (t.name ?? "").toLowerCase().trim()),
+  const baseNames = new Set(base.analytes.map((t) => t.name.toLowerCase().trim()));
+  const novos = extra.analytes.filter(
+    (t) => !baseNames.has(t.name.toLowerCase().trim()),
   );
-  const novos = (extra.tests ?? []).filter(
-    (t) => !baseNames.has((t.name ?? "").toLowerCase().trim()),
-  );
-  return { ...base, tests: [...(base.tests ?? []), ...novos] };
+  return { ...base, analytes: [...base.analytes, ...novos] };
 }
 
 /** Persiste resultado + pipeline multi-IA no banco (raw SQL para evitar db push). */
@@ -192,7 +256,10 @@ async function finalizeDocumentWithPipeline(
 export async function processExamDocument(job: IngestJobInput): Promise<void> {
   const { documentId, clientId, buffer, fileName } = job;
   try {
+    void registrarMarcoExame(documentId, "leitura_preliminar", "executando");
     const pdfText = await extractPdfText(buffer);
+    await registrarMarcoExame(documentId, "leitura_preliminar", "concluido", { caracteres: pdfText.text.length });
+    await registrarMarcoExame(documentId, "dados_extraidos", "executando");
 
     // Lê configuração de LLMs ativos (fire todos em paralelo para latência mínima)
     const [geminiSetting, claudeSetting, openaiSetting] = await Promise.all([
@@ -207,6 +274,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
     const llmPipeline: LlmStep[] = [];
     let mergedData: ExtractedExam | null = null;
     let primaryModel = "gemini-2.5-flash";
+    const candidatos: ExtractionCandidate[] = [];
 
     // ── Passo 1: Gemini ──────────────────────────────────────────────────────
     if (llmGeminiAtivo) {
@@ -215,11 +283,12 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
         const { data, modelUsed } = await extractExamFromText(pdfText.text);
         primaryModel = modelUsed;
         mergedData = data;
+        candidatos.push({ provider: "gemini", data });
         llmPipeline.push({
           provider: "gemini",
           model: modelUsed,
           ok: true,
-          analitos: data.tests?.length ?? 0,
+          analitos: data.analytes.length,
           ms: Date.now() - t0,
         });
       } catch (err: any) {
@@ -237,6 +306,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
     if (llmClaudeAtivo) {
       const claudeResult = await extractExamWithClaude(pdfText.text);
       if (claudeResult) {
+        candidatos.push({ provider: "claude", data: claudeResult.data });
         if (mergedData) {
           mergedData = mergeExtractions(mergedData, claudeResult.data);
         } else {
@@ -247,7 +317,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
           provider: "claude",
           model: CLAUDE_MODEL_NAME,
           ok: true,
-          analitos: claudeResult.data.tests?.length ?? 0,
+          analitos: claudeResult.data.analytes.length,
           ms: claudeResult.ms,
         });
       } else {
@@ -264,6 +334,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
     if (llmOpenaiAtivo) {
       const openaiResult = await extractExamWithOpenAI(pdfText.text);
       if (openaiResult) {
+        candidatos.push({ provider: "openai", data: openaiResult.data });
         if (mergedData) {
           mergedData = mergeExtractions(mergedData, openaiResult.data);
         } else {
@@ -274,7 +345,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
           provider: "openai",
           model: OPENAI_MODEL,
           ok: true,
-          analitos: openaiResult.data.tests?.length ?? 0,
+          analitos: openaiResult.data.analytes.length,
           ms: openaiResult.ms,
         });
       } else {
@@ -291,148 +362,205 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
       throw new Error("Nenhum LLM ativo conseguiu processar o documento");
     }
 
+    // Composição segura (SPEC 1): com 2+ leituras, nenhuma é escolhida quando divergem.
+    if (candidatos.length > 1) {
+      const composed = composeExamCandidates(candidatos);
+      if (composed.exam) mergedData = composed.exam;
+      llmPipeline.push({
+        provider: "reconciliacao",
+        model: "composeExamCandidates",
+        ok: true,
+        analitos: composed.exam?.analytes.length ?? 0,
+        detalhe: {
+          conflitos: composed.conflicts,
+          analitosRetiradosPorConflito: composed.excludedAnalytes,
+          fontes: composed.sources,
+          confianca: composed.confidences,
+          conflitoDePaciente: composed.patientConflict,
+        },
+      });
+    }
     const data = mergedData;
     const modelUsed = primaryModel;
+    await registrarMarcoExame(documentId, "dados_extraidos", "concluido", { leituras: candidatos.length, analitos: data.analytes.length });
+    const conflitoPaciente = llmPipeline.some(
+      (s) => s.provider === "reconciliacao" && (s.detalhe as { conflitoDePaciente?: boolean } | undefined)?.conflitoDePaciente === true,
+    );
 
-    await finalizeDocumentWithPipeline(documentId, data, modelUsed, llmPipeline);
-
-    // 5b/5c/5d — Verificar data: se a IA encontrou data diferente da que o usuário
-    // digitou, renomear o arquivo no Drive para usar a data extraída (mais confiável).
-    if (
-      job.userDateStr &&
-      job.sourcePdfDriveId &&
-      data.collectionDate
-    ) {
-      const extractedPrefix = collectionDateToPrefix(data.collectionDate);
-      if (extractedPrefix && extractedPrefix !== job.userDateStr) {
-        const correctedName = fileName.replace(job.userDateStr, extractedPrefix);
-        try {
-          await renameDriveFile(job.sourcePdfDriveId, correctedName);
-          await db
-            .update(examDocumentsTable)
-            .set({ fileName: correctedName })
-            .where(eq(examDocumentsTable.id, documentId));
-          console.log(
-            `[ExamesLab] doc ${documentId}: data corrigida no Drive: "${job.userDateStr}" → "${extractedPrefix}" → ${correctedName}`,
-          );
-        } catch (renameErr: any) {
-          console.error(
-            `[ExamesLab] doc ${documentId}: falha ao renomear no Drive: ${renameErr.message}`,
-          );
-        }
-      }
-    }
-    const summary = await persistExtractedResults({
+    const gate = await runIdentityGate({
       documentId,
       clientId,
       extracted: data,
+      modelUsed,
+      pipeline: llmPipeline,
+      evidenceText: pdfText.text,
+      forceQuarantineReason: conflitoPaciente
+        ? "As leituras de IA divergem sobre nome, CPF ou nascimento do paciente: revisão humana obrigatória."
+        : undefined,
     });
-    console.log(
-      `[ExamesLab] doc ${documentId}: ${summary.resultsInserted} resultados + ${summary.historyInserted} historicos (casados: ${summary.matched}, sem catalogo: ${summary.unmatched})`,
-    );
-
-    // Arquivo no Drive (EXAMES) — best-effort, idempotente por nome unico
-    if (!job.sourcePdfDriveId) {
-      try {
-        const clients = await db
-          .select()
-          .from(clientsTable)
-          .where(eq(clientsTable.id, clientId));
-        const client = clients[0];
-        if (client && client.cpf) {
-          const structure = await ensureClientFolderStructure(client.name, client.cpf);
-          const examesFolderId = structure.subfolders["EXAMES"];
-          if (examesFolderId) {
-            const now = new Date();
-            const dateStr = `${String(now.getFullYear()).slice(2)}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
-            const clean = removeDiacritics(client.name).toUpperCase();
-            const driveName = `${dateStr} EXAME ${clean} (DOC ${documentId}).pdf`;
-            const uploaded = await uploadFileToDrive(
-              examesFolderId,
-              driveName,
-              "application/pdf",
-              buffer,
-            );
-            await db
-              .update(examDocumentsTable)
-              .set({ sourcePdfDriveId: uploaded.fileId })
-              .where(eq(examDocumentsTable.id, documentId));
-          }
-        }
-      } catch (err) {
-        console.error(
-          `[ExamesLab] doc ${documentId}: falha ao arquivar no Drive: ${(err as Error).message}`,
-        );
-      }
-    } else {
-      await db
-        .update(examDocumentsTable)
-        .set({ sourcePdfDriveId: job.sourcePdfDriveId })
-        .where(eq(examDocumentsTable.id, documentId));
-    }
-
-    // ── Espelho R2 (Item 40) — best-effort, não bloqueia nem falha o pipeline ──
-    // A data de coleta pode ainda não estar no banco neste ponto; usamos a que
-    // a IA extraiu (finalizeDocument já gravou). Buscamos do banco para garantir.
-    try {
-      const [docRow] = await db
-        .select({ clientId: examDocumentsTable.clientId, collectionDate: examDocumentsTable.collectionDate })
-        .from(examDocumentsTable)
-        .where(eq(examDocumentsTable.id, documentId));
-      const r2 = await mirrorExamToR2({
-        clientId: docRow?.clientId ?? job.clientId,
-        documentId,
-        collectionDate: docRow?.collectionDate ?? null,
-        buffer,
-      });
-      logger.info(
-        { docId: documentId, r2Key: r2.r2Key, bytes: r2.bytes, alreadyExisted: r2.alreadyExists },
-        "[ExamesLab] doc espelhado no cofre de objetos",
+    if (gate.quarantined) {
+      logger.warn(
+        { docId: documentId, verdict: gate.assessment.verdict, fields: gate.assessment.fields },
+        "[ExamesLab] identidade do laudo não confirmada: documento em quarentena, sem resultados no prontuário",
       );
-    } catch (err) {
-      console.error(
-        `[ExamesLab] doc ${documentId}: falha ao espelhar no cofre (Drive ok): ${(err as Error).message}`,
-      );
+      return;
     }
-    // ─────────────────────────────────────────────────────────────────────────
-
-    // Aviso "exame recebido" — best-effort
-    if (job.notify) {
-      try {
-        const clients = await db
-          .select()
-          .from(clientsTable)
-          .where(eq(clientsTable.id, clientId));
-        const client = clients[0];
-        if (client) {
-          const firstName = client.name.split(" ")[0];
-          if (client.email) {
-            await sendGmailMessage({
-              to: client.email,
-              subject: "Clinica Padua | Exame recebido",
-              html: `<p>Ola, ${firstName}!</p><p>Recebemos o seu exame (<strong>${fileName}</strong>) e ele ja foi lido e arquivado no seu prontuario.</p><p>Qualquer ponto de atencao sera avaliado pela equipe.</p><p>Equipe PAXTER</p>`,
-            });
-          }
-          if (client.phone) {
-            await sendWhatsapp(
-              client.phone,
-              `Ola, ${firstName}! Recebemos o seu exame (${fileName}) e ele ja foi lido e arquivado no seu prontuario. Qualquer ponto de atencao sera avaliado pela equipe.`,
-              { contexto: "exame_recebido", clienteId: clientId },
-            );
-          }
-        }
-      } catch (err) {
-        console.error(
-          `[ExamesLab] doc ${documentId}: falha no aviso: ${(err as Error).message}`,
-        );
-      }
-    }
+    await incorporateExtractedExam(job, data, modelUsed, llmPipeline);
   } catch (err) {
     const message = (err as Error).message ?? "erro desconhecido";
     console.error(`[ExamesLab] doc ${documentId}: ERRO no processamento: ${message}`);
+    await registrarMarcoExame(documentId, "processamento", "falhou");
     await markDocumentError(documentId, message).catch(() => undefined);
   }
 }
+
+/**
+ * Incorpora ao prontuário uma extração JÁ VERIFICADA (identidade confirmada pelo porteiro
+ * ou liberada por humano): grava resultados, arquiva no Drive, espelha no cofre e avisa.
+ * Erros propagam para o chamador, que decide marcar erro ou reverter a quarentena.
+ */
+export async function incorporateExtractedExam(
+  job: IngestJobInput,
+  data: ExtractedExam,
+  modelUsed: string,
+  llmPipeline: LlmStep[],
+): Promise<void> {
+  const { documentId, clientId, buffer, fileName } = job;
+  await finalizeDocumentWithPipeline(documentId, data, modelUsed, llmPipeline);
+
+  // 5b/5c/5d — Verificar data: se a IA encontrou data diferente da que o usuário
+  // digitou, renomear o arquivo no Drive para usar a data extraída (mais confiável).
+  if (
+    job.userDateStr &&
+    job.sourcePdfDriveId &&
+    data.collectionDate
+  ) {
+    const extractedPrefix = collectionDateToPrefix(data.collectionDate);
+    if (extractedPrefix && extractedPrefix !== job.userDateStr) {
+      const correctedName = fileName.replace(job.userDateStr, extractedPrefix);
+      try {
+        await renameDriveFile(job.sourcePdfDriveId, correctedName);
+        await db
+          .update(examDocumentsTable)
+          .set({ fileName: correctedName })
+          .where(eq(examDocumentsTable.id, documentId));
+        console.log(
+          `[ExamesLab] doc ${documentId}: data corrigida no Drive: "${job.userDateStr}" → "${extractedPrefix}" → ${correctedName}`,
+        );
+      } catch (renameErr: any) {
+        console.error(
+          `[ExamesLab] doc ${documentId}: falha ao renomear no Drive: ${renameErr.message}`,
+        );
+      }
+    }
+  }
+  const summary = await persistExtractedResults({
+    documentId,
+    clientId,
+    extracted: data,
+  });
+  console.log(
+    `[ExamesLab] doc ${documentId}: ${summary.resultsInserted} resultados + ${summary.historyInserted} historicos (casados: ${summary.matched}, sem catalogo: ${summary.unmatched})`,
+  );
+
+  // Arquivo no Drive (EXAMES) — best-effort, idempotente por nome unico
+  if (!job.sourcePdfDriveId) {
+    try {
+      const clients = await db
+        .select()
+        .from(clientsTable)
+        .where(eq(clientsTable.id, clientId));
+      const client = clients[0];
+      if (client && client.cpf) {
+        const structure = await ensureClientFolderStructure(client.name, client.cpf);
+        const examesFolderId = structure.subfolders["EXAMES"];
+        if (examesFolderId) {
+          const now = new Date();
+          const dateStr = `${String(now.getFullYear()).slice(2)}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
+          const clean = removeDiacritics(client.name).toUpperCase();
+          const driveName = `${dateStr} EXAME ${clean} (DOC ${documentId}).pdf`;
+          const uploaded = await uploadFileToDrive(
+            examesFolderId,
+            driveName,
+            "application/pdf",
+            buffer,
+          );
+          await db
+            .update(examDocumentsTable)
+            .set({ sourcePdfDriveId: uploaded.fileId })
+            .where(eq(examDocumentsTable.id, documentId));
+        }
+      }
+    } catch (err) {
+      console.error(
+        `[ExamesLab] doc ${documentId}: falha ao arquivar no Drive: ${(err as Error).message}`,
+      );
+    }
+  } else {
+    await db
+      .update(examDocumentsTable)
+      .set({ sourcePdfDriveId: job.sourcePdfDriveId })
+      .where(eq(examDocumentsTable.id, documentId));
+  }
+
+  // ── Espelho R2 (Item 40) — best-effort, não bloqueia nem falha o pipeline ──
+  // A data de coleta pode ainda não estar no banco neste ponto; usamos a que
+  // a IA extraiu (finalizeDocument já gravou). Buscamos do banco para garantir.
+  try {
+    const [docRow] = await db
+      .select({ clientId: examDocumentsTable.clientId, collectionDate: examDocumentsTable.collectionDate })
+      .from(examDocumentsTable)
+      .where(eq(examDocumentsTable.id, documentId));
+    const r2 = await mirrorExamToR2({
+      clientId: docRow?.clientId ?? job.clientId,
+      documentId,
+      collectionDate: docRow?.collectionDate ?? null,
+      buffer,
+    });
+    logger.info(
+      { docId: documentId, r2Key: r2.r2Key, bytes: r2.bytes, alreadyExisted: r2.alreadyExists },
+      "[ExamesLab] doc espelhado no cofre de objetos",
+    );
+  } catch (err) {
+    console.error(
+      `[ExamesLab] doc ${documentId}: falha ao espelhar no cofre (Drive ok): ${(err as Error).message}`,
+    );
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Aviso "exame recebido" — best-effort
+  if (job.notify) {
+    try {
+      const clients = await db
+        .select()
+        .from(clientsTable)
+        .where(eq(clientsTable.id, clientId));
+      const client = clients[0];
+      if (client) {
+        const firstName = client.name.split(" ")[0];
+        if (client.email) {
+          await sendGmailMessage({
+            to: client.email,
+            subject: "Clinica Padua | Exame recebido",
+            html: `<p>Ola, ${firstName}!</p><p>Recebemos o seu exame (<strong>${fileName}</strong>) e ele ja foi lido e arquivado no seu prontuario.</p><p>Qualquer ponto de atencao sera avaliado pela equipe.</p><p>Equipe PaxMed</p>`,
+          });
+        }
+        if (client.phone) {
+          await sendWhatsapp(
+            client.phone,
+            `Ola, ${firstName}! Recebemos o seu exame (${fileName}) e ele ja foi lido e arquivado no seu prontuario. Qualquer ponto de atencao sera avaliado pela equipe.`,
+            { contexto: "exame_recebido", clienteId: clientId },
+          );
+        }
+      }
+    } catch (err) {
+      console.error(
+        `[ExamesLab] doc ${documentId}: falha no aviso: ${(err as Error).message}`,
+      );
+    }
+  }
+}
+
 
 /**
  * Cria o documento (status=processando) e dispara o processamento em
@@ -446,11 +574,28 @@ export async function startExamIngestion(params: {
   notify?: boolean;
   empresaId?: number | null;
   userDateStr?: string | null;
+  /** Nome do arquivo como chegou (antes de qualquer renomeação). Fica na cópia interna e é mostrado ao cliente. */
+  originalFileName?: string | null;
 }): Promise<{ documentId: number; duplicate: boolean }> {
-  const hash = createHash("sha256").update(params.buffer).digest("hex");
+  const hash = hashExamDocument(params.buffer);
+
+  // A clínica do documento é SEMPRE a do cliente (nunca "empresa 5" por padrão).
+  const [ownerClient] = await db
+    .select({ empresaId: clientsTable.empresaId })
+    .from(clientsTable)
+    .where(eq(clientsTable.id, params.clientId))
+    .limit(1);
+  if (!ownerClient) throw new Error("Cliente não encontrado para receber o exame.");
+  if (ownerClient.empresaId == null) {
+    throw new Error("Cliente sem clínica definida: o exame não pode ser recebido.");
+  }
+  if (params.empresaId != null && params.empresaId !== ownerClient.empresaId) {
+    throw new Error("A clínica informada não é a clínica do cliente.");
+  }
+  const documentEmpresaId = ownerClient.empresaId;
 
   // Idempotencia POR PACIENTE: mesmo arquivo em outro cliente gera doc proprio.
-  // EXCECAO: se o doc existente tem status='erro', reprocessa em vez de ignorar.
+  // Até existir versionamento, erro anterior também é duplicado: pode ter resultados parciais.
   const existing = await db
     .select({ id: examDocumentsTable.id, status: examDocumentsTable.status })
     .from(examDocumentsTable)
@@ -468,45 +613,15 @@ export async function startExamIngestion(params: {
         if (!ok) {
           await saveInternalCopy({
             documentId: existingDoc.id,
-            fileName: params.fileName,
+            fileName: params.originalFileName ?? params.fileName,
             mimeType: guessMime(params.fileName),
             buffer: params.buffer,
           });
         }
       }).catch(() => {});
     });
-    // Se ja concluido ou ainda processando, retorna como duplicado sem fazer nada.
-    if (existingDoc.status !== "erro") {
-      return { documentId: existingDoc.id, duplicate: true };
-    }
-    // Se estava com erro: atualiza o Drive ID (se novo disponivel), reseta para
-    // processando e dispara a extracao novamente.
-    logger.info(
-      { docId: existingDoc.id },
-      "[ExamesLab] Duplicado com status=erro — reprocessando em vez de ignorar",
-    );
-    await db
-      .update(examDocumentsTable)
-      .set({
-        status: "processando",
-        ...(params.sourcePdfDriveId
-          ? { sourcePdfDriveId: params.sourcePdfDriveId }
-          : {}),
-      })
-      .where(eq(examDocumentsTable.id, existingDoc.id));
-    setImmediate(() => {
-      void processExamDocument({
-        documentId: existingDoc.id,
-        clientId: params.clientId,
-        buffer: params.buffer,
-        fileName: params.fileName,
-        sourcePdfDriveId:
-          params.sourcePdfDriveId ?? null,
-        notify: params.notify ?? false,
-        userDateStr: params.userDateStr ?? null,
-      });
-    });
-    return { documentId: existingDoc.id, duplicate: false };
+    // Não sobrescrever extração anterior, inclusive se houve erro parcial.
+    return { documentId: existingDoc.id, duplicate: true };
   }
 
   const [doc] = await db
@@ -519,7 +634,7 @@ export async function startExamIngestion(params: {
       // BUG-FIX: persistir o Drive ID imediatamente — se o servidor reiniciar
       // durante o setImmediate, o ID ainda estará no banco para recuperação.
       sourcePdfDriveId: params.sourcePdfDriveId ?? null,
-      ...(params.empresaId != null ? { empresaId: params.empresaId } : {}),
+      empresaId: documentEmpresaId,
     })
     .returning({ id: examDocumentsTable.id });
 
@@ -527,7 +642,7 @@ export async function startExamIngestion(params: {
   setImmediate(() => {
     void saveInternalCopy({
       documentId: doc.id,
-      fileName: params.fileName,
+      fileName: params.originalFileName ?? params.fileName,
       mimeType: guessMime(params.fileName),
       buffer: params.buffer,
     });
@@ -565,6 +680,10 @@ function extractDatePrefixFromFileName(fileName: string): string | null {
 }
 
 export async function recoverStuckDocuments(): Promise<void> {
+  if (!automaticExamRecoveryAllowed()) {
+    logger.warn("[ExamesLab] Recuperação automática bloqueada até existir histórico versionado; documentos anteriores preservados.");
+    return;
+  }
   const cutoffMs = Date.now() - 5 * 60 * 1000;
   // BUG-FIX: também recupera docs em "erro" recentes (últimos 7 dias) —
   // podem ser erros de restart, não erros definitivos de PDF inválido.
@@ -602,9 +721,10 @@ export async function recoverStuckDocuments(): Promise<void> {
           .from(clientsTable)
           .where(eq(clientsTable.id, doc.clientId));
         const client = clients[0];
-        if (client) {
+        const cpf = client?.cpf;
+        if (client && cpf) {
           try {
-            const structure = await ensureClientFolderStructure(client.name, client.cpf);
+            const structure = await ensureClientFolderStructure(client.name, cpf);
             const examesFolderId = structure.subfolders["EXAMES"];
             if (examesFolderId) {
               const files = await driveListChildren(examesFolderId);
@@ -685,17 +805,11 @@ router.post(
         res.status(400).json({ error: "Por enquanto apenas PDF e aceito nesta trilha" });
         return;
       }
-      const clients = await db
-        .select({ id: clientsTable.id })
-        .from(clientsTable)
-        .where(eq(clientsTable.id, clientId));
-      if (clients.length === 0) {
-        res.status(404).json({ error: "Cliente nao encontrado" });
-        return;
-      }
+      const clientScope = await requireClientInSession(req, res, clientId);
+      if (!clientScope) return;
 
       const notify = req.body.notify === "true" || req.body.notify === true;
-      const empresaId = resolveEmpresaId(req);
+      const empresaId = clientScope.empresaId;
       const result = await startExamIngestion({
         clientId,
         buffer: file.buffer,
@@ -747,7 +861,11 @@ router.get(
       let bufferForDryRun: Buffer;
       if (hasCopy) {
         const copy = await getInternalCopy(documentId);
-        bufferForDryRun = copy.buffer;
+        if (!copy) {
+          res.status(409).json({ error: "Cópia interna indisponível; recarregue o documento antes de simular." });
+          return;
+        }
+        bufferForDryRun = copy.bytes;
       } else {
         // Sem cópia interna: simula com buffer vazio (tamanho = 0)
         bufferForDryRun = Buffer.alloc(0);
@@ -791,10 +909,33 @@ router.get(
 );
 
 // ---- GET /exames-lab/documentos?clientId= ----
+/** Progresso REAL da classificação por documento (Cockpit). Só leitura; mesmo guard de empresa de /documentos. */
+router.get("/exames-lab/progresso", async (req: Request, res: Response) => {
+  try {
+    const clientId = Number(req.query.clientId);
+    if (!sessionEmpresaId(req)) { res.status(401).json({ error: "Faça login de colaborador." }); return; }
+    if (!Number.isInteger(clientId) || clientId <= 0) { res.status(400).json({ error: "clientId inválido." }); return; }
+    if (!(await requireClientInSession(req, res, clientId))) return;
+    const ids = (await db.select({ id: examDocumentsTable.id }).from(examDocumentsTable)
+      .where(and(eq(examDocumentsTable.clientId, clientId), eq(examDocumentsTable.empresaId, sessionEmpresaId(req)!), ne(examDocumentsTable.status, "ignorado"))))
+      .map((r) => r.id);
+    const mapa = await resumirDocumentos(clientId, ids);
+    res.json(Object.fromEntries([...mapa.entries()]));
+  } catch (err) {
+    console.error("[ExamesLab] progresso:", (err as Error).message);
+    res.status(500).json({ error: "Erro ao montar o progresso." });
+  }
+});
+
 router.get("/exames-lab/documentos", async (req: Request, res: Response) => {
   try {
     const clientId = req.query.clientId ? Number(req.query.clientId) : null;
-    const empresaId = resolveEmpresaId(req);
+    const empresaId = sessionEmpresaId(req);
+    if (!empresaId) {
+      res.status(401).json({ error: "Faça login de colaborador." });
+      return;
+    }
+    if (clientId !== null && !(await requireClientInSession(req, res, clientId))) return;
     const base = db
       .select({
         id: examDocumentsTable.id,
@@ -892,6 +1033,7 @@ router.get("/exames-lab/resultados", async (req: Request, res: Response) => {
       res.status(400).json({ error: "clientId obrigatorio" });
       return;
     }
+    if (!(await requireClientInSession(req, res, clientId))) return;
     const results = await db
       .select({
         id: examResultsTable.id,
@@ -965,399 +1107,402 @@ router.get("/exames-lab/documentos/:id", async (req: Request, res: Response) => 
   }
 });
 
-// ---- PATCH /exames-lab/documentos/:id/conferir — conferencia humana em 2 fases ----
-// Body: { fase: 1 | 2, professionalId: number }.
-//   fase 1 (C1, operacional): recebido -> conferido_1. Grava conf1* (snapshot).
-//   fase 2 (C2, clinica = liberado): conferido_1 -> conferido. Grava conf2* + conferredAt.
-// O conferente e sempre gravado como SNAPSHOT (nome + cargo do momento), para o
-// CEO poder renomear os ficticios depois sem perder o registro de auditoria.
-router.patch(
-  "/exames-lab/documentos/:id/conferir",
-  async (req: Request, res: Response) => {
-    try {
-      const id = Number(req.params.id);
-      const fase = Number(req.body?.fase);
-      const professionalId = Number(req.body?.professionalId);
-      if (fase !== 1 && fase !== 2) {
-        res.status(400).json({ error: "fase deve ser 1 (operacional) ou 2 (clinica)" });
-        return;
-      }
-      if (!Number.isInteger(professionalId) || professionalId <= 0) {
-        res.status(400).json({ error: "professionalId (conferente) e obrigatorio" });
-        return;
-      }
-
-      const docs = await db
-        .select({ id: examDocumentsTable.id, status: examDocumentsTable.status })
-        .from(examDocumentsTable)
-        .where(eq(examDocumentsTable.id, id));
-      if (docs.length === 0) {
-        res.status(404).json({ error: "Documento nao encontrado" });
-        return;
-      }
-      const status = docs[0].status;
-      if (status === "processando") {
-        res.status(409).json({ error: "Documento ainda em processamento" });
-        return;
-      }
-      if (status === "erro") {
-        res.status(409).json({ error: "Documento com erro de leitura; nao pode ser conferido" });
-        return;
-      }
-
-      // Snapshot do conferente (nome + cargo do momento).
-      const [prof] = await db
-        .select({
-          id: professionalsTable.id,
-          name: professionalsTable.name,
-          role: professionalsTable.role,
-          category: professionalsTable.category,
-        })
-        .from(professionalsTable)
-        .where(eq(professionalsTable.id, professionalId))
-        .limit(1);
-      if (!prof) {
-        res.status(404).json({ error: "Conferente nao encontrado" });
-        return;
-      }
-      const cargo = cargoLabel(prof.role, prof.category);
-      const now = new Date();
-
-      if (fase === 1) {
-        if (status !== "recebido") {
-          res.status(409).json({
-            error: "A conferencia operacional (C1) so vale quando o documento esta 'recebido'",
-          });
-          return;
-        }
-        await db
-          .update(examDocumentsTable)
-          .set({
-            status: "conferido_1",
-            conf1ProfessionalId: prof.id,
-            conf1Name: prof.name,
-            conf1Cargo: cargo,
-            conf1At: now,
-          })
-          .where(eq(examDocumentsTable.id, id));
-        res.json({ ok: true, status: "conferido_1" });
-        return;
-      }
-
-      // fase === 2
-      if (status !== "conferido_1") {
-        res.status(409).json({
-          error: "Faca a conferencia operacional (C1) antes da conferencia clinica (C2)",
-        });
-        return;
-      }
-      await db
-        .update(examDocumentsTable)
-        .set({
-          status: "conferido",
-          conf2ProfessionalId: prof.id,
-          conf2Name: prof.name,
-          conf2Cargo: cargo,
-          conf2At: now,
-          conferredAt: now,
-        })
-        .where(eq(examDocumentsTable.id, id));
-      res.json({ ok: true, status: "conferido" });
-    } catch (err) {
-      console.error("[ExamesLab] Erro ao conferir:", (err as Error).message);
-      res.status(500).json({ error: "Erro ao conferir documento" });
-    }
-  },
+// ---- GET /exames-lab/evolucao/:clientId — antes/depois por analito ----
+router.get("/exames-lab/evolucao/:clientId", (req: Request, res: Response) =>
+  handleEvolucao(Number(req.params.clientId), req, res, true),
 );
 
-// ---- GET /exames-lab/evolucao/:clientId — antes/depois por analito ----
-router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response) => {
-  try {
-    const clientId = Number(req.params.clientId);
-    // Toggle global "liberar validacoes" (exames.exigirValidacaoHumana):
-    //   LIGADO (padrao seguro): so entram resultados de documentos CONFERIDOS (C2).
-    //   DESLIGADO: entram todos que a IA ja leu (menos processando/erro), para o
-    //   CEO ver a evolucao antes da conferencia humana. Afeta SO a Evolucao.
-    const rawToggle = await getSetting("exames.exigirValidacaoHumana");
-    const exigirValidacao = rawToggle === null ? true : rawToggle === "true";
-    const statusPermitidos = exigirValidacao
+/** Corpo da evolução; reutilizado pela rota do paciente (clientId vem do token, nunca da URL). */
+/**
+ * Fonte ÚNICA da evolução de exames (tela do Cockpit, Área do Cliente e relatório TEX).
+ * Isolamento por cliente/clínica é responsabilidade de quem chama.
+ */
+export async function montarEvolucao(
+  clientId: number,
+  opts: {
+    respeitarToggleProfissional?: boolean;
+    portalEmpresaId?: number;
+    permitirPreliminaresPortal?: boolean;
+  } = {},
+) {
+  // clientId já chega validado e escopado à clínica/ao token pelo chamador.
+  // Toggle global "liberar validacoes" (exames.exigirValidacaoHumana):
+  //   LIGADO (padrao seguro): so entram resultados de documentos CONFERIDOS (C2).
+  //   DESLIGADO: entram todos que a IA ja leu (menos processando/erro), para o
+  //   CEO ver a evolucao antes da conferencia humana. Afeta SO a Evolucao.
+  // P0 (Kaizen 16/11/2026): o toggle SO vale para profissional autenticado
+  // (Cockpit/previa interna). Portal do paciente e demais chamadores sao
+  // SEMPRE estritos: apenas documentos conferidos (C2).
+  const rawToggle = opts.respeitarToggleProfissional
+    ? await getSetting("exames.exigirValidacaoHumana")
+    : null;
+  const exigirValidacao = rawToggle === null ? true : rawToggle === "true";
+  const portalEmpresaId =
+    Number.isSafeInteger(opts.portalEmpresaId) && (opts.portalEmpresaId ?? 0) > 0
+      ? opts.portalEmpresaId!
+      : null;
+  const exibirPreliminaresPortal = portalEmpresaId !== null && opts.permitirPreliminaresPortal === true;
+  const statusPermitidos = exibirPreliminaresPortal
+    ? ["recebido", "conferido_1", "conferido"]
+    : (portalEmpresaId !== null || exigirValidacao)
       ? ["conferido"]
       : ["recebido", "conferido_1", "conferido"];
 
-    const joined = await db
-      .select({
-        result: examResultsTable,
-        docStatus: examDocumentsTable.status,
-        conf1Name: examDocumentsTable.conf1Name,
-        conf1Cargo: examDocumentsTable.conf1Cargo,
-        conf2Name: examDocumentsTable.conf2Name,
-        conf2Cargo: examDocumentsTable.conf2Cargo,
-      })
-      .from(examResultsTable)
-      .innerJoin(
-        examDocumentsTable,
-        eq(examResultsTable.examDocumentId, examDocumentsTable.id),
-      )
-      .where(
+  const preliminarComIdentidadeConfirmada = exibirPreliminaresPortal
+    ? or(
+        eq(examDocumentsTable.status, "conferido"),
         and(
-          eq(examResultsTable.clientId, clientId),
-          inArray(examDocumentsTable.status, statusPermitidos),
+          inArray(examDocumentsTable.status, ["recebido", "conferido_1"]),
+          eq(examDocumentsTable.clientId, clientId),
+          eq(examDocumentsTable.empresaId, portalEmpresaId!),
+          sql`${examResultsTable.valueRaw} IS NOT NULL AND btrim(${examResultsTable.valueRaw}) <> ''`,
+          sql`EXISTS (
+            SELECT 1 FROM exam_identity_checks i
+            WHERE i.document_id = ${examDocumentsTable.id}
+              AND i.client_id = ${clientId}
+              AND i.empresa_id = ${portalEmpresaId!}
+              AND (
+                (i.event = 'verificacao' AND i.verdict = 'confirmada')
+                OR (i.event = 'liberacao_humana' AND i.professional_id IS NOT NULL)
+              )
+          )`,
         ),
       )
-      .orderBy(examResultsTable.collectionDate, examResultsTable.id);
-    const rows = joined.map((j) => j.result);
-
-    // Selo por coluna (data + laboratorio): nivel de conferencia (ia/c1/c2) +
-    // conferente (nome/cargo do snapshot). O documento mais novo (maior id) que
-    // alimenta a coluna define o selo, alinhado com "ultimo escrito vence".
-    interface ColSeal {
-      docId: number;
-      confLevel: "ia" | "c1" | "c2" | null;
-      conferenteName: string | null;
-      conferenteCargo: string | null;
+    : null;
+  const joined = await db
+    .select({
+      result: examResultsTable,
+      docStatus: examDocumentsTable.status,
+      conf1Name: examDocumentsTable.conf1Name,
+      conf1Cargo: examDocumentsTable.conf1Cargo,
+      conf2Name: examDocumentsTable.conf2Name,
+      conf2Cargo: examDocumentsTable.conf2Cargo,
+    })
+    .from(examResultsTable)
+    .innerJoin(
+      examDocumentsTable,
+      eq(examResultsTable.examDocumentId, examDocumentsTable.id),
+    )
+    .where(
+      and(
+        eq(examResultsTable.clientId, clientId),
+        inArray(examDocumentsTable.status, statusPermitidos),
+        ...(portalEmpresaId !== null
+          ? [
+              eq(examDocumentsTable.clientId, clientId),
+              eq(examDocumentsTable.empresaId, portalEmpresaId!),
+            ]
+          : []),
+        // Política única de identidade: vale para todo papel e não depende de nenhum interruptor.
+        identidadeNaoBloqueadaSql(sql`${examDocumentsTable.id}`, sql`${examDocumentsTable.status}`),
+        ...(preliminarComIdentidadeConfirmada ? [preliminarComIdentidadeConfirmada] : []),
+      ),
+    )
+    .orderBy(examResultsTable.collectionDate, examResultsTable.id);
+  // A coluna aprovada continua sendo data + laboratório. Se nela houver C2,
+  // não misturamos valores IA/C1 com o selo definitivo; entre preliminares, C1
+  // prevalece sobre IA. Sem o novo modo, preserva-se a ordenação atual.
+  const rankStatus = (status: string): number =>
+    status === "conferido" ? 3 : status === "conferido_1" ? 2 : status === "recebido" ? 1 : 0;
+  const highestLevelByColumn = new Map<string, number>();
+  if (exibirPreliminaresPortal) {
+    for (const row of joined) {
+      const key = `${row.result.collectionDate ?? "?"}|${row.result.labName ?? "?"}`;
+      highestLevelByColumn.set(key, Math.max(highestLevelByColumn.get(key) ?? 0, rankStatus(row.docStatus)));
     }
-    const seals = new Map<string, ColSeal>();
-    for (const j of joined) {
-      const r = j.result;
-      const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
-      const prev = seals.get(key);
-      if (prev && prev.docId >= r.examDocumentId) continue;
-      const level = confLevelFromStatus(j.docStatus);
-      // C2: usa snapshot da fase 2 (documentos legados sem snapshot => "conferencia legada").
-      // C1: usa snapshot da fase 1. IA: sem conferente.
-      let conferenteName: string | null = null;
-      let conferenteCargo: string | null = null;
-      if (level === "c2") {
-        conferenteName = j.conf2Name ?? (j.docStatus === "conferido" ? "Conferência legada" : null);
-        conferenteCargo = j.conf2Cargo;
-      } else if (level === "c1") {
-        conferenteName = j.conf1Name;
-        conferenteCargo = j.conf1Cargo;
-      }
-      seals.set(key, {
-        docId: r.examDocumentId,
-        confLevel: level,
-        conferenteName,
-        conferenteCargo,
-      });
-    }
-
-    // Determina se uma coluna e inteiramente historica (todos os resultados
-    // dela vieram do historico interno de outro laudo, nao de exame proprio).
-    const colIsHistory = new Map<string, boolean>();
-    for (const r of rows) {
-      const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
-      if (!r.isHistory) {
-        colIsHistory.set(key, false);          // qualquer nao-historico torna a coluna real
-      } else if (!colIsHistory.has(key)) {
-        colIsHistory.set(key, true);           // primeiro encontrado: assume historico
-      }
-    }
-
-    // Colunas do comparativo: par unico (data + laboratorio), em ordem de data
-    const columnKeys: string[] = [];
-    const columns: Array<{
-      key: string;
-      date: string | null;
-      lab: string | null;
-      confLevel: "ia" | "c1" | "c2" | null;
-      conferenteName: string | null;
-      conferenteCargo: string | null;
-      isHistory: boolean;
-    }> = [];
-    for (const r of rows) {
-      const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
-      if (!columnKeys.includes(key)) {
-        columnKeys.push(key);
-        const seal = seals.get(key);
-        columns.push({
-          key,
-          date: r.collectionDate,
-          lab: r.labName,
-          confLevel: seal?.confLevel ?? null,
-          conferenteName: seal?.conferenteName ?? null,
-          conferenteCargo: seal?.conferenteCargo ?? null,
-          isHistory: colIsHistory.get(key) ?? false,
-        });
-      }
-    }
-
-    // Linhas: 1 por analito (codigo canonico quando casado; senao nome cru)
-    interface Cell {
-      value: string | null;
-      valueNum: number | null;
-      unit: string | null;
-      unitConverted: boolean;
-      status: string | null;
-      documentId: number;
-    }
-    const lines = new Map<
-      string,
-      { name: string; unit: string | null; refLow: string | null; refHigh: string | null; cells: Map<string, Cell> }
-    >();
-    for (const r of rows) {
-      const lineKey = r.analyteCode ?? r.analyteNameRaw.toLowerCase();
-      if (!lines.has(lineKey)) {
-        lines.set(lineKey, {
-          name: r.analyteNameRaw,
-          unit: r.unitCanonical ?? r.unitRaw,
-          refLow: r.refLow,
-          refHigh: r.refHigh,
-          cells: new Map(),
-        });
-      }
-      const line = lines.get(lineKey)!;
-      const colKey = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
-      // ultimo escrito vence (documento mais novo re-confirma o valor)
-      line.cells.set(colKey, {
-        value: r.valueRaw,
-        valueNum: r.valueCanonical === null ? null : Number(r.valueCanonical),
-        // Quando houve conversao, mostra a NOSSA unidade (o valueNum ja e canonico).
-        unit: r.unitConverted ? (r.unitCanonical ?? r.unitRaw) : r.unitRaw,
-        unitConverted: !!r.unitConverted,
-        status: r.status,
-        documentId: r.examDocumentId,
-      });
-    }
-
-    // ---- Motor de FAIXAS (5 zonas): direção real + trisecção do min/max real --
-    // Direção: 1) exam_analyte_catalog.direction; 2) direcao_favoravel_exame
-    // (transmutado do IHE, casado pelo nome); 3) target (neutro). Faixas
-    // explícitas do Subcadastro (exam_analyte_ranges) mandam quando existirem.
-    const catRows = await db
-      .select({
-        code: examAnalyteCatalogTable.code,
-        direction: examAnalyteCatalogTable.direction,
-        sexDependent: examAnalyteCatalogTable.sexDependent,
+  }
+  const joinedForEvolution = exibirPreliminaresPortal
+    ? joined.filter((row) => {
+        const key = `${row.result.collectionDate ?? "?"}|${row.result.labName ?? "?"}`;
+        return rankStatus(row.docStatus) === highestLevelByColumn.get(key);
       })
-      .from(examAnalyteCatalogTable);
-    const dirByCode = new Map<string, string | null>();
-    const sexDepByCode = new Map<string, boolean>();
-    for (const c of catRows) {
-      dirByCode.set(c.code, c.direction);
-      sexDepByCode.set(c.code, c.sexDependent ?? false);
+    : joined;
+  const rows = joinedForEvolution.map((j) => j.result);
+
+  // Selo por coluna (data + laboratorio): nivel de conferencia (ia/c1/c2) +
+  // conferente (nome/cargo do snapshot). O documento mais novo (maior id) que
+  // alimenta a coluna define o selo, alinhado com "ultimo escrito vence".
+  interface ColSeal {
+    docId: number;
+    confLevel: "ia" | "c1" | "c2" | null;
+    conferenteName: string | null;
+    conferenteCargo: string | null;
+  }
+  const seals = new Map<string, ColSeal>();
+  for (const j of joinedForEvolution) {
+    const r = j.result;
+    const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
+    const prev = seals.get(key);
+    if (prev && prev.docId >= r.examDocumentId) continue;
+    const level = confLevelFromStatus(j.docStatus);
+    // C2: usa snapshot da fase 2 (documentos legados sem snapshot => "conferencia legada").
+    // C1: usa snapshot da fase 1. IA: sem conferente.
+    let conferenteName: string | null = null;
+    let conferenteCargo: string | null = null;
+    if (level === "c2") {
+      conferenteName = j.conf2Name ?? (j.docStatus === "conferido" ? "Conferência legada" : null);
+      conferenteCargo = j.conf2Cargo;
+    } else if (level === "c1") {
+      conferenteName = j.conf1Name;
+      conferenteCargo = j.conf1Cargo;
     }
-
-    // Sexo do cliente (clients.ficha_clinica.sexo: 'M' | 'F') para escolher o
-    // conjunto de faixas dos analitos sexo-dependentes. Fallback 'any'.
-    const [clientRow] = await db
-      .select({ ficha: clientsTable.fichaClinica })
-      .from(clientsTable)
-      .where(eq(clientsTable.id, clientId))
-      .limit(1);
-    const rawSexo = ((clientRow?.ficha as { sexo?: string } | null)?.sexo ?? "")
-      .toString()
-      .trim()
-      .toUpperCase();
-    const clientSex: "male" | "female" | null =
-      rawSexo === "M" ? "male" : rawSexo === "F" ? "female" : null;
-
-    const dirRows = await db
-      .select({
-        nome: direcaoFavoravelExameTable.nomeExame,
-        dir: direcaoFavoravelExameTable.direcaoFavoravel,
-      })
-      .from(direcaoFavoravelExameTable);
-    const norm = (s: string) => removeDiacritics(s).trim().toUpperCase();
-    const dirByName = new Map<string, string | null>();
-    for (const d of dirRows) dirByName.set(norm(d.nome), d.dir);
-
-    const rangeRows = await db.select().from(examAnalyteRangesTable);
-    const rangesByCode = new Map<string, typeof rangeRows>();
-    for (const r of rangeRows) {
-      const rk = chaveFaixa(r.analyteCode);
-      const arr = rangesByCode.get(rk) ?? [];
-      arr.push(r);
-      rangesByCode.set(rk, arr);
-    }
-
-    const toNum = (s: string | null): number | null => {
-      if (s === null) return null;
-      const n = Number(String(s).replace(",", "."));
-      return Number.isFinite(n) ? n : null;
-    };
-
-    const analytes = [...lines.entries()].map(([key, line]) => {
-      // tendencia: compara os 2 ultimos valores numericos
-      const nums = columns
-        .map((c) => line.cells.get(c.key)?.valueNum)
-        .filter((v): v is number => v !== null && v !== undefined);
-      let trend: "subiu" | "caiu" | "estavel" | null = null;
-      if (nums.length >= 2) {
-        const prev = nums[nums.length - 2];
-        const last = nums[nums.length - 1];
-        trend = last > prev ? "subiu" : last < prev ? "caiu" : "estavel";
-      }
-
-      // Direção do exame (código canônico primeiro; senão pelo nome cru).
-      const catalogDir = key ? (dirByCode.get(key) ?? null) : null;
-      const iheDir = dirByName.get(norm(line.name)) ?? null;
-      const direction: Direction = resolveDirection(catalogDir, iheDir);
-
-      // Zonas: override do Subcadastro OU trisecção do min/max real.
-      // Chave normalizada por NOME do exame (unifica Config <-> Cockpit e casa
-      // com a semente), independente do code cru da linha.
-      // Faixas: prefere a chave do CODE canonico da linha (casa a semente e os
-      // sinonimos casados); cai para o nome cru quando a linha nao casou.
-      const allRows =
-        rangesByCode.get(chaveFaixa(key)) ??
-        rangesByCode.get(chaveFaixa(line.name)) ??
-        [];
-      // Escolha do conjunto por sexo: analito sexo-dependente + sexo do cliente
-      // conhecido usa 'male'/'female' (com fallback 'any' se aquele sexo estiver
-      // vazio); caso contrario usa apenas a faixa geral 'any'.
-      const isSexDep = key ? (sexDepByCode.get(key) ?? false) : false;
-      const pickBySex = (() => {
-        if (isSexDep && clientSex) {
-          const bySex = allRows.filter((r) => r.sex === clientSex);
-          if (bySex.length) return bySex;
-        }
-        return allRows.filter((r) => (r.sex ?? "any") === "any");
-      })();
-      const overrideRows = pickBySex.map((r) => ({
-        faixaName: r.faixaName,
-        low: toNum(r.low),
-        high: toNum(r.high),
-        color: r.color,
-        ordem: r.ordem,
-      }));
-      const zones: Zone[] | null =
-        overrideZones(overrideRows) ??
-        computeZones(toNum(line.refLow), toNum(line.refHigh), direction);
-
-      // Classifica cada célula na sua zona (cor honesta da faixa).
-      const cellsObj = Object.fromEntries(
-        [...line.cells.entries()].map(([ck, cell]) => {
-          const z = classifyIntoZones(cell.valueNum, zones);
-          return [
-            ck,
-            { ...cell, zone: z ? { key: z.key, name: z.name, color: z.color } : null },
-          ];
-        }),
-      );
-
-      return {
-        key,
-        name: line.name,
-        unit: line.unit,
-        refLow: line.refLow,
-        refHigh: line.refHigh,
-        direction,
-        zones: zones
-          ? zones.map((z) => ({ key: z.key, name: z.name, color: z.color, low: z.low, high: z.high }))
-          : null,
-        trend,
-        cells: cellsObj,
-      };
+    seals.set(key, {
+      docId: r.examDocumentId,
+      confLevel: level,
+      conferenteName,
+      conferenteCargo,
     });
+  }
 
-    analytes.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-    res.json({ columns, analytes });
+  // Determina se uma coluna e inteiramente historica (todos os resultados
+  // dela vieram do historico interno de outro laudo, nao de exame proprio).
+  const colIsHistory = new Map<string, boolean>();
+  for (const r of rows) {
+    const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
+    if (!r.isHistory) {
+      colIsHistory.set(key, false);          // qualquer nao-historico torna a coluna real
+    } else if (!colIsHistory.has(key)) {
+      colIsHistory.set(key, true);           // primeiro encontrado: assume historico
+    }
+  }
+
+  // Colunas do comparativo: par unico (data + laboratorio), em ordem de data
+  const columnKeys: string[] = [];
+  const columns: Array<{
+    key: string;
+    date: string | null;
+    lab: string | null;
+    confLevel: "ia" | "c1" | "c2" | null;
+    conferenteName: string | null;
+    conferenteCargo: string | null;
+    isHistory: boolean;
+  }> = [];
+  for (const r of rows) {
+    const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
+    if (!columnKeys.includes(key)) {
+      columnKeys.push(key);
+      const seal = seals.get(key);
+      columns.push({
+        key,
+        date: r.collectionDate,
+        lab: r.labName,
+        confLevel: seal?.confLevel ?? null,
+        conferenteName: seal?.conferenteName ?? null,
+        conferenteCargo: seal?.conferenteCargo ?? null,
+        isHistory: colIsHistory.get(key) ?? false,
+      });
+    }
+  }
+
+  // Linhas: 1 por analito (codigo canonico quando casado; senao nome cru)
+  interface Cell {
+    value: string | null;
+    valueNum: number | null;
+    unit: string | null;
+    unitConverted: boolean;
+    unitRaw: string | null;
+    refLow: string | null;
+    refHigh: string | null;
+    status: string | null;
+    documentId: number;
+  }
+  const lines = new Map<
+    string,
+    { name: string; unit: string | null; refLow: string | null; refHigh: string | null; cells: Map<string, Cell> }
+  >();
+  const metadataFromC2 = new Set<string>();
+  const confirmedDocumentIds = exibirPreliminaresPortal
+    ? new Set(joinedForEvolution.filter((row) => row.docStatus === "conferido").map((row) => row.result.examDocumentId))
+    : new Set<number>();
+  for (const r of rows) {
+    const lineKey = r.analyteCode ?? r.analyteNameRaw.toLowerCase();
+    if (!lines.has(lineKey)) {
+      lines.set(lineKey, {
+        name: r.analyteNameRaw,
+        unit: r.unitCanonical ?? r.unitRaw,
+        refLow: r.refLow,
+        refHigh: r.refHigh,
+        cells: new Map(),
+      });
+    }
+    const line = lines.get(lineKey)!;
+    // O primeiro C2 fornece os metadados, tal como na consulta estrita C2.
+    // Uma extração anterior não pode alterar unidade, referência ou faixa de C2.
+    if (exibirPreliminaresPortal && confirmedDocumentIds.has(r.examDocumentId) && !metadataFromC2.has(lineKey)) {
+      line.name = r.analyteNameRaw;
+      line.unit = r.unitCanonical ?? r.unitRaw;
+      line.refLow = r.refLow;
+      line.refHigh = r.refHigh;
+      metadataFromC2.add(lineKey);
+    }
+    const colKey = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
+    // ultimo escrito vence (documento mais novo re-confirma o valor)
+    line.cells.set(colKey, {
+      value: r.valueRaw,
+      valueNum: r.valueCanonical === null ? null : Number(r.valueCanonical),
+      // Quando houve conversao, mostra a NOSSA unidade (o valueNum ja e canonico).
+      unit: r.unitConverted ? (r.unitCanonical ?? r.unitRaw) : r.unitRaw,
+      unitConverted: !!r.unitConverted,
+      unitRaw: r.unitRaw,
+      refLow: r.refLow,
+      refHigh: r.refHigh,
+      status: r.status,
+      documentId: r.examDocumentId,
+    });
+  }
+
+  // ---- Motor de FAIXAS (5 zonas): direção real + trisecção do min/max real --
+  // Direção: 1) exam_analyte_catalog.direction; 2) direcao_favoravel_exame
+  // (transmutado do IHE, casado pelo nome); 3) target (neutro). Faixas
+  // explícitas do Subcadastro (exam_analyte_ranges) mandam quando existirem.
+  const catRows = await db
+    .select({
+      code: examAnalyteCatalogTable.code,
+      direction: examAnalyteCatalogTable.direction,
+      sexDependent: examAnalyteCatalogTable.sexDependent,
+    })
+    .from(examAnalyteCatalogTable);
+  const dirByCode = new Map<string, string | null>();
+  const sexDepByCode = new Map<string, boolean>();
+  for (const c of catRows) {
+    dirByCode.set(c.code, c.direction);
+    sexDepByCode.set(c.code, c.sexDependent ?? false);
+  }
+
+  // Sexo do cliente (clients.ficha_clinica.sexo: 'M' | 'F') para escolher o
+  // conjunto de faixas dos analitos sexo-dependentes. Fallback 'any'.
+  const [clientRow] = await db
+    .select({ ficha: clientsTable.fichaClinica })
+    .from(clientsTable)
+    .where(eq(clientsTable.id, clientId))
+    .limit(1);
+  const clientSex: "male" | "female" | null = sexoDaFicha(clientRow?.ficha);
+
+  const dirRows = await db
+    .select({
+      nome: direcaoFavoravelExameTable.nomeExame,
+      dir: direcaoFavoravelExameTable.direcaoFavoravel,
+    })
+    .from(direcaoFavoravelExameTable);
+  const norm = (s: string) => removeDiacritics(s).trim().toUpperCase();
+  const dirByName = new Map<string, string | null>();
+  for (const d of dirRows) dirByName.set(norm(d.nome), d.dir);
+
+  const rangeRows = await db.select().from(examAnalyteRangesTable);
+  const rangesByCode = new Map<string, typeof rangeRows>();
+  for (const r of rangeRows) {
+    const rk = chaveFaixa(r.analyteCode);
+    const arr = rangesByCode.get(rk) ?? [];
+    arr.push(r);
+    rangesByCode.set(rk, arr);
+  }
+
+  const toNum = (s: string | null): number | null => {
+    if (s === null) return null;
+    const n = Number(String(s).replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const analytes = [...lines.entries()].map(([key, line]) => {
+    // tendencia: compara os 2 ultimos valores numericos
+    // Preliminares aparecem com valor, faixa e tendência (rotulados 'preliminar' pela coluna/confLevel).
+    const trendColumns = columns;
+    const nums = trendColumns
+      .map((c) => line.cells.get(c.key)?.valueNum)
+      .filter((v): v is number => v !== null && v !== undefined);
+    let trend: "subiu" | "caiu" | "estavel" | null = null;
+    if (nums.length >= 2) {
+      const prev = nums[nums.length - 2];
+      const last = nums[nums.length - 1];
+      trend = last > prev ? "subiu" : last < prev ? "caiu" : "estavel";
+    }
+
+    // Direção do exame (código canônico primeiro; senão pelo nome cru).
+    const catalogDir = key ? (dirByCode.get(key) ?? null) : null;
+    const iheDir = dirByName.get(norm(line.name)) ?? null;
+    const direction: Direction = resolveDirection(catalogDir, iheDir);
+
+    // Zonas: override do Subcadastro OU trisecção do min/max real.
+    // Chave normalizada por NOME do exame (unifica Config <-> Cockpit e casa
+    // com a semente), independente do code cru da linha.
+    // Faixas: prefere a chave do CODE canonico da linha (casa a semente e os
+    // sinonimos casados); cai para o nome cru quando a linha nao casou.
+    const allRows =
+      rangesByCode.get(chaveFaixa(key)) ??
+      rangesByCode.get(chaveFaixa(line.name)) ??
+      [];
+    // Escolha do conjunto por sexo: analito sexo-dependente + sexo do cliente
+    // conhecido usa 'male'/'female' (com fallback 'any' se aquele sexo estiver
+    // vazio); caso contrario usa apenas a faixa geral 'any'.
+    const isSexDep = key ? (sexDepByCode.get(key) ?? false) : false;
+    const pickBySex = escolherFaixasInstitucionais(allRows, isSexDep, clientSex);
+    const overrideRows = pickBySex.map((r) => ({
+      faixaName: r.faixaName,
+      low: toNum(r.low),
+      high: toNum(r.high),
+      color: r.color,
+      ordem: r.ordem,
+    }));
+    const zonasInstitucionais = overrideZones(overrideRows);
+    const zones: Zone[] | null =
+      zonasInstitucionais ??
+      computeZones(toNum(line.refLow), toNum(line.refHigh), direction);
+
+    // Classifica cada célula na sua zona (cor honesta da faixa).
+    const cellsObj = Object.fromEntries(
+      [...line.cells.entries()].map(([ck, cell]) => {
+        // Linha marcada "conferencia" (ex.: unidade não convertida) aparece com o valor, mas sem cor de faixa:
+        // comparar número em unidade diferente da faixa pintaria um veredito falso.
+        const z = cell.status === "conferencia" ? null : classifyIntoZones(cell.valueNum, zones);
+        return [
+          ck,
+          {
+            ...cell,
+            zone: z ? { key: z.key, name: z.name, color: z.color } : null,
+          },
+        ];
+      }),
+    );
+    return {
+      key,
+      name: line.name,
+      unit: line.unit,
+      refLow: line.refLow,
+      refHigh: line.refHigh,
+      direction,
+      zonesSource: zonasInstitucionais ? ("institucional" as const) : zones ? ("derivada" as const) : null,
+      zones: zones
+        ? zones.map((z) => ({ key: z.key, name: z.name, color: z.color, low: z.low, high: z.high }))
+        : null,
+      trend,
+      cells: cellsObj,
+    };
+  });
+
+  analytes.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  return { columns, analytes };
+}
+
+export type EvolucaoMontada = Awaited<ReturnType<typeof montarEvolucao>>;
+
+export async function handleEvolucao(
+  clientId: number,
+  req: Request,
+  res: Response,
+  profissional = false,
+  portal?: { empresaId: number; habilitado: boolean },
+): Promise<void> {
+  try {
+    res.json(await montarEvolucao(clientId, {
+      respeitarToggleProfissional: profissional,
+      portalEmpresaId: portal?.empresaId,
+      permitirPreliminaresPortal: portal?.habilitado,
+    }));
   } catch (err) {
     console.error("[ExamesLab] Erro na evolucao:", (err as Error).message);
     res.status(500).json({ error: "Erro ao montar evolucao" });
   }
-});
+}
 
 // ===========================================================================
 // CRUD das FAIXAS por exame (bloco editável do painel EVOLUÇÃO).
@@ -2543,6 +2688,7 @@ interface ProcedenciaItem {
 async function montarProcedencia(
   filtro: "code" | "normKey",
   valor: string,
+  empresaId: number,
 ): Promise<ProcedenciaItem[]> {
   if (!valor) return [];
   const rows = await db
@@ -2563,9 +2709,13 @@ async function montarProcedencia(
     .innerJoin(examDocumentsTable, eq(examResultsTable.examDocumentId, examDocumentsTable.id))
     .innerJoin(clientsTable, eq(examResultsTable.clientId, clientsTable.id))
     .where(
-      filtro === "code"
-        ? eq(examResultsTable.analyteCode, valor)
-        : isNull(examResultsTable.analyteCode),
+      and(
+        // Procedência lista paciente, arquivo e valor: só da clínica da sessão.
+        eq(clientsTable.empresaId, empresaId),
+        filtro === "code"
+          ? eq(examResultsTable.analyteCode, valor)
+          : isNull(examResultsTable.analyteCode),
+      ),
     );
 
   const filtradas =
@@ -2609,7 +2759,9 @@ router.get("/exames-lab/triagem/:id/procedencia", async (req: Request, res: Resp
       .where(eq(examAnalyteTriagemTable.id, id))
       .limit(1);
     if (rows.length === 0) return res.status(404).json({ error: "Item não encontrado" });
-    const itens = await montarProcedencia("normKey", rows[0].normKey);
+    const empresaId = sessionEmpresaId(req);
+    if (!empresaId) return res.status(403).json({ error: "Sem clínica ativa na sessão." });
+    const itens = await montarProcedencia("normKey", rows[0].normKey, empresaId);
     return res.json({ itens });
   } catch (e) {
     req.log?.error({ err: e }, "GET /exames-lab/triagem/:id/procedencia falhou");
@@ -2622,7 +2774,9 @@ router.get("/exames-lab/catalogo/:code/procedencia", async (req: Request, res: R
   try {
     const code = String(req.params.code ?? "").trim();
     if (!code) return res.status(400).json({ error: "code inválido" });
-    const itens = await montarProcedencia("code", code);
+    const empresaId = sessionEmpresaId(req);
+    if (!empresaId) return res.status(403).json({ error: "Sem clínica ativa na sessão." });
+    const itens = await montarProcedencia("code", code, empresaId);
     return res.json({ itens });
   } catch (e) {
     req.log?.error({ err: e }, "GET /exames-lab/catalogo/:code/procedencia falhou");
@@ -2674,68 +2828,13 @@ router.get("/exames-lab/documento/:docId/arquivo", async (req: Request, res: Res
 });
 
 // ============================================================================
-// Re-extração manual de um documento (POST /exames-lab/documento/:docId/reextrair)
-// Baixa o PDF do Drive → Gemini vision multimodal → apaga resultados antigos → persiste.
+// Re-extração manual permanece bloqueada até haver histórico versionado.
 // ============================================================================
-router.post("/exames-lab/documento/:docId/reextrair", async (req: Request, res: Response) => {
-  try {
-    const docId = Number(req.params.docId);
-    if (!Number.isFinite(docId)) return res.status(400).json({ error: "docId inválido" });
-
-    const docs = await db
-      .select({
-        id: examDocumentsTable.id,
-        clientId: examDocumentsTable.clientId,
-        driveId: examDocumentsTable.sourcePdfDriveId,
-        fileName: examDocumentsTable.fileName,
-      })
-      .from(examDocumentsTable)
-      .where(eq(examDocumentsTable.id, docId))
-      .limit(1);
-
-    if (docs.length === 0) return res.status(404).json({ error: "Documento não encontrado" });
-    const doc = docs[0];
-    if (!doc.driveId) return res.status(422).json({ error: "Documento sem arquivo no Drive — re-extração impossível" });
-
-    // Baixar o arquivo do Drive
-    const buffer = await driveDownloadFile(doc.driveId);
-
-    // Gemini vision multimodal: lê pixels, não texto — funciona em PDFs escaneados
-    const result = await extractExamFromMedia(buffer, "application/pdf");
-
-    // Apagar resultados antigos deste documento
-    await db.delete(examResultsTable).where(eq(examResultsTable.examDocumentId, docId));
-
-    // Atualizar metadados do documento (lab, data de coleta, modelo usado)
-    await finalizeDocument(docId, result.data, result.modelUsed);
-
-    // Persistir novos analitos
-    const summary = await persistExtractedResults({
-      documentId: docId,
-      clientId: doc.clientId,
-      extracted: result.data,
-    });
-
-    req.log?.info(
-      { docId, analytes: result.data.analytes.length, model: result.modelUsed },
-      "Re-extração concluída",
-    );
-
-    return res.json({
-      ok: true,
-      analytes: result.data.analytes.length,
-      modelUsed: result.modelUsed,
-      escalated: result.escalated,
-      confidence: result.data.confidence,
-      labName: result.data.labName,
-      collectionDate: result.data.collectionDate,
-      summary,
-    });
-  } catch (e) {
-    req.log?.error({ err: e }, "POST /exames-lab/documento/:docId/reextrair falhou");
-    return res.status(500).json({ error: "Falha na re-extração" });
-  }
-});
+router.post(
+  "/exames-lab/documento/:docId/reextrair",
+  requireCollaborator,
+  (_req: Request, res: Response) => rejectUnversionedReprocessing(res),
+);
 
 // ============================================================================
 // Ferramentas de curadoria: ENGLOBAR + TRANSFERIR + DESFAZER (motor em reassign.ts).
@@ -2755,7 +2854,9 @@ router.get("/exames-lab/exames/:code/impacto", async (req: Request, res: Respons
   try {
     const code = String(req.params.code ?? "").trim();
     if (!code) return res.status(400).json({ error: "code inválido" });
-    return res.json(await impactoExame(code));
+    const empresaId = sessionEmpresaId(req);
+    if (!empresaId) return res.status(403).json({ error: "Sem clínica ativa na sessão." });
+    return res.json(await impactoExame(code, empresaId));
   } catch (e) {
     return handleReassignError(res, e, req.log, "GET /exames-lab/exames/:code/impacto falhou");
   }
@@ -2922,8 +3023,17 @@ router.post("/exames-lab/documento/:docId/clonar-drive", async (req: Request, re
 // Idempotente: roda duas vezes sem duplicar.
 router.post("/exames-lab/demo-conversao", async (req: Request, res: Response) => {
   try {
-    const clientId = Number(req.query.clientId ?? 3747);
-    const DEMO_HASH = "demo-conversao-hemoglobina-v1";
+    // Somente o proprietário da plataforma; cliente explícito e da própria clínica da sessão.
+    if (!req.tenantContext?.isPlatformOwner) {
+      return res.status(403).json({ error: "Apenas o proprietário da plataforma gera a demonstração." });
+    }
+    const clientId = Number(req.query.clientId);
+    if (!Number.isSafeInteger(clientId) || clientId <= 0) {
+      return res.status(400).json({ error: "Informe clientId explícito." });
+    }
+    const demoClient = await requireClientInSession(req, res, clientId);
+    if (!demoClient) return;
+    const DEMO_HASH = `demo-conversao-hemoglobina-v1:${clientId}`;
 
     // 1. Documento fictício (idempotente por hash)
     const existing = await db
@@ -2940,10 +3050,10 @@ router.post("/exames-lab/demo-conversao", async (req: Request, res: Response) =>
         .insert(examDocumentsTable)
         .values({
           clientId,
-          empresaId: 5,
+          empresaId: demoClient.empresaId,
           hash: DEMO_HASH,
           fileName: "DEMO — Conversão de Unidade g_L para g_dL.pdf",
-          labName: "Laboratório Demonstração PAXTER",
+          labName: "Laboratório Demonstração PaxMed",
           collectionDate: "2026-07-23",
           examKind: "lab",
           origin: "demo",
@@ -3001,18 +3111,22 @@ router.post("/exames-lab/demo-conversao", async (req: Request, res: Response) =>
 // ---- GET /exames-lab/monitor — status global do motor ----
 router.get("/exames-lab/monitor", async (req: Request, res: Response) => {
   try {
+    const empresaId = sessionEmpresaId(req);
+    if (!empresaId) return res.status(401).json({ error: "Faça login de colaborador." });
     const stats = await db.execute(sql`
-      SELECT status, COUNT(*)::int AS total
-      FROM exam_documents
-      GROUP BY status
-      ORDER BY status
+      SELECT d.status, COUNT(*)::int AS total
+      FROM exam_documents d
+      JOIN clients c ON d.client_id = c.id
+      WHERE c.empresa_id = ${empresaId}
+      GROUP BY d.status
+      ORDER BY d.status
     `);
     const pendentes = await db.execute(sql`
       SELECT d.id, d.client_id, d.status, d.file_name, d.created_at, d.source_pdf_drive_id,
              c.name AS client_name
       FROM exam_documents d
-      LEFT JOIN clients c ON d.client_id = c.id
-      WHERE d.status IN ('erro', 'processando')
+      JOIN clients c ON d.client_id = c.id
+      WHERE c.empresa_id = ${empresaId} AND d.status IN ('erro', 'processando', 'quarentena')
       ORDER BY d.created_at DESC
       LIMIT 60
     `);
@@ -3026,6 +3140,9 @@ router.get("/exames-lab/monitor", async (req: Request, res: Response) => {
 // ---- POST /exames-lab/recovery — acionar recovery manual ----
 router.post("/exames-lab/recovery", async (req: Request, res: Response) => {
   try {
+    if (!req.tenantContext?.isPlatformOwner) {
+      return res.status(403).json({ error: "Apenas o proprietário da plataforma aciona o recovery global." });
+    }
     setImmediate(() => {
       recoverStuckDocuments().catch((e) =>
         logger.error({ err: e }, "recovery manual falhou")
@@ -3116,7 +3233,7 @@ router.get("/exames-lab/auditoria", requireCollaborator, async (req: Request, re
                   ELSE NULL END AS elapsed_s,
              (SELECT COUNT(*)::int FROM exam_results r WHERE r.exam_document_id = d.id) AS analitos
       FROM exam_documents d
-      LEFT JOIN clients c ON c.id = d.client_id
+      JOIN clients c ON c.id = d.client_id AND c.empresa_id = ${sessionEmpresaId(req) ?? 0}
       LEFT JOIN LATERAL (
         SELECT processed_at FROM drive_watcher_files
         WHERE exam_document_id = d.id AND processed_at IS NOT NULL
@@ -3127,9 +3244,10 @@ router.get("/exames-lab/auditoria", requireCollaborator, async (req: Request, re
     `);
     // Adiciona colunas de auditoria multi-IA (adicionadas via ALTER TABLE)
     const rows2 = await db.execute(sql`
-      SELECT id, reprocessamento_count, reprocessado_at, llm_pipeline
-      FROM exam_documents
-      ORDER BY created_at DESC
+      SELECT x.id, x.reprocessamento_count, x.reprocessado_at, x.llm_pipeline
+      FROM exam_documents x
+      JOIN clients cx ON cx.id = x.client_id AND cx.empresa_id = ${sessionEmpresaId(req) ?? 0}
+      ORDER BY x.created_at DESC
       LIMIT ${limit}
     `);
     // Mescla colunas extras por id
@@ -3149,71 +3267,17 @@ router.get("/exames-lab/auditoria", requireCollaborator, async (req: Request, re
 });
 
 // ─── Reprocessamento individual por ID ────────────────────────────────────────
-// POST /api/exames-lab/reprocessar/:id
-// Reinicia o pipeline de extração de IA para 1 documento específico.
-// Busca o buffer do cofre interno (preferência) ou do Google Drive.
-// Incrementa reprocessamento_count e grava reprocessado_at = NOW().
+// Permanece bloqueado até haver histórico versionado sem substituir resultados.
 router.post("/exames-lab/reprocessar/:id", requireCollaborator, async (req: Request, res: Response) => {
   const docId = Number(req.params.id);
   if (!docId || Number.isNaN(docId)) {
     return res.status(400).json({ error: "ID inválido" });
   }
-  try {
-    const docs = await db
-      .select()
-      .from(examDocumentsTable)
-      .where(eq(examDocumentsTable.id, docId))
-      .limit(1);
-    if (!docs.length) return res.status(404).json({ error: "Documento não encontrado" });
-    const doc = docs[0];
-
-    // Tenta obter o arquivo: cofre interno → Drive
-    let buffer: Buffer | null = null;
-    const copy = await getInternalCopy(docId);
-    if (copy) {
-      buffer = copy.buffer;
-    } else if (doc.sourcePdfDriveId) {
-      try {
-        buffer = await driveDownloadFile(doc.sourcePdfDriveId);
-      } catch (driveErr: any) {
-        logger.warn({ driveErr: driveErr.message, docId }, "reprocessar: falha ao baixar do Drive");
-      }
-    }
-
-    if (!buffer) {
-      return res.status(422).json({
-        error: "Arquivo original não encontrado no cofre interno nem no Drive. Reprocessamento impossível.",
-      });
-    }
-
-    // Incrementa contador e muda status para processando (raw SQL — colunas via ALTER TABLE)
-    await db.execute(sql`
-      UPDATE exam_documents
-      SET status = 'processando',
-          reprocessamento_count = COALESCE(reprocessamento_count, 0) + 1,
-          reprocessado_at = NOW()
-      WHERE id = ${docId}
-    `);
-
-    // Fire-and-forget: reprocessa em background
-    void processExamDocument({
-      documentId: docId,
-      clientId: doc.clientId,
-      buffer,
-      fileName: doc.fileName ?? "documento.pdf",
-    }).catch((err: Error) => {
-      logger.error({ err: err.message, docId }, "Falha no reprocessamento manual");
-    });
-
-    return res.json({ ok: true, message: "Reprocessamento iniciado em background" });
-  } catch (e: any) {
-    req.log?.error({ err: e }, "POST /exames-lab/reprocessar/:id falhou");
-    return res.status(500).json({ error: "Erro interno ao iniciar reprocessamento" });
-  }
+  return rejectUnversionedReprocessing(res);
 });
 
 // ─── Status público de documento (usado pelo portal do cliente) ───────────────
-// GET /api/exames-lab/doc-status/:documentId — sem auth, retorna apenas status
+// GET /api/exames-lab/doc-status/:documentId — colaborador da mesma clínica; retorna apenas status
 router.get("/exames-lab/doc-status/:documentId", async (req: Request, res: Response) => {
   const docId = Number(req.params.documentId);
   if (!docId || Number.isNaN(docId)) return res.status(400).json({ error: "ID inválido" });
@@ -3232,5 +3296,8 @@ router.get("/exames-lab/doc-status/:documentId", async (req: Request, res: Respo
     return res.status(500).json({ error: "Erro interno" });
   }
 });
+
+router.use(createExamIdentityRouter(incorporateExtractedExam));
+router.use(createExamIdentityGovernanceRouter());
 
 export default router;

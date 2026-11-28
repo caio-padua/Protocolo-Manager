@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SubstanceApplicationAvailability } from "./substanceApplicationAvailability";
+import type { SubstanceApplicationDisplayState } from "./substanceApplicationDisplayState";
 import type { SubstanceApplicationStatus } from "./substanceApplicationStatus";
 
 export interface SubstanceApplication {
@@ -18,6 +19,10 @@ export interface SubstanceApplication {
   totalSessions: number;
   status: SubstanceApplicationStatus;
   availability: SubstanceApplicationAvailability;
+  /** Estado derivado dos registros reais da aplicação. */
+  displayState?: SubstanceApplicationDisplayState;
   appliedAt?: string | null;
+  confirmedBy?: number | null;
+  confirmedAt?: string | null;
   notes?: string | null;
 }

@@ -19,6 +19,8 @@ const API_BASE    = import.meta.env.BASE_URL.replace(/\/$/, "");
 const _siteBase = import.meta.env.VITE_SITE_URL
   ?? import.meta.env.VITE_AREA_URL?.replace(/\/area\/?$/, "")
   ?? null;
+// Sobe junto com a imagem og-paxmed-vN.jpg do index.html.
+const PREVIA_VERSAO = "13";
 const GUIA_BASE: string = _siteBase
   ? `${_siteBase}${import.meta.env.BASE_URL}guia-digital`.replace(/([^:])\/\//g, "$1/")
   : "⚠️ [VITE_SITE_URL NÃO CONFIGURADA — obrigatória antes do lançamento]";
@@ -39,7 +41,7 @@ function useMinhaConfig() {
     const token = getCollabToken();
     setClientes([]);
     const options = {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: (token ? { Authorization: `Bearer ${token}` } : {}) as Record<string, string>,
       signal: controller.signal,
     };
     Promise.all([
@@ -327,6 +329,8 @@ export default function GuiaPaciente() {
     const params = new URLSearchParams();
     if (slug) params.set("tenant", slug);
     if (clientId) params.set("c", String(clientId));
+    // Versao da previa do link (WhatsApp/Telegram guardam a previa por endereco): subir ao trocar a imagem.
+    params.set("v", PREVIA_VERSAO);
     const qs = params.toString();
     return qs ? `${GUIA_BASE}?${qs}` : GUIA_BASE;
   })();
@@ -565,7 +569,17 @@ export default function GuiaPaciente() {
         <div className="panel-3d rounded-xl p-5 space-y-4">
           <p className="text-primary text-xs font-black uppercase tracking-widest">Enviar automaticamente</p>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {/* Somente Telegram: não depende de telefone nem de WhatsApp */}
+            <button
+              onClick={() => enviar(["TELEGRAM"])}
+              disabled={!clinicaReady || loading || countdown > 0}
+              className="btn-3d flex items-center justify-center gap-2 py-3 text-sm font-black uppercase tracking-wider disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {countdown > 0 ? `Aguarde ${countdown}s…` : "Somente Telegram"}
+            </button>
+
             {/* WhatsApp */}
             <button
               onClick={() => enviar(["WHATSAPP"])}

@@ -1,0 +1,5437 @@
+{
+  "versao": "proposta clinica de revisao 2026-11-07",
+  "estado": "nao implantado; nao validado como instrumento completo",
+  "aviso_implementacao": "Material de revisão. Conferir o banco real, regras de exibição, versões validadas, autenticação, autorização, tipos e opções antes de executar ou importar.",
+  "fontes": {
+    "ADM": [
+      "Contexto de cadastro",
+      "Dados de identificação e contato para vincular a resposta ao atendimento. Não é uma escala clínica.",
+      ""
+    ],
+    "GER": [
+      "História clínica",
+      "ACOG, formulário de história médica: condições, alergias, cirurgias e antecedentes.",
+      "https://www.acog.org/womens-health/health-tools/medical-history-form"
+    ],
+    "MED": [
+      "Revisão dos medicamentos",
+      "AHRQ, revisão da lista e das embalagens dos medicamentos, incluindo suplementos e o modo de uso relatado.",
+      "https://www.ahrq.gov/health-literacy/improve/precautions/tool8.html"
+    ],
+    "SEX": [
+      "Saúde sexual",
+      "European Association of Urology, história sexual, desejo, ereção e questionários.",
+      "https://uroweb.org/guidelines/sexual-and-reproductive-health/chapter/management-of-erectile-dysfunction"
+    ],
+    "EHS": [
+      "Rigidez erétil EHS",
+      "Mulhall e colaboradores, estudo de validação do Erection Hardness Score, 2007.",
+      "https://pubmed.ncbi.nlm.nih.gov/17888069/"
+    ],
+    "FSFI": [
+      "Função sexual feminina",
+      "Thiel e colaboradores, adaptação e estudo de validação do FSFI para português brasileiro, 2008.",
+      "https://pubmed.ncbi.nlm.nih.gov/19082387/"
+    ],
+    "MEN": [
+      "Menopausa e sangramento",
+      "ACOG, sintomas e sangramento na transição menopausal.",
+      "https://www.acog.org/womens-health/faqs/perimenopausal-bleeding-and-bleeding-after-menopause"
+    ],
+    "HOR": [
+      "Histórico hormonal",
+      "Endocrine Society, avaliação e acompanhamento de testosterona em hipogonadismo masculino.",
+      "https://support.endocrine.org/clinical-practice-guidelines/testosterone-therapy"
+    ],
+    "SON": [
+      "Sono e sonolência",
+      "Johns, estudo da escala de sonolência de Epworth, que contém oito situações.",
+      "https://epworthsleepinessscale.com/wp-content/uploads/2016/06/reliabiltiy_and_factor_analysis_of_the_epworth_sleepiness_scale1.pdf"
+    ],
+    "PHQ": [
+      "Humor",
+      "Kroenke e colaboradores, estudo original do PHQ-9.",
+      "https://pmc.ncbi.nlm.nih.gov/articles/PMC1495268/"
+    ],
+    "PROD": [
+      "Apresentações de produtos",
+      "Bulas dos fabricantes e documentos oficiais, sempre conferir a apresentação individual.",
+      "https://www.bulario.bayer.com.br/medicamentos-de-prescricao/"
+    ]
+  },
+  "fluxo_proposto": {
+    "Identificação e histórico": "Histórico de câncer se F16=Sim; caso contrário, Escolha da avaliação",
+    "Histórico de câncer": "Escolha da avaliação",
+    "Escolha da avaliação": "Masculina, feminina ou Sono segundo F19",
+    "Saúde masculina e sexualidade": "Histórico hormonal se F28=uso atual/passado; caso contrário, Sono",
+    "Hormônios: histórico masculino": "Sono e medicamentos",
+    "Saúde feminina e ciclo menstrual": "Fluxo menstrual se F36=Sim; Ausência de menstruação se Não; Saúde sexual e reprodutiva se não souber",
+    "Fluxo menstrual": "Saúde sexual e reprodutiva feminina",
+    "Ausência de menstruação": "Saúde sexual e reprodutiva feminina",
+    "Saúde sexual e reprodutiva feminina": "Pílula se F48=Sim; caso contrário DIU ou implante contraceptivo",
+    "Pílula anticoncepcional": "DIU ou implante contraceptivo",
+    "DIU ou implante contraceptivo": "Qual dispositivo se F51=Sim; caso contrário Reposição hormonal feminina",
+    "Qual dispositivo você utiliza?": "Reposição hormonal feminina",
+    "Reposição hormonal feminina": "Histórico hormonal se F54=uso atual/passado; caso contrário Sono",
+    "Histórico de reposição hormonal": "Sono e medicamentos",
+    "Sono e medicamentos": "Medicamentos usados para dormir se F61=Sim; caso contrário Para terminar",
+    "Medicamentos usados para dormir": "Para terminar",
+    "Para terminar": "Conclusão"
+  },
+  "secoes": [
+    {
+      "nome": "Identificação e histórico",
+      "perguntas": [
+        {
+          "pergunta": "Nome completo",
+          "tipo": "TEXT",
+          "opcoes": null,
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": true,
+          "rotas": null,
+          "codigo": "F01",
+          "motivo": "Vincular suas respostas ao cadastro correto.",
+          "referencia": "ADM",
+          "origem_manager": [
+            "Q001"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Telefone ou WhatsApp para contato",
+          "tipo": "TEXT",
+          "opcoes": null,
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": true,
+          "rotas": null,
+          "codigo": "F02",
+          "motivo": "Permitir que a equipe entre em contato sobre o atendimento.",
+          "referencia": "ADM",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Qual é a sua idade?",
+          "tipo": "LIST",
+          "opcoes": [
+            "18",
+            "19",
+            "20",
+            "21",
+            "22",
+            "23",
+            "24",
+            "25",
+            "26",
+            "27",
+            "28",
+            "29",
+            "30",
+            "31",
+            "32",
+            "33",
+            "34",
+            "35",
+            "36",
+            "37",
+            "38",
+            "39",
+            "40",
+            "41",
+            "42",
+            "43",
+            "44",
+            "45",
+            "46",
+            "47",
+            "48",
+            "49",
+            "50",
+            "51",
+            "52",
+            "53",
+            "54",
+            "55",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69",
+            "70",
+            "71",
+            "72",
+            "73",
+            "74",
+            "75",
+            "76",
+            "77",
+            "78",
+            "79",
+            "80",
+            "81",
+            "82",
+            "83",
+            "84",
+            "85",
+            "86",
+            "87",
+            "88",
+            "89",
+            "90",
+            "Mais de 90 anos",
+            "Prefiro informar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": true,
+          "rotas": null,
+          "codigo": "F03",
+          "motivo": "Interpretar sintomas e antecedentes no contexto da sua idade.",
+          "referencia": "GER",
+          "origem_manager": [
+            "A03"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Se souber, informe seu peso e sua altura (ex.: 75 kg e 1,70 m)",
+          "tipo": "TEXT",
+          "opcoes": null,
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F04",
+          "motivo": "Conhecer medidas de referência informadas por você para acompanhar mudanças.",
+          "referencia": "GER",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "O que você espera melhorar com o acompanhamento?",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Energia e disposição",
+            "Sono",
+            "Peso e composição corporal",
+            "Força e massa muscular",
+            "Saúde sexual",
+            "Sintomas relacionados à menopausa",
+            "Acompanhar meus exames",
+            "Saúde e prevenção",
+            "Outro objetivo / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F05",
+          "motivo": "Entender suas prioridades para orientar a consulta.",
+          "referencia": "GER",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Você já recebeu diagnóstico de alguma destas condições? Marque todas as que se aplicam.",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Pressão alta",
+            "Diabetes ou pré-diabetes",
+            "Colesterol ou triglicérides elevados",
+            "Infarto, angina, arritmia ou outra doença do coração",
+            "AVC / derrame",
+            "Trombose ou embolia",
+            "Apneia do sono",
+            "Doença da tireoide",
+            "Doença do fígado",
+            "Doença dos rins",
+            "Depressão ou ansiedade",
+            "Outra condição",
+            "Nenhuma dessas condições",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": "Se não tiver nenhuma, marque somente “Nenhuma dessas condições”.",
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F06",
+          "motivo": "Conhecer condições já diagnosticadas que podem influenciar sua avaliação.",
+          "referencia": "GER",
+          "origem_manager": [
+            "Q013",
+            "D02",
+            "D03",
+            "D04"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Quais sintomas motivam sua procura por acompanhamento?",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Cansaço ou falta de energia",
+            "Sono ruim",
+            "Aumento de peso ou gordura abdominal",
+            "Dificuldade para ganhar ou manter massa muscular",
+            "Redução do interesse sexual",
+            "Alterações de humor ou irritabilidade",
+            "Dificuldade de concentração ou memória",
+            "Ondas de calor / suor noturno",
+            "Outro sintoma",
+            "Nenhum / avaliação preventiva"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F07",
+          "motivo": "Identificar o que está incomodando você para organizar a investigação.",
+          "referencia": "GER",
+          "origem_manager": [
+            "Q012"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Há quanto tempo você percebe esses sintomas?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Menos de 1 mês",
+            "1 a 3 meses",
+            "Mais de 3 a 6 meses",
+            "Mais de 6 meses a 1 ano",
+            "Mais de 1 ano",
+            "Não tenho sintomas / não sei"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F08",
+          "motivo": "Entender quando os sintomas começaram e como evoluíram.",
+          "referencia": "GER",
+          "origem_manager": [
+            "Q011"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Você usa algum destes tipos de medicamento ou suplemento?",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Medicamento para pressão",
+            "Medicamento para diabetes",
+            "Medicamento para colesterol",
+            "Medicamento para tireoide",
+            "Antidepressivo ou ansiolítico",
+            "Medicamento para dormir",
+            "Anticoagulante / remédio para afinar o sangue",
+            "Vitamina ou suplemento",
+            "Outro medicamento",
+            "Não uso",
+            "Não sei / prefiro informar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F09",
+          "motivo": "Reunir todos os medicamentos e suplementos que você usa para revisão.",
+          "referencia": "MED",
+          "origem_manager": [
+            "G01",
+            "G02"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Você tem alguma alergia ou já teve reação importante?",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Alergia a medicamento",
+            "Reação após injeção ou aplicação",
+            "Alergia a anestésico",
+            "Alergia a látex",
+            "Outra alergia ou reação",
+            "Não que eu saiba",
+            "Não sei"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F10",
+          "motivo": "Registrar alergias e reações para orientar os cuidados.",
+          "referencia": "GER",
+          "origem_manager": [
+            "Q017",
+            "F02"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Você já fez alguma cirurgia ou teve outra doença importante?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Sim",
+            "Não",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F11",
+          "motivo": "Conhecer intervenções e doenças anteriores relevantes para a consulta.",
+          "referencia": "GER",
+          "origem_manager": [
+            "Q015",
+            "Q016",
+            "E03"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Há histórico na família de câncer de mama ou próstata, trombose ou infarto precoce?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Sim",
+            "Não que eu saiba",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F12",
+          "motivo": "Identificar antecedentes familiares que possam orientar a avaliação.",
+          "referencia": "GER",
+          "origem_manager": [
+            "J02",
+            "J03",
+            "J04"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Você fuma ou usa cigarro eletrônico?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Não",
+            "Sim, atualmente",
+            "Já usei e parei",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F13",
+          "motivo": "O uso atual ou anterior de tabaco ajuda a compor o histórico de saúde.",
+          "referencia": "GER",
+          "origem_manager": [
+            "I-TAB01",
+            "I-TAB02"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Com que frequência você consome bebida alcoólica?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Não consumo",
+            "Menos de 1 vez por semana",
+            "1 a 2 dias por semana",
+            "3 ou mais dias por semana",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F14",
+          "motivo": "Conhecer o consumo de álcool e possíveis relações com sono e saúde.",
+          "referencia": "GER",
+          "origem_manager": [
+            "AUDITC1"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Com que frequência pratica atividade física?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Não pratico",
+            "1 vez por semana",
+            "2 vezes por semana",
+            "3 a 4 vezes por semana",
+            "5 vezes por semana ou mais",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F15",
+          "motivo": "Conhecer sua rotina de movimento e atividade física.",
+          "referencia": "GER",
+          "origem_manager": [
+            "I-ATV01"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Você já teve algum tipo de câncer?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Sim",
+            "Não",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": true,
+          "rotas": [
+            {
+              "valor": "Sim",
+              "secao": "Histórico de câncer"
+            },
+            {
+              "valor": "Não",
+              "secao": "Escolha da avaliação"
+            },
+            {
+              "valor": "Não sei / prefiro conversar na consulta",
+              "secao": "Escolha da avaliação"
+            }
+          ],
+          "codigo": "F16",
+          "motivo": "Alguns tratamentos exigem atenção ao histórico pessoal de câncer.",
+          "referencia": "HOR",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        }
+      ]
+    },
+    {
+      "nome": "Histórico de câncer",
+      "perguntas": [
+        {
+          "pergunta": "Qual ou quais tipos de câncer você já teve?",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Mama",
+            "Próstata",
+            "Intestino / cólon / reto",
+            "Colo do útero",
+            "Útero / endométrio",
+            "Ovário",
+            "Testículo",
+            "Pele",
+            "Tireoide",
+            "Pulmão",
+            "Outro tipo",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F17",
+          "motivo": "Identificar o tipo informado para planejar a avaliação e analisar documentos.",
+          "referencia": "GER",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Em relação ao câncer, qual situação melhor descreve você?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Em tratamento atualmente",
+            "Tratamento concluído / acompanhamento",
+            "Outra situação",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F18",
+          "motivo": "Conhecer se há tratamento ou acompanhamento em andamento.",
+          "referencia": "GER",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        }
+      ]
+    },
+    {
+      "nome": "Escolha da avaliação",
+      "perguntas": [
+        {
+          "pergunta": "Qual conjunto de perguntas você deseja responder?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Avaliação masculina",
+            "Avaliação feminina",
+            "Prefiro conversar sobre isso na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": true,
+          "rotas": [
+            {
+              "valor": "Avaliação masculina",
+              "secao": "Saúde masculina e sexualidade"
+            },
+            {
+              "valor": "Avaliação feminina",
+              "secao": "Saúde feminina e ciclo menstrual"
+            },
+            {
+              "valor": "Prefiro conversar sobre isso na consulta",
+              "secao": "Sono e medicamentos"
+            }
+          ],
+          "codigo": "F19",
+          "motivo": "Mostrar as perguntas de saúde sexual e reprodutiva que fazem sentido para você.",
+          "referencia": "ADM",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        }
+      ]
+    },
+    {
+      "nome": "Saúde masculina e sexualidade",
+      "perguntas": [
+        {
+          "pergunta": "Como você avalia seu interesse ou desejo sexual?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Ausente",
+            "Baixo",
+            "Moderado",
+            "Alto",
+            "Muito alto",
+            "Não sei / prefiro não responder"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F20",
+          "motivo": "O desejo sexual é uma dimensão da saúde sexual e pode ser acompanhado ao longo do tempo.",
+          "referencia": "SEX",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Comparado ao que era habitual para você, seu desejo sexual:",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Diminuiu",
+            "Permanece semelhante",
+            "Aumentou",
+            "Não sei / prefiro não responder"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F21",
+          "motivo": "Comparar o desejo atual com seu padrão habitual.",
+          "referencia": "SEX",
+          "origem_manager": [
+            "C-REP01"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Com que frequência, em média, você teve atividade sexual no último mês?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Nenhuma",
+            "Menos de 1 vez por semana",
+            "1 vez por semana",
+            "2 a 3 vezes por semana",
+            "4 a 6 vezes por semana",
+            "Diariamente ou mais",
+            "Não sei / prefiro não responder"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": "A frequência de atividade sexual e o desejo são informações diferentes.",
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F22",
+          "motivo": "Conhecer sua rotina sexual; frequência de atividade e desejo são coisas diferentes.",
+          "referencia": "SEX",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Se houve alguma alteração no desejo sexual, quanto isso incomoda você?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Não percebo alteração",
+            "Não incomoda",
+            "Incomoda um pouco",
+            "Incomoda moderadamente",
+            "Incomoda muito",
+            "Não sei / prefiro não responder"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F23",
+          "motivo": "Entender se uma mudança tem impacto ou incomoda você.",
+          "referencia": "SEX",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "No último mês, como foi sua capacidade de obter ou manter ereção quando desejou?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Sem dificuldade",
+            "Dificuldade ocasional",
+            "Dificuldade frequente",
+            "Não consegui",
+            "Não se aplica / prefiro não responder"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F24",
+          "motivo": "Avaliar a função erétil separadamente do interesse sexual.",
+          "referencia": "EHS",
+          "origem_manager": [
+            "L-AND01"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Você costuma ter ereções ao acordar?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Frequentemente",
+            "Às vezes",
+            "Raramente",
+            "Nunca",
+            "Não sei / prefiro não responder"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F25",
+          "motivo": "Conhecer a ocorrência de ereções ao acordar como parte da história clínica.",
+          "referencia": "SEX",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Você percebe alguma destas alterações?",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Dificuldade de ereção",
+            "Ejaculação mais rápida do que gostaria",
+            "Dificuldade para ejacular ou atingir orgasmo",
+            "Diminuição de energia",
+            "Diminuição de força ou massa muscular",
+            "Sintomas urinários",
+            "Nenhuma dessas",
+            "Prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F26",
+          "motivo": "Identificar sintomas relacionados para conversar na consulta.",
+          "referencia": "SEX",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Você deseja ter filhos ou preservar a fertilidade?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Sim",
+            "Não",
+            "Ainda não sei",
+            "Não se aplica / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F27",
+          "motivo": "Alguns tratamentos podem afetar planos de fertilidade.",
+          "referencia": "HOR",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Você usa atualmente ou já usou testosterona ou outros hormônios?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Uso atualmente",
+            "Já usei, mas não uso atualmente",
+            "Nunca usei",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": true,
+          "rotas": [
+            {
+              "valor": "Uso atualmente",
+              "secao": "Hormônios: histórico masculino"
+            },
+            {
+              "valor": "Já usei, mas não uso atualmente",
+              "secao": "Hormônios: histórico masculino"
+            },
+            {
+              "valor": "Nunca usei",
+              "secao": "Sono e medicamentos"
+            },
+            {
+              "valor": "Não sei / prefiro conversar na consulta",
+              "secao": "Sono e medicamentos"
+            }
+          ],
+          "codigo": "F28",
+          "motivo": "Conhecer uso atual ou passado ajuda a interpretar sintomas e exames.",
+          "referencia": "HOR",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        }
+      ]
+    },
+    {
+      "nome": "Hormônios: histórico masculino",
+      "perguntas": [
+        {
+          "pergunta": "Quais produtos ou substâncias você usa ou já usou?",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Durateston — mistura de ésteres de testosterona; ampola 250 mg/1 mL",
+            "Deposteron — cipionato de testosterona; ampola 200 mg/2 mL",
+            "Enantato de testosterona — verificar concentração na embalagem",
+            "Undecilato de testosterona — verificar apresentação",
+            "Testosterona em gel ou creme",
+            "Testosterona em implante",
+            "Outro hormônio ou anabolizante",
+            "Não lembro o nome"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F29",
+          "motivo": "Identificar cada produto ou substância para revisar o histórico.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Na fase de uso mais recente, qual foi a frequência de cada produto?",
+          "tipo": "GRID",
+          "opcoes": null,
+          "linhas": [
+            "Durateston",
+            "Deposteron",
+            "Enantato de testosterona",
+            "Outro produto injetável",
+            "Testosterona em gel / creme"
+          ],
+          "colunas": [
+            "Não usei / não se aplica",
+            "Diariamente",
+            "1 vez por semana",
+            "2 vezes por semana",
+            "3 vezes por semana ou mais",
+            "A cada 2 semanas",
+            "A cada 3 a 4 semanas",
+            "Intervalo maior ou variável",
+            "Não sei"
+          ],
+          "ajuda": "Preencha apenas as linhas que conseguir. Marque o que realmente fez.",
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F30",
+          "motivo": "Associar frequência ao produto correto. Na versão integrada, esta informação será repetida para cada produto.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": true
+        },
+        {
+          "pergunta": "Qual foi o volume por aplicação, na fase de uso mais recente?",
+          "tipo": "GRID",
+          "opcoes": null,
+          "linhas": [
+            "Durateston",
+            "Deposteron",
+            "Enantato de testosterona",
+            "Outro injetável"
+          ],
+          "colunas": [
+            "Não usei / não se aplica",
+            "0,1 mL",
+            "0,25 mL",
+            "0,5 mL",
+            "1 mL",
+            "2 mL",
+            "Outro volume",
+            "Não sei"
+          ],
+          "ajuda": "Informe o volume usado, se souber. As concentrações variam; não converta mL em mg sem conferir a embalagem.",
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F31",
+          "motivo": "Registrar o volume sem confundi-lo com a concentração ou quantidade em mg.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": true
+        },
+        {
+          "pergunta": "Há quanto tempo você usa ou usou hormônios?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Menos de 3 meses",
+            "3 a 6 meses",
+            "Mais de 6 meses a 1 ano",
+            "Mais de 1 ano",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F32",
+          "motivo": "Conhecer por quanto tempo cada produto foi usado.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": true
+        },
+        {
+          "pergunta": "Quando foi a última aplicação ou uso de hormônio?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Nos últimos 7 dias",
+            "Entre 8 e 30 dias atrás",
+            "Entre 1 e 6 meses atrás",
+            "Há mais de 6 meses",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F33",
+          "motivo": "A data do último uso ajuda a contextualizar o histórico e a coleta de exames.",
+          "referencia": "HOR",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": true
+        },
+        {
+          "pergunta": "O uso foi acompanhado por profissional de saúde?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Sim",
+            "Não",
+            "Em parte",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F34",
+          "motivo": "Entender como o uso foi acompanhado.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": true
+        },
+        {
+          "pergunta": "Durante o uso, percebeu alguma reação ou alteração?",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Acne / pele oleosa",
+            "Queda de cabelo",
+            "Alteração do humor",
+            "Retenção de líquido / inchaço",
+            "Dor ou reação no local da aplicação",
+            "Alteração em exames",
+            "Outra reação",
+            "Nenhuma que eu saiba",
+            "Não sei"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F35",
+          "motivo": "Registrar possíveis reações para discussão clínica.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": true
+        }
+      ]
+    },
+    {
+      "nome": "Saúde feminina e ciclo menstrual",
+      "perguntas": [
+        {
+          "pergunta": "Atualmente você menstrua?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Sim",
+            "Não",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": true,
+          "rotas": [
+            {
+              "valor": "Sim",
+              "secao": "Fluxo menstrual"
+            },
+            {
+              "valor": "Não",
+              "secao": "Ausência de menstruação"
+            },
+            {
+              "valor": "Não sei / prefiro conversar na consulta",
+              "secao": "Saúde sexual e reprodutiva feminina"
+            }
+          ],
+          "codigo": "F36",
+          "motivo": "Escolher as perguntas de ciclo menstrual aplicáveis.",
+          "referencia": "MEN",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        }
+      ]
+    },
+    {
+      "nome": "Fluxo menstrual",
+      "perguntas": [
+        {
+          "pergunta": "Como costuma ser seu fluxo menstrual?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Leve",
+            "Moderado",
+            "Intenso",
+            "Muito variável",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F37",
+          "motivo": "Conhecer como você percebe o fluxo menstrual.",
+          "referencia": "MEN",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Como costuma ser a regularidade da menstruação?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Regular",
+            "Irregular",
+            "Muito variável por uso de hormônios ou dispositivo",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F38",
+          "motivo": "Entender seu padrão menstrual ao longo do tempo.",
+          "referencia": "MEN",
+          "origem_manager": [
+            "L-GIN01"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        }
+      ]
+    },
+    {
+      "nome": "Ausência de menstruação",
+      "perguntas": [
+        {
+          "pergunta": "Há quanto tempo você não menstrua?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Menos de 3 meses",
+            "De 3 a 11 meses",
+            "De 1 a 5 anos",
+            "Mais de 5 anos",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F39",
+          "motivo": "Saber há quanto tempo ocorre ausência de menstruação.",
+          "referencia": "MEN",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Você sabe por que não menstrua atualmente?",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Menopausa",
+            "Uso de pílula, DIU hormonal ou outro hormônio",
+            "Retirada do útero",
+            "Retirada dos ovários",
+            "Outra razão",
+            "Não sei"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F40",
+          "motivo": "A ausência pode ter diferentes explicações, que precisam ser contextualizadas.",
+          "referencia": "MEN",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        }
+      ]
+    },
+    {
+      "nome": "Saúde sexual e reprodutiva feminina",
+      "perguntas": [
+        {
+          "pergunta": "Como você avalia seu interesse ou desejo sexual?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Ausente",
+            "Baixo",
+            "Moderado",
+            "Alto",
+            "Muito alto",
+            "Não sei / prefiro não responder"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F41",
+          "motivo": "O desejo sexual é uma dimensão da saúde sexual e pode ser acompanhado ao longo do tempo.",
+          "referencia": "FSFI",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Comparado ao que era habitual para você, seu desejo sexual:",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Diminuiu",
+            "Permanece semelhante",
+            "Aumentou",
+            "Não sei / prefiro não responder"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F42",
+          "motivo": "Comparar o desejo atual com seu padrão habitual.",
+          "referencia": "FSFI",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Com que frequência, em média, você teve atividade sexual no último mês?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Nenhuma",
+            "Menos de 1 vez por semana",
+            "1 vez por semana",
+            "2 a 3 vezes por semana",
+            "4 a 6 vezes por semana",
+            "Diariamente ou mais",
+            "Não sei / prefiro não responder"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": "A frequência de atividade sexual e o desejo são informações diferentes.",
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F43",
+          "motivo": "Conhecer sua rotina sexual; frequência de atividade e desejo são coisas diferentes.",
+          "referencia": "FSFI",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Se houve alguma alteração no desejo sexual, quanto isso incomoda você?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Não percebo alteração",
+            "Não incomoda",
+            "Incomoda um pouco",
+            "Incomoda moderadamente",
+            "Incomoda muito",
+            "Não sei / prefiro não responder"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F44",
+          "motivo": "Entender se uma mudança tem impacto ou incomoda você.",
+          "referencia": "FSFI",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Você apresenta algum destes sintomas?",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Ondas de calor",
+            "Suor noturno",
+            "Ressecamento vaginal",
+            "Dor ou desconforto durante a relação",
+            "Alterações do sono",
+            "Oscilações de humor",
+            "Nenhum desses",
+            "Prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F45",
+          "motivo": "Identificar sintomas que podem orientar a conversa clínica.",
+          "referencia": "MEN",
+          "origem_manager": [
+            "M-HOR01"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Sobre a possibilidade de gravidez:",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Estou grávida",
+            "Posso estar grávida",
+            "Não estou grávida",
+            "Não se aplica",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F46",
+          "motivo": "Algumas decisões clínicas dependem da possibilidade de gravidez.",
+          "referencia": "GER",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Você deseja ter filhos ou preservar a fertilidade?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Sim",
+            "Não",
+            "Ainda não sei",
+            "Não se aplica / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F47",
+          "motivo": "Conhecer seus objetivos reprodutivos ajuda no planejamento.",
+          "referencia": "GER",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Você usa atualmente pílula anticoncepcional?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Sim",
+            "Não",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": true,
+          "rotas": [
+            {
+              "valor": "Sim",
+              "secao": "Pílula anticoncepcional"
+            },
+            {
+              "valor": "Não",
+              "secao": "DIU ou implante contraceptivo"
+            },
+            {
+              "valor": "Não sei / prefiro conversar na consulta",
+              "secao": "DIU ou implante contraceptivo"
+            }
+          ],
+          "codigo": "F48",
+          "motivo": "Anticoncepcionais podem influenciar ciclo e histórico hormonal.",
+          "referencia": "MEN",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        }
+      ]
+    },
+    {
+      "nome": "Pílula anticoncepcional",
+      "perguntas": [
+        {
+          "pergunta": "Qual pílula anticoncepcional você usa?",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Yasmin — drospirenona 3 mg + etinilestradiol 0,03 mg",
+            "Yaz — drospirenona 3 mg + etinilestradiol 0,02 mg",
+            "Microvlar — levonorgestrel 0,15 mg + etinilestradiol 0,03 mg",
+            "Cerazette — desogestrel 0,075 mg",
+            "Norestin — noretisterona 0,35 mg",
+            "Outra pílula / genérico",
+            "Não sei o nome"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F49",
+          "motivo": "Identificar a pílula e sua apresentação para revisão dos medicamentos.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Há quanto tempo você usa a pílula?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Menos de 6 meses",
+            "6 meses a 1 ano",
+            "Mais de 1 ano",
+            "Não sei"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F50",
+          "motivo": "Saber há quanto tempo você utiliza o produto.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        }
+      ]
+    },
+    {
+      "nome": "DIU ou implante contraceptivo",
+      "perguntas": [
+        {
+          "pergunta": "Você usa algum DIU ou implante contraceptivo?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Sim",
+            "Não",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": true,
+          "rotas": [
+            {
+              "valor": "Sim",
+              "secao": "Qual dispositivo você utiliza?"
+            },
+            {
+              "valor": "Não",
+              "secao": "Reposição hormonal feminina"
+            },
+            {
+              "valor": "Não sei / prefiro conversar na consulta",
+              "secao": "Reposição hormonal feminina"
+            }
+          ],
+          "codigo": "F51",
+          "motivo": "Conhecer dispositivos contraceptivos e sua possível influência no ciclo.",
+          "referencia": "MEN",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        }
+      ]
+    },
+    {
+      "nome": "Qual dispositivo você utiliza?",
+      "perguntas": [
+        {
+          "pergunta": "Selecione o dispositivo, se souber:",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Mirena — DIU hormonal com levonorgestrel 52 mg no dispositivo",
+            "Kyleena — DIU hormonal com levonorgestrel 19,5 mg no dispositivo",
+            "Implanon NXT — implante subdérmico com etonogestrel 68 mg no dispositivo",
+            "DIU de cobre / cobre e prata — não hormonal",
+            "Outro DIU ou implante",
+            "Não sei o nome"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F52",
+          "motivo": "Identificar o dispositivo usado, se souber.",
+          "referencia": "PROD",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Há quanto tempo o dispositivo foi colocado?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Menos de 1 ano",
+            "1 a 2 anos",
+            "3 a 5 anos",
+            "Mais de 5 anos",
+            "Não sei"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F53",
+          "motivo": "Registrar quando o dispositivo foi colocado.",
+          "referencia": "PROD",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        }
+      ]
+    },
+    {
+      "nome": "Reposição hormonal feminina",
+      "perguntas": [
+        {
+          "pergunta": "Além de anticoncepcionais, você usa ou já usou hormônios para reposição?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Uso atualmente",
+            "Já usei, mas não uso atualmente",
+            "Nunca usei",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": true,
+          "rotas": [
+            {
+              "valor": "Uso atualmente",
+              "secao": "Histórico de reposição hormonal"
+            },
+            {
+              "valor": "Já usei, mas não uso atualmente",
+              "secao": "Histórico de reposição hormonal"
+            },
+            {
+              "valor": "Nunca usei",
+              "secao": "Sono e medicamentos"
+            },
+            {
+              "valor": "Não sei / prefiro conversar na consulta",
+              "secao": "Sono e medicamentos"
+            }
+          ],
+          "codigo": "F54",
+          "motivo": "Conhecer o uso atual e anterior de reposição hormonal.",
+          "referencia": "MEN",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        }
+      ]
+    },
+    {
+      "nome": "Histórico de reposição hormonal",
+      "perguntas": [
+        {
+          "pergunta": "Quais hormônios você usa ou já usou?",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Estradiol / estrogênio",
+            "Progesterona",
+            "Testosterona",
+            "Gestrinona",
+            "Outro hormônio",
+            "Não sei o nome"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F55",
+          "motivo": "Identificar os hormônios usados para revisar o tratamento.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "De que forma você usa ou usou?",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Comprimido ou cápsula",
+            "Gel / creme",
+            "Adesivo",
+            "Injeção",
+            "Implante",
+            "Outra forma",
+            "Não sei"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F56",
+          "motivo": "A via de uso ajuda a identificar corretamente cada produto.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": true
+        },
+        {
+          "pergunta": "Na fase de uso mais recente, com que frequência você usava?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Diariamente",
+            "Mais de uma vez por semana",
+            "1 vez por semana",
+            "A cada 2 a 4 semanas",
+            "Em outro intervalo",
+            "Não sei / uso mais de um"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F57",
+          "motivo": "Registrar a frequência de cada produto sem presumir dose.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": true
+        }
+      ]
+    },
+    {
+      "nome": "Sono e medicamentos",
+      "perguntas": [
+        {
+          "pergunta": "Como você avalia seu sono?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Bom",
+            "Regular",
+            "Ruim",
+            "Muito ruim",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F58",
+          "motivo": "Entender como você percebe a qualidade do sono.",
+          "referencia": "SON",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Em média, quantas horas você dorme por noite?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Menos de 5 horas",
+            "5 a 6 horas",
+            "Mais de 6 a 7 horas",
+            "Mais de 7 a 8 horas",
+            "Mais de 8 horas",
+            "Varia muito / não sei"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F59",
+          "motivo": "Conhecer o tempo de sono relatado por você.",
+          "referencia": "SON",
+          "origem_manager": [
+            "I-SON01"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Você apresenta algum destes problemas de sono?",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Demoro para adormecer",
+            "Acordo durante a noite",
+            "Acordo muito cedo",
+            "Ronco",
+            "Já fui informado(a) de pausas na respiração",
+            "Acordo cansado(a)",
+            "Nenhum desses",
+            "Não sei"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F60",
+          "motivo": "Identificar dificuldades e sinais relatados que merecem avaliação.",
+          "referencia": "SON",
+          "origem_manager": [
+            "I-SON02"
+          ],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Você usa algum medicamento ou suplemento para ajudar a dormir?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Sim",
+            "Não",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": true,
+          "rotas": [
+            {
+              "valor": "Sim",
+              "secao": "Medicamentos usados para dormir"
+            },
+            {
+              "valor": "Não",
+              "secao": "Para terminar"
+            },
+            {
+              "valor": "Não sei / prefiro conversar na consulta",
+              "secao": "Para terminar"
+            }
+          ],
+          "codigo": "F61",
+          "motivo": "Medicamentos e suplementos para dormir também devem entrar na lista de uso.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        }
+      ]
+    },
+    {
+      "nome": "Medicamentos usados para dormir",
+      "perguntas": [
+        {
+          "pergunta": "Quais você usa? Marque todos os que se aplicam.",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Clonazepam / Rivotril",
+            "Zolpidem / Stilnox",
+            "Trazodona / Donaren",
+            "Quetiapina",
+            "Mirtazapina",
+            "Melatonina",
+            "Outro medicamento ou suplemento",
+            "Não sei o nome"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F62",
+          "motivo": "Identificar cada produto usado para dormir.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Qual quantidade você costuma tomar? Marque todas as opções correspondentes.",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Clonazepam: 0,25 mg",
+            "Clonazepam: 0,5 mg",
+            "Clonazepam: 1 mg",
+            "Clonazepam: 2 mg",
+            "Clonazepam em gotas: não sei converter / outra quantidade",
+            "Zolpidem: 5 mg",
+            "Zolpidem: 10 mg",
+            "Trazodona: 25 mg",
+            "Trazodona: 50 mg",
+            "Trazodona: 100 mg",
+            "Quetiapina: 12,5 mg",
+            "Quetiapina: 25 mg",
+            "Quetiapina: 50 mg",
+            "Outra quantidade / outro medicamento",
+            "Não sei a dose"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": "Essas opções registram o que você já toma. Não são recomendação de dose.",
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F63",
+          "motivo": "Registrar o que você realmente usa para cada produto.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": true
+        },
+        {
+          "pergunta": "Em quantas noites da semana você costuma usar?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Menos de 1 noite",
+            "1 a 2 noites",
+            "3 a 4 noites",
+            "5 a 6 noites",
+            "Todas as noites",
+            "Varia / depende do medicamento",
+            "Não sei"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F64",
+          "motivo": "Conhecer a frequência de uso de cada produto.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": true
+        },
+        {
+          "pergunta": "Quando você costuma tomar em relação ao horário de dormir?",
+          "tipo": "CHECK",
+          "opcoes": [
+            "Ao me deitar",
+            "Até 30 minutos antes",
+            "Entre 30 minutos e 1 hora antes",
+            "Entre 1 e 2 horas antes",
+            "Mais de 2 horas antes",
+            "Outro horário / varia",
+            "Não sei"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": "Se usar mais de um, marque todos os horários que utiliza.",
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F65",
+          "motivo": "Conhecer em que horário cada produto costuma ser usado.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": true
+        },
+        {
+          "pergunta": "O uso foi orientado por profissional de saúde?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Sim",
+            "Não",
+            "Em parte",
+            "Não sei / prefiro conversar na consulta"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F66",
+          "motivo": "Entender como o uso foi acompanhado.",
+          "referencia": "MED",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": true
+        }
+      ]
+    },
+    {
+      "nome": "Para terminar",
+      "perguntas": [
+        {
+          "pergunta": "Você tem exames recentes para apresentar na consulta?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Sim",
+            "Não",
+            "Não sei"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F67",
+          "motivo": "Saber se há exames disponíveis para serem examinados na consulta.",
+          "referencia": "GER",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        },
+        {
+          "pergunta": "Há alguma informação importante que prefira contar pessoalmente?",
+          "tipo": "RADIO",
+          "opcoes": [
+            "Sim",
+            "Não",
+            "Não sei"
+          ],
+          "linhas": null,
+          "colunas": null,
+          "ajuda": null,
+          "obrigatorio": false,
+          "rotas": null,
+          "codigo": "F68",
+          "motivo": "Permitir que você reserve algum assunto para conversar pessoalmente.",
+          "referencia": "ADM",
+          "origem_manager": [],
+          "consolidada_em_cartao_medicamento": false
+        }
+      ]
+    }
+  ],
+  "cartao_fotos_medicamentos": [
+    {
+      "campo": "Foto do produto",
+      "comportamento": "Tirar foto ou selecionar imagem do rótulo, caixa, frasco ou fórmula. Permitir mais de uma imagem e opção sem foto."
+    },
+    {
+      "campo": "Nome / composição",
+      "comportamento": "Nome como consta na embalagem; se não souber, marcar “Não sei” e enviar a foto."
+    },
+    {
+      "campo": "Tipo de produto",
+      "comportamento": "Medicamento de farmácia / manipulado / suplemento / hormônio / outro / não sei."
+    },
+    {
+      "campo": "Como usa",
+      "comportamento": "Comprimido / cápsula / gotas / gel / creme / adesivo / injeção / implante / outro / não sei."
+    },
+    {
+      "campo": "Quantidade por uso",
+      "comportamento": "Quantidade em número e unidade apropriada: comprimidos, gotas, mg, mcg, mL ou outra. Informar “não sei” quando necessário."
+    },
+    {
+      "campo": "Concentração da embalagem",
+      "comportamento": "Registrar a concentração e unidade exatamente como informada; não converter mL para mg sem ela."
+    },
+    {
+      "campo": "Frequência",
+      "comportamento": "Todos os dias / dias específicos / vezes por semana / intervalo entre aplicações / quando necessário / varia / não sei."
+    },
+    {
+      "campo": "Horário de uso",
+      "comportamento": "Manhã / tarde / noite / ao deitar / até 30 minutos antes / 30 a 60 minutos antes / outro / não sei."
+    },
+    {
+      "campo": "Histórico",
+      "comportamento": "Uso atual ou anterior; início, duração e último uso aproximados, se souber."
+    },
+    {
+      "campo": "Orientação e reações",
+      "comportamento": "Se houve orientação profissional e se percebeu alguma reação, com opção “prefiro falar na consulta”."
+    }
+  ],
+  "modelo_dados_medicamento": {
+    "escopo": "um objeto por produto; vincular ao paciente e à sessão em servidor",
+    "campos": [
+      {
+        "id": "fotos",
+        "tipo": "lista_arquivos_imagem",
+        "obrigatorio": false,
+        "restricao": "armazenamento privado; validar tipo e tamanho no servidor; vincular ao medicamento"
+      },
+      {
+        "id": "nome",
+        "tipo": "texto_ou_nao_sei",
+        "obrigatorio": false
+      },
+      {
+        "id": "tipo_produto",
+        "tipo": "escolha",
+        "opcoes": [
+          "Farmácia",
+          "Manipulado",
+          "Suplemento",
+          "Hormônio",
+          "Outro",
+          "Não sei"
+        ]
+      },
+      {
+        "id": "via",
+        "tipo": "escolha",
+        "opcoes": [
+          "Comprimido",
+          "Cápsula",
+          "Gotas",
+          "Gel",
+          "Creme",
+          "Adesivo",
+          "Injeção",
+          "Implante",
+          "Outro",
+          "Não sei"
+        ]
+      },
+      {
+        "id": "quantidade",
+        "tipo": "numero_ou_nao_sei",
+        "observacao": "quantidade relatada por uso; sem pressupor que foi prescrita"
+      },
+      {
+        "id": "unidade_quantidade",
+        "tipo": "escolha",
+        "opcoes": [
+          "comprimido",
+          "cápsula",
+          "gota",
+          "mg",
+          "mcg",
+          "mL",
+          "outra",
+          "não sei"
+        ]
+      },
+      {
+        "id": "concentracao_valor",
+        "tipo": "numero_ou_nao_sei",
+        "obrigatorio": false
+      },
+      {
+        "id": "concentracao_unidade",
+        "tipo": "escolha",
+        "opcoes": [
+          "mg/mL",
+          "mcg/mL",
+          "mg por comprimido",
+          "outra",
+          "não sei"
+        ]
+      },
+      {
+        "id": "frequencia",
+        "tipo": "escolha",
+        "opcoes": [
+          "Diariamente",
+          "Dias específicos",
+          "Vezes por semana",
+          "Intervalo entre aplicações",
+          "Quando necessário",
+          "Varia",
+          "Não sei"
+        ]
+      },
+      {
+        "id": "frequencia_detalhe",
+        "tipo": "texto_ou_nao_sei",
+        "obrigatorio": false
+      },
+      {
+        "id": "horario",
+        "tipo": "multipla_escolha",
+        "opcoes": [
+          "Manhã",
+          "Tarde",
+          "Noite",
+          "Ao deitar",
+          "Até 30 minutos antes de dormir",
+          "30 a 60 minutos antes de dormir",
+          "Outro",
+          "Não sei"
+        ]
+      },
+      {
+        "id": "situacao",
+        "tipo": "escolha",
+        "opcoes": [
+          "Uso atualmente",
+          "Já usei",
+          "Não sei"
+        ]
+      },
+      {
+        "id": "inicio_duracao",
+        "tipo": "texto_ou_nao_sei",
+        "obrigatorio": false
+      },
+      {
+        "id": "ultimo_uso",
+        "tipo": "data_aproximada_ou_nao_sei",
+        "obrigatorio": false
+      },
+      {
+        "id": "orientacao",
+        "tipo": "escolha",
+        "opcoes": [
+          "Sim",
+          "Não",
+          "Em parte",
+          "Não sei"
+        ]
+      },
+      {
+        "id": "reacoes",
+        "tipo": "texto_ou_nao_sei",
+        "obrigatorio": false
+      }
+    ],
+    "seguranca": [
+      "Nunca gravar imagens no prefixo publico uploads/ do Manager",
+      "Autorizar acesso por paciente e clínica no servidor",
+      "Não enviar imagens nem informações clínicas no corpo de notificações",
+      "OCR é sugestão e sempre requer revisão humana"
+    ]
+  },
+  "manager": [
+    {
+      "idIhe": 1,
+      "codigo": "Q001",
+      "bloco": "A. IDENTIFICACAO E CONTEXTO",
+      "pergunta": "NOME COMPLETO",
+      "tipo": "TEXTO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Associar as respostas ao cadastro correto.",
+      "referencia": "ADM",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 2,
+      "codigo": "Q002",
+      "bloco": "A. IDENTIFICACAO E CONTEXTO",
+      "pergunta": "CPF",
+      "tipo": "TEXTO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Ajudar a distinguir cadastros de pessoas com nomes semelhantes.",
+      "referencia": "ADM",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1001,
+      "codigo": "A03",
+      "bloco": "A. IDENTIFICACAO E CONTEXTO",
+      "pergunta": "IDADE",
+      "tipo": "NUMERO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Contextualizar sua história e a evolução da saúde ao longo da vida.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1002,
+      "codigo": "A04",
+      "bloco": "A. IDENTIFICACAO E CONTEXTO",
+      "pergunta": "SEXO BIOLOGICO",
+      "tipo": "LISTA",
+      "opcoes": [
+        {
+          "label": "Feminino",
+          "valor": "F",
+          "peso": 0
+        },
+        {
+          "label": "Masculino",
+          "valor": "M",
+          "peso": 0
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Direcionar perguntas de saúde reprodutiva quando forem aplicáveis.",
+      "referencia": "ADM",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1003,
+      "codigo": "A05",
+      "bloco": "A. IDENTIFICACAO E CONTEXTO",
+      "pergunta": "ANCESTRALIDADE / ETNIA",
+      "tipo": "TEXTO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer o contexto informado por você; não define isoladamente risco ou diagnóstico.",
+      "referencia": "ADM",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1004,
+      "codigo": "A06",
+      "bloco": "A. IDENTIFICACAO E CONTEXTO",
+      "pergunta": "PROFISSAO",
+      "tipo": "TEXTO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Entender como a rotina e o trabalho se relacionam com sua saúde.",
+      "referencia": "ADM",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1005,
+      "codigo": "A07",
+      "bloco": "A. IDENTIFICACAO E CONTEXTO",
+      "pergunta": "ESCOLARIDADE",
+      "tipo": "LISTA",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Adaptar a comunicação e as orientações à sua realidade.",
+      "referencia": "ADM",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 3,
+      "codigo": "Q010",
+      "bloco": "B. QUEIXA PRINCIPAL E HMA",
+      "pergunta": "QUEIXA PRINCIPAL",
+      "tipo": "TEXTO LONGO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Entender qual é o principal motivo da consulta.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 4,
+      "codigo": "Q011",
+      "bloco": "B. QUEIXA PRINCIPAL E HMA",
+      "pergunta": "DURACAO DA QUEIXA (TEMPO DE EVOLUCAO)",
+      "tipo": "TEXTO CURTO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Saber há quanto tempo a principal queixa começou.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1010,
+      "codigo": "B03",
+      "bloco": "B. QUEIXA PRINCIPAL E HMA",
+      "pergunta": "INICIO: COMO E QUANDO COMECOU (ONSET)",
+      "tipo": "TEXTO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Identificar quando e de que forma o sintoma começou.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1011,
+      "codigo": "B04",
+      "bloco": "B. QUEIXA PRINCIPAL E HMA",
+      "pergunta": "O QUE PROVOCA OU ALIVIA",
+      "tipo": "TEXTO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer o que parece provocar ou aliviar o sintoma.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1012,
+      "codigo": "B05",
+      "bloco": "B. QUEIXA PRINCIPAL E HMA",
+      "pergunta": "QUALIDADE DO SINTOMA (COMO E)",
+      "tipo": "TEXTO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Entender como você descreve o sintoma.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1013,
+      "codigo": "B06",
+      "bloco": "B. QUEIXA PRINCIPAL E HMA",
+      "pergunta": "REGIAO / IRRADIACAO",
+      "tipo": "TEXTO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Identificar onde o sintoma ocorre e se se espalha para outra região.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1014,
+      "codigo": "B07",
+      "bloco": "B. QUEIXA PRINCIPAL E HMA",
+      "pergunta": "INTENSIDADE DA QUEIXA (0 A 10)",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "0",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "1",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "2",
+          "valor": 2,
+          "peso": 0
+        },
+        {
+          "label": "3",
+          "valor": 3,
+          "peso": 0
+        },
+        {
+          "label": "4",
+          "valor": 4,
+          "peso": 1
+        },
+        {
+          "label": "5",
+          "valor": 5,
+          "peso": 1
+        },
+        {
+          "label": "6",
+          "valor": 6,
+          "peso": 1
+        },
+        {
+          "label": "7",
+          "valor": 7,
+          "peso": 2
+        },
+        {
+          "label": "8",
+          "valor": 8,
+          "peso": 2
+        },
+        {
+          "label": "9",
+          "valor": 9,
+          "peso": 2
+        },
+        {
+          "label": "10",
+          "valor": 10,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Acompanhar como você percebe a intensidade do sintoma.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1015,
+      "codigo": "B08",
+      "bloco": "B. QUEIXA PRINCIPAL E HMA",
+      "pergunta": "TRATAMENTOS JA TENTADOS PARA ESTA QUEIXA",
+      "tipo": "TEXTO LONGO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Saber o que já foi tentado e como você respondeu.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1100,
+      "codigo": "C-GER01",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "PERDA DE PESO SEM CAUSA NOS ULTIMOS 6 MESES?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": true,
+      "motivo": "Perda de peso sem intenção pode ter diferentes causas e merece ser contextualizada.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1101,
+      "codigo": "C-GER02",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "SUDORESE NOTURNA INTENSA?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": true,
+      "motivo": "Suor noturno intenso pode ter várias explicações e ajuda a direcionar a avaliação.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1102,
+      "codigo": "C-GER03",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "FADIGA / CANSACO PERSISTENTE?",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Ausente",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Leve",
+          "valor": 1,
+          "peso": 1
+        },
+        {
+          "label": "Moderado",
+          "valor": 2,
+          "peso": 2
+        },
+        {
+          "label": "Grave",
+          "valor": 3,
+          "peso": 3
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer a intensidade do cansaço e acompanhar sua evolução.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1110,
+      "codigo": "C-PEL01",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "QUEDA DE CABELO IMPORTANTE?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Registrar a queda de cabelo e sua evolução.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1111,
+      "codigo": "C-PEL02",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "UNHAS FRACAS / QUEBRADICAS?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer alterações de unhas que você tenha percebido.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1120,
+      "codigo": "C-ORL01",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "CEFALEIA (DOR DE CABECA) FREQUENTE?",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Ausente",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Leve",
+          "valor": 1,
+          "peso": 1
+        },
+        {
+          "label": "Moderado",
+          "valor": 2,
+          "peso": 2
+        },
+        {
+          "label": "Grave",
+          "valor": 3,
+          "peso": 3
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Saber se dores de cabeça são frequentes e quanto incomodam.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1121,
+      "codigo": "C-ORL02",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "ZUMBIDO NO OUVIDO?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Registrar a presença de zumbido para discussão na consulta.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1130,
+      "codigo": "C-CAR01",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "DOR NO PEITO (TORACICA)?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": true,
+      "motivo": "Dor no peito é um sintoma que precisa ser avaliado no contexto e pode exigir atenção imediata.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1131,
+      "codigo": "C-CAR02",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "PALPITACOES?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer episódios de palpitação relatados por você.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1132,
+      "codigo": "C-CAR03",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "INCHACO NAS PERNAS (EDEMA)?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Registrar inchaço nas pernas e orientar sua avaliação.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1140,
+      "codigo": "C-RES01",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "FALTA DE AR AOS ESFORCOS?",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Ausente",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Leve",
+          "valor": 1,
+          "peso": 1
+        },
+        {
+          "label": "Moderado",
+          "valor": 2,
+          "peso": 2
+        },
+        {
+          "label": "Grave",
+          "valor": 3,
+          "peso": 3
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer se há falta de ar ao esforço e quanto ela limita.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1141,
+      "codigo": "C-RES02",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "TOSSE PERSISTENTE?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Identificar tosse persistente para orientar a investigação.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1150,
+      "codigo": "C-DIG01",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "AZIA / REFLUXO FREQUENTE?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer azia ou refluxo frequente e sua relação com os sintomas.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1151,
+      "codigo": "C-DIG02",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "ALTERACAO DO HABITO INTESTINAL (DIARREIA/CONSTIPACAO)?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Registrar alterações do funcionamento intestinal que mereçam conversa clínica.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1160,
+      "codigo": "C-URO01",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "ARDENCIA OU DOR AO URINAR?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer ardor ou dor ao urinar para avaliação apropriada.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1161,
+      "codigo": "C-URO02",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "ACORDA A NOITE PARA URINAR (NOCTURIA)?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Saber se você acorda para urinar e como isso interfere no sono.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1170,
+      "codigo": "C-OSM01",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "DOR ARTICULAR?",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Ausente",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Leve",
+          "valor": 1,
+          "peso": 1
+        },
+        {
+          "label": "Moderado",
+          "valor": 2,
+          "peso": 2
+        },
+        {
+          "label": "Grave",
+          "valor": 3,
+          "peso": 3
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer a intensidade da dor nas articulações.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1171,
+      "codigo": "C-OSM02",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "RIGIDEZ MATINAL > 30 MINUTOS?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Registrar se há rigidez prolongada pela manhã.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1180,
+      "codigo": "C-NEU01",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "TONTURA OU VERTIGEM?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer episódios de tontura ou vertigem.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1181,
+      "codigo": "C-NEU02",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "FORMIGAMENTO / DORMENCIA?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Registrar formigamento ou dormência para avaliação.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1182,
+      "codigo": "C-NEU03",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "FALHA DE MEMORIA OU CONCENTRACAO?",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Ausente",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Leve",
+          "valor": 1,
+          "peso": 1
+        },
+        {
+          "label": "Moderado",
+          "valor": 2,
+          "peso": 2
+        },
+        {
+          "label": "Grave",
+          "valor": 3,
+          "peso": 3
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer dificuldades de memória ou concentração relatadas.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1190,
+      "codigo": "C-END01",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "SEDE EXCESSIVA?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Sede excessiva pode ter diferentes causas e deve ser contextualizada.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1191,
+      "codigo": "C-END02",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "INTOLERANCIA AO FRIO?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Registrar se você percebe sensibilidade ao frio.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1192,
+      "codigo": "C-END03",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "GANHO DE PESO RECENTE SEM MUDAR DIETA?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer mudanças de peso relatadas e sua evolução.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1200,
+      "codigo": "C-HEM01",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "HEMATOMAS OU SANGRAMENTOS FACEIS?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": true,
+      "motivo": "Registrar sangramentos ou hematomas fáceis para avaliação.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1201,
+      "codigo": "C-HEM02",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "PALIDEZ / CANSACO SUGESTIVO DE ANEMIA?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer palidez e cansaço relatados sem presumir sua causa.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1210,
+      "codigo": "C-REP01",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "ALTERACAO DA LIBIDO?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Saber se você percebeu mudanças no interesse sexual.",
+      "referencia": "SEX",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 5,
+      "codigo": "Q012",
+      "bloco": "C. REVISAO POR SISTEMAS (ISDA)",
+      "pergunta": "SINTOMAS ATUAIS (LISTA LIVRE)",
+      "tipo": "MULTISELECAO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Reunir os sintomas que você considera importantes.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 6,
+      "codigo": "Q013",
+      "bloco": "D. ANTECEDENTES PATOLOGICOS",
+      "pergunta": "DOENCAS JA DIAGNOSTICADAS",
+      "tipo": "MULTISELECAO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer doenças já diagnosticadas e relatadas por você.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1300,
+      "codigo": "D02",
+      "bloco": "D. ANTECEDENTES PATOLOGICOS",
+      "pergunta": "TEM DIAGNOSTICO DE DIABETES?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Saber se há diagnóstico prévio de diabetes.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1301,
+      "codigo": "D03",
+      "bloco": "D. ANTECEDENTES PATOLOGICOS",
+      "pergunta": "TEM DIAGNOSTICO DE HIPOTIREOIDISMO?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Saber se há diagnóstico prévio de hipotireoidismo.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1302,
+      "codigo": "D04",
+      "bloco": "D. ANTECEDENTES PATOLOGICOS",
+      "pergunta": "TEM HIPERTENSAO ARTERIAL?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Saber se há diagnóstico prévio de pressão alta.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1303,
+      "codigo": "D05",
+      "bloco": "D. ANTECEDENTES PATOLOGICOS",
+      "pergunta": "ANO DO DIAGNOSTICO PRINCIPAL E NIVEL DE CONTROLE",
+      "tipo": "TEXTO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer quando ocorreu o diagnóstico principal e como está o acompanhamento.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 8,
+      "codigo": "Q015",
+      "bloco": "E. CIRURGIAS E INTERNACOES",
+      "pergunta": "VOCE JA FEZ ALGUMA CIRURGIA? MARQUE AS QUE SE APLICAM",
+      "tipo": "MULTISELECAO",
+      "opcoes": [
+        {
+          "label": "Nunca operei",
+          "valor": "nenhuma",
+          "peso": 0
+        },
+        {
+          "label": "Cesarea (parto por corte)",
+          "valor": "cesarea",
+          "peso": 0
+        },
+        {
+          "label": "Vesicula (retirada da vesicula)",
+          "valor": "vesicula",
+          "peso": 0
+        },
+        {
+          "label": "Apendice (retirada do apendice)",
+          "valor": "apendice",
+          "peso": 0
+        },
+        {
+          "label": "Hernia (correcao de hernia)",
+          "valor": "hernia",
+          "peso": 0
+        },
+        {
+          "label": "Utero (retirada do utero)",
+          "valor": "utero",
+          "peso": 0
+        },
+        {
+          "label": "Amigdalas (retirada das amigdalas)",
+          "valor": "amigdalas",
+          "peso": 0
+        },
+        {
+          "label": "Joelho (cirurgia do joelho)",
+          "valor": "joelho",
+          "peso": 0
+        },
+        {
+          "label": "Coluna (cirurgia de coluna)",
+          "valor": "coluna",
+          "peso": 0
+        },
+        {
+          "label": "Catarata (cirurgia do olho)",
+          "valor": "catarata",
+          "peso": 0
+        },
+        {
+          "label": "Coracao (cirurgia cardiaca)",
+          "valor": "coracao",
+          "peso": 0
+        },
+        {
+          "label": "Outra",
+          "valor": "outra",
+          "peso": 0
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer cirurgias anteriores relevantes para sua história.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1401,
+      "codigo": "Q015B",
+      "bloco": "E. CIRURGIAS E INTERNACOES",
+      "pergunta": "QUAL OUTRA CIRURGIA, E EM QUE ANO?",
+      "tipo": "TEXTO LONGO",
+      "opcoes": null,
+      "dependencia": {
+        "perguntaId": "Q015",
+        "inclui": [
+          "Outra"
+        ]
+      },
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Identificar outra cirurgia e o período em que ocorreu.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 9,
+      "codigo": "Q016",
+      "bloco": "E. CIRURGIAS E INTERNACOES",
+      "pergunta": "INTERNACOES PREVIAS",
+      "tipo": "TEXTO LONGO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer internações anteriores e seu contexto.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1400,
+      "codigo": "E03",
+      "bloco": "E. CIRURGIAS E INTERNACOES",
+      "pergunta": "JA TEVE COMPLICACAO COM ANESTESIA?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Registrar complicações anteriores relacionadas à anestesia.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 10,
+      "codigo": "Q017",
+      "bloco": "F. ALERGIAS E REACOES ADVERSAS",
+      "pergunta": "ALERGIAS OU INTOLERANCIAS (MEDICAMENTO/ALIMENTO/AMBIENTAL)",
+      "tipo": "TEXTO LONGO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Identificar alergias ou intolerâncias que possam influenciar o cuidado.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1500,
+      "codigo": "F02",
+      "bloco": "F. ALERGIAS E REACOES ADVERSAS",
+      "pergunta": "JA TEVE REACAO GRAVE (ANAFILAXIA)?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": true,
+      "motivo": "Registrar se houve reação alérgica grave no passado.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1600,
+      "codigo": "G01",
+      "bloco": "G. MEDICACOES E SUPLEMENTOS",
+      "pergunta": "MEDICAMENTOS EM USO CONTINUO (NOME E DOSE)",
+      "tipo": "TEXTO LONGO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Revisar cada medicamento em uso, inclusive o nome e a quantidade que você utiliza.",
+      "referencia": "MED",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1601,
+      "codigo": "G02",
+      "bloco": "G. MEDICACOES E SUPLEMENTOS",
+      "pergunta": "SUPLEMENTOS / FITOTERAPICOS EM USO",
+      "tipo": "TEXTO LONGO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Incluir suplementos e fitoterápicos na revisão de uso.",
+      "referencia": "MED",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1602,
+      "codigo": "G03",
+      "bloco": "G. MEDICACOES E SUPLEMENTOS",
+      "pergunta": "ADESAO AO TRATAMENTO (TOMA CERTINHO?)",
+      "tipo": "LISTA",
+      "opcoes": [
+        {
+          "label": "Alta",
+          "valor": "alta",
+          "peso": 0
+        },
+        {
+          "label": "Media",
+          "valor": "media",
+          "peso": 1
+        },
+        {
+          "label": "Baixa",
+          "valor": "baixa",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Entender se existe alguma dificuldade com o uso como foi orientado.",
+      "referencia": "MED",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1700,
+      "codigo": "H01",
+      "bloco": "H. IMUNIZACOES",
+      "pergunta": "VACINAS EM DIA (CALENDARIO E REFORCOS)?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer a situação informada das vacinas.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1800,
+      "codigo": "I-TAB01",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "TABAGISMO: STATUS",
+      "tipo": "LISTA",
+      "opcoes": [
+        {
+          "label": "Nunca fumou",
+          "valor": "nunca",
+          "peso": 0
+        },
+        {
+          "label": "Ex-fumante",
+          "valor": "ex",
+          "peso": 1
+        },
+        {
+          "label": "Fumante atual",
+          "valor": "atual",
+          "peso": 3
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Registrar se há uso atual ou passado de tabaco.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1801,
+      "codigo": "I-TAB02",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "TABAGISMO: QUANTO VOCE FUMA (OU FUMAVA)?",
+      "tipo": "NUMERO",
+      "opcoes": null,
+      "dependencia": {
+        "perguntaId": "I-TAB01",
+        "inclui": [
+          "ex",
+          "atual"
+        ]
+      },
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer quantidade e duração do uso de tabaco, quando aplicável.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1810,
+      "codigo": "AUDITC1",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "AUDIT-C 1: COM QUE FREQUENCIA BEBE ALCOOL?",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nunca",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "1x/mes ou menos",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "2-4x/mes",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "2-3x/semana",
+          "valor": 3,
+          "peso": 1
+        },
+        {
+          "label": "4+/semana",
+          "valor": 4,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer o uso de álcool e possíveis efeitos na saúde. Conferir a versão e as regras antes de pontuar.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1811,
+      "codigo": "AUDITC2",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "AUDIT-C 2: QUANTAS DOSES EM DIA TIPICO?",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "1-2",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "3-4",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "5-6",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "7-9",
+          "valor": 3,
+          "peso": 1
+        },
+        {
+          "label": "10+",
+          "valor": 4,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer o uso de álcool e possíveis efeitos na saúde. Conferir a versão e as regras antes de pontuar.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1812,
+      "codigo": "AUDITC3",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "AUDIT-C 3: FREQUENCIA DE 6+ DOSES NUMA OCASIAO?",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nunca",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Menos de 1x/mes",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mensal",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Semanal",
+          "valor": 3,
+          "peso": 1
+        },
+        {
+          "label": "Diario",
+          "valor": 4,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer o uso de álcool e possíveis efeitos na saúde. Conferir a versão e as regras antes de pontuar.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1820,
+      "codigo": "CAGE1",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "CAGE 1: JA SENTIU QUE DEVERIA DIMINUIR A BEBIDA?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer o uso de álcool e possíveis efeitos na saúde. Conferir a versão e as regras antes de pontuar.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1821,
+      "codigo": "CAGE2",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "CAGE 2: PESSOAS JA O INCOMODARAM CRITICANDO SUA BEBIDA?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer o uso de álcool e possíveis efeitos na saúde. Conferir a versão e as regras antes de pontuar.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1822,
+      "codigo": "CAGE3",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "CAGE 3: JA SE SENTIU CULPADO POR BEBER?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer o uso de álcool e possíveis efeitos na saúde. Conferir a versão e as regras antes de pontuar.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1823,
+      "codigo": "CAGE4",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "CAGE 4: JA BEBEU LOGO AO ACORDAR PARA SE ACALMAR?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer o uso de álcool e possíveis efeitos na saúde. Conferir a versão e as regras antes de pontuar.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1824,
+      "codigo": "CAGE2-QUEM",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "QUEM JA COMENTOU OU CRITICOU SUA BEBIDA?",
+      "tipo": "MULTISELECAO",
+      "opcoes": [
+        {
+          "label": "Parente",
+          "valor": "parente",
+          "peso": 0
+        },
+        {
+          "label": "Amigo",
+          "valor": "amigo",
+          "peso": 0
+        },
+        {
+          "label": "Colega de trabalho",
+          "valor": "colega",
+          "peso": 0
+        },
+        {
+          "label": "Medico",
+          "valor": "medico",
+          "peso": 0
+        },
+        {
+          "label": "Outro",
+          "valor": "outro",
+          "peso": 0
+        }
+      ],
+      "dependencia": {
+        "perguntaId": "CAGE2",
+        "inclui": [
+          "sim",
+          true
+        ]
+      },
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer o uso de álcool e possíveis efeitos na saúde. Conferir a versão e as regras antes de pontuar.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1825,
+      "codigo": "CAGE2-PARENTE",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "QUAL PARENTE COMENTOU?",
+      "tipo": "MULTISELECAO",
+      "opcoes": [
+        {
+          "label": "Conjuge",
+          "valor": "conjuge",
+          "peso": 0
+        },
+        {
+          "label": "Filho ou filha",
+          "valor": "filho",
+          "peso": 0
+        },
+        {
+          "label": "Mae",
+          "valor": "mae",
+          "peso": 0
+        },
+        {
+          "label": "Pai",
+          "valor": "pai",
+          "peso": 0
+        },
+        {
+          "label": "Irmao ou irma",
+          "valor": "irmao",
+          "peso": 0
+        },
+        {
+          "label": "Outro",
+          "valor": "outro",
+          "peso": 0
+        }
+      ],
+      "dependencia": {
+        "perguntaId": "CAGE2-QUEM",
+        "inclui": [
+          "Parente"
+        ]
+      },
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer o uso de álcool e possíveis efeitos na saúde. Conferir a versão e as regras antes de pontuar.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1830,
+      "codigo": "I-ATV01",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "PRATICA ATIVIDADE FISICA?",
+      "tipo": "LISTA",
+      "opcoes": [
+        {
+          "label": "Regular (3+/semana)",
+          "valor": "regular",
+          "peso": 0
+        },
+        {
+          "label": "As vezes",
+          "valor": "asvezes",
+          "peso": 1
+        },
+        {
+          "label": "Sedentario",
+          "valor": "sedentario",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer sua rotina de atividade física.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1840,
+      "codigo": "I-SON01",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "HORAS DE SONO POR NOITE",
+      "tipo": "NUMERO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Registrar quantas horas você relata dormir.",
+      "referencia": "SON",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1841,
+      "codigo": "EPW1",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "EPWORTH: CHANCE DE COCHILAR SENTADO LENDO",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhuma",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Leve",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Moderada",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Alta",
+          "valor": 3,
+          "peso": 1
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer a sonolência relatada. Estes itens isolados não compõem a escala de Epworth completa.",
+      "referencia": "SON",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1842,
+      "codigo": "EPW2",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "EPWORTH: CHANCE DE COCHILAR APOS ALMOCO SEM ALCOOL",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhuma",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Leve",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Moderada",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Alta",
+          "valor": 3,
+          "peso": 1
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer a sonolência relatada. Estes itens isolados não compõem a escala de Epworth completa.",
+      "referencia": "SON",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1843,
+      "codigo": "I-SON02",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "RONCO ALTO OU APNEIA RELATADA?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Saber se há ronco alto ou pausas respiratórias relatadas.",
+      "referencia": "SON",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1850,
+      "codigo": "I-ALI01",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "CONSUMO DE ULTRAPROCESSADOS",
+      "tipo": "LISTA",
+      "opcoes": [
+        {
+          "label": "Baixo",
+          "valor": "baixo",
+          "peso": 0
+        },
+        {
+          "label": "Medio",
+          "valor": "medio",
+          "peso": 1
+        },
+        {
+          "label": "Alto",
+          "valor": "alto",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer aspectos dos hábitos alimentares.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1860,
+      "codigo": "BRISTOL",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "BRISTOL: FORMA HABITUAL DAS FEZES (TIPO 1 A 7)",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Tipo 1",
+          "valor": 1,
+          "peso": 2
+        },
+        {
+          "label": "Tipo 2",
+          "valor": 2,
+          "peso": 0
+        },
+        {
+          "label": "Tipo 3",
+          "valor": 3,
+          "peso": 0
+        },
+        {
+          "label": "Tipo 4",
+          "valor": 4,
+          "peso": 0
+        },
+        {
+          "label": "Tipo 5",
+          "valor": 5,
+          "peso": 0
+        },
+        {
+          "label": "Tipo 6",
+          "valor": 6,
+          "peso": 1
+        },
+        {
+          "label": "Tipo 7",
+          "valor": 7,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Descrever a forma habitual das fezes para orientar a conversa sobre o funcionamento intestinal.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 1870,
+      "codigo": "I-EST01",
+      "bloco": "I. HABITOS E ESTILO DE VIDA",
+      "pergunta": "NIVEL DE ESTRESSE PERCEBIDO",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Ausente",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Leve",
+          "valor": 1,
+          "peso": 1
+        },
+        {
+          "label": "Moderado",
+          "valor": 2,
+          "peso": 2
+        },
+        {
+          "label": "Grave",
+          "valor": 3,
+          "peso": 3
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Entender quanto estresse você percebe no cotidiano.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 7,
+      "codigo": "Q014",
+      "bloco": "J. HISTORIA FAMILIAR",
+      "pergunta": "HISTORICO FAMILIAR (DOENCAS EM PARENTES DE 1o GRAU)",
+      "tipo": "MULTISELECAO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer doenças relevantes em familiares próximos.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1900,
+      "codigo": "J02",
+      "bloco": "J. HISTORIA FAMILIAR",
+      "pergunta": "FAMILIAR DE 1o GRAU COM CANCER?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer se houve câncer em familiar de primeiro grau.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1901,
+      "codigo": "J03",
+      "bloco": "J. HISTORIA FAMILIAR",
+      "pergunta": "FAMILIAR DE 1o GRAU COM DOENCA CARDIOVASCULAR PRECOCE?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer antecedentes familiares de doença cardiovascular precoce.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 1902,
+      "codigo": "J04",
+      "bloco": "J. HISTORIA FAMILIAR",
+      "pergunta": "FAMILIAR DE 1o GRAU COM DIABETES?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Saber se há diabetes em familiar de primeiro grau.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 2000,
+      "codigo": "PHQ1",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "PHQ-9 1: POUCO INTERESSE OU PRAZER EM FAZER AS COISAS",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhum dia",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Varios dias",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mais da metade dos dias",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Quase todos os dias",
+          "valor": 3,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Investigar sintomas de humor. O texto e a versão precisam de conferência antes de gerar escore.",
+      "referencia": "PHQ",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2001,
+      "codigo": "PHQ2",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "PHQ-9 2: SE SENTIR PARA BAIXO, DEPRIMIDO OU SEM ESPERANCA",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhum dia",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Varios dias",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mais da metade dos dias",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Quase todos os dias",
+          "valor": 3,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Investigar sintomas de humor. O texto e a versão precisam de conferência antes de gerar escore.",
+      "referencia": "PHQ",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2002,
+      "codigo": "PHQ3",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "PHQ-9 3: DIFICULDADE PARA PEGAR NO SONO OU DORMIR DEMAIS",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhum dia",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Varios dias",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mais da metade dos dias",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Quase todos os dias",
+          "valor": 3,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Investigar sintomas de humor. O texto e a versão precisam de conferência antes de gerar escore.",
+      "referencia": "PHQ",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2003,
+      "codigo": "PHQ4",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "PHQ-9 4: SENTIR-SE CANSADO OU COM POUCA ENERGIA",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhum dia",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Varios dias",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mais da metade dos dias",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Quase todos os dias",
+          "valor": 3,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Investigar sintomas de humor. O texto e a versão precisam de conferência antes de gerar escore.",
+      "referencia": "PHQ",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2004,
+      "codigo": "PHQ5",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "PHQ-9 5: FALTA DE APETITE OU COMER DEMAIS",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhum dia",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Varios dias",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mais da metade dos dias",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Quase todos os dias",
+          "valor": 3,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Investigar sintomas de humor. O texto e a versão precisam de conferência antes de gerar escore.",
+      "referencia": "PHQ",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2005,
+      "codigo": "PHQ6",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "PHQ-9 6: SENTIR-SE MAL CONSIGO MESMO / FRACASSO",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhum dia",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Varios dias",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mais da metade dos dias",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Quase todos os dias",
+          "valor": 3,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Investigar sintomas de humor. O texto e a versão precisam de conferência antes de gerar escore.",
+      "referencia": "PHQ",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2006,
+      "codigo": "PHQ7",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "PHQ-9 7: DIFICULDADE DE CONCENTRACAO",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhum dia",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Varios dias",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mais da metade dos dias",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Quase todos os dias",
+          "valor": 3,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Investigar sintomas de humor. O texto e a versão precisam de conferência antes de gerar escore.",
+      "referencia": "PHQ",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2007,
+      "codigo": "PHQ8",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "PHQ-9 8: LENTIDAO OU AGITACAO PERCEBIDA POR OUTROS",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhum dia",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Varios dias",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mais da metade dos dias",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Quase todos os dias",
+          "valor": 3,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Investigar sintomas de humor. O texto e a versão precisam de conferência antes de gerar escore.",
+      "referencia": "PHQ",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2008,
+      "codigo": "PHQ9",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "PHQ-9 9: PENSAMENTOS DE QUE SERIA MELHOR ESTAR MORTO",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhum dia",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Varios dias",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mais da metade dos dias",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Quase todos os dias",
+          "valor": 3,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": true,
+      "motivo": "Investigar sintomas de humor. O texto e a versão precisam de conferência antes de gerar escore.",
+      "referencia": "PHQ",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2100,
+      "codigo": "GAD1",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "GAD-7 1: SENTIR-SE NERVOSO, ANSIOSO OU NO LIMITE",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhum dia",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Varios dias",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mais da metade dos dias",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Quase todos os dias",
+          "valor": 3,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Investigar ansiedade. Conferir texto, período e regras da versão validada antes de pontuar.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2101,
+      "codigo": "GAD2",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "GAD-7 2: NAO CONSEGUIR PARAR DE SE PREOCUPAR",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhum dia",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Varios dias",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mais da metade dos dias",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Quase todos os dias",
+          "valor": 3,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Investigar ansiedade. Conferir texto, período e regras da versão validada antes de pontuar.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2102,
+      "codigo": "GAD3",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "GAD-7 3: PREOCUPAR-SE DEMAIS COM DIVERSAS COISAS",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhum dia",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Varios dias",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mais da metade dos dias",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Quase todos os dias",
+          "valor": 3,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Investigar ansiedade. Conferir texto, período e regras da versão validada antes de pontuar.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2103,
+      "codigo": "GAD4",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "GAD-7 4: DIFICULDADE PARA RELAXAR",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhum dia",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Varios dias",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mais da metade dos dias",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Quase todos os dias",
+          "valor": 3,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Investigar ansiedade. Conferir texto, período e regras da versão validada antes de pontuar.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2104,
+      "codigo": "GAD5",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "GAD-7 5: FICAR TAO INQUIETO QUE E DIFICIL FICAR PARADO",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhum dia",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Varios dias",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mais da metade dos dias",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Quase todos os dias",
+          "valor": 3,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Investigar ansiedade. Conferir texto, período e regras da versão validada antes de pontuar.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2105,
+      "codigo": "GAD6",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "GAD-7 6: FICAR FACILMENTE IRRITADO",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhum dia",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Varios dias",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mais da metade dos dias",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Quase todos os dias",
+          "valor": 3,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Investigar ansiedade. Conferir texto, período e regras da versão validada antes de pontuar.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2106,
+      "codigo": "GAD7",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "GAD-7 7: SENTIR MEDO COMO SE ALGO TERRIVEL FOSSE ACONTECER",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nenhum dia",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Varios dias",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "Mais da metade dos dias",
+          "valor": 2,
+          "peso": 1
+        },
+        {
+          "label": "Quase todos os dias",
+          "valor": 3,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Investigar ansiedade. Conferir texto, período e regras da versão validada antes de pontuar.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2200,
+      "codigo": "K-SUP01",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "TEM REDE DE APOIO / SUPORTE SOCIAL?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 0
+        },
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 1
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Saber com quem você pode contar quando precisa de apoio.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 2201,
+      "codigo": "K-TOX01",
+      "bloco": "K. PSICOSSOCIAL E OCUPACIONAL",
+      "pergunta": "EXPOSICAO OCUPACIONAL A TOXICOS / METAIS?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer exposições do trabalho que possam ser relevantes.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 2300,
+      "codigo": "L-GIN01",
+      "bloco": "L. GINECO-OBSTETRICA / ANDROLOGICA",
+      "pergunta": "CICLO MENSTRUAL: REGULARIDADE",
+      "tipo": "LISTA",
+      "opcoes": [
+        {
+          "label": "Regular",
+          "valor": "regular",
+          "peso": 0
+        },
+        {
+          "label": "Irregular",
+          "valor": "irregular",
+          "peso": 1
+        },
+        {
+          "label": "Menopausa",
+          "valor": "menopausa",
+          "peso": 0
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": {
+        "sexo": "F"
+      },
+      "sinal_alarme": false,
+      "motivo": "Conhecer a regularidade do ciclo e mudanças relatadas.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 2301,
+      "codigo": "L-GIN02",
+      "bloco": "L. GINECO-OBSTETRICA / ANDROLOGICA",
+      "pergunta": "NUMERO DE GESTACOES",
+      "tipo": "NUMERO",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": {
+        "sexo": "F"
+      },
+      "sinal_alarme": false,
+      "motivo": "Conhecer o histórico de gestações quando aplicável.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 2310,
+      "codigo": "IPSS1",
+      "bloco": "L. GINECO-OBSTETRICA / ANDROLOGICA",
+      "pergunta": "IPSS: SENSACAO DE ESVAZIAMENTO INCOMPLETO DA BEXIGA",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Nunca",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Raramente",
+          "valor": 1,
+          "peso": 0
+        },
+        {
+          "label": "As vezes",
+          "valor": 2,
+          "peso": 0
+        },
+        {
+          "label": "Metade",
+          "valor": 3,
+          "peso": 1
+        },
+        {
+          "label": "Maioria",
+          "valor": 4,
+          "peso": 1
+        },
+        {
+          "label": "Quase sempre",
+          "valor": 5,
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": {
+        "sexo": "M"
+      },
+      "sinal_alarme": false,
+      "motivo": "Saber se você sente dificuldade de esvaziar a bexiga.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "conferir integridade, versão e regras"
+    },
+    {
+      "idIhe": 2311,
+      "codigo": "L-AND01",
+      "bloco": "L. GINECO-OBSTETRICA / ANDROLOGICA",
+      "pergunta": "DIFICULDADE DE ERECAO?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": {
+        "sexo": "M"
+      },
+      "sinal_alarme": false,
+      "motivo": "Investigar dificuldade de ereção como parte da história sexual.",
+      "referencia": "SEX",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 2400,
+      "codigo": "M-DIG01",
+      "bloco": "M. EIXOS DA MEDICINA FUNCIONAL",
+      "pergunta": "EIXO DIGESTAO: SINTOMAS APOS REFEICOES?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer sintomas que aparecem após as refeições.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 2401,
+      "codigo": "M-ENE01",
+      "bloco": "M. EIXOS DA MEDICINA FUNCIONAL",
+      "pergunta": "EIXO ENERGIA: ENERGIA AO LONGO DO DIA",
+      "tipo": "ESCALA",
+      "opcoes": [
+        {
+          "label": "Ausente",
+          "valor": 0,
+          "peso": 0
+        },
+        {
+          "label": "Leve",
+          "valor": 1,
+          "peso": 1
+        },
+        {
+          "label": "Moderado",
+          "valor": 2,
+          "peso": 2
+        },
+        {
+          "label": "Grave",
+          "valor": 3,
+          "peso": 3
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Acompanhar o nível de energia que você percebe.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 2402,
+      "codigo": "M-DET01",
+      "bloco": "M. EIXOS DA MEDICINA FUNCIONAL",
+      "pergunta": "EIXO DETOX: SENSIBILIDADE A CHEIROS/QUIMICOS?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Registrar sensibilidade relatada a cheiros ou produtos, sem atribuir uma causa.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 2403,
+      "codigo": "M-IMU01",
+      "bloco": "M. EIXOS DA MEDICINA FUNCIONAL",
+      "pergunta": "EIXO IMUNIDADE: INFECCOES DE REPETICAO?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Saber se você relata infecções repetidas.",
+      "referencia": "GER",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 2404,
+      "codigo": "M-HOR01",
+      "bloco": "M. EIXOS DA MEDICINA FUNCIONAL",
+      "pergunta": "EIXO HORMONIOS: SINTOMAS DE DESEQUILIBRIO HORMONAL?",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer sintomas relatados sem presumir sua origem hormonal.",
+      "referencia": "GER",
+      "tema_relacionado": true,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 17,
+      "codigo": "Q020",
+      "bloco": "N. PREFERENCIAS TERAPEUTICAS E FINANCEIRAS",
+      "pergunta": "PREFERENCIA DE ENTREGA TERAPEUTICA",
+      "tipo": "LISTA FECHADA",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer preferências de apresentação do cuidado.",
+      "referencia": "ADM",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 18,
+      "codigo": "Q021",
+      "bloco": "N. PREFERENCIAS TERAPEUTICAS E FINANCEIRAS",
+      "pergunta": "ACEITA COMPLEMENTO ENDOVENOSO PROGRAMADO",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer uma preferência; a resposta não indica nem autoriza tratamento.",
+      "referencia": "ADM",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 11,
+      "codigo": "Q030",
+      "bloco": "N. PREFERENCIAS TERAPEUTICAS E FINANCEIRAS",
+      "pergunta": "DESEJA SOMENTE EXAMES",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer o objetivo da consulta; exames dependem de avaliação.",
+      "referencia": "ADM",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 12,
+      "codigo": "Q031",
+      "bloco": "N. PREFERENCIAS TERAPEUTICAS E FINANCEIRAS",
+      "pergunta": "ACEITA FORMULA MANIPULADA",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer uma preferência, sem presumir indicação de fórmula.",
+      "referencia": "ADM",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 13,
+      "codigo": "Q032",
+      "bloco": "N. PREFERENCIAS TERAPEUTICAS E FINANCEIRAS",
+      "pergunta": "ACEITA PROTOCOLO INJETAVEL",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer uma preferência, sem presumir indicação de injeção.",
+      "referencia": "ADM",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 14,
+      "codigo": "Q033",
+      "bloco": "N. PREFERENCIAS TERAPEUTICAS E FINANCEIRAS",
+      "pergunta": "ACEITA IMPLANTE",
+      "tipo": "SIM NAO",
+      "opcoes": [
+        {
+          "label": "Nao",
+          "valor": "nao",
+          "peso": 0
+        },
+        {
+          "label": "Sim",
+          "valor": "sim",
+          "peso": 2
+        }
+      ],
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer uma preferência, sem presumir indicação de implante.",
+      "referencia": "ADM",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 15,
+      "codigo": "Q040",
+      "bloco": "N. PREFERENCIAS TERAPEUTICAS E FINANCEIRAS",
+      "pergunta": "MODELO DE INVESTIMENTO PREFERIDO",
+      "tipo": "LISTA",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer como você prefere organizar os custos do atendimento.",
+      "referencia": "ADM",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 16,
+      "codigo": "Q041",
+      "bloco": "N. PREFERENCIAS TERAPEUTICAS E FINANCEIRAS",
+      "pergunta": "CONFORTO FINANCEIRO",
+      "tipo": "LISTA",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer seu conforto em conversar sobre custos.",
+      "referencia": "ADM",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    },
+    {
+      "idIhe": 19,
+      "codigo": "Q042",
+      "bloco": "N. PREFERENCIAS TERAPEUTICAS E FINANCEIRAS",
+      "pergunta": "PERFIL FINANCEIRO",
+      "tipo": "LISTA FECHADA",
+      "opcoes": null,
+      "dependencia": null,
+      "aplicabilidade": null,
+      "sinal_alarme": false,
+      "motivo": "Conhecer preferências administrativas, em etapa separada da avaliação clínica.",
+      "referencia": "ADM",
+      "tema_relacionado": false,
+      "mescla_confirmada": false,
+      "status_escala": "história clínica / não é uma escala validada"
+    }
+  ]
+}

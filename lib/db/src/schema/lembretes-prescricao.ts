@@ -14,10 +14,18 @@ import { whatsappMensagensLogTable } from "./whatsapp-log";
 // Manager é single-tenant: sem unidadeId, fuso fixo BRT (America/Sao_Paulo).
 // ============================================================================
 
+// Substância de uma fórmula, com a legenda do catálogo ([SUBS 01], [SUBS 02]...).
+export interface SubstanciaLembrete {
+  rotulo: string; // ex.: "SUBS 01"
+  nome: string;
+  dose?: string;
+}
+
 // Uma fórmula dentro de um período do lembrete.
 export interface LembreteFormulaJson {
   nome: string;
   ativoPrincipal?: string;
+  substancias?: SubstanciaLembrete[];
   dose?: string;
   horario?: string; // HH:MM (BRT)
   observacaoRefeicao?: string;
@@ -26,6 +34,8 @@ export interface LembreteFormulaJson {
   // re-sincronização do Cockpit respeita e NÃO sobrescreve com a sugestão
   // automática do catálogo (ordem do CEO, 09/07/2026).
   posologiaManual?: boolean;
+  // Dúvidas na leitura de dose/posologia do catálogo. Presente = o motor NÃO envia.
+  alertas?: string[];
 }
 
 // Um período (janela) do lembrete, com suas fórmulas.

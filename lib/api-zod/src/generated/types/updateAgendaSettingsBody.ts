@@ -10,4 +10,9 @@ export interface UpdateAgendaSettingsBody {
   blockMinutes?: number;
   triggerPercent?: number;
   minLeadHours?: number;
+  /**
+   * @minimum 0
+   * @maximum 1440
+   */
+  internalLeadMinutes?: number;
 }

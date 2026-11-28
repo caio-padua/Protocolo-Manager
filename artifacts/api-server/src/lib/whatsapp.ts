@@ -9,11 +9,13 @@
 // status final chega de forma assíncrona no webhook POST /api/whatsapp/status, que
 // atualiza a linha por MessageSid. O telefone é guardado inteiro no banco (dado
 // nativo do cliente); a API/tela é que mascaram. Nunca logamos o token.
-import { db, whatsappMensagensLogTable, clientsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, pool, whatsappMensagensLogTable, clientsTable } from "@workspace/db";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { logger } from "./logger";
 import { getSecret } from "./secure-settings";
 import { sendTelegram } from "./telegram";
+import { CONTENT_SID_RE, envioPermitidoNoModoTeste, janelaAberta, modoTesteAtivo, telefoneCanonico } from "./whatsapp-seguranca";
+import { ultimaEntradaDoContato } from "./whatsapp-identidade";
 
 /**
  * Espelha uma mensagem para o Telegram do cliente (fire-and-forget).
@@ -26,11 +28,13 @@ async function espelharParaTelegram(
   message: string,
   contexto?: string,
 ): Promise<void> {
+  if (modoTesteAtivo()) return; // testes: nada é espelhado no Telegram
   try {
     const [c] = await db
       .select({ telegramChatId: clientsTable.telegramChatId })
       .from(clientsTable)
-      .where(eq(clientsTable.id, clienteId))
+      // Cliente arquivado (soft delete / status deleted) nunca recebe espelho no Telegram.
+      .where(and(eq(clientsTable.id, clienteId), isNull(clientsTable.deletedAt), ne(clientsTable.status, "deleted")))
       .limit(1);
     if (c?.telegramChatId) {
       const result = await sendTelegram(c.telegramChatId, message);
@@ -117,6 +121,11 @@ export interface SendWhatsappOptions {
   clienteId?: number;
   /** Explicit single-channel clinical sends must not mirror into an unconfirmed channel. */
   mirrorTelegram?: boolean;
+  /**
+   * Texto gravado no log no lugar do corpo real (ex.: mensagem que carrega uma chave
+   * secreta). A mensagem enviada ao Twilio continua inteira; só o log fica mascarado.
+   */
+  corpoParaLog?: string;
 }
 
 /**
@@ -129,6 +138,7 @@ export async function sendWhatsappStickerOnly(
   mediaUrl: string,
   opts: Pick<SendWhatsappOptions, "contexto" | "clienteId"> = {},
 ): Promise<{ sent: boolean; error?: string }> {
+  if (!envioPermitidoNoModoTeste(phone)) return { sent: false, error: "modo_teste_contato_nao_autorizado" };
   const { accountSid, authToken, whatsappFrom } = await loadTwilioCreds();
   if (!(accountSid && authToken && whatsappFrom)) return { sent: false, error: "sem_credenciais" };
   if (!/^https:\/\//.test(mediaUrl)) return { sent: false, error: "url_invalida" };
@@ -177,6 +187,7 @@ export async function registrarLogMensagem(args: {
   contexto?: string;
   clienteId?: number;
   via?: "whatsapp" | "telegram";
+  direcao?: "entrada" | "saida";
 }): Promise<number | undefined> {
   return registrarLog(args);
 }
@@ -192,6 +203,8 @@ async function registrarLog(args: {
   clienteId?: number;
   /** Canal de entrega: 'whatsapp' (padrão) ou 'telegram'. */
   via?: "whatsapp" | "telegram";
+  /** 'saida' (padrão) = envio da clínica; 'entrada' = mensagem recebida do cliente. */
+  direcao?: "entrada" | "saida";
 }): Promise<number | undefined> {
   try {
     const [row] = await db
@@ -207,6 +220,16 @@ async function registrarLog(args: {
         via: args.via ?? "whatsapp",
       })
       .returning({ id: whatsappMensagensLogTable.id });
+    if (row?.id) {
+      // Clínica e direção (colunas fora do esquema Drizzle): a clínica vem SEMPRE do cadastro do cliente.
+      await pool.query(
+        `UPDATE whatsapp_mensagens_log
+            SET direcao = $2,
+                empresa_id = COALESCE(empresa_id, (SELECT empresa_id FROM clients WHERE id = $3))
+          WHERE id = $1`,
+        [row.id, args.direcao ?? "saida", args.clienteId ?? null],
+      );
+    }
     return row?.id;
   } catch (err: any) {
     logger.warn({ err: err?.message }, "falha ao registrar log de mensagem");
@@ -265,13 +288,23 @@ export async function sendWhatsapp(
   opts: SendWhatsappOptions = {},
 ): Promise<WhatsappResult> {
   const link = buildWhatsappLink(phone, message);
+  const corpoLog = opts.corpoParaLog ?? message;
+
+  // Modo teste: só o contato autorizado recebe; qualquer outro destino é barrado ANTES do provedor.
+  if (!envioPermitidoNoModoTeste(phone)) {
+    const logId = await registrarLog({
+      telefone: phone, corpo: corpoLog, status: "bloqueado", errorCode: "modo_teste_contato_nao_autorizado",
+      contexto: opts.contexto, clienteId: opts.clienteId,
+    });
+    return { sent: false, via: "link", link, error: "modo_teste_contato_nao_autorizado", logId };
+  }
 
   const { accountSid, authToken, whatsappFrom } = await loadTwilioCreds();
   if (!(accountSid && authToken && whatsappFrom)) {
     // Sem Twilio: registra como "link" (não é falha de entrega, é fallback manual).
     const logId = await registrarLog({
       telefone: phone,
-      corpo: message,
+      corpo: corpoLog,
       status: "link",
       contexto: opts.contexto,
       clienteId: opts.clienteId,
@@ -316,13 +349,13 @@ export async function sendWhatsapp(
       const whatsappError = `HTTP_${resp.status}`;
       const logId = await registrarLog({
         telefone: phone,
-        corpo: message,
+        corpo: corpoLog,
         status: "failed",
         errorCode: whatsappError,
         contexto: opts.contexto,
         clienteId: opts.clienteId,
       });
-      void registrarTelegramBloqueado(phone, message, whatsappError, opts);
+      void registrarTelegramBloqueado(phone, corpoLog, whatsappError, opts);
       return { sent: false, via: "link", link, error: `HTTP ${resp.status}`, logId };
     }
 
@@ -340,7 +373,7 @@ export async function sendWhatsapp(
 
     const logId = await registrarLog({
       telefone: phone,
-      corpo: message,
+      corpo: corpoLog,
       sid: created.sid ?? null,
       status: created.status || "queued",
       errorCode: created.error_code ? `twilio_${created.error_code}` : null,
@@ -352,7 +385,7 @@ export async function sendWhatsapp(
       const code = `twilio_${created.error_code}`;
       logger.warn({ code, sid: created.sid }, "Twilio WhatsApp erro imediato");
       await atualizarLog(logId, { status: "failed", errorCode: code });
-      void registrarTelegramBloqueado(phone, message, code, opts);
+      void registrarTelegramBloqueado(phone, corpoLog, code, opts);
       return { sent: false, via: "twilio", link, error: code, logId };
     }
     if (created.sid) {
@@ -367,7 +400,7 @@ export async function sendWhatsapp(
           "Twilio WhatsApp não entregue (status final)",
         );
         await atualizarLog(logId, { status: "failed", errorCode: finalError });
-        void registrarTelegramBloqueado(phone, message, finalError, opts);
+        void registrarTelegramBloqueado(phone, corpoLog, finalError, opts);
         return { sent: false, via: "twilio", link, error: finalError, logId };
       }
     }
@@ -382,13 +415,13 @@ export async function sendWhatsapp(
     logger.warn({ err: err?.message }, "Twilio WhatsApp exception");
     const logId = await registrarLog({
       telefone: phone,
-      corpo: message,
+      corpo: corpoLog,
       status: "failed",
       errorCode: "exception",
       contexto: opts.contexto,
       clienteId: opts.clienteId,
     });
-    void registrarTelegramBloqueado(phone, message, "exception", opts);
+    void registrarTelegramBloqueado(phone, corpoLog, "exception", opts);
     return { sent: false, via: "link", link, error: err?.message ?? String(err), logId };
   }
 }
@@ -417,7 +450,7 @@ async function registrarTelegramBloqueado(
     const [c] = await db
       .select({ telegramChatId: clientsTable.telegramChatId })
       .from(clientsTable)
-      .where(eq(clientsTable.id, opts.clienteId))
+      .where(and(eq(clientsTable.id, opts.clienteId), isNull(clientsTable.deletedAt), ne(clientsTable.status, "deleted")))
       .limit(1);
     if (!c?.telegramChatId) return;
 
@@ -437,4 +470,89 @@ async function registrarTelegramBloqueado(
   } catch (err: any) {
     logger.warn({ err: err?.message }, "[whatsapp→telegram] falha ao registrar bloqueio no histórico");
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODELO APROVADO (Twilio Content API) — para falar com o contato FORA da janela de 24 h.
+// O modelo precisa estar aprovado pela Meta; o ContentSid (HX...) vem do chamador.
+// Nada é espelhado no Telegram. O corpo do log guarda só o SID do modelo e os NOMES das
+// variáveis (os valores podem ter dado clínico e não vão para o log).
+// ─────────────────────────────────────────────────────────────────────────────
+export interface SendTemplateOptions {
+  contentSid: string;
+  variaveis?: Record<string, string>;
+  contexto?: string;
+  clienteId?: number;
+}
+
+export async function sendWhatsappTemplate(phone: string, opts: SendTemplateOptions): Promise<WhatsappResult> {
+  const link = buildWhatsappLink(phone, "");
+  const corpoLog = `[modelo ${opts.contentSid}] variaveis: ${Object.keys(opts.variaveis ?? {}).join(",") || "-"}`;
+  if (!CONTENT_SID_RE.test(opts.contentSid)) {
+    return { sent: false, via: "link", link, error: "modelo_invalido" };
+  }
+  if (!envioPermitidoNoModoTeste(phone)) {
+    const logId = await registrarLog({ telefone: phone, corpo: corpoLog, status: "bloqueado", errorCode: "modo_teste_contato_nao_autorizado", contexto: opts.contexto, clienteId: opts.clienteId });
+    return { sent: false, via: "link", link, error: "modo_teste_contato_nao_autorizado", logId };
+  }
+  const { accountSid, authToken, whatsappFrom } = await loadTwilioCreds();
+  if (!(accountSid && authToken && whatsappFrom)) {
+    return { sent: false, via: "link", link, error: "sem_credenciais" };
+  }
+  const para = telefoneCanonico(phone);
+  if (!para) return { sent: false, via: "link", link, error: "telefone_invalido" };
+  try {
+    const body = new URLSearchParams({
+      From: whatsappFrom.startsWith("whatsapp:") ? whatsappFrom : `whatsapp:+${onlyDigits(whatsappFrom)}`,
+      To: `whatsapp:+${para}`,
+      ContentSid: opts.contentSid,
+    });
+    if (opts.variaveis && Object.keys(opts.variaveis).length) body.append("ContentVariables", JSON.stringify(opts.variaveis));
+    const callback = statusCallbackUrl();
+    if (callback) body.append("StatusCallback", callback);
+    const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
+      method: "POST",
+      headers: {
+        Authorization: "Basic " + Buffer.from(`${accountSid}:${authToken}`).toString("base64"),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: body.toString(),
+    });
+    if (!resp.ok) {
+      const logId = await registrarLog({ telefone: phone, corpo: corpoLog, status: "failed", errorCode: `HTTP_${resp.status}`, contexto: opts.contexto, clienteId: opts.clienteId });
+      return { sent: false, via: "twilio", link, error: `HTTP ${resp.status}`, logId };
+    }
+    const created = (await resp.json().catch(() => ({}))) as { sid?: string; status?: string; error_code?: number | null };
+    const logId = await registrarLog({
+      telefone: phone, corpo: corpoLog, sid: created.sid ?? null, status: created.status || "queued",
+      errorCode: created.error_code ? `twilio_${created.error_code}` : null, contexto: opts.contexto, clienteId: opts.clienteId,
+    });
+    if (created.error_code) {
+      const code = `twilio_${created.error_code}`;
+      await atualizarLog(logId, { status: "failed", errorCode: code });
+      return { sent: false, via: "twilio", link, error: code, logId };
+    }
+    // Aceito pelo provedor != entregue: o status real chega pelo webhook /api/whatsapp/status.
+    return { sent: true, via: "twilio", link, logId };
+  } catch (err: any) {
+    const logId = await registrarLog({ telefone: phone, corpo: corpoLog, status: "failed", errorCode: "exception", contexto: opts.contexto, clienteId: opts.clienteId });
+    return { sent: false, via: "link", link, error: err?.message ?? String(err), logId };
+  }
+}
+
+/**
+ * Escolhe o caminho certo: dentro da janela de 24 h, texto livre; fora dela, só modelo
+ * aprovado. Fora da janela e sem modelo, NÃO envia (devolve erro explícito, sem tentar).
+ */
+export async function sendWhatsappConformeJanela(
+  phone: string,
+  message: string,
+  opts: SendWhatsappOptions & { modelo?: { contentSid: string; variaveis?: Record<string, string> } } = {},
+): Promise<WhatsappResult & { janela: "aberta" | "fechada" }> {
+  const aberta = janelaAberta(await ultimaEntradaDoContato(phone).catch(() => null));
+  if (aberta) return { ...(await sendWhatsapp(phone, message, { ...opts, mirrorTelegram: false })), janela: "aberta" };
+  if (!opts.modelo) {
+    return { sent: false, via: "link", link: buildWhatsappLink(phone, message), error: "fora_da_janela_sem_modelo", janela: "fechada" };
+  }
+  return { ...(await sendWhatsappTemplate(phone, { ...opts.modelo, contexto: opts.contexto, clienteId: opts.clienteId })), janela: "fechada" };
 }

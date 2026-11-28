@@ -363,6 +363,8 @@ export function CredentialField({
       try {
         const real = await onReveal();
         if (real != null) onChange(normalize ? normalize(real) : real);
+      } catch {
+        // Revelacao desativada (Etapa 0): o campo segue protegido.
       } finally {
         setRevealing(false);
       }

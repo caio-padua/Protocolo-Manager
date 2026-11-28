@@ -14,3 +14,9 @@ Reservas antigas sem identificação do paciente só podem ser exibidas quando h
 **Why:** a interrupção pode ocorrer antes da primeira auditoria; metadados ausentes não são prova de ausência de envio nem autorização para compartilhar a operação.
 
 **How to apply:** ao evoluir a recuperação de operações antigas, exigir vínculo comprovável com paciente, médico, empresa e clínica; ausência de vínculo deve permanecer explícita, nunca resolvida por suposição.
+
+Na recuperação concorrente, decisões sobre recibos e efeitos já aceitos devem usar o estado devolvido pela reserva atômica, nunca o lote selecionado antes dela. A finalização também precisa serializar a alteração principal antes das gravações dependentes.
+
+**Why:** outro executor pode persistir um recibo entre a seleção e a reserva; um lote antigo ainda parecerá sem envelope e poderá duplicar o envio, mesmo com reserva durável.
+
+**How to apply:** devolver os metadados atuais ao reservar e testar explicitamente a transição de “sem recibo” para “recibo persistido” com uma seleção defasada; testar apenas a janela em processamento não cobre essa corrida.

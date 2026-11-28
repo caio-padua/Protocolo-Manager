@@ -9,10 +9,21 @@ const port = rawPort ? Number(rawPort) : 3000;
 
 const basePath = process.env.BASE_PATH ?? "/";
 
+// Endereco absoluto do site para a previa de link (WhatsApp exige og:image absoluto).
+// Producao: VITE_SITE_URL (ou o dominio publicado). Desenvolvimento: dominio temporario do Replit.
+const siteUrl = (
+  process.env.VITE_SITE_URL ||
+  (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "")
+).replace(/\/$/, "");
+
 export default defineConfig({
   base: basePath,
   plugins: [
     react(),
+    {
+      name: "paxmed-og-site-url",
+      transformIndexHtml: { order: "pre", handler: (html: string) => html.replaceAll("__SITE_URL__", siteUrl) },
+    },
     tailwindcss({ optimize: false }),
     runtimeErrorOverlay(),
     ...(process.env.NODE_ENV !== "production" &&
@@ -32,6 +43,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
+      "@paxcare": path.resolve(import.meta.dirname, "src", "vitrines", "paxcare"),
+      "@paxmed": path.resolve(import.meta.dirname, "src", "vitrines", "paxmed"),
       "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
     },
     dedupe: ["react", "react-dom"],

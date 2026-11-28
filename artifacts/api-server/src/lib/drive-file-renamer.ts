@@ -3,6 +3,17 @@ import { Readable } from "stream";
 import { execSync } from "child_process";
 import { writeFileSync, readFileSync, unlinkSync, readdirSync, mkdirSync, existsSync, rmSync } from "fs";
 import { join } from "path";
+import {
+  findReplitConnection,
+  getReplitConnectionAccessToken,
+  type ReplitConnectorConnection,
+} from "./replit-connection";
+import { brtDateStr } from "./brt.js";
+import {
+  buildExamFileName,
+  classifyExamLabel,
+  classifyExamRegion,
+} from "./exam-file-naming.js";
 
 function getOAuth2Client() {
   return getAccessTokenInternal().then(accessToken => {
@@ -12,11 +23,12 @@ function getOAuth2Client() {
   });
 }
 
-let _connSettings: any;
+let _connSettings: ReplitConnectorConnection | undefined;
 
 async function getAccessTokenInternal(): Promise<string> {
-  if (_connSettings?.settings?.expires_at && new Date(_connSettings.settings.expires_at).getTime() > Date.now()) {
-    const t = _connSettings?.settings?.access_token || _connSettings?.settings?.oauth?.credentials?.access_token;
+  const cachedToken = getReplitConnectionAccessToken(_connSettings);
+  if (_connSettings?.settings.expires_at && new Date(_connSettings.settings.expires_at).getTime() > Date.now()) {
+    const t = cachedToken;
     if (t) return t;
   }
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
@@ -27,12 +39,14 @@ async function getAccessTokenInternal(): Promise<string> {
     : null;
   if (!xReplitToken) throw new Error("X-Replit-Token not found");
 
-  _connSettings = await fetch(
+  const response = await fetch(
     "https://" + hostname + "/api/v2/connection?include_secrets=true&connector_names=google-drive",
     { headers: { Accept: "application/json", "X-Replit-Token": xReplitToken } }
-  ).then(r => r.json()).then(d => d.items?.[0]);
+  );
+  if (!response.ok) throw new Error("Google Drive not connected");
+  _connSettings = findReplitConnection(await response.json(), "google-drive");
 
-  const token = _connSettings?.settings?.access_token || _connSettings?.settings?.oauth?.credentials?.access_token;
+  const token = getReplitConnectionAccessToken(_connSettings);
   if (!token) throw new Error("Google Drive not connected");
   return token;
 }
@@ -169,6 +183,11 @@ function findBodyPart(text: string): string | undefined {
 function classifyExamFromText(text: string, fileName: string): { type: string; bodyPart?: string } {
   const combined = removeDiacritics(`${fileName} ${text}`).toUpperCase();
 
+  const unifiedLabel = classifyExamLabel(combined);
+  if (unifiedLabel) {
+    return { type: unifiedLabel, bodyPart: classifyExamRegion(combined) };
+  }
+
   for (const complex of COMPLEX_EXAM_KEYWORDS) {
     if (complex.pattern.test(combined)) {
       return { type: complex.label, bodyPart: findBodyPart(combined) };
@@ -209,13 +228,24 @@ function extractClientNameFromFolder(folderName: string): string {
     .trim();
 }
 
+function uniqueNameInDriveFolder(desiredName: string, existingNames: string[], currentName: string): string {
+  const dot = desiredName.lastIndexOf(".");
+  const stem = dot > 0 ? desiredName.slice(0, dot) : desiredName;
+  const extension = dot > 0 ? desiredName.slice(dot) : "";
+  const others = [...existingNames];
+  const currentIndex = others.indexOf(currentName);
+  if (currentIndex >= 0) others.splice(currentIndex, 1);
+  for (let suffix = 1; suffix <= 100; suffix++) {
+    const candidate = suffix === 1 ? desiredName : `${stem} ${suffix}${extension}`;
+    if (!others.includes(candidate)) return candidate;
+  }
+  throw new Error(`Não foi possível reservar um nome livre para "${desiredName}".`);
+}
+
 function formatDateReverse(dateStr: string): string {
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return "";
-  const yy = String(d.getFullYear()).slice(-2);
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yy}.${mm}.${dd}`;
+  return brtDateStr(d);
 }
 
 // Extrai a data do EXAME a partir do texto do PDF (DD/MM/YYYY ou DD-MM-YYYY).
@@ -488,6 +518,7 @@ export async function renameAllClientFiles(): Promise<RenameReport> {
           spaces: "drive",
           pageSize: 500,
         });
+        const existingNames = (files.data.files || []).map((file) => file.name || "");
 
         for (const file of (files.data.files || [])) {
           try {
@@ -512,12 +543,13 @@ export async function renameAllClientFiles(): Promise<RenameReport> {
               const datePrefix = examDateFromText || formatDateReverse(fallbackDate);
 
               const classification = classifyExamFromText(textContent, fileName);
-              const examLabel = classification.bodyPart && !classification.type.includes(classification.bodyPart)
-                ? `${classification.type} ${classification.bodyPart}`
-                : classification.type;
-              newName = datePrefix
-                ? `${datePrefix} ${examLabel} ${cleanClientName}${ext}`
-                : `${examLabel} ${cleanClientName}${ext}`;
+              newName = buildExamFileName({
+                date: datePrefix || null,
+                type: classification.type,
+                region: classification.bodyPart,
+                clientName: cleanClientName,
+                extension: ext,
+              });
             } else if (subName === "PROTOCOLOS") {
               const fileDate = file.createdTime || file.modifiedTime || "";
               const datePrefix = formatDateReverse(fileDate);
@@ -556,17 +588,23 @@ export async function renameAllClientFiles(): Promise<RenameReport> {
             }
 
             if (newName && newName !== fileName) {
+              const uniqueName = subName === "EXAMES"
+                ? uniqueNameInDriveFolder(newName, existingNames, fileName)
+                : newName;
               await drive.files.update({
                 fileId: file.id!,
-                requestBody: { name: newName },
+                requestBody: { name: uniqueName },
               });
+              const oldNameIndex = existingNames.indexOf(fileName);
+              if (oldNameIndex >= 0) existingNames.splice(oldNameIndex, 1);
+              existingNames.push(uniqueName);
               results.push({
                 clientFolder: clientFolder.name!,
                 subfolder: subName,
                 from: fileName,
-                to: newName,
+                to: uniqueName,
               });
-              console.log(`[Renamer] ${clientFolder.name}/${subName}: "${fileName}" -> "${newName}"`);
+              console.log(`[Renamer] ${clientFolder.name}/${subName}: "${fileName}" -> "${uniqueName}"`);
             } else {
               skipped++;
             }

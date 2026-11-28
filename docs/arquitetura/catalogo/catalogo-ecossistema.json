@@ -1,0 +1,714 @@
+{
+  "versao": 1,
+  "atualizadoEm": "2026-11-27",
+  "aviso": "Catalogo de entrada. Sem segredos, sem dados de pacientes. situacao: observado exige verificadoEm; pretendido/reservado nunca significa implantado.",
+  "sites": [
+    {
+      "id": "lovable-paxmed",
+      "nome": "PAXMED",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/eb745d14-e232-4648-83f2-896318deef79",
+      "codigoNoCatalogoSitesLovable": "na-raiz-de-SITES-LOVABLE (commit a31a42af)",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Contem tela publicada; dominios paxmed.com.br e paxcare.com.br ainda nao apontados para esta frente (decisao do Dr. Caio)."
+    },
+    {
+      "id": "lovable-paxcare",
+      "nome": "PAXCARE",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/dea1937b-ef36-4d07-a9ed-bba601c30494",
+      "codigoNoCatalogoSitesLovable": "copia-pendente (versao observada 88f457e2)",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Contem tela publicada; dominios paxmed.com.br e paxcare.com.br ainda nao apontados para esta frente (decisao do Dr. Caio)."
+    },
+    {
+      "id": "lovable-gabriela-severo",
+      "nome": "Gabriela Severo",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "nao-publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/5ed950ff-8cd0-403d-8fe8-f58b66365278",
+      "codigoNoCatalogoSitesLovable": "pendente",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Conteudo nao inventariado: nao se sabe se tem formulario, login ou banco proprio."
+    },
+    {
+      "id": "lovable-dr-caio-padua-hub",
+      "nome": "Dr. Caio Padua's Hub",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "nao-publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/a8a034f4-7190-4a5b-94ff-9d17cb9411de",
+      "codigoNoCatalogoSitesLovable": "pendente",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Conteudo nao inventariado: nao se sabe se tem formulario, login ou banco proprio."
+    },
+    {
+      "id": "lovable-cicero-joao-progresso",
+      "nome": "Cícero João: Progresso em Ação",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/417e5491-c0af-493a-9c30-d9bd35d36c25",
+      "codigoNoCatalogoSitesLovable": "pendente",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Conteudo nao inventariado: nao se sabe se tem formulario, login ou banco proprio."
+    },
+    {
+      "id": "lovable-carlucia-site",
+      "nome": "CARLUCIA SITE",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "nao-publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/a182a3a0-93d3-4eef-a341-5fd59152eb81",
+      "codigoNoCatalogoSitesLovable": "pendente",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Conteudo nao inventariado: nao se sabe se tem formulario, login ou banco proprio."
+    },
+    {
+      "id": "lovable-portfolio-compass",
+      "nome": "Portfolio Compass",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "nao-publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/94bf9438-e0cf-4d99-9fc8-16f2d6700204",
+      "codigoNoCatalogoSitesLovable": "pendente",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Conteudo nao inventariado: nao se sabe se tem formulario, login ou banco proprio."
+    },
+    {
+      "id": "lovable-patrium-flow",
+      "nome": "Patrium Flow",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "nao-publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/cb901902-a922-42ff-a401-3705fe37a03d",
+      "codigoNoCatalogoSitesLovable": "pendente",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Conteudo nao inventariado: nao se sabe se tem formulario, login ou banco proprio."
+    },
+    {
+      "id": "lovable-core-allocation-matrix",
+      "nome": "Core Allocation Matrix",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "nao-publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/da97aa1b-2446-472d-a744-a085977bf206",
+      "codigoNoCatalogoSitesLovable": "pendente",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Conteudo nao inventariado: nao se sabe se tem formulario, login ou banco proprio."
+    },
+    {
+      "id": "lovable-patrium-command-center",
+      "nome": "Patrium Command Center",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "nao-publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/3ab986e7-b531-4235-b23e-056695d63898",
+      "codigoNoCatalogoSitesLovable": "pendente",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Conteudo nao inventariado: nao se sabe se tem formulario, login ou banco proprio."
+    },
+    {
+      "id": "lovable-property-insight",
+      "nome": "Property Insight",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "nao-publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/49a434fc-13d8-4235-82da-74b63b33aeb6",
+      "codigoNoCatalogoSitesLovable": "pendente",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Conteudo nao inventariado: nao se sabe se tem formulario, login ou banco proprio."
+    },
+    {
+      "id": "lovable-daiana-authority",
+      "nome": "Daiana's Authority Platform",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/acc95ac0-0ad9-4f27-9d72-56a03a74abb5",
+      "codigoNoCatalogoSitesLovable": "pendente",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Conteudo nao inventariado: nao se sabe se tem formulario, login ou banco proprio."
+    },
+    {
+      "id": "lovable-aurelian-med",
+      "nome": "Aurelian Med",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "nao-publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/d39a2052-dba2-4a32-a880-ec272076d068",
+      "codigoNoCatalogoSitesLovable": "pendente",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Conteudo nao inventariado: nao se sabe se tem formulario, login ou banco proprio."
+    },
+    {
+      "id": "lovable-golden-gateway-entry",
+      "nome": "Golden Gateway Entry",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "nao-publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/08507615-fcbe-446f-93b7-e91d4b7bed40",
+      "codigoNoCatalogoSitesLovable": "pendente",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Conteudo nao inventariado: nao se sabe se tem formulario, login ou banco proprio."
+    },
+    {
+      "id": "lovable-pawards-elevated-return",
+      "nome": "PAWARDS Elevated Return",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "nao-publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/a7eaf90c-4034-42ec-b0cf-0b0a27226cad",
+      "codigoNoCatalogoSitesLovable": "pendente",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Conteudo nao inventariado: nao se sabe se tem formulario, login ou banco proprio."
+    },
+    {
+      "id": "lovable-medcore-gateway",
+      "nome": "Medcore Gateway",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "nao-publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/989def3e-50f6-45e0-beb7-68f0b048b34a",
+      "codigoNoCatalogoSitesLovable": "pendente",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Conteudo nao inventariado: nao se sabe se tem formulario, login ou banco proprio."
+    },
+    {
+      "id": "lovable-pawards-medcore-nova-lux",
+      "nome": "PAWARDS MEDCORE: Nova Lux",
+      "tipo": "frente-lovable",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "publicacaoLovable": "nao-publicado",
+      "projetoLovableUrl": "https://lovable.dev/projects/4d8fc6f9-75de-44f3-8366-777ea6e725ba",
+      "codigoNoCatalogoSitesLovable": "pendente",
+      "dominio": null,
+      "responsavel": "Dr. Caio (decide); Lovable (tela)",
+      "ultimaRevisao": "2026-11-27",
+      "fonte": "docs/arquitetura/lovable-manager.md secao 3",
+      "observacao": "Conteudo nao inventariado: nao se sabe se tem formulario, login ou banco proprio."
+    },
+    {
+      "id": "manager-vitrine-paxmed",
+      "nome": "Vitrine PAXMED dentro do Manager",
+      "tipo": "vitrine-no-manager",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-28",
+      "codigo": "artifacts/padcom/src/vitrines/paxmed",
+      "regraDeDominio": "artifacts/padcom/src/lib/host-vitrine.ts",
+      "dominio": "paxmed.com.br",
+      "responsavel": "Manager (Dr. Replit); Dr. Caio decide dominio",
+      "ultimaRevisao": "2026-11-28",
+      "fonte": "docs/vitrines-botoes-inventario.md",
+      "observacao": "Existe no codigo e nos testes. NAO esta no ar: a publicacao do Replit atras de paxmed.com.br e antiga e nao tem a regra por dominio."
+    },
+    {
+      "id": "manager-vitrine-paxcare",
+      "nome": "Vitrine PAXCARE dentro do Manager",
+      "tipo": "vitrine-no-manager",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-28",
+      "codigo": "artifacts/padcom/src/vitrines/paxcare",
+      "regraDeDominio": "artifacts/padcom/src/lib/host-vitrine.ts",
+      "dominio": "paxcare.com.br",
+      "responsavel": "Manager (Dr. Replit); Dr. Caio decide dominio",
+      "ultimaRevisao": "2026-11-28",
+      "fonte": "docs/vitrines-botoes-inventario.md",
+      "observacao": "Existe no codigo. paxcare.com.br resolve hoje para a Cloudflare (provavel Lovable), nao para o Manager."
+    },
+    {
+      "id": "futuro-01",
+      "nome": "Futuro site 01",
+      "tipo": "espaco-reservado",
+      "situacao": "reservado",
+      "dominio": null,
+      "responsavel": "Dr. Caio define",
+      "ultimaRevisao": "2026-11-27",
+      "observacao": "Espaco reservado. Nome, finalidade e dominio a definir. Nao existe projeto, codigo nem endereco."
+    },
+    {
+      "id": "futuro-02",
+      "nome": "Futuro site 02",
+      "tipo": "espaco-reservado",
+      "situacao": "reservado",
+      "dominio": null,
+      "responsavel": "Dr. Caio define",
+      "ultimaRevisao": "2026-11-27",
+      "observacao": "Espaco reservado. Nome, finalidade e dominio a definir. Nao existe projeto, codigo nem endereco."
+    },
+    {
+      "id": "futuro-03",
+      "nome": "Futuro site 03",
+      "tipo": "espaco-reservado",
+      "situacao": "reservado",
+      "dominio": null,
+      "responsavel": "Dr. Caio define",
+      "ultimaRevisao": "2026-11-27",
+      "observacao": "Espaco reservado. Nome, finalidade e dominio a definir. Nao existe projeto, codigo nem endereco."
+    },
+    {
+      "id": "futuro-04",
+      "nome": "Futuro site 04",
+      "tipo": "espaco-reservado",
+      "situacao": "reservado",
+      "dominio": null,
+      "responsavel": "Dr. Caio define",
+      "ultimaRevisao": "2026-11-27",
+      "observacao": "Espaco reservado. Nome, finalidade e dominio a definir. Nao existe projeto, codigo nem endereco."
+    },
+    {
+      "id": "futuro-05",
+      "nome": "Futuro site 05",
+      "tipo": "espaco-reservado",
+      "situacao": "reservado",
+      "dominio": null,
+      "responsavel": "Dr. Caio define",
+      "ultimaRevisao": "2026-11-27",
+      "observacao": "Espaco reservado. Nome, finalidade e dominio a definir. Nao existe projeto, codigo nem endereco."
+    }
+  ],
+  "botoes": [
+    {
+      "id": "pxm-area-medico",
+      "siteId": "manager-vitrine-paxmed",
+      "rotulo": "Area do Medico / Clinica",
+      "tipo": "acesso",
+      "destino": "/login",
+      "contratoId": "login-profissional",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": ""
+    },
+    {
+      "id": "pxm-portal-paciente",
+      "siteId": "manager-vitrine-paxmed",
+      "rotulo": "Portal do Paciente",
+      "tipo": "acesso",
+      "destino": "/area",
+      "contratoId": "login-paciente",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": ""
+    },
+    {
+      "id": "pxm-solicitar-convite",
+      "siteId": "manager-vitrine-paxmed",
+      "rotulo": "Solicitar convite",
+      "tipo": "pagina",
+      "destino": "/convite",
+      "contratoId": "convite-solicitar",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": "Pagina /convite; grava via POST /vitrine-convites."
+    },
+    {
+      "id": "pxm-contato-enviar",
+      "siteId": "manager-vitrine-paxmed",
+      "rotulo": "Formulario de contato (enviar)",
+      "tipo": "formulario",
+      "destino": "/vitrine-contatos",
+      "contratoId": "contato-publico",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": "Limite de 5 por minuto."
+    },
+    {
+      "id": "pxm-link-padcon",
+      "siteId": "manager-vitrine-paxmed",
+      "rotulo": "Link PADCON",
+      "tipo": "externo",
+      "destino": "https://padcon.replit.app/",
+      "contratoId": null,
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": "Sem backend do Manager."
+    },
+    {
+      "id": "pxm-ancoras",
+      "siteId": "manager-vitrine-paxmed",
+      "rotulo": "Manifesto, Recursos, Inteligencia, O Circulo, Ecossistema",
+      "tipo": "navegacao",
+      "destino": "ancoras da propria pagina",
+      "contratoId": null,
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": ""
+    },
+    {
+      "id": "pxm-video-play",
+      "siteId": "manager-vitrine-paxmed",
+      "rotulo": "Play dos videos de depoimento",
+      "tipo": "sem-acao",
+      "destino": "sem destino",
+      "contratoId": null,
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": "Sem video ligado."
+    },
+    {
+      "id": "pxc-portal-paciente",
+      "siteId": "manager-vitrine-paxcare",
+      "rotulo": "Portal do paciente / Entrar / planos",
+      "tipo": "acesso",
+      "destino": "/area",
+      "contratoId": "login-paciente",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": ""
+    },
+    {
+      "id": "pxc-ir-paxmed",
+      "siteId": "manager-vitrine-paxcare",
+      "rotulo": "Conhecer o site PAXMED",
+      "tipo": "externo",
+      "destino": "https://paxmed.com.br",
+      "contratoId": null,
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": ""
+    },
+    {
+      "id": "pxc-compartilhar",
+      "siteId": "manager-vitrine-paxcare",
+      "rotulo": "Compartilhar",
+      "tipo": "funcao-do-navegador",
+      "destino": "share/copiar link",
+      "contratoId": null,
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": ""
+    },
+    {
+      "id": "pxc-previas",
+      "siteId": "manager-vitrine-paxcare",
+      "rotulo": "Previas (laudo, rotina, categorias, cofre)",
+      "tipo": "demonstracao-local",
+      "destino": "estado da pagina",
+      "contratoId": null,
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": "Dados de exemplo; o cofre real e outro caminho (paxcare-cofre-listar)."
+    },
+    {
+      "id": "pxc-aceitar-convite-medico",
+      "siteId": "manager-vitrine-paxcare",
+      "rotulo": "Aceitar convite e ver exames (/medicos)",
+      "tipo": "formulario-de-previa",
+      "destino": "estado local",
+      "contratoId": null,
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": "Em 27/11/2026 o inventario registrava so previa, sem backend. Existe depois o teste artifacts/api-server/src/tests/paxcare-convite-medico-banco-isolado.test.ts; situacao atual a reconferir antes de afirmar."
+    }
+  ],
+  "contratos": [
+    {
+      "id": "contato-publico",
+      "metodo": "POST",
+      "caminho": "/vitrine-contatos",
+      "arquivo": "artifacts/api-server/src/routes/vitrine-contatos.ts",
+      "autenticacao": "publica (limite por IP)",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-28",
+      "testes": [],
+      "observacao": "Consentimento nao e recebido nem gravado."
+    },
+    {
+      "id": "leads-publico",
+      "metodo": "POST",
+      "caminho": "/vitrine-leads",
+      "arquivo": "artifacts/api-server/src/routes/vitrine-leads.ts",
+      "autenticacao": "publica (limite por IP)",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-28",
+      "testes": [],
+      "observacao": "Contrato de campos com o Lovable pendente."
+    },
+    {
+      "id": "convite-solicitar",
+      "metodo": "POST",
+      "caminho": "/vitrine-convites",
+      "arquivo": "artifacts/api-server/src/routes/vitrine-convites.ts",
+      "autenticacao": "publica",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-28",
+      "testes": [
+        "t-convites-banco-isolado"
+      ],
+      "observacao": "Grava na tabela vitrine_convites do Manager."
+    },
+    {
+      "id": "convite-status",
+      "metodo": "POST",
+      "caminho": "/vitrine-convites/status",
+      "arquivo": "artifacts/api-server/src/routes/vitrine-convites.ts",
+      "autenticacao": "publica",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-28",
+      "testes": [
+        "t-convites-banco-isolado"
+      ],
+      "observacao": "Consulta por protocolo."
+    },
+    {
+      "id": "login-profissional",
+      "metodo": "POST",
+      "caminho": "/collaborator/login",
+      "arquivo": "artifacts/api-server/src/routes/collaborator.ts",
+      "autenticacao": "publica (abre sessao)",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-28",
+      "testes": [],
+      "observacao": "Compatibilidade de formato com o Lovable nao conferida."
+    },
+    {
+      "id": "login-paciente",
+      "metodo": "POST",
+      "caminho": "/area-paciente/login",
+      "arquivo": "artifacts/api-server/src/routes/area-paciente.ts",
+      "autenticacao": "publica (abre sessao)",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-28",
+      "testes": [],
+      "observacao": "A aba Paciente do Lovable chama /patient/login, que NAO existe no Manager."
+    },
+    {
+      "id": "paxcare-cofre-listar",
+      "metodo": "GET",
+      "caminho": "/area-paciente/paxcare/cofre",
+      "arquivo": "artifacts/api-server/src/routes/paxcare.ts",
+      "autenticacao": "paciente autenticado",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-28",
+      "testes": [],
+      "observacao": "Dados do paciente: nunca copiar para documentos."
+    },
+    {
+      "id": "saude-api",
+      "metodo": "GET",
+      "caminho": "/healthz",
+      "arquivo": "artifacts/api-server/src/routes/health.ts",
+      "autenticacao": "publica",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "testes": [
+        "t-saude-servidor-completo"
+      ],
+      "observacao": "Causa do 403 encontrada e corrigida no codigo local (tenantContext devolvia 403 na saude para sessao sem clinica ativa). Provado em servidor completo com banco descartavel; correcao NAO publicada."
+    }
+  ],
+  "testes": [
+    {
+      "id": "t-convites-banco-isolado",
+      "arquivo": "artifacts/api-server/src/tests/vitrine-convites-banco-isolado.test.ts",
+      "tipo": "banco descartavel",
+      "resultado": "verde",
+      "verificadoEm": "2026-11-27",
+      "observacao": "Resultado registrado em docs/arquitetura/lovable-manager.md; nao reexecutado neste documento."
+    },
+    {
+      "id": "t-host-vitrine",
+      "arquivo": "artifacts/padcom/src/lib/host-vitrine.test.ts",
+      "tipo": "unitario",
+      "resultado": "verde",
+      "verificadoEm": "2026-11-27",
+      "observacao": "4 de 4 na sessao anterior; nao reexecutado neste documento."
+    },
+    {
+      "id": "t-e2e-vitrines-dominio",
+      "arquivo": "e2e/vitrines-dominio-login.spec.ts",
+      "tipo": "navegador",
+      "resultado": "nao-verificado",
+      "verificadoEm": null,
+      "observacao": "Existe o arquivo; resultado atual desconhecido."
+    },
+    {
+      "id": "t-e2e-paxcare-convite",
+      "arquivo": "e2e/paxcare-convite-real.spec.ts",
+      "tipo": "navegador",
+      "resultado": "nao-verificado",
+      "verificadoEm": null,
+      "observacao": "Existe o arquivo; resultado atual desconhecido."
+    },
+    {
+      "id": "t-saude-servidor-completo",
+      "arquivo": "artifacts/api-server/src/tests/servidor-completo-saude.test.ts",
+      "tipo": "servidor completo, banco descartavel",
+      "resultado": "verde",
+      "verificadoEm": "2026-11-27",
+      "observacao": "10 de 10; antes da correcao 2 falhavam com 403. Rotas protegidas seguem 401/403."
+    },
+    {
+      "id": "t-exclusividade-banco",
+      "arquivo": "artifacts/api-server/src/tests/exclusividade-tarefas-banco.test.ts",
+      "tipo": "banco descartavel, duas conexoes",
+      "resultado": "verde",
+      "verificadoEm": "2026-11-27",
+      "observacao": "9 de 9: trava consultiva e carimbo por janela impedem execucao dupla. Implantacao so apos publicacao."
+    },
+    {
+      "id": "t-isolamento-ab-agenda-exames-medicacoes",
+      "arquivo": "artifacts/api-server/src/tests/servidor-completo-clinicas-ab-agenda-exames-medicacoes.test.ts",
+      "tipo": "servidor completo, banco descartavel",
+      "resultado": "verde",
+      "verificadoEm": "2026-11-27",
+      "observacao": "16 de 16: leituras, escritas, codigos 401/403/404 e estado do banco entre as clinicas A e B."
+    }
+  ],
+  "integracoes": [
+    {
+      "id": "asaas",
+      "nome": "Asaas (cobranca)",
+      "dono": "manager",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": "Segredo so nos cofres do ambiente; cobranca PaxCare em pendente_integracao."
+    },
+    {
+      "id": "whatsapp-evolution",
+      "nome": "WhatsApp (Evolution)",
+      "dono": "manager",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": "Ver .agents/memory/evolution-whatsapp-qr.md."
+    },
+    {
+      "id": "telegram",
+      "nome": "Telegram",
+      "dono": "manager",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": "Relay roda no worker de desenvolvimento; ver mapa."
+    },
+    {
+      "id": "google",
+      "nome": "Google (agenda, Drive, e-mail)",
+      "dono": "manager",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": "Sincronizacao da agenda roda na API."
+    },
+    {
+      "id": "zapsign",
+      "nome": "ZapSign (assinatura)",
+      "dono": "manager",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": "Token amarra ambiente sandbox x producao."
+    },
+    {
+      "id": "ia",
+      "nome": "IA (Anthropic, Gemini, OpenAI, OpenRouter)",
+      "dono": "manager",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": "Chaves via integracoes do Replit."
+    },
+    {
+      "id": "slack",
+      "nome": "Slack (alertas e monitor)",
+      "dono": "manager",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "observacao": "Canal do projeto; sem credenciais no catalogo."
+    }
+  ],
+  "railway": [
+    {
+      "id": "rw-accomplished-reverence",
+      "nome": "accomplished-reverence",
+      "ambiente": "production",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-27",
+      "servicos": [
+        "@workspace/api-server",
+        "@workspace/padcom",
+        "@workspace/parxis-site",
+        "Postgres",
+        "railway-mcp-bridge"
+      ],
+      "funcao": "Projeto de producao legado do Manager no Railway",
+      "observacao": "Os 3 servicos web respondiam 404 'Application not found'; ultimos deploys SKIPPED/FAILED; sem dominios proprios. Detalhe em docs/operacao/git-e-railway-2026-11-27.md. Informado pelo Dr. Caio em 27/11/2026 (nao reverificado): ha worker preparado, NAO implantado, e URL da API preparada para revisao; sem conexao de banco configurada por nos. Nao se afirma que so ha dois servicos em producao nem que a API ja serve todas as telas."
+    },
+    {
+      "id": "rw-perceptive-creation",
+      "nome": "perceptive-creation",
+      "ambiente": "nao-informado",
+      "situacao": "observado",
+      "verificadoEm": "2026-11-28",
+      "servicos": [],
+      "funcao": "Projeto com pacote de alteracoes preparadas, ainda nao aplicado",
+      "observacao": "Auditoria registrada a pedido do Dr. Caio: 79 alteracoes preparadas para 15 servicos (bibliotecas internas, api-worker e servicos que repetem nomes de accomplished-reverence). Pacote NAO aplicado e NAO descartado. Nao se presume que o banco seja o mesmo de accomplished-reverence. Esta documentacao nao reverificou o Railway. Informado pelo Dr. Caio em 27/11/2026 (nao reverificado): restam somente as oito configuracoes pendentes do worker."
+    }
+  ]
+}

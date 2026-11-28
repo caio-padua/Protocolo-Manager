@@ -51,16 +51,25 @@ vi.mock("../lib/concierge-penalidade", () => ({
 
 import express from "express";
 import request from "supertest";
-import { tenantContextMiddleware } from "../middleware/tenantContext";
 import conciergeAdminRouter from "../routes/concierge-admin";
 import * as penLib from "../lib/concierge-penalidade";
 
 // ── App de teste ─────────────────────────────────────────────────────────────
 
-function buildApp() {
+function buildApp(authenticatedOwner = true) {
   const app = express();
   app.use(express.json());
-  app.use(tenantContextMiddleware); // injeta isPlatformOwner=true (single-tenant)
+  // Simula o contexto já autenticado que chega ao guard da rota.
+  app.use((req, _res, next) => {
+    req.tenantContext = {
+      empresaId: 5,
+      isPlatformOwner: authenticatedOwner,
+      perfilPlataforma: authenticatedOwner ? "platform_owner" : "recepcionista",
+      authenticated: authenticatedOwner,
+      professionalId: authenticatedOwner ? 101 : null,
+    };
+    next();
+  });
   app.use("/api", conciergeAdminRouter);
   return app;
 }
@@ -85,6 +94,13 @@ const ROW_BLOQUEADO: import("../lib/concierge-penalidade").PenalidadeRow = {
 
 describe("GET /api/admin/concierge-penalidade", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("nega acesso quando o contexto autenticado não é de proprietário da plataforma", async () => {
+    const res = await request(buildApp(false)).get("/api/admin/concierge-penalidade");
+
+    expect(res.status).toBe(403);
+    expect(penLib.listPenalidades).not.toHaveBeenCalled();
+  });
 
   it("HTTP 200 + ok=true + row com bloqueado_permanente=true e tentativas=3", async () => {
     vi.mocked(penLib.listPenalidades).mockResolvedValue([ROW_BLOQUEADO]);
@@ -437,6 +453,7 @@ describe("Ciclo expand STATEFUL — CEO expande linha e vê falhas + resets junt
       const tentativas = (existing?.tentativas_falha ?? 0) + 1;
       store.set(cpf, {
         cpf_mascarado:        cpf.slice(0, 3) + ".***.***-" + cpf.slice(-2),
+        nome_paciente:        null,
         tentativas_falha:     tentativas,
         bloqueado_permanente: tentativas >= 3,
         ultima_falha_at:      new Date().toISOString(),
@@ -486,8 +503,8 @@ describe("Ciclo expand STATEFUL — CEO expande linha e vê falhas + resets junt
     const app = buildApp();
 
     // ── Passo 1: 2 falhas de pagamento ───────────────────────────────────────
-    await penLib.registrarFalha(CPF_VALIDO);
-    await penLib.registrarFalha(CPF_VALIDO);
+    await penLib.registrarFalha(CPF_VALIDO, "synthetic-payment-failure-1");
+    await penLib.registrarFalha(CPF_VALIDO, "synthetic-payment-failure-2");
 
     // ── Passo 2: CEO reseta — linha some, auditoria ganha 1 evento (ant=2) ───
     const patch = await request(app).patch(
@@ -497,7 +514,7 @@ describe("Ciclo expand STATEFUL — CEO expande linha e vê falhas + resets junt
     expect(patch.body.resetou).toBe(true);
 
     // ── Passo 3: nova falha → linha reaparece na listagem ────────────────────
-    await penLib.registrarFalha(CPF_VALIDO);
+    await penLib.registrarFalha(CPF_VALIDO, "synthetic-payment-failure-3");
 
     // ── Passo 4: CEO expande a linha — ambos os painéis são chamados ─────────
     //    Front-end dispara GET lista (painel superior) e GET /historico

@@ -1,0 +1,113 @@
+/* Linha do tempo da Agenda (Dia e Semana). Sem biblioteca de estilo: poucas regras, todas com nome tl-*.
+   Cor da agenda entra por --ev (variável por compromisso). Nada aqui depende de tema claro ou escuro:
+   os tons saem de color-mix com a cor da agenda e com currentColor. */
+
+.tl-raiz { --tl-linha: color-mix(in srgb, currentColor 11%, transparent); --tl-linha-meia: color-mix(in srgb, currentColor 5%, transparent); }
+
+.tl-corpo-coluna {
+  position: relative;
+  background-image:
+    linear-gradient(to bottom, var(--tl-linha) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--tl-linha-meia) 1px, transparent 1px);
+  background-size: 100% var(--tl-hora), 100% calc(var(--tl-hora) / 2);
+  border-left: 1px solid var(--tl-linha);
+}
+.tl-corpo-coluna--hoje { background-color: color-mix(in srgb, #d4af37 5%, transparent); }
+
+/* Compromisso: tom pastel da cor da agenda + moldura fina da MESMA cor + relevo para fora (up bevel):
+   fio de luz no topo, assentamento mais escuro embaixo e sombra curta. Nada de faixa lateral (parecia giz). */
+.tl-evento {
+  --ev: #64748b;
+  --tl-bisel: inset 0 1.5px 0 rgba(255, 255, 255, 0.8), inset 0 -2px 3px color-mix(in srgb, var(--ev) 38%, transparent);
+  position: absolute;
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--ev) 66%, hsl(var(--background)));
+  padding: 2px 6px;
+  color: inherit;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ev) 30%, hsl(var(--background))) 0%, color-mix(in srgb, var(--ev) 20%, hsl(var(--background))) 100%);
+  box-shadow: var(--tl-bisel), 0 2px 4px -2px color-mix(in srgb, var(--ev) 55%, rgba(7, 22, 43, 0.3));
+  transition: box-shadow 0.18s ease, background-color 0.18s ease, filter 0.18s ease;
+}
+.tl-evento:hover,
+.tl-evento:focus-visible {
+  z-index: 6;
+  outline: none;
+  filter: saturate(1.1) brightness(1.02);
+  box-shadow: var(--tl-bisel), 0 0 0 1px var(--ev), 0 0 12px 1px color-mix(in srgb, var(--ev) 55%, transparent);
+}
+/* Compromisso do Google (somente leitura): mesma moldura, com hachura fina por cima do pastel. */
+.tl-evento--google {
+  background-image: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--ev) 12%, transparent) 6px 7px),
+    linear-gradient(180deg, color-mix(in srgb, var(--ev) 30%, hsl(var(--background))) 0%, color-mix(in srgb, var(--ev) 20%, hsl(var(--background))) 100%);
+}
+.tl-evento--encerrada { opacity: 0.55; }
+.tl-evento--passada { opacity: 0.6; }
+.tl-evento--andamento { border-color: var(--ev); }
+
+/* Atendimento prestes a começar: respiração lenta do contorno, sem piscar seco. */
+.tl-evento--proxima { animation: tl-respira 2.8s ease-in-out infinite; }
+.tl-evento--proxima:hover,
+.tl-evento--proxima:focus-visible { animation: none; }
+@keyframes tl-respira {
+  0%, 100% { box-shadow: var(--tl-bisel), 0 0 0 1px color-mix(in srgb, var(--ev) 55%, transparent), 0 0 0 0 transparent; }
+  50% { box-shadow: var(--tl-bisel), 0 0 0 1px var(--ev), 0 0 12px 3px color-mix(in srgb, var(--ev) 55%, transparent); }
+}
+
+/* Dia como folhinha de calendário (retângulo de quinas quase retas, NÃO parece botão): faixa azul-marinho clara com o mês
+   em cima; embaixo, fundo creme com o número e o dia da semana. Hoje ganha moldura dourada dupla em relevo (sem círculo). */
+.tl-dia-moldura {
+  display: flex; flex-direction: column; align-items: stretch; min-width: 5.2rem; padding: 0; overflow: hidden; margin: 3px auto;
+  border-radius: 3px; border: 1px solid #3a557f; cursor: default;
+  background: linear-gradient(180deg, #ffffff 0%, #f8f5ec 60%, #f1ead8 100%);
+  box-shadow: inset 0 -2px 3px rgba(0, 53, 58, 0.08);
+}
+.tl-dia-faixa {
+  padding: 0.3rem 0.6rem 0.32rem; text-align: center; font-size: 0.64rem; font-weight: 900; letter-spacing: 0.24em; text-transform: uppercase; line-height: 1.15;
+  color: #f4ead2; background: linear-gradient(180deg, #4d6ea1 0%, #35527f 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(7, 22, 43, 0.35);
+}
+.tl-dia-corpo { display: flex; flex-direction: column; align-items: center; gap: 0.1rem; padding: 0.25rem 0.6rem 0.32rem; }
+.tl-dia-numero { font-size: 1.45rem; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; color: #1c2f4f; }
+.dark .tl-dia-moldura { border-color: #3a557f; background: linear-gradient(180deg, hsl(215 20% 21%) 0%, hsl(215 22% 15%) 100%); }
+.dark .tl-dia-numero { color: #f4ead2; }
+.tl-dia-moldura--hoje {
+  border-color: #b8924d;
+  background: linear-gradient(180deg, #fffdf4 0%, #fbf3da 60%, #f3e6bb 100%);
+  /* aro de creme + fio dourado por fora = moldura dupla; luz no topo e assentamento embaixo = up bevel */
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.9), inset 0 -3px 5px rgba(150, 110, 20, 0.2), 0 0 0 2px #fffaf0, 0 0 0 3px #c9a24a, 0 3px 6px 1px rgba(120, 85, 10, 0.3);
+}
+.tl-dia-moldura--hoje .tl-dia-numero { color: #8a6418; }
+button.tl-dia-moldura { appearance: none; font: inherit; cursor: pointer; }
+button.tl-dia-moldura:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 3px; }
+
+/* Linha vermelha de agora. */
+.tl-agora { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid #dc2626; z-index: 7; pointer-events: none; }
+.tl-agora::before {
+  content: ""; position: absolute; left: -5px; top: -6px; width: 10px; height: 10px; border-radius: 9999px; background: #dc2626;
+}
+.tl-agora-rotulo {
+  position: absolute; right: 6px; z-index: 8; transform: translateY(-50%);
+  background: #dc2626; color: #fff; border-radius: 9999px; padding: 0 6px; font-size: 10px; font-weight: 800; line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tl-evento { transition: none; }
+  .tl-evento--proxima {
+    animation: none;
+    box-shadow: var(--tl-bisel), 0 0 0 2px var(--ev), 0 0 0 5px color-mix(in srgb, var(--ev) 25%, transparent);
+  }
+}
+
+/* Seleção de horário vazio (clique, arraste, toque e segure). Sem user-select para o arraste não pintar texto. */
+.tl-corpo-coluna--selecionavel { cursor: cell; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.tl-selecao {
+  position: absolute; left: 3px; right: 3px; z-index: 5; pointer-events: none;
+  border-radius: 6px; border: 2px dashed #b8924d;
+  background: color-mix(in srgb, #d4af37 22%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, #d4af37 45%, transparent);
+  color: #5b4516; font-size: 11px; font-weight: 800; padding: 1px 6px; overflow: hidden; font-variant-numeric: tabular-nums;
+}

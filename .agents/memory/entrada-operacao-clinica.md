@@ -13,6 +13,24 @@ As prioridades confirmadas são receitas, pedidos de exames e trabalho com resul
 
 **How to apply:** Priorizar validação dos fluxos clínicos essenciais e uma entrada gradual; não pressupor substituição, integração ou migração automática do sistema anterior.
 
+## Esclarecimento sobre agendas anteriores
+
+O proprietário reiterou que o sistema nunca entrou em atividade e que os agendamentos e vínculos de agenda anteriores eram testes.
+A fonte operacional da agenda deve passar a ser exclusivamente a conta Google da clínica indicada por ele.
+
+**Why:** Não tratar os antigos agendamentos de teste como atendimento realizado, nem misturá-los à nova carga operacional.
+
+**How to apply:** Inventariar e separar os registros de agenda antigos antes da importação; confirmar o recorte de datas e o alcance de exclusões, sem estender a limpeza a clientes, fórmulas ou outros dados importados.
+
+## Corte operacional da agenda Google
+
+Em 07/11/2026, o proprietário confirmou o corte operacional em 01/09/2026 e autorizou limpar os testes somente dentro do sistema.
+O histórico da agenda Google, inclusive antes desse corte, deve permanecer intacto.
+
+**Why:** O proprietário interrompeu a execução para diferenciar explicitamente a limpeza local da preservação integral da origem Google.
+
+**How to apply:** Importar ocorrências desde 01/09/2026, inclusive séries iniciadas antes quando tiverem ocorrências posteriores; nunca interpretar essa autorização como permissão para excluir ou alterar eventos no Google.
+
 ## Retificacao do escopo pelo proprietario em 29/10/2026
 
 O proprietario informou que os cadastros de clientes e as formulas do Support Health ja foram importados para o PAXTER.
@@ -53,3 +71,8 @@ Quer marcar varios exames, gerar os pedidos na mesma acao, escolher e-mail, What
 **Why:** A prioridade e reduzir repeticao durante o atendimento sem retirar a escolha e a conferencia do medico.
 
 **How to apply:** Reutilizar o catalogo real; filtros por especialidade nao equivalem a recomendacao nem autorizam selecionar exames automaticamente; preservar documento e resultado dos envios, distinguindo geracao, aceite do provedor e entrega ao destinatario.
+
+## Sistema em testes: carga completa, sem revisão item a item
+O Dr. Caio disse (19/11/2026) que o sistema está em testes e que não quer revisar item por item antes: carregar tudo como disponível, com valores preenchidos, e ele confere aos poucos depois.
+**Why:** marcar carga como "indisponível aguardando revisão" foi tratado como esquecimento do contexto de teste.
+**How to apply:** cargas de catálogo entram disponíveis e com preço; nunca reduzir preço existente, só preencher vazio ou corrigir abaixo do custo.

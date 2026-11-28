@@ -1,3 +1,4 @@
+import { PressaoTexto } from "@/components/PressaoTexto";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, Sun, CloudSun, Moon, Battery, Smile, HeartPulse, Droplet, BedDouble } from "lucide-react";
@@ -96,7 +97,7 @@ function Metrica({
       </div>
       <div className="flex items-baseline gap-0.5">
         <span className="text-[15px] font-bold leading-none" style={{ color: cor }}>
-          {valor}
+          {valor.includes(" / ") ? <PressaoTexto texto={valor} numeral={false} /> : valor}
         </span>
         {sufixo && valor !== "—" && (
           <span className="text-[9px] font-semibold" style={{ color: MUTE }}>
@@ -121,7 +122,7 @@ function CardPeriodo({
   const num = (v: number | null) => (v == null ? "—" : String(v));
   const pa =
     reg && (reg.pressaoSistolica != null || reg.pressaoDiastolica != null)
-      ? `${reg.pressaoSistolica ?? "—"}/${reg.pressaoDiastolica ?? "—"}`
+      ? `${reg.pressaoSistolica ?? "—"} / ${reg.pressaoDiastolica ?? "—"}`
       : "—";
   return (
     <div className="screen-3d flex-1 p-3">
@@ -191,7 +192,7 @@ function CardPeriodo({
 }
 
 export default function AcompanhamentoDiarioPanel({ clientId }: { clientId: number }) {
-  const { data, isLoading } = useQuery<Pulso[]>({
+  const { data, isLoading, isError, refetch } = useQuery<Pulso[]>({
     queryKey: ["pulso-diario", clientId],
     queryFn: async () => {
       const r = await fetch(`${BASE}/api/pulso-diario/${clientId}?dias=14`);
@@ -233,13 +234,18 @@ export default function AcompanhamentoDiarioPanel({ clientId }: { clientId: numb
           <Activity className="h-3.5 w-3.5" style={{ color: GOLD }} /> Pulso Diário
         </div>
         <span className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: MUTE }}>
-          {diaAlvo ? `Último registro · ${dataBr(diaAlvo)}` : "Sem registros"}
+          {isError ? "Consulta indisponível" : isLoading ? "Carregando" : diaAlvo ? `Último registro · ${dataBr(diaAlvo)}` : "Sem registros"}
         </span>
       </div>
 
       {isLoading ? (
         <div className="py-6 text-center text-[12px] font-semibold" style={{ color: MUTE }}>
           Carregando…
+        </div>
+      ) : isError ? (
+        <div className="concave-3d px-3 py-6 text-center text-[12px] font-semibold" role="alert">
+          Não foi possível consultar o pulso diário.{" "}
+          <button type="button" className="underline" onClick={() => void refetch()}>Tentar novamente</button>
         </div>
       ) : !diaAlvo ? (
         <div className="concave-3d px-3 py-6 text-center text-[12px] font-semibold" style={{ color: MUTE }}>

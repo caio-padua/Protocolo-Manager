@@ -66,7 +66,7 @@ function sanitizarEmpresa(row: EmpresaRow) {
 
 // Todos os campos editáveis da tabela empresas (exceto credenciais — essas têm rota própria)
 const CAMPOS_EMPRESA = [
-  "nome","nomeFantasia","razaoSocial","nick","cnpj","tipo","tipoUnidade","status","ativa","donoNome","slug","areaUrl","timezone",
+  "nome","nomeFantasia","razaoSocial","nick","cnpj","tipo","tipoUnidade","classificacaoAssistencial","grauComplexidade","status","ativa","donoNome","slug","areaUrl","timezone",
   // Fiscal/Jurídico
   "cnae","cnaeDescricao","cnaesSecundarios","naturezaJuridica","regimeTributario",
   "inscricaoEstadual","inscricaoMunicipal","dataAbertura","capitalSocial",
@@ -416,6 +416,24 @@ const REGIMES_TRIBUTARIOS_VALIDOS = new Set([
   "lucro_real",
 ]);
 
+// Classificacao (estudo do CEO): valores aceitos. Lista espelhada em pages/cadastros/empresas.tsx (mexeu num, mexa no outro).
+const CLASSIFICACAO_ASSISTENCIAL = new Set(["consultorio_isolado", "clinica_especializada", "policlinica"]);
+const GRAU_COMPLEXIDADE = new Set(["I", "II", "III_IV"]);
+
+/** Valida e normaliza ("" vira null) os dois campos de classificacao. Devolve a mensagem de erro, se houver. */
+function validarClassificacao(body: Record<string, unknown>): string | null {
+  for (const [campo, aceitos, nome] of [
+    ["classificacaoAssistencial", CLASSIFICACAO_ASSISTENCIAL, "classificação assistencial"],
+    ["grauComplexidade", GRAU_COMPLEXIDADE, "grau de complexidade"],
+  ] as const) {
+    const v = body[campo];
+    if (v === undefined) continue;
+    if (v === null || v === "") { body[campo] = null; continue; }
+    if (typeof v !== "string" || !aceitos.has(v)) return `Valor inválido para ${nome}.`;
+  }
+  return null;
+}
+
 function validarRegimeTributario(value: unknown, required: boolean): string | null {
   if (value === undefined || value === null || value === "") {
     return required ? "Selecione o regime tributário da empresa." : null;
@@ -440,6 +458,8 @@ router.post("/empresas", async (req, res): Promise<void> => {
     res.status(422).json({ error: "Este cadastro aceita somente empresas clínicas." });
     return;
   }
+  const erroClassificacao = validarClassificacao(body);
+  if (erroClassificacao) { res.status(422).json({ error: erroClassificacao }); return; }
   const cnpjDigits = String(body.cnpj ?? "").replace(/\D/g, "");
   if (cnpjDigits.length === 14) {
     const existingCompanies = await db.select({
@@ -523,6 +543,8 @@ router.put("/empresas/:id", async (req, res): Promise<void> => {
     res.status(422).json({ error: "Este cadastro aceita somente empresas clínicas." });
     return;
   }
+  const erroClassificacaoPut = validarClassificacao(req.body ?? {});
+  if (erroClassificacaoPut) { res.status(422).json({ error: erroClassificacaoPut }); return; }
 
   // ── Normaliza e valida slug ────────────────────────────────────────────────
   if (req.body.slug !== undefined) {
@@ -554,12 +576,19 @@ router.put("/empresas/:id", async (req, res): Promise<void> => {
         status: empresasTable.status,
         isPlatformOwner: empresasTable.isPlatformOwner,
         cnpj: empresasTable.cnpj,
+        nome: empresasTable.nome,
       }).from(empresasTable)
         .where(eq(empresasTable.id, id))
         .for("update")
         .limit(1);
       if (!currentCompany || currentCompany.tipo !== "clinic" || currentCompany.status === "ARQUIVADA" || currentCompany.isPlatformOwner) {
         return { status: 404 as const, error: "Empresa clínica não encontrada." };
+      }
+
+      // Decisão do CEO (11/11/2026): o Instituto Pádua é a empresa de acesso do sistema. Desativá-lo derruba o
+      // login de quem só tem ele (403 "sem clínica ativa") e a tela não permite reativar.
+      if (req.body.ativa === false && removeDiacritics(currentCompany.nome ?? "").toLowerCase().includes("instituto padua")) {
+        return { status: 409 as const, error: "O Instituto Pádua não pode ser desativado: é a empresa de acesso do sistema." };
       }
 
       if (req.body.cnpj !== undefined) {
@@ -834,7 +863,8 @@ router.delete("/empresas/:id/colaboradores/:colabId", async (req, res): Promise<
 
 // ── GET /empresas/:id/contratos — lista documentos da empresa ────────────────
 router.get("/empresas/:id/contratos", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const rawId = req.params.id;
+  const id = typeof rawId === "string" && /^\d+$/.test(rawId) ? Number(rawId) : NaN;
   if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
   const docs = await db.select().from(empresaContratosTable)
     .where(eq(empresaContratosTable.empresaId, id))
@@ -844,7 +874,8 @@ router.get("/empresas/:id/contratos", async (req, res): Promise<void> => {
 
 // ── POST /empresas/:id/contratos — upload de documento ──────────────────────
 router.post("/empresas/:id/contratos", upload.single("file"), async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const rawId = req.params.id;
+  const id = typeof rawId === "string" && /^\d+$/.test(rawId) ? Number(rawId) : NaN;
   if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
   if (!req.file) { res.status(400).json({ error: "Arquivo não enviado" }); return; }
 

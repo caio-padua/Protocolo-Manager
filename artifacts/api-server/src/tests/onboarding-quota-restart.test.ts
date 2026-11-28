@@ -1,3 +1,4 @@
+process.env.PUBLIC_BASE_URL = "https://app.exemplo.test";
 /**
  * Real route + real PostgreSQL quota SQL; external delivery and client lookup
  * are stubbed. Only a connection-local temporary table is written.
@@ -12,6 +13,7 @@ import request from "supertest";
 import type { Server } from "node:http";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { PgDialect } from "drizzle-orm/pg-core";
+import type { PoolClient } from "pg";
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
@@ -38,7 +40,7 @@ vi.mock("../lib/telegram.js", () => ({ sendTelegram: mocks.telegram }));
 import { pool } from "@workspace/db";
 
 type Canal = "WHATSAPP" | "TELEGRAM";
-let connection: Awaited<ReturnType<typeof pool.connect>>;
+let connection!: PoolClient;
 let server: Server | undefined;
 let token: string;
 

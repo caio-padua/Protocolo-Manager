@@ -5,11 +5,13 @@ import {
   examAnalyteCatalogTable,
   examAnalyteRangesTable,
   examAnalyteUnitsTable,
+  clientsTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import type { ExtractedExam } from "./schema";
+import { validarEscopoGravacao } from "./escopo-gravacao";
 import { loadCatalogFull, triageOnImport, readTriagemOptions } from "./triagem";
-import { chaveVariante, VARIANTE_MIN } from "./zones";
+import { chaveFaixa, chaveVariante, VARIANTE_MIN, classifyIntoZones, escolherFaixasInstitucionais, overrideZones, sexoDaFicha } from "./zones";
 
 // ============================================================================
 // Trajetoria do Exame Uploadado — persistencia (Onda 3 da spec)
@@ -130,6 +132,12 @@ interface UnitInfo {
   factors: Map<string, number>;
 }
 
+export function positiveConversionFactor(value: number | string | null): number | null {
+  if (value === null) return null;
+  const factor = Number(value);
+  return Number.isFinite(factor) && factor > 0 ? factor : null;
+}
+
 export async function loadUnits(): Promise<Map<string, UnitInfo>> {
   const rows = await db
     .select()
@@ -138,8 +146,8 @@ export async function loadUnits(): Promise<Map<string, UnitInfo>> {
   const map = new Map<string, UnitInfo>();
   for (const r of rows) {
     const info = map.get(r.analyteCode) ?? { canonicalUnit: null, factors: new Map<string, number>() };
-    const f = r.factorToCanonical === null ? null : Number(r.factorToCanonical);
-    if (f !== null && Number.isFinite(f)) info.factors.set(normUnit(r.unit), f);
+    const f = positiveConversionFactor(r.factorToCanonical);
+    if (f !== null) info.factors.set(normUnit(r.unit), f);
     if (r.isCanonical) info.canonicalUnit = r.unit;
     map.set(r.analyteCode, info);
   }
@@ -189,6 +197,8 @@ export interface PersistExamInput {
   documentId: number;
   clientId: number;
   extracted: ExtractedExam;
+  /** Clínica da sessão/trabalho, quando o chamador a conhece: se divergir do documento, a gravação é recusada. */
+  tenantId?: number | null;
 }
 
 export interface PersistExamSummary {
@@ -213,6 +223,21 @@ export async function persistExtractedResults(
   const collectionIso = brDateToIso(extracted.collectionDate);
   const lab = extracted.labName ?? null;
 
+  // Faixas institucionais: lidas UMA vez, com a MESMA chave (chaveFaixa) e a MESMA escolha por sexo
+  // da rota de evolução (escolherFaixasInstitucionais). Antes: busca por code exato, sem ordem e sem sexo.
+  const rangeRows = await db.select().from(examAnalyteRangesTable);
+  const rangesPorChave = new Map<string, typeof rangeRows>();
+  for (const r of rangeRows) {
+    const k = chaveFaixa(r.analyteCode);
+    rangesPorChave.set(k, [...(rangesPorChave.get(k) ?? []), r]);
+  }
+  const sexoDepPorCode = new Map<string, boolean>();
+  for (const c of await db.select({ code: examAnalyteCatalogTable.code, sd: examAnalyteCatalogTable.sexDependent }).from(examAnalyteCatalogTable)) {
+    sexoDepPorCode.set(c.code, c.sd ?? false);
+  }
+  const [fichaRow] = await db.select({ ficha: clientsTable.fichaClinica }).from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
+  const sexoCliente = sexoDaFicha(fichaRow?.ficha);
+
   const summary: PersistExamSummary = {
     resultsInserted: 0,
     historyInserted: 0,
@@ -220,11 +245,14 @@ export async function persistExtractedResults(
     unmatched: 0,
   };
 
+  await db.transaction(async (tx) => {
+  // Escopo conferido DENTRO da transação (documento e cliente travados): vale para todas as gravações abaixo.
+  const escopo = await validarEscopoGravacao(tx, { documentId, clientId, tenantId: input.tenantId });
   for (const analyte of extracted.analytes) {
     // Casa no catalogo; se nao casar, a Sala de Triagem resolve (apelido/novo)
     // ou enfileira (ambiguo/nao_exame) sem NUNCA quebrar a importacao.
     let code = matchAnalyte(catalog, analyte.name);
-    if (!code) code = await triageOnImport(analyte.name, catalog, triagemOpts);
+    if (!code) code = await triageOnImport(analyte.name, catalog, triagemOpts, { unit: analyte.unit, method: analyte.method });
     if (code) summary.matched++;
     else summary.unmatched++;
 
@@ -239,33 +267,50 @@ export async function persistExtractedResults(
     const applyFactor = (n: number | null): number | null =>
       n === null ? null : n * conv.factor;
 
-    const value = applyFactor(rawValue);
-    const ref = { low: applyFactor(rawRef.low), high: applyFactor(rawRef.high) };
+    // Unidade diferente SEM fator: o número ainda está na escala do laudo e não pode passar por
+    // valor canônico (alimentaria gráfico, tendência e faixa na escala errada). Fica só o texto cru.
+    const value = conv.unknownUnit ? null : applyFactor(rawValue);
+    const ref = conv.unknownUnit
+      ? { low: null, high: null }
+      : { low: applyFactor(rawRef.low), high: applyFactor(rawRef.high) };
     const status = classifyByRef(value, ref.low, ref.high);
 
     // Faixas internas (Subcadastro) tem prioridade sobre a referencia do laudo
     // quando existirem para o analito casado. Classifica pelo valor CANONICO.
     let finalStatus: string | null = status;
     if (code && value !== null) {
-      const ranges = await db
-        .select()
-        .from(examAnalyteRangesTable)
-        .where(eq(examAnalyteRangesTable.analyteCode, code));
-      const faixa = ranges.find((r) => {
-        const lo = r.low === null ? null : Number(r.low);
-        const hi = r.high === null ? null : Number(r.high);
-        return (lo === null || value >= lo) && (hi === null || value <= hi);
-      });
-      if (faixa) finalStatus = faixa.faixaName;
+      const conjunto = escolherFaixasInstitucionais(
+        rangesPorChave.get(chaveFaixa(code)) ?? [],
+        sexoDepPorCode.get(code) ?? false,
+        sexoCliente,
+      );
+      const zonas = overrideZones(conjunto.map((r) => ({
+        faixaName: r.faixaName,
+        low: r.low === null ? null : Number(r.low),
+        high: r.high === null ? null : Number(r.high),
+        color: r.color,
+        ordem: r.ordem,
+      })));
+      // Mesma regra de zona da leitura (classifyIntoZones). Sem conjunto aplicável: fica a classificação simples.
+      const zona = classifyIntoZones(value, zonas);
+      if (zona) finalStatus = zona.name;
     }
     // Unidade diferente sem fator: honesto -> pede conferencia humana.
-    if (conv.unknownUnit) finalStatus = "conferencia";
+    if (conv.unknownUnit) {
+      finalStatus = "conferencia";
+      // Candidato de unidade (nunca bloqueia o upload; import dinamico evita ciclo com normUnit).
+      if (code) {
+        const { registrarCandidatoDoDocumento } = await import("../exam-units/pedido-revisao");
+        await registrarCandidatoDoDocumento(documentId, code, analyte.unit, info?.canonicalUnit ?? null);
+      }
+    }
 
-    const inserted = await db
+    const inserted = await tx
       .insert(examResultsTable)
       .values({
         examDocumentId: documentId,
         clientId,
+        empresaId: escopo.empresaId,
         analyteCode: code,
         analyteNameRaw: analyte.name,
         valueRaw: analyte.value,
@@ -291,17 +336,18 @@ export async function persistExtractedResults(
       const histUnitRaw = point.unit ?? analyte.unit;
       const histConv = resolveConversion(info, histUnitRaw);
       const rawHist = parseBrazilNumber(point.value);
-      const histValue = rawHist === null ? null : rawHist * histConv.factor;
+      const histValue = rawHist === null || histConv.unknownUnit ? null : rawHist * histConv.factor;
       // Unidade histórica diferente sem fator: honesto -> pede conferência humana
       // (mesma regra do ponto principal; não classifica com valor não convertido).
       const histStatus = histConv.unknownUnit
         ? "conferencia"
         : classifyByRef(histValue, ref.low, ref.high);
-      const histInserted = await db
+      const histInserted = await tx
         .insert(examResultsTable)
         .values({
           examDocumentId: documentId,
           clientId,
+          empresaId: escopo.empresaId,
           analyteCode: code,
           analyteNameRaw: analyte.name,
           valueRaw: point.value,
@@ -321,6 +367,7 @@ export async function persistExtractedResults(
       if (histInserted.length > 0) summary.historyInserted++;
     }
   }
+  });
 
   return summary;
 }

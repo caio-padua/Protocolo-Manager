@@ -28,6 +28,59 @@ assinado, o fluxo é: desenhar tudo → carimbar cabeçalho/rodapé → placehol
 nada depois de assinar (invalida o selo). Por isso o atalho `finalizar` (salva) só serve a documentos
 NÃO assinados; o fluxo assinado chama `carimbarRodape` e entrega `fab.doc` ao assinador.
 
+## Modelo 2B: emissor clínico separado do software
+
+No Modelo 2B, o Instituto Pádua é o emissor no cabeçalho e a marca PAXMED no
+rodapé identifica o software. A frase do rodapé desse modelo é “Medical
+Intelligence System”. A identidade da clínica não deve ser aplicada a outras.
+
+**Why:** o usuário forneceu um modelo específico de documentos para o Instituto,
+distinguindo o emissor clínico do software que produz o documento.
+
+**How to apply:** essa regra é específica do Modelo 2B; não altera os documentos
+legados ou de outras clínicas automaticamente. Não presumir verificação por
+código ou uso clínico antes de concluir e validar a integração.
+
+## Identidade de clínica e acesso ao documento
+
+O símbolo, o nome do cabeçalho e três linhas do rodapé são configurados no
+Cadastro de Empresas. Cada empresa tem uma identidade compartilhada pelos seus
+locais. O Instituto Pádua segue esse fluxo como exemplo de empresa licenciada.
+O acesso ao documento aberto pelo código de verificação exige login.
+
+**Why:** o responsável quer que futuras clínicas personalizem seus documentos
+sem herdar a identidade do Instituto ou expor documentos a quem possuir o código.
+
+**How to apply:** separar identidade empresarial e marca do software; vincular
+configuração e leitura à empresa autorizada no servidor; não tornar o código,
+sozinho, uma autorização para visualizar o arquivo.
+
+No Modelo 2B, o símbolo e o nome são trocáveis por empresa, mas devem assumir
+o dourado do modelo enviado pelo Dr. Claude. A forma do símbolo original deve
+ser preservada; o tratamento visual não substitui nem apaga o original. O
+responsável reforçou que a cor de entrada do símbolo pode ser branca, preta
+ou colorida: a mesma forma deve receber o mesmo padrão dourado.
+
+**Why:** o responsável definiu que a identidade é personalizável, mas a cor
+do documento segue o mesmo padrão visual entre as clínicas.
+
+**How to apply:** mostrar o resultado do tratamento antes de utilizá-lo; recusar
+imagem inadequada em vez de apresentar o fundo como se fosse parte do símbolo.
+
+### Desenho com vazios internos brancos
+
+O tratamento dourado usa a transparência como forma e ignora a cor original.
+Se a remoção de fundo deixar regiões brancas opacas dentro do desenho, essas
+regiões também ficam douradas e podem transformar o símbolo em uma mancha.
+
+**Why:** uma imagem gerada tinha fundo externo transparente, mas mantinha os
+espaços internos brancos opacos; o resultado parecia válido até aplicar o ouro.
+
+**How to apply:** conferir a máscara também nos vazios internos e visualizar o
+resultado dourado sobre azul-marinho. Para desenho preto sobre branco, remover
+os vazios brancos preservando as bordas antes de salvar como imagem de exemplo.
+Não aplicar essa conversão automaticamente a uma marca oficial colorida.
+
 ## Asset bundling no api-server (sempre roda do dist)
 O `dev` do api-server é `build && start` — o servidor SEMPRE roda do bundle `dist`, nunca da fonte.
 Logo, asset binário (PNG do wordmark, .afm) tem de ser COPIADO para `dist` no passo de build e

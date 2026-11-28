@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 const mock = vi.hoisted(() => ({
   identity: vi.fn(), send: vi.fn(), selectRows: new Map<unknown, unknown[]>(),
   authorizedPrescription: vi.fn(),
+  evolutionDestination: vi.fn(), evolutionSend: vi.fn(),
   auditRows: [] as Array<{ id: number; action: string; professionalId: number; detail: Record<string, unknown> }>,
   txAuditQueue: [] as unknown[][], nextId: 900,
 }));
@@ -42,6 +43,9 @@ vi.mock("@workspace/db", async () => {
     ...schema,
     db: {
       select: () => ({ from: (table: unknown) => selectRowsFor(table) }),
+      execute: vi.fn().mockResolvedValue({
+        rows: [{ issued_empresa_id: 21, issued_location_id: 31 }],
+      }),
       transaction: async (callback: (tx: any) => Promise<unknown>) => callback(makeTx()),
       update: () => ({
         set: (values: any) => ({
@@ -70,10 +74,13 @@ vi.mock("../lib/clinical-emitter", async () => {
 });
 vi.mock("../lib/messaging/index.js", () => ({ enviarMensagemPaxter: mock.send }));
 vi.mock("../routes/prescription-delivery", () => ({ authorizedPrescription: mock.authorizedPrescription }));
+vi.mock("../lib/clinical-document-evolution", () => ({
+  destinoEvolutionDocumento: mock.evolutionDestination, enviarDocumentoEvolution: mock.evolutionSend,
+}));
 
 import router, { clinicalDocumentShareRouter } from "../routes/clinical-document-delivery";
 import {
-  medicalCertificatesTable, clientsTable, examRequestPdfsTable,
+  db, medicalCertificatesTable, clientsTable, examRequestPdfsTable,
   prescriptionsTable, recipesTable, referralsTable,
 } from "@workspace/db";
 import { ClinicalIdentityError } from "../lib/clinical-emitter";
@@ -95,7 +102,7 @@ const client = {
 };
 const issued = {
   id: 51, clientId: 71, professionalId: 41, status: "emitted", tipo: "comparecimento",
-  pdfData: Buffer.from("PDF CLINICO SINTETICO").toString("base64"),
+  pdfData: Buffer.from("%PDF-1.4\nDOCUMENTO SINTETICO PARA TESTE\n%%EOF").toString("base64"),
   fileName: "atestado-sintetico.pdf", emittedAt: new Date("2026-10-30T12:00:00Z"),
 };
 
@@ -106,7 +113,7 @@ beforeEach(() => {
     [clientsTable, [client]],
     [examRequestPdfsTable, [{ id: 61, clientId: 71, professionalId: 41, fileName: "pedido.pdf", pdfData: issued.pdfData }]],
     [recipesTable, [{ id: 81, prescriptionId: 82, fileName: "receita.pdf", title: "Receita original", pdfData: issued.pdfData }]],
-    [prescriptionsTable, [{ id: 82, clientId: 71, professionalId: 41, status: "emitted" }]],
+    [prescriptionsTable, [{ id: 82, clientId: 71, professionalId: 41, status: "emitted", signatureStatus: "signed" }]],
     [referralsTable, [{ id: 52, clientId: 71, professionalId: 41, status: "emitted", especialidadeDestino: "Cardiologia",
       pdfData: issued.pdfData, fileName: "encaminhamento.pdf" }]],
   ]);
@@ -114,6 +121,8 @@ beforeEach(() => {
   mock.txAuditQueue = [[], []];
   mock.nextId = 900;
   mock.identity.mockResolvedValue(identity);
+  mock.evolutionDestination.mockResolvedValue(null);
+  mock.evolutionSend.mockResolvedValue({ accepted: true, id: 1001, providerId: "synthetic-provider-id" });
   mock.authorizedPrescription.mockResolvedValue({ pres: { id: 82, clientId: 71 }, identity });
   mock.send.mockImplementation(async (doc: any, _destination: any, channels: string[]) => ({
     resultados: [{ canal: channels[0], sent: true, via: "synthetic-provider", doc }],
@@ -131,6 +140,42 @@ describe("reenvio de documentos clínicos, sem contato real com provedores", () 
     expect(response.status).toBe(401);
     expect(mock.identity).not.toHaveBeenCalled();
     expect(mock.send).not.toHaveBeenCalled();
+  });
+
+  it("usa Evolution configurada e registra seu identificador, sem trocar de provedor", async () => {
+    mock.evolutionDestination.mockResolvedValue("5500000000000");
+    const response = await request(app).post("/api/clinical-documents/resend").set(auth)
+      .send({ ...body, channels: ["WHATSAPP"] });
+    expect(response.status).toBe(200);
+    expect(mock.send).not.toHaveBeenCalled();
+    expect(mock.evolutionSend).toHaveBeenCalledTimes(1);
+    expect(mock.auditRows[0].detail).toMatchObject({
+      state: "provider_accepted", evolutionMessageId: 1001, providerId: "synthetic-provider-id",
+    });
+    const url = mock.evolutionSend.mock.calls[0][0].url;
+    const download = await request(app).get(new URL(url).pathname);
+    expect(download.status).toBe(200);
+    expect(download.body).toEqual(Buffer.from(issued.pdfData, "base64"));
+  });
+
+  it("identidade ambígua bloqueia antes de envio, sem fallback para outro provedor", async () => {
+    mock.evolutionDestination.mockRejectedValue(new Error("Destino ambíguo"));
+    const response = await request(app).post("/api/clinical-documents/resend").set(auth)
+      .send({ ...body, channels: ["WHATSAPP"] });
+    expect(response.status).toBe(409);
+    expect(mock.evolutionSend).not.toHaveBeenCalled();
+    expect(mock.send).not.toHaveBeenCalled();
+    expect(mock.auditRows).toHaveLength(0);
+  });
+
+  it("falha Evolution permanece incerta sem repetir em outro canal", async () => {
+    mock.evolutionDestination.mockResolvedValue("5500000000000");
+    mock.evolutionSend.mockResolvedValue({ accepted: false, id: 1001, error: "timeout" });
+    const response = await request(app).post("/api/clinical-documents/resend").set(auth)
+      .send({ ...body, channels: ["WHATSAPP"] });
+    expect(response.body.results[0].state).toBe("unknown");
+    expect(mock.send).not.toHaveBeenCalled();
+    expect(mock.auditRows[0].detail.state).toBe("unknown");
   });
 
   it("bloqueia cliente sem vínculo autorizado, sem mensagem externa", async () => {
@@ -246,5 +291,59 @@ describe("reenvio de documentos clínicos, sem contato real com provedores", () 
     });
     const response = await request(app).get(`/api/clinical-documents/share/${token}`);
     expect(response.status).toBe(404);
+  });
+
+  it("acesso protegido da segunda via registra acesso sem inferir leitura humana", async () => {
+    const token = "R".repeat(43);
+    const execute = vi.mocked(db.execute);
+    execute.mockResolvedValueOnce({ rows: [] } as any); // não é link antigo do Telegram
+    execute.mockResolvedValueOnce({ rows: [{
+      id: 901, document_type: "atestado", document_id: 51, client_id: 71,
+      empresa_id: 21, location_id: 31,
+      document_pdf_sha256: createHash("sha256").update(Buffer.from(issued.pdfData, "base64")).digest("hex"),
+      delivery_share_expires_at: new Date(Date.now() + 60_000),
+    }] } as any);
+    execute.mockResolvedValueOnce({ rows: [{ issued_empresa_id: 21, issued_location_id: 31 }] } as any);
+    execute.mockResolvedValueOnce({ rows: [{ request_id: 901 }] } as any);
+    const response = await request(app).get(`/api/clinical-documents/share/${token}`);
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(Buffer.from(issued.pdfData, "base64"));
+    expect(response.headers["cache-control"]).toContain("no-store");
+    expect(mock.send).not.toHaveBeenCalled();
+    const { PgDialect } = await import("drizzle-orm/pg-core");
+    const query = new PgDialect().sqlToQuery(execute.mock.calls.at(-1)![0] as any);
+    expect(query.sql).toContain("'document_accessed'");
+    expect(query.sql).toContain("document_accessed_at=COALESCE");
+    expect(query.sql).toContain("delivery_status IN ('provider_accepted','delivered','read')");
+    expect(query.params).not.toContain(token);
+  });
+
+  it.each([
+    { location_id: 999 },
+    { client_id: 999 },
+    { empresa_id: 999 },
+    { document_pdf_sha256: "f".repeat(64) },
+  ])("recusa acesso da segunda via quando o escopo ou o arquivo diverge: %j", async mismatch => {
+    const execute = vi.mocked(db.execute);
+    execute.mockResolvedValueOnce({ rows: [] } as any);
+    execute.mockResolvedValueOnce({ rows: [{
+      id: 901, document_type: "atestado", document_id: 51, client_id: 71,
+      empresa_id: 21, location_id: 31,
+      document_pdf_sha256: createHash("sha256").update(Buffer.from(issued.pdfData, "base64")).digest("hex"),
+      delivery_share_expires_at: new Date(Date.now() + 60_000), ...mismatch,
+    }] } as any);
+    execute.mockResolvedValueOnce({ rows: [{ issued_empresa_id: 21, issued_location_id: 31 }] } as any);
+    expect((await request(app).get(`/api/clinical-documents/share/${"R".repeat(43)}`)).status).toBe(404);
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(mock.send).not.toHaveBeenCalled();
+  });
+
+  it("o QR antigo não entrega receita sem login", async () => {
+    const token = "A".repeat(43);
+    const opened = await request(app).get(`/api/recipes/share/${token}`);
+    expect(opened.status).toBe(302);
+    expect(opened.headers.location).toBe(`/documento-clinico-receita/${token}`);
+    expect(opened.headers["cache-control"]).toContain("no-store");
+    expect((await request(app).get("/api/recipes/share/invalido")).status).toBe(404);
   });
 });

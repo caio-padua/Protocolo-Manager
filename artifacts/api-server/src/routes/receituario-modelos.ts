@@ -28,7 +28,7 @@ import { requireCollaborator } from "./collaborator";
 const router = Router();
 
 // ── GET /api/receituario-modelos ─────────────────────────────────────────────
-router.get("/receituario-modelos", async (_req, res): Promise<void> => {
+router.get("/receituario-modelos", requireCollaborator, async (_req, res): Promise<void> => {
   try {
     await garantirTabelaModelos();
     const modelos = await listarModelos();
@@ -39,7 +39,7 @@ router.get("/receituario-modelos", async (_req, res): Promise<void> => {
 });
 
 // ── GET /api/receituario-modelos/ativo ───────────────────────────────────────
-router.get("/receituario-modelos/ativo", async (_req, res): Promise<void> => {
+router.get("/receituario-modelos/ativo", requireCollaborator, async (_req, res): Promise<void> => {
   try {
     const modelo = await getModeloAtivo();
     res.json({ modelo });
@@ -49,7 +49,7 @@ router.get("/receituario-modelos/ativo", async (_req, res): Promise<void> => {
 });
 
 // ── POST /api/receituario-modelos ────────────────────────────────────────────
-router.post("/receituario-modelos", async (req, res): Promise<void> => {
+router.post("/receituario-modelos", requireCollaborator, async (req, res): Promise<void> => {
   try {
     const { nome, tipo, config } = req.body ?? {};
     if (!nome?.trim()) {
@@ -65,9 +65,9 @@ router.post("/receituario-modelos", async (req, res): Promise<void> => {
 });
 
 // ── PUT /api/receituario-modelos/:id ─────────────────────────────────────────
-router.put("/receituario-modelos/:id", async (req, res): Promise<void> => {
+router.put("/receituario-modelos/:id", requireCollaborator, async (req, res): Promise<void> => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
     const { nome, config } = req.body ?? {};
     if (!nome && config === undefined) {
       res.status(400).json({ error: "Forneça nome e/ou config para atualizar" });
@@ -86,9 +86,9 @@ router.put("/receituario-modelos/:id", async (req, res): Promise<void> => {
 });
 
 // ── POST /api/receituario-modelos/:id/ativar ─────────────────────────────────
-router.post("/receituario-modelos/:id/ativar", async (req, res): Promise<void> => {
+router.post("/receituario-modelos/:id/ativar", requireCollaborator, async (req, res): Promise<void> => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
     await ativarModelo(id);
     const modelo = await getModeloAtivo();
     res.json({ ok: true, modelo });
@@ -98,18 +98,8 @@ router.post("/receituario-modelos/:id/ativar", async (req, res): Promise<void> =
 });
 
 // ── DELETE /api/receituario-modelos/:id ──────────────────────────────────────
-router.delete("/receituario-modelos/:id", async (req, res): Promise<void> => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (id <= 2) {
-      res.status(400).json({ error: "Os modelos padrão (Faixas Paxter e Clássico ANVISA) não podem ser excluídos" });
-      return;
-    }
-    await db.execute(sql`DELETE FROM receituario_modelos WHERE id = ${id}`);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
+router.delete("/receituario-modelos/:id", requireCollaborator, async (_req, res): Promise<void> => {
+  res.status(403).json({ error: "A exclusão de modelos está desativada para preservar as configurações." });
 });
 
 // ── POST /api/receituario-modelos/emitir-teste ───────────────────────────────

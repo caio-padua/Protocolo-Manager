@@ -173,12 +173,12 @@ router.post("/brand/email-test", async (req, res): Promise<void> => {
       eyebrow: String(body.eyebrow ?? "Olá, Dr. Caio"),
       titulo: String(body.titulo ?? "Seu protocolo"),
       paragrafos: [
-        "E-mail de amostra para validação do padrão visual PAXTER.",
+        "E-mail de amostra para validação do padrão visual PaxMed.",
         "Abaixo, as substâncias do protocolo em cartões com as informações alinhadas:",
       ],
       blocosHtml: [tabela],
       notaRodape: "Mensagem de AMOSTRA — apenas para validação do layout.",
-      assunto: String(body.titulo ?? "PAXTER | Amostra de protocolo"),
+      assunto: String(body.titulo ?? "PAXMED | Amostra de protocolo"),
     };
     doc = custom;
   }

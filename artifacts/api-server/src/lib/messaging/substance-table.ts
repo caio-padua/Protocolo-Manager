@@ -10,6 +10,11 @@
 //   linha 2:  Sessão N/total ............................. a cada N dias
 //   (opcional) pílula de status (Aplicado / Não aplicado)
 //
+import {
+  dosePrescritaParaDocumento,
+  nomeSubstanciaNoProtocolo,
+} from "../protocol-dose-presentation";
+
 // Regras duráveis do CEO mantidas:
 //   - a substância fica em UMA linha, com a dose só na MILIGRAMAGEM (a
 //     concentração "/ N ml" é removida — ex.: "100 mg / 2 ml" vira "100 mg";
@@ -59,10 +64,9 @@ export interface ItemTabelaSubstancia {
   cor?: string;
 }
 
-/** Remove a concentração "/ N ml" da dose, deixando só a miligramagem. */
+/** Exibe somente a dose prescrita; apresentação ambígua fica para revisão médica. */
 export function soMiligramas(dose?: string): string {
-  if (!dose) return "";
-  return dose.replace(/\s*\/\s*[\d.,]*\s*m?l\b.*$/i, "").trim();
+  return dosePrescritaParaDocumento(dose);
 }
 
 /**
@@ -116,7 +120,7 @@ export function blocoTabelaSubstancias(itens: ItemTabelaSubstancia[]): string {
       // Linha 1: Substância (esquerda) ....... Dose só massa (direita).
       const linha1 = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;">
           <tr>
-            <td style="width:${COL_ESQ}; padding:0; text-align:left; vertical-align:baseline; color:#f3ead6; font-family:${SERIF}; font-weight:600; font-size:15px; line-height:1.3;">${dot}${esc(it.nome)}</td>
+            <td style="width:${COL_ESQ}; padding:0; text-align:left; vertical-align:baseline; color:#f3ead6; font-family:${SERIF}; font-weight:600; font-size:15px; line-height:1.3;">${dot}${esc(nomeSubstanciaNoProtocolo(it.nome))}</td>
             <td style="width:${COL_DIR}; padding:0; text-align:right; vertical-align:baseline; color:#e6d6ad; font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap;">${esc(dose)}</td>
           </tr>
         </table>`;

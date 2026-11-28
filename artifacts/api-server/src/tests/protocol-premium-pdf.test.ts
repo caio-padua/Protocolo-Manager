@@ -11,8 +11,15 @@
  *   - Card label compõe o PDF sem erro
  */
 
+import fs from "node:fs";
+import path from "node:path";
 import { describe, it, expect, vi, afterEach } from "vitest";
+
+// Foto do profissional que atende: fixture local, sem banco nem armazenamento.
+const fotoMock = vi.hoisted(() => ({ foto: null as null | { bytes: Buffer; formato: "jpg" | "png" } }));
+vi.mock("../lib/professional-photo", () => ({ carregarFotoProfissional: vi.fn(async () => fotoMock.foto) }));
 import { PDFDocument, PDFPage, StandardFonts } from "pdf-lib";
+import { PDFParse } from "pdf-parse";
 import QRCode from "qrcode";
 import {
   buildProtocolDocumentLayout,
@@ -223,6 +230,19 @@ describe("resumo visual de substâncias", () => {
 // ────────────────────────────────────────────────────────────────────────────────
 
 describe("buildProtocolDocumentLayout — overflow e estrutura", () => {
+
+  it("mostra a duração precisa com vírgula no documento gerado", async () => {
+    const pdfDoc = await PDFDocument.create();
+    const data = baseData([makeSub({ procedureType: "im", durationMinutes: 2.5 })]);
+    await buildProtocolDocumentLayout(pdfDoc, data as LayoutData);
+    const parser = new PDFParse({ data: new Uint8Array(await pdfDoc.save()) });
+    try {
+      const result = await parser.getText();
+      expect(result.text).toMatch(/DURAÇÃO\s*\(MIN\)[\s\S]{0,100}2,5/);
+    } finally {
+      await parser.destroy();
+    }
+  });
 
   it("deve gerar um PDF válido (bytes > 5 KB) sem certificado", async () => {
     const pdfDoc = await PDFDocument.create();
@@ -497,7 +517,8 @@ describe("bloco PADCON — capa e páginas internas (regressão de geometria)", 
 describe("Carta de Tratamento Premium — capa compartilhada", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("usa título médico em 20pt e foto portrait à direita", async () => {
+  it("usa título médico em 20pt e foto portrait do profissional que atende à direita", async () => {
+    fotoMock.foto = { bytes: fs.readFileSync(path.resolve(import.meta.dirname, "../../assets/dr-caio-photo.jpg")), formato: "jpg" };
     const textCalls: Array<{ text: string; size?: number }> = [];
     const imageCalls: Array<{ x?: number; width?: number; height?: number }> = [];
     const originalText = PDFPage.prototype.drawText;
@@ -517,6 +538,7 @@ describe("Carta de Tratamento Premium — capa compartilhada", () => {
       protocolTitle: "Protocolo de Demonstração",
       clientName: "Cliente de Demonstração",
       clientCpf: "000.000.000-00",
+      professionalId: 6,
       professionalName: "Dr. Caio Henrique Fernandes Pádua",
       professionalCrm: "CRM",
       unit: "Instituto Pádua",
@@ -543,3 +565,24 @@ describe("Carta de Tratamento Premium — capa compartilhada", () => {
   });
 });
 
+describe("Carta de Tratamento Premium — sem foto do profissional", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("sem foto no cadastro, a capa sai sem retrato (nunca usa foto de outra pessoa)", async () => {
+    fotoMock.foto = null;
+    const imageCalls: Array<{ x?: number; height?: number }> = [];
+    const originalImage = PDFPage.prototype.drawImage;
+    vi.spyOn(PDFPage.prototype, "drawImage").mockImplementation(function (this: PDFPage, image: any, opts: any) {
+      imageCalls.push({ x: opts?.x, height: opts?.height });
+      return originalImage.call(this, image, opts);
+    });
+    const dto = buildCartaTratamentoDto({
+      protocolId: 341, protocolTitle: "Protocolo", clientName: "Cliente de Demonstração", clientCpf: "000.000.000-00",
+      professionalId: 99, professionalName: "Profissional Sem Foto", professionalCrm: "CRM", unit: "Instituto Pádua", startDate: "2026-09-12",
+      substances: [{ name: "Substância", dose: "1 dose", color: "blue", totalSessions: 4, intervalDays: 7, procedureType: "iv" }],
+    });
+    const pdfDoc = await PDFDocument.create();
+    await buildCartaTratamentoLayout(pdfDoc, dto);
+    expect(imageCalls.some(({ x, height }) => (x ?? 0) > PAGE_W / 2 && (height ?? 0) >= 200)).toBe(false);
+  });
+});

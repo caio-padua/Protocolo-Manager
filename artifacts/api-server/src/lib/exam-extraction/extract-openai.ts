@@ -8,6 +8,10 @@ import { requireAiTenant, logAiUsage } from "../ai-central";
 
 export const OPENAI_MODEL = "gpt-4o";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 const EXTRACTION_PROMPT = `Você é um extrator clínico de laudos laboratoriais brasileiros.
 Receberá o TEXTO de um laudo (resultado de exames de sangue/imagem). Sua tarefa é extrair, em JSON estrito, TODOS os dados estruturados.
 
@@ -72,15 +76,22 @@ export async function extractExamWithOpenAI(text: string, empresaId = 0): Promis
       }),
     });
     if (!res.ok) return null;
-    const json = await res.json();
+    const json: unknown = await res.json();
+    if (!isRecord(json)) return null;
+    const usage = isRecord(json.usage) ? json.usage : {};
+    const choices = Array.isArray(json.choices) ? json.choices : [];
+    const firstChoice = isRecord(choices[0]) ? choices[0] : undefined;
+    const message = firstChoice && isRecord(firstChoice.message)
+      ? firstChoice.message
+      : undefined;
     void logAiUsage({
       empresaId,
       provider: "openai",
       tipo: "clinical",
-      inputTokens:  json?.usage?.prompt_tokens     ?? undefined,
-      outputTokens: json?.usage?.completion_tokens ?? undefined,
+      inputTokens: typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : undefined,
+      outputTokens: typeof usage.completion_tokens === "number" ? usage.completion_tokens : undefined,
     });
-    const raw: string = json?.choices?.[0]?.message?.content ?? "";
+    const raw = typeof message?.content === "string" ? message.content : "";
     if (!raw) return null;
     const parsed = JSON.parse(stripJsonFences(raw));
     const validated = ExtractedExamSchema.parse(parsed);

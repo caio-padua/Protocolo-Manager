@@ -30,7 +30,6 @@ function nextStats(total: number) {
   execute.mockResolvedValueOnce({ rows: [{ total }] })
     .mockResolvedValueOnce({ rows: [{ device: "iphone", total }] })
     .mockResolvedValueOnce({ rows: [{ secao: "login", total }] })
-    .mockResolvedValueOnce({ rows: [{ pacientes_unicos: total - 1 }] })
     .mockResolvedValueOnce({ rows: [] });
 }
 
@@ -47,13 +46,26 @@ describe("GET /api/onboarding/stats — fresh responses", () => {
     for (const [response, total] of [[first, 11], [second, 23]] as const) {
       expect(response.headers["cache-control"]).toBe("no-store");
       expect(response.body).toEqual({
-        ok: true, total, pacientesUnicos: total - 1,
+        ok: true, total, pacientesUnicos: 0,
         porDevice: [{ device: "iphone", total }],
         porSecao: [{ secao: "login", total }],
         pacientes: [],
       });
     }
-    expect(execute).toHaveBeenCalledTimes(10);
+    expect(execute).toHaveBeenCalledTimes(8);
+  });
+
+  it("returns identified patients with their latest access and counts the same list", async () => {
+    const pacientes = [
+      { client_id: 123, nome: "Cliente sintético A", ultimo_acesso: "2026-11-24 02:30:00+00" },
+      { client_id: 456, nome: "Cliente sintético B", ultimo_acesso: "2026-11-23 15:00:00+00" },
+    ];
+    execute.mockResolvedValueOnce({ rows: [{ total: 7 }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: pacientes });
+    const response = await request(app).get("/api/onboarding/stats").expect(200);
+    expect(response.body).toMatchObject({ total: 7, pacientesUnicos: 2, pacientes });
   });
 
   it("returns an uncached HTTP error if a fresh database query fails", async () => {

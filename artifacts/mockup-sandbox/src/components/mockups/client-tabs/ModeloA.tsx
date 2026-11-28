@@ -39,7 +39,6 @@ export function ModeloA() {
             fontSize: 13,
             fontWeight: t === active ? 600 : 400,
             color: t === active ? "#1a2744" : "#6b7280",
-            borderBottom: t === active ? "2px solid #45B8CC" : "2px solid transparent",
             background: "none",
             border: "none",
             borderBottom: t === active ? "2px solid #45B8CC" : "2px solid transparent",

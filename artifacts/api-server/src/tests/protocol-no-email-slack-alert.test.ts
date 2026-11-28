@@ -10,6 +10,7 @@
  */
 
 import { vi, describe, it, expect, beforeEach } from "vitest";
+const integracaoDeIdentidade = vi.hoisted(() => ({ ativa: false }));
 
 // ── Mocks ANTES de qualquer import ───────────────────────────────────────────
 
@@ -55,6 +56,7 @@ vi.mock("@workspace/db", () => {
     protocolEmissoesTable:       makeT("protocol_emissoes"),
     locationProfessionalsTable:  makeT("location_professionals"),
     locationsTable:              makeT("locations"),
+    empresasTable:               makeT("empresas"),
     pool: { query: vi.fn().mockResolvedValue(undefined) },
   };
 });
@@ -87,6 +89,29 @@ vi.mock("../lib/email-service", () => ({
 vi.mock("../lib/google-gmail", () => ({
   isGmailConnected: vi.fn().mockResolvedValue(true),
 }));
+
+vi.mock("../lib/clinical-emitter", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/clinical-emitter")>();
+  return {
+    ...actual,
+    resolveClinicalEmitter: (...args: Parameters<typeof actual.resolveClinicalEmitter>) =>
+      integracaoDeIdentidade.ativa
+        ? Promise.resolve({ professional: { id: 1 } } as Awaited<ReturnType<typeof actual.resolveClinicalEmitter>>)
+        : actual.resolveClinicalEmitter(...args),
+  };
+});
+
+// Os testes de alerta isolam a assinatura; a matriz de autoria usa a guarda real.
+vi.mock("../lib/prescription-signing", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/prescription-signing")>();
+  return {
+    ...actual,
+    withLoggedDoctorCertificate: (...args: Parameters<typeof actual.withLoggedDoctorCertificate>) =>
+      integracaoDeIdentidade.ativa ? actual.withLoggedDoctorCertificate(...args) : args[2](),
+    resolveProtocolDoctor: vi.fn((...args: Parameters<typeof actual.resolveProtocolDoctor>) =>
+      integracaoDeIdentidade.ativa ? actual.resolveProtocolDoctor(...args) : Promise.resolve(undefined)),
+  };
+});
 
 vi.mock("../lib/pdf-signer", () => ({
   generateProtocolDocumentPdf: vi.fn(),
@@ -130,6 +155,11 @@ import request from "supertest";
 import { db } from "@workspace/db";
 import * as pdfSigner  from "../lib/pdf-signer";
 import * as slackLib   from "../lib/slack-reporter";
+import * as driveLib from "../lib/google-drive";
+import * as emailLib from "../lib/email-service";
+import * as cartaLib from "../lib/pdf-carta-tratamento";
+import { resolveProtocolDoctor } from "../lib/prescription-signing";
+import { ClinicalIdentityError } from "../lib/clinical-emitter";
 import protocolsRouter from "../routes/protocols";
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -138,7 +168,7 @@ const FAKE_PROTOCOL = {
   id:                55,
   clientId:          3,
   empresaId:         5,
-  professionalId:    null,
+  professionalId:    null as number | null,
   title:             "Teste Protocolo",
   status:            "active",
   startDate:         "2026-09-01",
@@ -193,6 +223,7 @@ function makeDbChain(client: typeof CLIENT_SEM_EMAIL) {
     assinatura_solicitacoes: [],
     assinatura_templates:   [],
     protocol_emissoes:      [],
+    empresas:               [{ id: 5, nome: "Instituto Pádua", ativa: true }],
   };
 
   function chain(data: any[]): any {
@@ -228,6 +259,9 @@ function buildApp() {
 // ── Setup helpers ─────────────────────────────────────────────────────────────
 
 function setupFor(client: typeof CLIENT_SEM_EMAIL) {
+  integracaoDeIdentidade.ativa = false;
+  // A rota exige médico responsável vinculado ao protocolo (409 sem ele); o do cenário é o profissional 1.
+  FAKE_PROTOCOL.professionalId = 1;
   vi.clearAllMocks();
   vi.mocked(db.select).mockReturnValue(makeDbChain(client) as any);
   vi.mocked(db.insert).mockReturnValue(makeInsertChain() as any);
@@ -245,6 +279,15 @@ function setupFor(client: typeof CLIENT_SEM_EMAIL) {
 
 describe("POST /api/protocols/:id/emit-document — paciente sem e-mail", () => {
   beforeEach(() => setupFor(CLIENT_SEM_EMAIL));
+
+  it("recusa médico divergente antes de gerar PDF ou enviar alerta", async () => {
+    vi.mocked(resolveProtocolDoctor).mockRejectedValueOnce(new ClinicalIdentityError(403, "Médico diferente"));
+    const response = await request(buildApp()).post("/api/protocols/55/emit-document");
+    expect(response.status).toBe(403);
+    expect(slackLib.postSlackAlert).not.toHaveBeenCalled();
+    expect(pdfSigner.generateProtocolDocumentPdf).not.toHaveBeenCalled();
+    expect(pdfSigner.generatePhysicalRASPdf).not.toHaveBeenCalled();
+  });
 
   it("postSlackAlert é chamado antes de generateProtocolDocumentPdf", async () => {
     const callOrder: string[] = [];
@@ -311,5 +354,34 @@ describe("POST /api/protocols/:id/emit-document — paciente com e-mail", () => 
       ([_ch, msg]) => (msg as string).includes("não possui e-mail cadastrado"),
     );
     expect(noEmailCall).toBeUndefined();
+  });
+});
+
+describe("proteção real de autoria nas quatro rotas de protocolo", () => {
+  beforeEach(() => {
+    setupFor(CLIENT_COM_EMAIL);
+    integracaoDeIdentidade.ativa = true;
+  });
+
+  it.each([
+    ["get", "document-pdf", null], ["post", "emit-document", null],
+    ["get", "carta-pdf", null], ["post", "carta-email", null],
+    ["get", "document-pdf", 42], ["post", "emit-document", 42],
+    ["get", "carta-pdf", 42], ["post", "carta-email", 42],
+  ] as const)("recusa %s %s com responsável %s", async (method, route, responsavel) => {
+    FAKE_PROTOCOL.professionalId = responsavel;
+    const response = await request(buildApp())[method](`/api/protocols/55/${route}`)
+      .set("Authorization", "Bearer fake-token");
+    // Sem responsável, a prévia do documento recusa antes da guarda de autoria (409); as demais recusam com 403.
+    const semResponsavelNaPrevia = method === "get" && route === "document-pdf" && responsavel === null;
+    expect(response.status).toBe(semResponsavelNaPrevia ? 409 : 403);
+    expect(slackLib.postSlackAlert).not.toHaveBeenCalled();
+    expect(pdfSigner.generateProtocolDocumentPdf).not.toHaveBeenCalled();
+    expect(pdfSigner.generatePhysicalRASPdf).not.toHaveBeenCalled();
+    expect(cartaLib.generateProtocolLetterPdf).not.toHaveBeenCalled();
+    expect(driveLib.uploadFileToDrive).not.toHaveBeenCalled();
+    expect(driveLib.uploadToFolderById).not.toHaveBeenCalled();
+    expect(emailLib.sendProtocolEmail).not.toHaveBeenCalled();
+    expect(emailLib.sendCartaTratamentoEmail).not.toHaveBeenCalled();
   });
 });

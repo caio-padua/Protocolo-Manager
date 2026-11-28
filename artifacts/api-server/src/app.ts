@@ -6,10 +6,14 @@ import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { caminhoSeguroParaLog } from "./lib/redact";
 import { checkAiSetup } from "./lib/ai-central";
 import { tenantContextMiddleware } from "./middleware/tenantContext";
+import { papeisEmpresaMiddleware } from "./middleware/papeisEmpresa";
 import { corsMiddleware, helmetMiddleware, rateLimitMiddleware } from "./middleware/securityConfig";
 import { basicAuthMiddleware } from "./middleware/basicAuth";
+import { errorCaptureMiddleware } from "./middleware/errorCapture";
+import { protecaoCredenciaisMiddleware } from "./middleware/protecaoCredenciais.js";
 import {
   CLERK_PROXY_PATH,
   clerkProxyMiddleware,
@@ -33,7 +37,7 @@ app.use(
         return {
           id: req.id,
           method: req.method,
-          url: req.url?.split("?")[0],
+          url: caminhoSeguroParaLog(req.url),
         };
       },
       res(res) {
@@ -88,6 +92,9 @@ app.get("/preview-capa.pdf", (_req, res) => {
 app.use(basicAuthMiddleware);
 app.use(rateLimitMiddleware);
 app.use(tenantContextMiddleware);
+app.use("/api", papeisEmpresaMiddleware);
+app.use(protecaoCredenciaisMiddleware);
+app.use(errorCaptureMiddleware);
 
 // ─── DICIONARIO: sincronizar aba Google Sheets no boot ───────────────────────
 // Adiciona termos novos do GLOSSARIO sem sobrescrever o que o CEO preencheu.

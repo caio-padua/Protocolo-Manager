@@ -8,7 +8,7 @@
  *
  * Defaults aplicados quando o chamador não passa o campo:
  *   empresaId   = 5   (empresa padrão PADCOM / Instituto Padua)
- *   locationId  = 8   (localização padrão: Instituto Padua)
+ *   locationId  = 30  (padrão: AGENDA GERAL do Instituto Padua)
  *   status      = "active"
  */
 
@@ -17,7 +17,7 @@ import type { ExtractTablesWithRelations } from "drizzle-orm";
 import type { PgTransaction } from "drizzle-orm/pg-core";
 
 const DEFAULT_EMPRESA_ID = 5;
-const DEFAULT_LOCATION_ID = 8;
+const DEFAULT_LOCATION_ID = 30;
 const DEFAULT_STATUS = "active" as const;
 
 type NewClient = typeof clientsTable.$inferInsert;

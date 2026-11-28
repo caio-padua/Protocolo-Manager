@@ -73,8 +73,12 @@ html {
 html,
 body,
 #root {
-  overscroll-behavior-y: none;
+  overscroll-behavior: none;
 }
+/* Celular: a pagina nunca desliza para os lados nem "elastica" na horizontal.
+   clip (e nao hidden) evita criar contexto de rolagem que quebraria o sticky. */
+html, body { max-width: 100%; overflow-x: clip; }
+#root { max-width: 100vw; overflow-x: clip; }
 
 @custom-variant dark (&:is(.dark *));
 
@@ -698,6 +702,145 @@ body,
     0 16px 24px -10px rgba(0, 0, 0, 0.62),
     0 7px 12px -4px rgba(0, 0, 0, 0.5);
 }
+/* No cadastro empresarial, a seleção precisa vencer o fundo do bevel tanto nas abas Radix quanto nos botões
+   da identidade dos documentos. Escolhida = AFUNDADA (insert bevel, mesma pele do .concave-3d), nunca troca de cor
+   (pedido do CEO em 11/11/2026: "têm que ficar em insert bevel, não mudar de cor pro azul"). */
+.empresa-aba[data-state="active"],
+.empresa-aba[aria-pressed="true"] {
+  background: linear-gradient(160deg, #e6dec9 0%, #f3ecdc 100%);
+  border-color: #b8924d;
+  color: hsl(var(--primary));
+  box-shadow:
+    inset 0 4px 7px rgba(7, 22, 43, 0.22),
+    inset 0 10px 16px rgba(7, 22, 43, 0.08),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.82);
+}
+.dark .empresa-aba[data-state="active"],
+.dark .empresa-aba[aria-pressed="true"] {
+  background: linear-gradient(180deg, hsl(215 24% 12%) 0%, hsl(215 22% 17%) 100%);
+  border-color: #b8924d;
+  color: #f4e2a8;
+  box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.55), inset 0 -2px 0 rgba(255, 255, 255, 0.06);
+}
+.empresa-aba:focus-visible {
+  outline: 2px solid #48b6cc;
+  outline-offset: 2px;
+}
+
+/* TECLA 3D — item de lista clicavel. Solto = Saliente (botao que salta da folha);
+   selecionado (aria-pressed) = APERTADO: afunda, fica navy com borda dourada, como
+   a aba do cadastro empresarial. Unlayered de proposito (vence utilitarios do Tailwind). */
+.tecla-3d {
+  position: relative;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(184, 146, 77, 0.45);
+  background: linear-gradient(180deg, #ffffff 0%, #f8f5ec 55%, #efe8d6 100%);
+  color: hsl(var(--foreground));
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -4px 8px rgba(0, 53, 58, 0.12),
+    0 9px 15px -7px rgba(7, 22, 43, 0.4),
+    0 3px 6px -2px rgba(7, 22, 43, 0.22);
+  transition: transform 0.08s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.tecla-3d:hover {
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -4px 8px rgba(0, 53, 58, 0.12),
+    0 11px 18px -7px rgba(7, 22, 43, 0.4),
+    0 0 14px -3px hsl(39 60% 55% / 0.55);
+}
+.tecla-3d:active { transform: translateY(2px); }
+/* Selecionado = Côncavo (insert bevel): afunda no mesmo tom creme, sem escurecer. */
+.tecla-3d[aria-pressed="true"] {
+  background: linear-gradient(160deg, #e9e2d0 0%, #f4efe2 100%);
+  border-color: #b8924d;
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 5px 9px rgba(7, 22, 43, 0.24),
+    inset 0 12px 18px rgba(7, 22, 43, 0.08),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.85);
+}
+.dark .tecla-3d[aria-pressed="true"] {
+  background: linear-gradient(160deg, hsl(215 26% 10%) 0%, hsl(215 22% 13%) 100%);
+  border-color: #b8924d;
+  box-shadow:
+    inset 0 5px 9px rgba(0, 0, 0, 0.6),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.07);
+}
+.dark .tecla-3d {
+  border-color: hsl(215 16% 27%);
+  background: linear-gradient(180deg, hsl(215 20% 21%) 0%, hsl(215 22% 15%) 100%);
+}
+.tecla-3d .tecla-sub { color: hsl(var(--muted-foreground)); }
+.tecla-3d:focus-visible { outline: 2px solid #48b6cc; outline-offset: 2px; }
+.tecla-ctl { color: hsl(var(--muted-foreground)); }
+.tecla-ctl:hover:not(:disabled) { color: hsl(var(--primary)); }
+.tecla-ctl:disabled { opacity: 0.25; cursor: default; }
+
+/* VIDRO DA COR DA AGENDA — vidro translúcido; a luz só existe dentro do quadradinho. */
+.vidro-cor {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid;
+  backdrop-filter: blur(6px);
+}
+.vidro-cor::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 38%;
+  height: 100%;
+  background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0) 100%);
+  mix-blend-mode: overlay;
+  transform: translateX(-160%) skewX(-25deg);
+  pointer-events: none;
+}
+.tecla-3d:hover .vidro-cor::before,
+.concave-3d:hover > .vidro-cor::before,
+.vidro-cor:hover::before {
+  animation: vidroVarredura 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes vidroVarredura {
+  from { transform: translateX(-160%) skewX(-25deg); }
+  to   { transform: translateX(380%) skewX(-25deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tecla-3d:hover .vidro-cor::before,
+  .concave-3d:hover > .vidro-cor::before,
+  .vidro-cor:hover::before { animation: none; }
+}
+
+/* REGISTRO — marca discreta (letra + numero) no canto superior esquerdo de botoes e
+   seletores; o mesmo codigo aponta o mesmo conceito real em todas as telas (ver
+   MarcadorVinculo.tsx). Fica sobre a borda, como um simbolo de marca registrada. */
+.registro-canto {
+  position: absolute;
+  top: -7px;
+  left: 6px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(138, 109, 47, 0.55);
+  background: #fbf8ef;
+  color: #7a6128;
+  font: 700 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.02em;
+  opacity: 0.82;
+  box-shadow: 0 1px 2px rgba(7, 22, 43, 0.18);
+  pointer-events: auto;
+  cursor: help;
+}
+.registro-canto[data-pendente="true"] { color: #b45309; border-color: rgba(180, 83, 9, 0.6); }
+.dark .registro-canto { background: hsl(215 22% 15%); color: #d9c48f; border-color: rgba(217, 196, 143, 0.5); }
 /* FAIXA DE MARCA do rodape — faixa LONGITUDINAL CONTINUA (full-bleed, SEM cantos
    curvos), na MESMA COR do painel de questao (.leva-card), com relevo "up breve"
    (realce no topo + sombra ascendente). Decisao do CEO 24/06/2026. UNLAYERED de
@@ -1585,6 +1728,9 @@ body,
     );
   opacity: 0.80;
 }
+/* FORRO PARADO: no fundo de pagina inteira o tecido e fixo na janela; o conteudo e os paineis rolam por cima.
+   Usar leva-fabric + leva-fabric-fixo so em fundo de PAGINA. Em cabecalho/rodape/cartao, so leva-fabric (fica dentro do painel). */
+.leva-fabric.leva-fabric-fixo { position: fixed; inset: 0; }
 .dark .leva-fabric {
   /* Risca de giz navy: linha principal azul-platina (1.5px) +
      linha companheira (0.5px) a 2.5px, ciclo 22px — tecido de terno exclusivo */
@@ -1731,4 +1877,367 @@ body,
 }
 @media (prefers-reduced-motion: reduce) {
   .scroll-hint-arrow { animation: none; opacity: 0; }
+}
+
+
+/* K8 — legenda do desafio presencial: "respira" (brilho lento e contínuo, estilo LED). */
+@keyframes legenda-respira {
+  0%, 100% { opacity: 0.55; text-shadow: 0 0 0 rgba(184, 146, 77, 0); }
+  50% { opacity: 1; text-shadow: 0 0 8px rgba(184, 146, 77, 0.65); }
+}
+.legenda-respira { animation: legenda-respira 3.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .legenda-respira { animation: none; opacity: 1; }
+}
+
+/* ---- Meus Jogos: bola do volante (Padrao 45). Selecao nunca depende so de cor: aro dourado + marca de visto. ---- */
+.mj-bola {
+  position: relative; min-width: 44px; min-height: 44px; border-radius: 9999px; cursor: pointer;
+  font-family: Inter, system-ui, sans-serif; font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums;
+  color: hsl(var(--primary)); border: 1px solid hsl(var(--border));
+  background: linear-gradient(180deg, hsl(var(--card)), hsl(var(--muted)));
+  box-shadow: 0 2px 0 hsl(var(--primary) / 0.22), inset 0 1px 0 hsl(0 0% 100% / 0.55);
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.mj-bola:hover { transform: translateY(-1px); }
+.mj-bola[aria-pressed="true"] {
+  color: hsl(var(--accent-foreground)); border-color: hsl(var(--accent));
+  background: radial-gradient(circle at 35% 28%, hsl(39 62% 70%), hsl(var(--accent)) 55%, hsl(39 41% 36%));
+  box-shadow: inset 0 2px 4px hsl(0 0% 0% / 0.35), 0 0 0 3px hsl(var(--accent) / 0.45);
+  transform: translateY(1px);
+}
+.mj-bola[aria-pressed="true"]::after {
+  content: "\2713"; position: absolute; top: -4px; right: -2px; width: 16px; height: 16px; border-radius: 9999px;
+  background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); font-size: 10px; line-height: 16px; text-align: center;
+}
+.mj-bola:focus-visible { outline: 3px solid hsl(var(--ring)); outline-offset: 2px; }
+.mj-bola:disabled { opacity: .45; cursor: not-allowed; }
+.mj-bola-resultado {
+  display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9999px;
+  font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums; color: hsl(var(--accent-foreground));
+  background: radial-gradient(circle at 35% 28%, hsl(39 62% 70%), hsl(var(--accent)) 55%, hsl(39 41% 36%));
+  box-shadow: inset 0 -2px 3px hsl(0 0% 0% / 0.25), 0 1px 0 hsl(var(--primary) / 0.3);
+}
+@media (prefers-reduced-motion: reduce) { .mj-bola { transition: none; } .mj-bola:hover { transform: none; } }
+
+/* Avatar ilustrativo de comemoração: neutro, sem reutilizar a foto do médico sem autorização registrada. */
+.mj-avatar-finalizado svg { animation: mj-avatar-corrida 1.25s ease-out 1 both; }
+.mj-avatar-braco { transform-box: fill-box; }
+.mj-avatar-braco-a { transform-origin: 19px 22px; animation: mj-avatar-braco-a 1.25s ease-in-out 1 both; }
+.mj-avatar-braco-b { transform-origin: 29px 22px; animation: mj-avatar-braco-b 1.25s ease-in-out 1 both; }
+@keyframes mj-avatar-corrida {
+  0%, 35% { transform: translateY(0) scaleX(1); }
+  12%, 28% { transform: translateY(-3px) scaleX(.98); }
+  55% { transform: translateY(0) scaleX(1); }
+  72%, 100% { transform: translateY(-1px) scaleX(1); }
+}
+@keyframes mj-avatar-braco-a {
+  0%, 18% { transform: rotate(24deg); }
+  36% { transform: rotate(-28deg); }
+  60%, 100% { transform: rotate(-112deg); }
+}
+@keyframes mj-avatar-braco-b {
+  0%, 18% { transform: rotate(-24deg); }
+  36% { transform: rotate(28deg); }
+  60%, 100% { transform: rotate(112deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mj-avatar-finalizado svg, .mj-avatar-braco-a, .mj-avatar-braco-b { animation: none; }
+}
+
+
+/* Evolução de exames: cores da planilha que acompanham o tema.
+   O gráfico (screen-tv-3d) é sempre claro, então volta aos valores claros. */
+:root {
+  --evo-bg: #fbfaf4;
+  --evo-ink: #16294a;
+  --evo-muted: #647c97;
+  --evo-soft: #3a4a63;
+  --evo-faint: #8a97a9;
+}
+.dark {
+  --evo-bg: #163050;
+  --evo-ink: #eaf0f8;
+  --evo-muted: #a9bbd2;
+  --evo-soft: #c6d3e4;
+  --evo-faint: #8fa3bd;
+}
+.screen-tv-3d {
+  --evo-ink: #16294a;
+  --evo-muted: #647c97;
+  --evo-soft: #3a4a63;
+  --evo-faint: #8a97a9;
+}
+
+/* Evolução: botões em relevo SALIENTE (up-bevel), trave de ferramentas e corpo recuado.
+   No escuro usam azul médio (bem mais claro que o painel), nunca preto. */
+.evo-bevel {
+  color: var(--evo-ink);
+  background: linear-gradient(180deg, #ffffff 0%, #f8f5ec 55%, #efe8d6 100%);
+  border: 1px solid rgba(184, 146, 77, 0.45);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -4px 8px rgba(0, 53, 58, 0.12),
+    0 5px 9px -4px rgba(7, 22, 43, 0.38);
+}
+.evo-bevel:hover { filter: brightness(1.03); }
+.evo-bevel:active { transform: translateY(1px); }
+.dark .evo-bevel {
+  background: linear-gradient(180deg, #34567f 0%, #2a4a72 100%);
+  border-color: rgba(184, 146, 77, 0.55);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -4px 8px rgba(8, 20, 40, 0.30),
+    0 5px 9px -4px rgba(0, 0, 0, 0.45);
+}
+.evo-bevel-ativo {
+  border-color: #b8924d;
+  background: linear-gradient(180deg, #1f3a68 0%, #16294a 100%);
+  color: #ffffff;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.30),
+    0 0 0 1px #b8924d,
+    0 5px 9px -4px rgba(7, 22, 43, 0.5);
+}
+.dark .evo-bevel-ativo {
+  background: linear-gradient(180deg, #5b82b3 0%, #46689a 100%);
+  color: #ffffff;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.30),
+    inset 0 -4px 8px rgba(8, 20, 40, 0.30),
+    0 0 0 1px #d4b06a,
+    0 5px 9px -4px rgba(0, 0, 0, 0.5);
+}
+.evo-trave {
+  border-radius: 6px;
+  border: 1px solid rgba(184, 146, 77, 0.5);
+  background: linear-gradient(180deg, #ffffff 0%, #f3ecdc 100%);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.95), 0 6px 10px -6px rgba(7, 22, 43, 0.4);
+}
+.dark .evo-trave {
+  background: linear-gradient(180deg, #2f5078 0%, #25426a 100%);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.18), 0 6px 10px -6px rgba(0, 0, 0, 0.5);
+}
+.evo-chip {
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--evo-ink);
+  background: rgba(22, 41, 74, 0.07);
+  border: 1px solid rgba(184, 146, 77, 0.4);
+}
+.dark .evo-chip { background: rgba(255, 255, 255, 0.10); }
+.evo-corpo {
+  border-radius: 6px;
+  background: rgba(22, 41, 74, 0.04);
+  border: 1px solid rgba(22, 41, 74, 0.10);
+}
+.dark .evo-corpo {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* ============================================================
+   COMUNICACAO (Area do Cliente) — ladrilhos, passos e botoes de MESMO tamanho.
+   Regra TOC/TDAH: altura fixa por tipo de peca; numero sempre na 1a coluna.
+   Neon do ladrilho selecionado = halo dourado respirando (sem apagar o relevo).
+   ============================================================ */
+.comm-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 640px) { .comm-grade { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.comm-ladrilho {
+  position: relative; height: 128px; width: 100%;
+  display: grid; grid-template-rows: 16px 28px 16px 18px; justify-items: center; align-content: center; row-gap: 4px;
+  padding: 8px 6px; cursor: pointer; color: inherit; font-family: inherit;
+  transition: transform .12s ease, box-shadow .2s ease;
+}
+.comm-ladrilho:hover { transform: translateY(-2px); }
+.comm-ladrilho:active { transform: translateY(1px); }
+.comm-ladrilho:focus-visible { outline: 2px solid hsl(39 75% 55%); outline-offset: 2px; }
+.comm-ladrilho-n { font-size: 10px; font-weight: 800; letter-spacing: .14em; opacity: .6; line-height: 16px; }
+.comm-ladrilho-ico { display: grid; place-items: center; height: 28px; color: hsl(39 60% 38%); }
+.comm-ladrilho-nome { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; line-height: 16px; }
+.comm-ladrilho-etq { display: flex; align-items: center; justify-content: center; height: 18px; }
+.comm-ladrilho-sel { border: 1px solid hsl(39 75% 55% / .9); animation: commNeon 3.6s ease-in-out infinite; }
+.comm-ladrilho-sel .comm-ladrilho-ico { color: hsl(39 85% 45%); }
+.dark .comm-ladrilho-ico { color: hsl(39 75% 62%); }
+.dark .comm-ladrilho-sel { border-color: hsl(39 85% 62%); }
+@keyframes commNeon {
+  0%, 100% { box-shadow: 0 0 0 1px hsl(39 75% 55% / .55), 0 0 8px 1px hsl(39 80% 55% / .45), 0 0 18px 2px hsl(39 80% 55% / .20), inset 0 2px 8px rgba(7, 22, 43, .22); }
+  50%      { box-shadow: 0 0 0 1px hsl(39 80% 58% / .95), 0 0 14px 3px hsl(39 85% 58% / .75), 0 0 30px 6px hsl(39 85% 58% / .32), inset 0 2px 8px rgba(7, 22, 43, .22); }
+}
+.comm-etiqueta { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+
+.comm-detalhe { display: grid; row-gap: 12px; padding: 16px; }
+.comm-detalhe-topo { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 12px; min-height: 36px; }
+.comm-detalhe-titulo { font-size: 13px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.comm-passos { list-style: none; margin: 0; padding: 0; display: grid; row-gap: 8px; }
+.comm-passo { display: grid; grid-template-columns: 40px 1fr; column-gap: 12px; align-items: center; min-height: 60px; padding: 0 4px; border-radius: 6px; }
+.comm-passo-num { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 6px; font-size: 16px; font-weight: 800; }
+.comm-passo-txt { display: grid; row-gap: 2px; }
+.comm-passo-titulo { font-size: 15px; font-weight: 700; line-height: 1.25; }
+.comm-passo-dica { font-size: 12px; opacity: .7; line-height: 1.3; }
+.comm-passo-espera { opacity: .5; }
+.comm-passo-agora .comm-passo-num { color: hsl(39 85% 40%); box-shadow: 0 0 0 1px hsl(39 75% 55% / .8), 0 0 10px 1px hsl(39 80% 55% / .5), inset 0 2px 5px rgba(7, 22, 43, .25); }
+.dark .comm-passo-agora .comm-passo-num { color: hsl(39 90% 68%); }
+.comm-passo-feito .comm-passo-num { color: hsl(140 60% 32%); }
+.dark .comm-passo-feito .comm-passo-num { color: hsl(140 70% 60%); }
+
+.comm-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 52px;
+  padding: 0 14px; border-radius: 6px; font-size: 14px; font-weight: 800; letter-spacing: .02em; cursor: pointer;
+  text-decoration: none; text-align: center; font-family: inherit; line-height: 1.1;
+}
+.comm-btn:disabled, .comm-btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; pointer-events: none; }
+.comm-btn-primario { background: linear-gradient(180deg, #24407a 0%, #16284a 100%); color: #fff; border: 1px solid #0d1b36;
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.22), inset 0 -4px 8px rgba(0,0,0,.35), 0 10px 18px -8px rgba(7,22,43,.6), 0 0 14px 1px hsl(39 80% 55% / .45); }
+.comm-btn-primario:hover { box-shadow: inset 0 2px 0 rgba(255,255,255,.22), inset 0 -4px 8px rgba(0,0,0,.35), 0 10px 18px -8px rgba(7,22,43,.6), 0 0 22px 3px hsl(39 85% 58% / .7); }
+.comm-btn-primario:active { transform: translateY(1px); }
+.dark .comm-btn-primario { background: linear-gradient(180deg, hsl(39 75% 58%) 0%, hsl(39 65% 42%) 100%); color: #1b1304; border-color: hsl(39 60% 30%); }
+.comm-btn-ok { background: linear-gradient(180deg, #e6f8ea 0%, #c9efd2 100%); color: #12532a; border: 1px solid hsl(140 45% 40% / .6);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.8), inset 0 -4px 8px rgba(0,80,40,.15), 0 0 12px 1px hsl(140 70% 45% / .5); }
+.dark .comm-btn-ok { background: linear-gradient(180deg, hsl(140 40% 22%) 0%, hsl(140 45% 15%) 100%); color: #9ff0b6; }
+.comm-caixa-copia { display: grid; grid-template-columns: 1fr; row-gap: 8px; }
+.comm-codigo { height: 44px; display: flex; align-items: center; padding: 0 12px; border-radius: 6px; font-size: 14px; font-weight: 700; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+@media (prefers-reduced-motion: reduce) { .comm-ladrilho-sel { animation: none; box-shadow: 0 0 0 1px hsl(39 75% 55% / .8), 0 0 12px 2px hsl(39 80% 55% / .5); } }
+.comm-raiz { color: hsl(var(--foreground)); }
+.dark .comm-raiz, .dark .comm-raiz .comm-ladrilho { color: #f3ead6; }
+.dark .comm-raiz .text-muted-foreground { color: #b9c3d6; }
+
+/* Exemplo de tela (Manual do Cliente): ilustracao esquematica + alvo com neon dourado */
+.ex-destaque { position: relative; border-radius: 8px; animation: commNeon 3.6s ease-in-out infinite; outline: 2px solid hsl(39 85% 55%); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { .ex-destaque { animation: none; box-shadow: 0 0 12px 2px hsl(39 80% 55% / .55); } }
+
+/* ===== Painel de pergunta "calmo" (anamnese paciente) — mais baixo, mais recuado e
+   com letra ~10% menor, para caber mais perguntas por tela. Classe UNLAYERED depois de
+   .leva-card/.dark .leva-card para vencer a sombra forte. So aparencia. ===== */
+.leva-card.leva-card-calm {
+  border-color: rgba(138, 109, 47, 0.12);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -2px 5px rgba(138, 109, 47, 0.05),
+    0 3px 0 -1px rgba(15, 28, 53, 0.06),
+    0 6px 10px -6px rgba(15, 28, 53, 0.16);
+}
+.dark .leva-card.leva-card-calm {
+  background: linear-gradient(180deg, #11294a 0%, #0d2140 52%, #0a1a31 100%);
+  border-color: rgba(0, 0, 0, 0.3);
+  border-top-color: rgba(255, 255, 255, 0.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.35),
+    0 3px 0 -1px rgba(0, 0, 0, 0.32),
+    0 6px 12px -6px rgba(0, 0, 0, 0.5);
+}
+.leva-card-calm::after { opacity: 0.5; }
+.leva-card-calm .leva-chip { font-size: 0.875rem; padding-top: 0.4rem; padding-bottom: 0.4rem; height: auto; min-height: 2.25rem; }
+.leva-card-calm .concave-3d.h-12,
+.leva-card-calm .field-engraved.h-12 { height: 2.5rem; font-size: 1rem; }
+.leva-card-calm .leva-action { padding: 0.3rem 0.65rem; font-size: 0.75rem; }
+.leva-card-calm textarea { min-height: 3.5rem; }
+.leva-card-calm button.text-base, .leva-card-calm .leva-chip.text-base { font-size: 0.9rem; }
+.leva-card-calm .text-\[13px\] { font-size: 12px; }
+
+/* Painel calmo v2 — mais recuado, mais baixo, tecido de risca de giz mais visivel. */
+.leva-card.leva-card-calm { opacity: 0.93; }
+.dark .leva-card.leva-card-calm {
+  background: linear-gradient(180deg, rgba(17, 41, 74, 0.86) 0%, rgba(13, 33, 64, 0.88) 55%, rgba(10, 26, 49, 0.9) 100%);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.35),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+    0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.anamnese-light .leva-card.leva-card-calm {
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.82) 0%, rgba(250, 244, 230, 0.86) 100%);
+  box-shadow: inset 0 2px 4px rgba(138, 109, 47, 0.12), 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.leva-card-calm .leva-q { font-size: 13.5px; }
+.leva-card-calm .leva-chip { font-size: 0.8rem; min-height: 2rem; padding-top: 0.3rem; padding-bottom: 0.3rem; }
+.leva-card-calm .concave-3d.h-12, .leva-card-calm .field-engraved.h-12 { height: 2.25rem; font-size: 0.95rem; }
+.leva-card-calm .leva-action { padding: 0.2rem 0.55rem; font-size: 0.7rem; }
+.leva-card-calm textarea { min-height: 2.75rem; }
+.leva-card-calm .text-\[13px\] { font-size: 11.5px; }
+
+/* Seletor de faixa (duas alças): alça = SALIENTE (up bevel, creme com borda ouro), trilho = côncavo navy.
+   A alça nunca tem a cor do preenchimento da barra: é um botão de seleção. */
+.paxter-range { -webkit-appearance: none; appearance: none; background: transparent; outline: none; }
+.paxter-range::-webkit-slider-runnable-track { background: transparent; height: 32px; }
+.paxter-range::-moz-range-track { background: transparent; height: 32px; }
+.paxter-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; pointer-events: auto; cursor: grab; width: 24px; height: 32px; margin-top: 0;
+  border-radius: 6px; border: 1px solid rgba(184, 146, 77, 0.75);
+  background: linear-gradient(180deg, #ffffff 0%, #f8f5ec 55%, #e6dcc2 100%);
+  box-shadow: inset 0 3px 0 rgba(255,255,255,0.98), inset 0 -5px 8px rgba(0,53,58,0.16), 0 8px 12px -4px rgba(7,22,43,0.5), 0 3px 5px -1px rgba(7,22,43,0.35);
+}
+.paxter-range::-moz-range-thumb {
+  pointer-events: auto; cursor: grab; width: 22px; height: 30px; border-radius: 6px; border: 1px solid rgba(184, 146, 77, 0.75);
+  background: linear-gradient(180deg, #ffffff 0%, #f8f5ec 55%, #e6dcc2 100%);
+  box-shadow: inset 0 3px 0 rgba(255,255,255,0.98), inset 0 -5px 8px rgba(0,53,58,0.16), 0 8px 12px -4px rgba(7,22,43,0.5);
+}
+.paxter-range:active::-webkit-slider-thumb { cursor: grabbing; box-shadow: inset 0 2px 5px rgba(7,22,43,0.35), 0 2px 4px rgba(7,22,43,0.3); }
+.paxter-range:focus-visible::-webkit-slider-thumb { outline: 2px solid #16284a; outline-offset: 2px; }
+.dark .paxter-range::-webkit-slider-thumb { background: linear-gradient(180deg, #3a4a68 0%, #26324b 100%); border-color: rgba(214,178,105,0.8); box-shadow: inset 0 3px 0 rgba(255,255,255,0.15), 0 8px 12px -4px rgba(0,0,0,0.7); }
+.dark .paxter-range::-moz-range-thumb { background: linear-gradient(180deg, #3a4a68 0%, #26324b 100%); border-color: rgba(214,178,105,0.8); }
+
+/* Botão selecionado = apertado (insert bevel): afundado, sem sombra externa, filete ouro. */
+.btn-3d-apertado {
+  border-radius: 0.375rem;
+  border: 1px solid rgba(154, 123, 50, 0.85);
+  background: linear-gradient(180deg, #e6dcc2 0%, #efe7d2 60%, #f3ecda 100%);
+  color: #16294a;
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 3px 7px rgba(7, 22, 43, 0.32),
+    inset 0 8px 12px rgba(7, 22, 43, 0.12),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.9);
+}
+.dark .btn-3d-apertado {
+  background: linear-gradient(180deg, hsl(215 22% 11%) 0%, hsl(215 20% 15%) 100%);
+  color: hsl(39 60% 68%);
+  border-color: rgba(184, 146, 77, 0.7);
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* SELETOR RETANGULAR PAXTER (pedido do CEO 23/11/2026): toda aba, faixa e botao de
+   estado da tela de Cadastro de Exames. NAO selecionado = Saliente (up bevel, igual
+   btn-3d-soft); SELECIONADO/ABERTO/ATIVO = AFUNDADO (insert bevel, igual concave-3d). */
+.paxter-seletor {
+  border-radius: 0.25rem;
+  border: 1px solid rgba(184, 146, 77, 0.45);
+  background: linear-gradient(180deg, #ffffff 0%, #f6f1e6 55%, #ece4d2 100%);
+  color: hsl(var(--primary));
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -3px 6px rgba(0, 53, 58, 0.12),
+    0 6px 12px -5px rgba(7, 22, 43, 0.34),
+    0 2px 4px -2px rgba(7, 22, 43, 0.22);
+  transition: transform 0.08s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.paxter-seletor:hover { filter: brightness(1.03); }
+.paxter-seletor:active { transform: translateY(1px); }
+.paxter-seletor[data-state="active"],
+.paxter-seletor[aria-pressed="true"],
+.paxter-seletor[aria-expanded="true"] {
+  background: linear-gradient(160deg, #e4dcc9 0%, #f1ebdd 100%);
+  border-color: rgba(184, 146, 77, 0.6);
+  transform: none;
+  box-shadow:
+    inset 0 4px 7px rgba(7, 22, 43, 0.22),
+    inset 0 10px 16px rgba(7, 22, 43, 0.08),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.82);
+}
+.dark .paxter-seletor {
+  background: linear-gradient(180deg, hsl(215 18% 20%) 0%, hsl(215 20% 15%) 100%);
+  border-color: hsl(215 16% 26%);
+  color: hsl(214 60% 70%);
+}
+.dark .paxter-seletor[data-state="active"],
+.dark .paxter-seletor[aria-pressed="true"],
+.dark .paxter-seletor[aria-expanded="true"] {
+  background: linear-gradient(160deg, hsl(215 22% 11%) 0%, hsl(215 20% 14%) 100%);
 }

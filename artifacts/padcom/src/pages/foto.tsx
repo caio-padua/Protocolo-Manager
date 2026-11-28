@@ -373,7 +373,7 @@ export default function Foto() {
     if (!token) { setInvalid(true); setLoading(false); return; }
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/client-photo/info?token=${encodeURIComponent(token)}`);
+        const res = await fetch(`${API_BASE}/api/client-photo/info`, { headers: { "X-Link-Token": token } });
         if (!res.ok) { setInvalid(true); return; }
         const data = await res.json();
         setClientName(data.name || "");

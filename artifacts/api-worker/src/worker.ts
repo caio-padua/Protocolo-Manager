@@ -15,14 +15,352 @@
 import cron from "node-cron";
 import type pino from "pino";
 
-let started = false;
+export type WorkerProfile = "full" | "telegram-relay-dev";
+type CronScheduler = Pick<typeof cron, "schedule">;
 
-export function startWorkerJobs(logger: pino.Logger): void {
-  if (started) return;
-  started = true;
+let startedProfile: WorkerProfile | null = null;
+
+export function parseWorkerProfile(value: string | undefined): WorkerProfile {
+  if (value === undefined || value === "full") return "full";
+  if (value === "telegram-relay-dev") return value;
+  throw new Error(`Perfil de api-worker inválido: ${value}`);
+}
+
+export function categorizarErroDeWorker(err: unknown): string {
+  const vistos = new Set<unknown>();
+  let atual: unknown = err;
+  while (atual && typeof atual === "object" && !vistos.has(atual)) {
+    vistos.add(atual);
+    const item = atual as { code?: unknown; message?: unknown; cause?: unknown };
+    const code = typeof item.code === "string" ? item.code : "";
+    if (code && /^[A-Z0-9_]+$/.test(code)) return code;
+
+    const message = typeof item.message === "string" ? item.message : "";
+    if (/DATABASE_URL must be set/i.test(message)) return "database_url_missing";
+    if (/APP_ENCRYPTION_KEY|SESSION_SECRET/i.test(message)) return "vault_key_configuration";
+    if (/ERR_MODULE_NOT_FOUND|ERR_PACKAGE_PATH_NOT_EXPORTED|Cannot find package|Cannot find module/i.test(message)) {
+      return "module_unavailable";
+    }
+    if (/Dynamic require of .* is not supported/i.test(message)) {
+      return "esm_commonjs_dynamic_require";
+    }
+    if (/telegram_repasse_ceo.*does not exist|relation .*does not exist/i.test(message)) {
+      return "database_schema_unavailable";
+    }
+    if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ECONNRESET|connection terminated|connect timeout/i.test(message)) {
+      return "database_connection_failed";
+    }
+    atual = item.cause;
+  }
+  return "unclassified";
+}
+
+export function resumoErroSeguro(err: unknown): string {
+  if (!(err instanceof Error)) return typeof err;
+  return err.message
+    .replace(/postgres(?:ql)?:\/\/[^\s"'`]+/gi, "[database-url-redacted]")
+    .replace(/https?:\/\/[^\s"'`]+/gi, "[url-redacted]")
+    .replace(/\b\d{6,}:[A-Za-z0-9_-]{20,}\b/g, "[token-redacted]")
+    .replace(/\b(password|passwd|secret|token|api[_-]?key|authorization)\s*[:=]\s*[^,\s]+/gi, "$1=[redacted]")
+    .replace(/\b\d{5,20}\b/g, "[id-redacted]")
+    .replace(/[\r\n\t]+/g, " ")
+    .slice(0, 160);
+}
+
+export function iniciarJobLimpezaDeviceOfferLimits(logger: pino.Logger, scheduler: CronScheduler): void {
+  scheduler.schedule(
+    "0 3 * * *",
+    async () => {
+      try {
+        const { purgeOldDeviceOfferLimits } = await import(
+          "../../api-server/src/lib/concierge-device-throttle.js" as string
+        );
+        const removed = await purgeOldDeviceOfferLimits();
+        logger.info({ removed }, "Worker: limpeza de device_offer_limits concluída");
+      } catch (err) {
+        const error = resumoErroSeguro(err instanceof Error ? err : new Error(String(err)));
+        logger.error({ err: error }, "Worker: falha na limpeza de device_offer_limits");
+        try {
+          const channelId = process.env.PADAXOR_SLACK_CHANNEL_ID?.trim();
+          if (!channelId) throw new Error("PADAXOR_SLACK_CHANNEL_ID não configurado");
+          const { brtDateTime } = await import("../../api-server/src/lib/brt.js" as string);
+          const { postSlackAlertChecked } = await import(
+            "../../api-server/src/lib/slack-reporter.js" as string
+          );
+          const escapedError = error.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          await postSlackAlertChecked(channelId, [
+            "*Concierge — falha na limpeza diária de device_offer_limits*",
+            `Erro: ${escapedError}`,
+            `Horário: ${brtDateTime()} (BRT)`,
+          ].join("\n"));
+        } catch (slackErr) {
+          logger.error(
+            { err: resumoErroSeguro(slackErr) },
+            "Worker: falha ao alertar CEO no Slack sobre limpeza de device_offer_limits"
+          );
+        }
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+}
+
+function iniciarJobRepasseTelegram(logger: pino.Logger, scheduler: CronScheduler, atendimento = false): void {
+  let repasseRodando = false;
+  let primeiroTickConcluido = false;
+  scheduler.schedule(
+    "* * * * *",
+    async () => {
+      if (repasseRodando) return;
+      repasseRodando = true;
+      try {
+        const { processarRepassesPendentes } = await import(
+          "../../api-server/src/lib/telegram-repasse-worker.js" as string
+        );
+        const resultado = await processarRepassesPendentes({ atendimento });
+        if (
+          !primeiroTickConcluido ||
+          resultado.incertosNovos > 0 ||
+          resultado.examinados > 0
+        ) {
+          logger.info(
+            {
+              examinados: resultado.examinados,
+              aceitos: resultado.aceitos,
+              falhas: resultado.falhas,
+              incertosNovos: resultado.incertosNovos,
+            },
+            "Worker: retomada de repasses do Telegram"
+          );
+        }
+        primeiroTickConcluido = true;
+      } catch (err) {
+        logger.error(
+          {
+            errorType: err instanceof Error ? err.constructor.name : typeof err,
+            errorCategory: categorizarErroDeWorker(err),
+          },
+          "Worker: falha na retomada de repasses do Telegram"
+        );
+      } finally {
+        repasseRodando = false;
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+}
+
+/**
+ * Cadência de negociação extraordinária (minutos 0, 10, 20 e 30). Roda a cada minuto; as etapas vivem em
+ * PostgreSQL (negotiation_cadence_jobs), então reinício não perde nem duplica. Só envia com a política da clínica
+ * ligada, motor ativo, homologação autorizando o cliente e atendimento fora de modo humano/bloqueio.
+ */
+export function iniciarJobCadenciaNegociacao(logger: pino.Logger, scheduler: CronScheduler): void {
+  let rodando = false;
+  scheduler.schedule(
+    "* * * * *",
+    async () => {
+      if (rodando) return;
+      rodando = true;
+      try {
+        const { executarCadenciaNegociacao } = await import("../../api-server/src/lib/negociacao-store.js" as string);
+        const r = await executarCadenciaNegociacao();
+        if (r.enviados > 0 || r.pausados > 0 || r.falhas > 0) logger.info(r, "Worker: cadência de negociação");
+      } catch (err) {
+        logger.error({ errorType: err instanceof Error ? err.constructor.name : typeof err, errorCategory: categorizarErroDeWorker(err) }, "Worker: falha na cadência de negociação");
+      } finally {
+        rodando = false;
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+}
+
+/**
+ * Conciliação automática com o Asaas (a cada 3 minutos), SOMENTE LEITURA no Asaas.
+ * Existe porque o webhook de produção pode estar desligado/interrompido: sem este job, um pagamento
+ * recebido nunca chegava ao sistema. Só marca "pago" com consulta direta que comprove (status pago, valor
+ * igual, cobrança não removida), apenas no livro de teste e em pagamentos criados após a data de corte.
+ */
+export function iniciarJobConciliacaoAsaas(logger: pino.Logger, scheduler: CronScheduler): void {
+  let rodando = false;
+  scheduler.schedule(
+    "*/3 * * * *",
+    async () => {
+      if (rodando) return;
+      rodando = true;
+      try {
+        const { ensureAsaasConciliacaoTables, varrerPendentes } = await import(
+          "../../api-server/src/lib/asaas-conciliacao.js" as string
+        );
+        await ensureAsaasConciliacaoTables();
+        const r = await varrerPendentes();
+        if (r.aplicadas > 0 || r.bloqueadas > 0 || r.falhas > 0) {
+          logger.info(r, "Worker: conciliação Asaas");
+        }
+      } catch (err) {
+        logger.error(
+          {
+            errorType: err instanceof Error ? err.constructor.name : typeof err,
+            errorCategory: categorizarErroDeWorker(err),
+          },
+          "Worker: falha na conciliação Asaas"
+        );
+      } finally {
+        rodando = false;
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+}
+
+/**
+ * Job 2: lembrete por período (tick a cada minuto). Função própria apenas para poder ser executada
+ * isoladamente em verificação; é o MESMO agendamento e o MESMO motor usados pelo worker completo.
+ */
+export function iniciarJobLembretes(logger: pino.Logger, scheduler: CronScheduler = cron): void {
+  scheduler.schedule(
+    "* * * * *",
+    async () => {
+      try {
+        const { executarLembretesPeriodo } = await import(
+          "../../api-server/src/lib/lembrete-periodo.js" as string
+        );
+        const { executarLembretesPulso } = await import(
+          "../../api-server/src/lib/lembrete-pulso.js" as string
+        );
+        const rp = await executarLembretesPulso();
+        if (rp.enviados > 0 || rp.falhas > 0) logger.info(rp, "Worker: tick de lembrete do Pulso Diário");
+        const r = await executarLembretesPeriodo();
+        if (r.enviados > 0 || r.falhas > 0) {
+          logger.info(
+            { examinados: r.examinados, enviados: r.enviados, falhas: r.falhas, pulados: r.pulados },
+            "Worker: tick de lembrete por período"
+          );
+        }
+      } catch (err) {
+        logger.error(
+          { err: err instanceof Error ? err.message : String(err) },
+          "Worker: falha no tick de lembrete por período"
+        );
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+}
+
+/**
+ * Adesão às medicações: às 00:05 (BRT) materializa os horários esperados dos dias em que o cliente não abriu o app,
+ * como "não informado" (nunca inventa Tomei/Esqueci). Idempotente. Não envia mensagem.
+ */
+export function iniciarJobAgendaMedicacaoDiaria(logger: pino.Logger, scheduler: CronScheduler): void {
+  let rodando = false;
+  scheduler.schedule(
+    "5 0 * * *",
+    async () => {
+      if (rodando) return;
+      rodando = true;
+      try {
+        const { materializarDiasSemAbertura, criarTabelaTomadas } = await import(
+          "../../api-server/src/lib/cliente-medicacao-adesao.js" as string
+        );
+        const { brtISODate } = await import("../../api-server/src/lib/brt.js" as string);
+        const { pool } = await import("@workspace/db" as string);
+        await criarTabelaTomadas(pool);
+        const r = await materializarDiasSemAbertura(pool, brtISODate());
+        logger.info(r, "Worker: agenda diária de medicações materializada (00:05 BRT)");
+      } catch (err) {
+        logger.error(
+          { errorType: err instanceof Error ? err.constructor.name : typeof err, errorCategory: categorizarErroDeWorker(err) },
+          "Worker: falha na agenda diária de medicações"
+        );
+      } finally {
+        rodando = false;
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+}
+
+/** Rotina de calendário e preços oficiais; somente leitura da CAIXA, sem pagamento ou registro de apostas. */
+export function iniciarJobCalendarioMeusJogos(logger: pino.Logger, scheduler: CronScheduler): void {
+  let rodando = false;
+  scheduler.schedule(
+    "*/15 * * * *",
+    async () => {
+      if (rodando) return;
+      rodando = true;
+      try {
+        const { ensureMeusJogosCalendarioTables, executarAtualizacaoSemanalSeDevida } = await import(
+          "../../api-server/src/lib/meus-jogos-calendario-store.js" as string
+        );
+        await ensureMeusJogosCalendarioTables();
+        const r = await executarAtualizacaoSemanalSeDevida();
+        if (r.devida && r.resultado) {
+          logger.info({
+            ok: r.resultado.ok,
+            fontes: r.resultado.fontes.length,
+            fontesInvalidas: r.resultado.fontes.filter((f: { ok: boolean }) => !f.ok).length,
+            erros: r.resultado.erros.length,
+          }, r.resultado.ok ? "Worker: calendário oficial de Meus Jogos atualizado" : "Worker: calendário de Meus Jogos não validado; vendas seguem bloqueadas");
+        }
+      } catch (err) {
+        logger.error(
+          { errorType: err instanceof Error ? err.constructor.name : typeof err, errorCategory: categorizarErroDeWorker(err) },
+          "Worker: falha na rotina do calendário de Meus Jogos"
+        );
+      } finally {
+        rodando = false;
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+}
+
+export function startWorkerJobs(
+  logger: pino.Logger,
+  profile: WorkerProfile = "full",
+  scheduler: CronScheduler = cron,
+  opcoes: { exclusividadeTemporizadores?: boolean } = {}
+): void {
+  if (startedProfile) {
+    if (startedProfile !== profile) {
+      throw new Error(
+        `api-worker já iniciado no perfil ${startedProfile}; não pode iniciar também ${profile}`
+      );
+    }
+    return;
+  }
+  startedProfile = profile;
+
+  // Exclusividade entre processos e réplicas: os agendamentos cron chegam por `scheduler`, que o ponto de entrada (index.ts)
+  // embrulha com agendadorExclusivo; os temporizadores abaixo usam comJanela. Ver api-server/src/lib/exclusividade-tarefas.ts.
+  const logExcl = (msg: string, extra?: Record<string, unknown>) => logger.info(extra ?? {}, `Worker: ${msg}`);
+  const exclusividade = (): Promise<{ executarUmaVezPorJanela: (nome: string, janelaMs: number, fn: () => Promise<unknown>, o?: { log?: (m: string, e?: Record<string, unknown>) => void }) => Promise<{ executou: boolean; motivo?: string }> }> =>
+    import("../../api-server/src/lib/exclusividade-tarefas.js" as string);
+  // Ligado pelo ponto de entrada (index.ts). Desligado por padrão só para os testes que exercitam o boot sem banco.
+  const comJanela = <T>(nome: string, janelaMs: number, fn: () => Promise<T>): Promise<void> =>
+    !opcoes.exclusividadeTemporizadores ? fn().then(() => undefined) :
+    exclusividade()
+      .then(({ executarUmaVezPorJanela }) => executarUmaVezPorJanela(nome, janelaMs, fn, { log: logExcl }))
+      .then((r) => { if (!r.executou) logExcl(`${nome} não executada (${r.motivo})`); })
+      .catch((err) => logger.error({ err: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200) }, `Worker: falha em ${nome}`));
+
+  if (profile === "telegram-relay-dev") {
+    // atendimento=true: o atendimento por IA/agendamento só age para os clientes da lista restrita
+    // (app_settings atendimento.ia.modo/permitidos); com modo desligado nada é respondido.
+    iniciarJobRepasseTelegram(logger, scheduler, true);
+    iniciarJobConciliacaoAsaas(logger, scheduler);
+    iniciarJobCalendarioMeusJogos(logger, scheduler);
+    logger.info(
+      { profile, jobs: ["telegram-relay-1min", "asaas-conciliacao-3min", "meus-jogos-calendario-15min"] },
+      "api-worker iniciado em perfil restrito de desenvolvimento"
+    );
+    return;
+  }
 
   // ─── Job 1: Farmácia 22h BRT ────────────────────────────────────────────
-  cron.schedule(
+  scheduler.schedule(
     "0 22 * * *",
     async () => {
       logger.info("Worker: disparando lote noturno de farmácias (22:00 BRT)");
@@ -42,32 +380,12 @@ export function startWorkerJobs(logger: pino.Logger): void {
   );
 
   // ─── Job 2: Lembrete por período — tick a cada minuto ───────────────────
-  cron.schedule(
-    "* * * * *",
-    async () => {
-      try {
-        const { executarLembretesPeriodo } = await import(
-          "../../api-server/src/lib/lembrete-periodo.js" as string
-        );
-        const r = await executarLembretesPeriodo();
-        if (r.enviados > 0 || r.falhas > 0) {
-          logger.info(
-            { examinados: r.examinados, enviados: r.enviados, falhas: r.falhas, pulados: r.pulados },
-            "Worker: tick de lembrete por período"
-          );
-        }
-      } catch (err) {
-        logger.error(
-          { err: err instanceof Error ? err.message : String(err) },
-          "Worker: falha no tick de lembrete por período"
-        );
-      }
-    },
-    { timezone: "America/Sao_Paulo" }
-  );
+  iniciarJobLembretes(logger, scheduler);
+  iniciarJobCalendarioMeusJogos(logger, scheduler);
+  iniciarJobAgendaMedicacaoDiaria(logger, scheduler);
 
   // ─── Job 3: Receituário magistral 06h BRT ───────────────────────────────
-  cron.schedule(
+  scheduler.schedule(
     "0 6 * * *",
     async () => {
       logger.info("Worker: cron receituário 06:00 BRT — iniciando processamento diário");
@@ -85,6 +403,13 @@ export function startWorkerJobs(logger: pino.Logger): void {
     },
     { timezone: "America/Sao_Paulo" }
   );
+
+  // ─── Job 3b: Retomada dos repasses do Telegram ao chat de alerta — a cada minuto ───
+  // Reenvia o que ficou pendente/falhou (com espera crescente). "incerto" NUNCA é reenviado sozinho.
+  iniciarJobRepasseTelegram(logger, scheduler, true);
+
+  // ─── Job 3c: Conciliação Asaas por leitura — a cada 3 minutos ───
+  iniciarJobConciliacaoAsaas(logger, scheduler);
 
   // ─── Job 4: Drive Watcher — a cada 5 minutos ────────────────────────────
   let driveRunning = false;
@@ -107,9 +432,37 @@ export function startWorkerJobs(logger: pino.Logger): void {
     }
   }
 
-  setTimeout(() => void runDriveWatcher(), 2 * 60 * 1000);
-  void runDriveWatcher();
-  setInterval(() => void runDriveWatcher(), 5 * 60 * 1000);
+  const driveWatcherExclusivo = () => comJanela("worker-drive-watcher", 4 * 60_000, runDriveWatcher);
+  setTimeout(() => void driveWatcherExclusivo(), 2 * 60 * 1000);
+  void driveWatcherExclusivo();
+  setInterval(() => void driveWatcherExclusivo(), 5 * 60 * 1000);
+
+  // ─── Job 4b: Bolões — recebimento assistido da pasta do Drive de cada clínica — a cada 5 minutos ───
+  // Só age em clínica com pasta configurada pelo gestor (sem pasta = não faz nada). Sem CAIXA, sem login, sem compra.
+  let boloesRunning = false;
+
+  async function runBoloesRobo() {
+    if (boloesRunning) return;
+    boloesRunning = true;
+    try {
+      const { varrerPastasBoloesAgora } = await import(
+        "../../api-server/src/lib/boloes-robo.js" as string
+      );
+      const r = await varrerPastasBoloesAgora();
+      if (r.empresasComPasta > 0) logger.info(r, "Worker: boloes-robo varredura concluída");
+    } catch (err) {
+      logger.error(
+        { err: err instanceof Error ? err.message : String(err) },
+        "Worker: boloes-robo erro"
+      );
+    } finally {
+      boloesRunning = false;
+    }
+  }
+
+  const boloesExclusivo = () => comJanela("worker-boloes-robo", 4 * 60_000, runBoloesRobo);
+  setTimeout(() => void boloesExclusivo(), 3 * 60 * 1000);
+  setInterval(() => void boloesExclusivo(), 5 * 60 * 1000);
 
   // ─── Job 5: Monitor horário de LLMs + planilha no Slack ────────────────
   // Roda todo início de hora (XX:00), 24h/dia.
@@ -118,12 +471,14 @@ export function startWorkerJobs(logger: pino.Logger): void {
   // A lógica de despacho dual-canal vive em llm-monitor-dispatch.ts (testável).
   // Quando o Telegram falha, postTelegramReport posta aviso de fallback no Slack
   // usando slackFallbackChannelId (Task 34 — retry automático + fallback).
-  cron.schedule(
+  scheduler.schedule(
     "0 * * * *",
     async () => {
       if (process.env.PADAXOR_AI_BYPASS !== "true") return; // clone: ignora silenciosamente
       const channelId      = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "C0BLW5S7GQL";
-      const telegramChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID ?? "";
+      // Fonte única do chat de alerta (cofre > ambiente, validado): o worker não hidrata o ambiente.
+      const { chatAlertaOuNull } = await import("../../api-server/src/lib/telegram-config.js" as string);
+      const telegramChatId: string = (await chatAlertaOuNull()) ?? "";
       logger.info(
         { channelId, telegramChatId: telegramChatId || "(não configurado)" },
         "Worker: gerando monitor horário (LLMs + planilha)"
@@ -191,29 +546,8 @@ export function startWorkerJobs(logger: pino.Logger): void {
     });
 
   // ─── Job 7: Limpeza de device_offer_limits — diária às 03h BRT ────────────
-  // Apaga linhas com dia_brt < CURRENT_DATE - 2 dias para evitar crescimento
-  // indefinido da tabela (análogo ao cleanup de idempotência #165).
-  cron.schedule(
-    "0 3 * * *",
-    async () => {
-      try {
-        const { purgeOldDeviceOfferLimits } = await import(
-          "../../api-server/src/lib/concierge-device-throttle.js" as string
-        );
-        const removed = await purgeOldDeviceOfferLimits();
-        logger.info(
-          { removed },
-          "Worker: limpeza de device_offer_limits concluída"
-        );
-      } catch (err) {
-        logger.error(
-          { err: err instanceof Error ? err.message : String(err) },
-          "Worker: falha na limpeza de device_offer_limits"
-        );
-      }
-    },
-    { timezone: "America/Sao_Paulo" }
-  );
+  // O corte usa o calendário BRT no SQL da purga; falhas alertam o CEO.
+  iniciarJobLimpezaDeviceOfferLimits(logger, scheduler);
 
   // ─── Job 9: Limpeza de device_contact_verifications e device_verified_sessions ─
   // Apaga linhas com expires_at < NOW() das duas tabelas de verificação OTP.
@@ -241,7 +575,7 @@ export function startWorkerJobs(logger: pino.Logger): void {
 
   void runDeviceVerificationPurge();
 
-  cron.schedule(
+  scheduler.schedule(
     "15 3 * * *",
     async () => {
       logger.info("Worker: limpeza diária 03:15 BRT — device_contact_verifications e device_verified_sessions");
@@ -276,7 +610,7 @@ export function startWorkerJobs(logger: pino.Logger): void {
     }
   };
 
-  cron.schedule(
+  scheduler.schedule(
     "30 3 1 * *",
     () => runPurgaEventos("cron"),
     { timezone: "America/Sao_Paulo" }
@@ -284,7 +618,7 @@ export function startWorkerJobs(logger: pino.Logger): void {
 
   // Purga imediata no boot — garante o log de boot exigido pela spec e limpa
   // registros acumulados antes do primeiro cron mensal.
-  void runPurgaEventos("boot");
+  void runPurgaEventos("boot"); // apagar o que venceu é idempotente: repetir não causa efeito duplicado
 
   // ─── Job 10: Verificação diária do certificado ICP-Brasil (PAdES) ──────────
   // Carrega o cache do certificado (Object Storage / cofre) e verifica o prazo.
@@ -324,16 +658,90 @@ export function startWorkerJobs(logger: pino.Logger): void {
   }
 
   // Verificação imediata no boot do worker.
-  void runCertExpiryCheck("boot");
+  void comJanela("worker-cert-expiry-boot", 20 * 60_000, () => runCertExpiryCheck("boot"));
 
   // Cron diário às 08:00 BRT — garante alerta mesmo após o boot.
-  cron.schedule(
+  scheduler.schedule(
     "0 8 * * *",
     () => runCertExpiryCheck("cron"),
     { timezone: "America/Sao_Paulo" }
   );
 
+  // ─── Job 10: Confirmação do cliente por visita (K8) — a cada 10 min ───────
+  // Envia os lembretes vencidos: até 3 e-mails ao cliente (no ato, +24 h, +48 h)
+  // e o aviso final à gestão (24 h após o 3º). Cada envio é reservado por UPDATE
+  // condicional antes de sair (nunca duplica, mesmo com duas execuções juntas).
+  // As tabelas são garantidas aqui também: o worker pode subir antes da API.
+  let visitConfirmationsReady = false;
+  let visitConfirmationsRunning = false;
+  scheduler.schedule(
+    "*/10 * * * *",
+    async () => {
+      if (visitConfirmationsRunning) return;
+      visitConfirmationsRunning = true;
+      try {
+        if (!visitConfirmationsReady) {
+          const { ensureVisitConfirmations } = await import(
+            "../../api-server/src/lib/ensure-visit-confirmations.js" as string
+          );
+          await ensureVisitConfirmations();
+          visitConfirmationsReady = true;
+        }
+        const { dispatchDue } = await import("../../api-server/src/lib/visit-confirmation.js" as string);
+        const { realChannels } = await import("../../api-server/src/lib/visit-confirmation-channels.js" as string);
+        const r = await dispatchDue(realChannels);
+        if (r.clienteEmails + r.gestaoInicio + r.gestaoFinal + r.falhas + r.curados > 0) {
+          logger.info(
+            { clienteEmails: r.clienteEmails, gestaoInicio: r.gestaoInicio, gestaoFinal: r.gestaoFinal, falhas: r.falhas, curados: r.curados },
+            "Worker: lembretes de confirmação do cliente"
+          );
+        }
+      } catch (err) {
+        logger.error(
+          { err: err instanceof Error ? err.message : String(err) },
+          "Worker: falha nos lembretes de confirmação do cliente"
+        );
+      } finally {
+        visitConfirmationsRunning = false;
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+
+  // ─── Job 11: Fila persistente de PDFs de exame por IA — a cada 30 s ───────
+  // Só consome mensagens_fila (tipo pdf_exame): concorrência 2, prazo 120 s por item, trava por job.
+  // DESLIGADO por padrão: só roda com PADAXOR_FILA_PDF_ATIVA=true (nenhum fluxo atual enfileira ainda).
+  if (process.env.PADAXOR_FILA_PDF_ATIVA === "true") {
+    let filaPdfRodando = false;
+    const workerId = `api-worker-${process.pid}`;
+    scheduler.schedule(
+      "*/30 * * * * *",
+      async () => {
+        if (filaPdfRodando) return;
+        filaPdfRodando = true;
+        try {
+          const { pool } = await import("@workspace/db");
+          const { ensureFilaMensagens } = await import("../../api-server/src/lib/ensure-fila-mensagens.js" as string);
+          const { processarFilaPdfExames } = await import("../../api-server/src/lib/fila-pdf-exames.js" as string);
+          await ensureFilaMensagens();
+          const r = await processarFilaPdfExames(pool, workerId);
+          if (r.reservados > 0) {
+            logger.info({ ...r }, "Worker: fila de PDFs de exame processada");
+          }
+        } catch (err) {
+          logger.error(
+            { err: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200) },
+            "Worker: falha na fila de PDFs de exame"
+          );
+        } finally {
+          filaPdfRodando = false;
+        }
+      },
+      { timezone: "America/Sao_Paulo" }
+    );
+  }
+
   logger.info(
-    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min, slack-monitor-horário, telegram-webhook-guard, device-offer-limits-cleanup-3h, webhook-eventos-purge-mensal, device-verification-purge-315h, cert-expiry-08h"
+    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, telegram-repasse-1min, drive-watcher-5min, slack-monitor-horário, telegram-webhook-guard, device-offer-limits-cleanup-3h, webhook-eventos-purge-mensal, device-verification-purge-315h, cert-expiry-08h, visit-confirmations-10min"
   );
 }

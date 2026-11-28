@@ -129,7 +129,12 @@ function MultiControl({
     onChange({ tipo: "multi", selecionados: next });
   };
   return (
-    <div className="grid grid-cols-2 gap-2.5">
+    <div className="flex flex-col gap-2.5">
+      <p className="flex items-center gap-1.5 text-[12px] font-semibold text-muted-foreground" data-testid="aviso-multipla">
+        <Check className="h-3.5 w-3.5" aria-hidden /> Pode marcar mais de uma opção
+        {sel.length > 0 && <span className="ml-auto rounded-[3px] px-1.5 py-0.5 text-[11px] font-bold" style={{ color: GOLD, boxShadow: `inset 0 0 0 1px ${GOLD}` }}>{sel.length} marcada{sel.length > 1 ? "s" : ""}</span>}
+      </p>
+      <div className="grid grid-cols-2 gap-2.5">
       {opcoes.map((o) => {
         const active = sel.includes(o.label);
         return (
@@ -138,13 +143,14 @@ function MultiControl({
             type="button"
             data-active={active}
             onClick={() => toggle(o.label)}
-            className="leva-chip flex min-w-0 items-center gap-2 px-4 py-2.5 text-left text-sm font-medium"
+            className="leva-chip flex min-h-[44px] min-w-0 items-center gap-2 px-3 py-2.5 text-left text-sm font-medium"
           >
             {active && <Check className="h-4 w-4 shrink-0" />}
-            <span className="leva-chip-txt truncate">{o.label}</span>
+            <span className="leva-chip-txt whitespace-normal break-words leading-snug">{o.label}</span>
           </button>
         );
       })}
+      </div>
     </div>
   );
 }

@@ -1,10 +1,13 @@
-import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, lazy, Suspense, type ReactNode } from "react";
+import { PreCadastroObrigatorio, usePreCadastro } from "@/components/area/PreCadastroObrigatorio";
+import { ComunicacaoPaineis } from "@/components/area/ComunicacaoPaineis";
 import { tituloProprio } from "@/lib/utils";
+import { encerrarSessaoPersistente, iniciarSessaoPersistente, renovarSessaoPersistente, temSessaoGuardada } from "@/lib/sessaoArea";
 import {
   User, Loader2, AlertCircle, ChevronRight, LogOut, Home, Syringe,
   CalendarDays, FileText, Upload, CheckCircle, Download, Clock,
   FileUp, Wallet, FlaskConical, ClipboardList, KeyRound, ChevronDown, ChevronUp,
-  HelpCircle, MessageCircle, TrendingUp, Sun, Moon,
+  MessageCircle, TrendingUp, Sun, Moon, Crown, Award, Camera, ShieldCheck, Activity, Lock, UserCog,
 } from "lucide-react";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PaxterWordmarkArt } from "@/components/layout/paxter-fx/PaxterWordmarkArt";
@@ -15,7 +18,23 @@ import { PAXTER_SITE_URL } from "@/lib/brand";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { isAppPasswordValid, PASSWORD_POLICY_MESSAGE } from "@workspace/password-policy";
-import EvolucaoExamesPanel from "@/pages/cockpit/panels/EvolucaoExamesPanel";
+const EvolucaoExamesPanel = lazy(() => import("@/pages/cockpit/panels/EvolucaoExamesPanel"));
+
+import PedidosMedicosCliente from "@/components/PedidosMedicosCliente";
+import { abrirPdfExame } from "@/lib/abrir-pdf-exame";
+import ExamesAvulsosCliente from "@/components/ExamesAvulsosCliente";
+const GrupoVipBoloes = lazy(() => import("@/components/GrupoVipConexao").then((m) => ({ default: m.GrupoVipBoloes })));
+const MeusBoloesCliente = lazy(() => import("@/components/MeusBoloesCliente"));
+const ClubVipCliente = lazy(() => import("@/components/ClubVipCliente"));
+const MeusJogosCliente = lazy(() => import("@/components/meus-jogos/MeusJogosCliente"));
+const MinhaCategoriaCliente = lazy(() => import("@/components/MinhaCategoriaCliente"));
+const FotosCorpoCliente = lazy(() => import("@/components/FotosCorpoCliente"));
+const PaxCareCofre = lazy(() => import("@/components/PaxCareCofre"));
+const MeuPulsoCliente = lazy(() => import("@/components/MeuPulsoCliente"));
+const MeusMedicamentos = lazy(() => import("@/components/MeusMedicamentos"));
+const RecursosPremiumCliente = lazy(() => import("@/components/RecursosPremiumCliente"));
+const PaxCarePlanosPaciente = lazy(() => import("@/components/PaxCarePlanosPaciente"));
+const ExcluirContaPaxCare = lazy(() => import("@/components/ExcluirContaPaxCare"));
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -97,25 +116,47 @@ function formatClientName(fullName: string): string {
 // ---------------------------------------------------------------------------
 type ClientInfo = { id: number; name: string; cpf: string | null; token: string };
 type TabKey = "inicio" | "protocolos" | "agenda" | "documentos" | "enviar"
-           | "duvidas" | "suporte" | "evolucao";
+           | "duvidas" | "suporte" | "evolucao" | "fotos" | "minhacategoria" | "clubvip" | "comunicacao" | "boloes" | "meusjogos" | "paxcare" | "pulso" | "premium" | "conta";
 
 const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "inicio",     label: "INÍCIO",      icon: Home },
   { key: "protocolos", label: "PROTOCOLOS",  icon: Syringe },
   { key: "agenda",     label: "AGENDA",      icon: CalendarDays },
   { key: "documentos", label: "DOCUMENTOS",  icon: FileText },
-  { key: "enviar",     label: "ENVIAR",      icon: Upload },
-  { key: "duvidas",    label: "DÚVIDAS",     icon: HelpCircle },
-  { key: "suporte",    label: "SUPORTE",     icon: MessageCircle },
+  { key: "enviar",     label: "UPLOAD EXAMES", icon: Upload },
   { key: "evolucao",   label: "EVOLUÇÃO",    icon: TrendingUp },
+  { key: "pulso",      label: "MEU PULSO",   icon: Activity },
+  { key: "fotos",      label: "MINHAS FOTOS", icon: Camera },
+  { key: "minhacategoria", label: "MINHA CATEGORIA", icon: Award },
+  { key: "clubvip",    label: "GRUPO VIP",    icon: Crown },
+  { key: "comunicacao", label: "COMUNICAÇÃO", icon: MessageCircle },
+  { key: "paxcare",    label: "PAXCARE",     icon: ShieldCheck },
+  { key: "premium",    label: "PREMIUM",     icon: Lock },
+  { key: "conta",      label: "MEU PLANO / CONTA", icon: UserCog },
 ];
 
 // ---------------------------------------------------------------------------
 // Root
 // ---------------------------------------------------------------------------
+// Publica a altura REAL da faixa superior fixa em --paxter-topbar-h, para que a planilha
+// de exames congele o cabeçalho (datas e laboratórios) logo abaixo dela, sem número mágico.
+function publicarAlturaTopbar(el: HTMLElement | null) {
+  if (!el) {
+    document.documentElement.style.removeProperty("--paxter-topbar-h");
+    return;
+  }
+  const medir = () => document.documentElement.style.setProperty("--paxter-topbar-h", `${el.offsetHeight}px`);
+  medir();
+  // O observador vive enquanto o elemento existir (some junto com ele ao sair da tela).
+  new ResizeObserver(medir).observe(el);
+}
+
 export default function Area() {
   const [client, setClient] = useState<ClientInfo | null>(null);
   const [tab, setTab] = useState<TabKey>("inicio");
+  // De onde o cliente abriu "Meus Bolões" (Início ou Grupo VIP): define para onde o "Voltar" leva.
+  const [boloesOrigem, setBoloesOrigem] = useState<"inicio" | "clubvip">("inicio");
+  useEffect(() => { if (tab !== "boloes") setBoloesOrigem("inicio"); }, [tab]);
   const [adminMode, setAdminMode] = useState(false);
   const [showScrollHint, setShowScrollHint] = useState(true);
   const { theme, toggle } = useScreenTheme();
@@ -125,23 +166,60 @@ export default function Area() {
     return () => clearTimeout(t);
   }, []);
 
-  // Modo de preview admin: ?preview_id=<n>&preview_name=<name>&preview_token=<tok>
-  // O dono da clínica usa a página /experiencia-cliente para gerar esta URL
-  // e abre numa aba nova, sem precisar digitar CPF/senha do cliente.
+  // Modo de prévia do administrador (/area?previa=1): o token NÃO vem na URL. A aba pede os dados
+  // à janela que a abriu (mesma origem) e os guarda só na memória.
+  const ehPrevia = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("previa");
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const pid = params.get("preview_id");
-    const pname = params.get("preview_name");
-    const ptoken = params.get("preview_token");
-    if (pid && pname && ptoken) {
+    if (!ehPrevia || !window.opener) return;
+    const origem = window.location.origin;
+    const aoMensagem = (ev: MessageEvent) => {
+      const d = ev.data as { tipo?: string; id?: number; name?: string; token?: string } | null;
+      if (ev.origin !== origem || ev.source !== window.opener || d?.tipo !== "paxter-previa-dados") return;
+      if (typeof d.id !== "number" || typeof d.name !== "string" || typeof d.token !== "string") return;
       setAdminMode(true);
-      setClient({ id: Number(pid), name: decodeURIComponent(pname), cpf: null, token: ptoken });
-      // Limpa a URL para não vazar o token no histórico
+      setClient({ id: d.id, name: d.name, cpf: null, token: d.token });
       window.history.replaceState({}, "", window.location.pathname);
-    }
+    };
+    window.addEventListener("message", aoMensagem);
+    (window.opener as Window).postMessage({ tipo: "paxter-previa-pronta" }, origem);
+    return () => window.removeEventListener("message", aoMensagem);
+  }, [ehPrevia]);
+
+  // Sessão persistente: ao abrir, tenta renovar o que ficou guardado no aparelho (sem digitar CPF).
+  const [restaurando, setRestaurando] = useState(() => !ehPrevia && temSessaoGuardada());
+  useEffect(() => {
+    if (!restaurando) return;
+    let vivo = true;
+    void renovarSessaoPersistente().then((r) => {
+      if (!vivo) return;
+      if (r && r !== "indisponivel") setClient(r);
+      setRestaurando(false);
+    });
+    return () => { vivo = false; };
+  }, [restaurando]);
+
+  // Renovação deslizante: o token de acesso dura 30 min; renova a cada 20 min e ao voltar para a aba.
+  const logado = !!client && !adminMode;
+  useEffect(() => {
+    if (!logado) return;
+    let ultima = Date.now();
+    const renovar = async () => {
+      const r = await renovarSessaoPersistente();
+      if (r && r !== "indisponivel") { ultima = Date.now(); setClient(r); }
+    };
+    const timer = setInterval(() => { void renovar(); }, 20 * 60 * 1000);
+    const aoVoltar = () => { if (document.visibilityState === "visible" && Date.now() - ultima > 10 * 60 * 1000) void renovar(); };
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", aoVoltar); };
+  }, [logado]);
+
+  const entrar = useCallback((c: ClientInfo) => {
+    setClient(c);
+    void iniciarSessaoPersistente(c.token);
   }, []);
 
   const handleLogout = useCallback(() => {
+    void encerrarSessaoPersistente();
     setClient(null);
     setTab("inicio");
     setAdminMode(false);
@@ -152,7 +230,28 @@ export default function Area() {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, [tab]);
 
-  if (!client) return <LoginScreen onSuccess={setClient} />;
+  // O token renova sozinho a cada 20 min; a conferência do pré-cadastro só roda ao entrar (não pisca a tela).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const tokenPreCadastro = useMemo(() => client?.token ?? null, [client?.id]);
+  const preCadastro = usePreCadastro(tokenPreCadastro, !!client && !adminMode);
+
+  if (restaurando) return <div className="min-h-screen flex items-center justify-center text-sm font-semibold">Carregando…</div>;
+  if (!client) return <LoginScreen onSuccess={entrar} />;
+
+  if (preCadastro.situacao === "carregando") {
+    return <div className="min-h-screen flex items-center justify-center text-sm font-semibold">Carregando…</div>;
+  }
+  if (preCadastro.situacao === "erro") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="text-sm font-semibold">Não foi possível conferir seu cadastro.</p>
+        <button type="button" onClick={preCadastro.refazer} className="bevel-3d h-11 px-6 font-black uppercase tracking-widest text-xs">TENTAR DE NOVO</button>
+      </div>
+    );
+  }
+  if (preCadastro.situacao === "pendente" && preCadastro.estado) {
+    return <PreCadastroObrigatorio token={client.token} estado={preCadastro.estado} onConcluido={preCadastro.concluir} />;
+  }
 
   const themeClass = theme === "dark" ? "dark" : "";
 
@@ -161,7 +260,7 @@ export default function Area() {
       className={`${themeClass} area-elite relative`}
       style={{ minHeight: "100vh", background: theme === "dark" ? "linear-gradient(160deg, #0b1e3a 0%, #0e2244 55%, #122a50 100%)" : "#f3ecdd" }}
     >
-      <div className="leva-fabric" aria-hidden="true" />
+      <div className="leva-fabric leva-fabric-fixo" aria-hidden="true" />
       <div className="relative z-10 flex flex-col min-h-screen">
       {/* Faixa de aviso quando o admin está no modo preview */}
       {adminMode && (
@@ -169,25 +268,20 @@ export default function Area() {
           ⚙ MODO VISUALIZAÇÃO ADMIN — você está vendo como o cliente enxerga esta tela
         </div>
       )}
-      {/* Header logado — símbolo glass + wordmark PADAXOR oficial + subtítulo */}
-      <header className="panel-3d sticky top-0 z-20 flex items-center justify-between px-4 py-3 border-b border-border/60">
+      {/* Header logado — símbolo glass + wordmark PAX CARE + subtítulo */}
+      <header ref={publicarAlturaTopbar} className="panel-3d sticky top-0 z-20 flex items-center justify-between px-4 py-3 border-b border-border/60">
 
-        {/* Esquerda: símbolo glass + PADAXOR wordmark oficial */}
+        {/* Esquerda: símbolo glass + wordmark PAX CARE */}
         <a
           href={PAXTER_SITE_URL}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="PADAXOR — site institucional"
+          aria-label="PaxMed — site institucional"
           className="flex items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
         >
           <PaxterSymbolGlass size={40} tone={theme === "dark" ? "dark" : "light"} sharp={true} />
           <div className="flex flex-col items-start gap-0.5">
-            <img
-              src="/brand/padaxor-wordmark-trim.png"
-              alt="PADAXOR"
-              style={{ height: 22, width: "auto", objectFit: "contain" }}
-              draggable={false}
-            />
+            <span aria-label="PAX CARE" style={{ fontFamily: "'EB Garamond', serif", fontWeight: 800, fontSize: 18, lineHeight: 1, letterSpacing: "0.22em", color: "#b8924d", whiteSpace: "nowrap" }}>PAX CARE</span>
             <p
               className="text-accent"
               style={{
@@ -222,24 +316,65 @@ export default function Area() {
       </header>
 
       {/* Conteúdo principal — pb-24 libera espaço para bottom nav fixa */}
-      <main className="flex-1 px-4 py-5 max-w-lg w-full mx-auto pb-24">
+      <main className={`relative isolate z-0 flex-1 px-4 py-5 w-full mx-auto pb-36 ${tab === "evolucao" ? "max-w-lg lg:max-w-6xl" : "max-w-lg"}`}>
+        <Suspense fallback={<p role="status" className="text-center text-xs py-10 opacity-70">Carregando…</p>}>
         {tab === "inicio"     && <InicioTab     client={client} onGo={setTab} />}
         {tab === "protocolos" && <ProtocolosTab client={client} />}
         {tab === "agenda"     && <AgendaTab     client={client} />}
         {tab === "documentos" && <DocumentosTab client={client} />}
         {tab === "enviar"     && <EnviarTab     client={client} />}
-        {tab === "evolucao"   && (
+        {tab === "pulso" && <MeuPulsoCliente token={client.token} escuro={theme === "dark"} />}
+        {tab === "fotos" && <FotosCorpoCliente token={client.token} />}
+        {tab === "minhacategoria" && <MinhaCategoriaCliente token={client.token} />}
+        {tab === "clubvip" && (
+          <ClubVipCliente token={client.token} onAbrirBoloes={() => { setBoloesOrigem("clubvip"); setTab("boloes"); }} onAbrirMeusJogos={() => setTab("meusjogos")} />
+        )}
+        {tab === "comunicacao" && <ComunicacaoTab client={client} />}
+        {tab === "paxcare" && (
           <div className="space-y-6">
-            <EvolucaoExamesPanel clientId={client.id} />
-            <PlanilhaComparativaPortal clientId={client.id} />
+            <MeusMedicamentos token={client.token} somenteLeitura={adminMode} />
+            <PaxCareCofre token={client.token} />
           </div>
         )}
+        {tab === "premium" && <RecursosPremiumCliente onAbrirPlano={() => setTab("conta")} />}
+        {tab === "conta" && (
+          <div className="space-y-6">
+            <PaxCarePlanosPaciente token={client.token} />
+            <ExcluirContaPaxCare token={client.token} somenteLeitura={adminMode} aoExcluir={handleLogout} />
+          </div>
+        )}
+        {tab === "boloes" && (
+          <div className="space-y-3">
+            <button onClick={() => setTab(boloesOrigem)}
+              className="text-accent text-[10px] font-black uppercase tracking-widest underline-offset-4 hover:underline">
+              {boloesOrigem === "clubvip" ? "← Voltar ao Grupo VIP" : "← Voltar ao início"}
+            </button>
+            <GrupoVipBoloes token={client.token} />
+            <MeusBoloesCliente token={client.token} />
+          </div>
+        )}
+        {tab === "meusjogos" && (
+          <div className="space-y-3">
+            <button onClick={() => setTab("clubvip")}
+              className="text-accent text-[10px] font-black uppercase tracking-widest underline-offset-4 hover:underline min-h-[44px]">
+              ← Voltar ao Grupo VIP
+            </button>
+            <MeusJogosCliente token={client.token} />
+          </div>
+        )}
+        {tab === "evolucao"   && (
+          <div className="space-y-6">
+            <EvolucaoExamesPanel clientId={client.id} portalToken={client.token} />
+            <PlanilhaComparativaPortal token={client.token} />
+          </div>
+        )}
+        </Suspense>
       </main>
 
       {/* Mini-painel VERTICAL — largura 58px, altura automática igual à nav */}
       <div
         className="panel-3d fixed bottom-0 right-0 z-30 border-t border-l border-border/60 flex flex-col items-center justify-center gap-2 py-2"
-        style={{ borderTopLeftRadius: 8, width: 58 }}
+        style={{ borderTopLeftRadius: 8, width: 58, touchAction: "none", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
       >
         <button
           type="button"
@@ -247,7 +382,7 @@ export default function Area() {
           title={theme === "dark" ? "Tema claro" : "Tema escuro"}
           aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
           className="btn-3d-soft flex items-center justify-center rounded text-accent"
-          style={{ width: 32, height: 24 }}
+          style={{ width: 44, height: 44 }}
         >
           {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
         </button>
@@ -256,7 +391,7 @@ export default function Area() {
           onClick={handleLogout}
           title="Sair"
           className="btn-3d-soft flex items-center justify-center rounded text-muted-foreground hover:text-accent transition-colors"
-          style={{ width: 32, height: 24 }}
+          style={{ width: 44, height: 44 }}
         >
           <LogOut className="w-3.5 h-3.5" />
         </button>
@@ -282,6 +417,9 @@ export default function Area() {
           scrollbarWidth: "none",
           WebkitOverflowScrolling: "touch",  /* iOS smooth scroll */
           transform: "translateZ(0)",          /* fixa o elemento no iOS */
+          touchAction: "pan-x",                /* arrastar a barra nunca move a tela */
+          overscrollBehavior: "contain",
+          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)", /* sobe a barra: margem sobre a base do iPhone */
         } as React.CSSProperties}
       >
         <div
@@ -296,8 +434,8 @@ export default function Area() {
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
-                style={{ minWidth: 72 }}
-                className={`flex flex-col items-center py-2 px-0.5 transition-colors ${
+                style={{ width: 90 }}
+                className={`flex flex-col items-center py-2 px-1.5 transition-colors ${
                   active ? "text-accent" : "text-muted-foreground hover:text-accent"
                 }`}
               >
@@ -308,10 +446,13 @@ export default function Area() {
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
-                    gap: 2,
-                    padding: "5px 10px 4px",
+                    justifyContent: "flex-start",
+                    gap: 3,
+                    padding: "7px 2px 4px",
                     borderRadius: 7,
-                    minWidth: 58,
+                    width: 78,
+                    height: 56,
+                    boxSizing: "border-box",
                     transition: "all 0.15s ease",
                     /* Up-bevel nas tabs inativas: placa que sai da superfície */
                     ...(active ? {} : {
@@ -324,8 +465,8 @@ export default function Area() {
                     }),
                   }}
                 >
-                  <Icon className="w-5 h-5" />
-                  <span className="text-[9px] font-bold uppercase tracking-wider">{t.label}</span>
+                  <Icon className="w-5 h-5 shrink-0" />
+                  <span className="w-full text-center text-[8.5px] font-bold uppercase leading-[1.15] tracking-[.02em]" style={{ height: 20, overflow: "hidden" }}>{t.label}</span>
                 </div>
               </button>
             );
@@ -333,8 +474,6 @@ export default function Area() {
         </div>
       </nav>
 
-      {/* Carimbo discreto PADCON — fixo bottom-right, acima da nav */}
-      <PadconWatermark bottom="76px" />
       </div>
     </div>
   );
@@ -395,23 +534,13 @@ function TernoFooter({ theme = "light" }: { theme?: "light" | "dark" }) {
       {/* Tecido de terno — risca de giz sobre o rodapé */}
       <div className="leva-fabric" aria-hidden="true" style={{ opacity: isDark ? 0.70 : 0.55 }} />
 
-      {/* Conteúdo — PADAXOR à esquerda, PAXTER à direita */}
+      {/* Conteúdo — PAX CARE à esquerda, PAXTER à direita */}
       <div
         className="relative z-10 flex items-center justify-between max-w-lg mx-auto"
         style={{ gap: 12 }}
       >
-        {/* Wordmark PADAXOR — arte oficial PNG, sem filtros */}
-        <img
-          src="/brand/padaxor-wordmark-trim.png"
-          alt="PADAXOR"
-          style={{
-            height: 18,
-            width: "auto",
-            objectFit: "contain",
-            opacity: isDark ? 0.92 : 0.85,
-          }}
-          draggable={false}
-        />
+        {/* Wordmark PAX CARE (texto) */}
+        <span aria-label="PAX CARE" style={{ fontFamily: "'EB Garamond', serif", fontWeight: 800, fontSize: 15, lineHeight: 1, letterSpacing: "0.22em", color: "#b8924d", whiteSpace: "nowrap", opacity: isDark ? 0.92 : 0.85 }}>PAX CARE</span>
 
         {/* Linha divisória */}
         <div
@@ -443,7 +572,7 @@ function LoginShell({ subtitle, children }: { subtitle: string; children: ReactN
       className={`${themeClass} area-elite relative`}
       style={{ minHeight: "100vh", background: isDark ? "linear-gradient(160deg, #0b1e3a 0%, #0e2244 55%, #122a50 100%)" : "#f3ecdd" }}
     >
-      <div className="leva-fabric" aria-hidden="true" />
+      <div className="leva-fabric leva-fabric-fixo" aria-hidden="true" />
       <div className="relative z-10 flex flex-col min-h-screen">
         <header className="panel-3d px-4 py-5 flex items-center justify-between border-b border-border/60">
           <div className="flex items-center gap-3">
@@ -451,18 +580,13 @@ function LoginShell({ subtitle, children }: { subtitle: string; children: ReactN
               href={PAXTER_SITE_URL}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="PADAXOR — site institucional"
+              aria-label="PaxMed — site institucional"
               className="flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
             >
               <PaxterSymbolGlass size={52} tone={isDark ? "dark" : "light"} sharp={true} />
             </a>
             <div className="flex flex-col items-start gap-1">
-              <img
-                src="/brand/padaxor-wordmark-trim.png"
-                alt="PADAXOR"
-                style={{ height: 28, width: "auto", objectFit: "contain" }}
-                draggable={false}
-              />
+              <span aria-label="PAX CARE" style={{ fontFamily: "'EB Garamond', serif", fontWeight: 800, fontSize: 23, lineHeight: 1, letterSpacing: "0.22em", color: "#b8924d", whiteSpace: "nowrap" }}>PAX CARE</span>
               <p
                 className="text-accent"
                 style={{
@@ -757,7 +881,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
   // --- Telas de entrada normal (nascimento OU senha) ---
   const porSenha = mode === "senha";
   return (
-    <LoginShell subtitle="ÁREA DO PACIENTE">
+    <LoginShell subtitle="APP DO CLIENTE">
       <div className="panel-3d rounded-xl overflow-hidden">
         {/* Zona 1 — TOP BAR */}
         <div className="login-card-topbar px-5 py-4">
@@ -855,9 +979,12 @@ function useApi<T>(client: ClientInfo, path: string, refreshKey: number = 0) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const chaveAnterior = useRef("");
   useEffect(() => {
     let alive = true;
-    setLoading(true); setError("");
+    // Só o token mudou (renovação automática): atualiza em silêncio, sem piscar a tela.
+    if (chaveAnterior.current !== `${path}|${refreshKey}`) { setLoading(true); setError(""); }
+    chaveAnterior.current = `${path}|${refreshKey}`;
     fetch(`${API_BASE}/api/area-paciente/${path}`, {
       headers: { Authorization: `Bearer ${client.token}` },
     })
@@ -903,11 +1030,11 @@ function Empty({ msg }: { msg: string }) {
 }
 
 // MetaField canônico — slot fixo, vazio = "—", nunca some
-function MetaField({ label, value }: { label: string; value: React.ReactNode }) {
+function MetaField({ label, value, quebrar = false }: { label: string; value: React.ReactNode; quebrar?: boolean }) {
   return (
     <div className="concave-3d rounded-lg px-3 py-2">
       <p className="text-accent text-[9px] font-black uppercase tracking-widest leading-none mb-1">{label}</p>
-      <p className="text-primary text-xs font-semibold truncate">{value || "—"}</p>
+      <p className={`text-primary text-xs font-semibold ${quebrar ? "break-all" : "truncate"}`}>{value || "—"}</p>
     </div>
   );
 }
@@ -1049,6 +1176,34 @@ function ValidarCodigo({ client }: { client: ClientInfo }) {
   );
 }
 
+function ComunicacaoTab({ client }: { client: ClientInfo }) {
+  const { data, loading, error } = useApi<{ vinculado: boolean; botUsername: string; botLink: string; clinicaSlug?: string | null }>(client, "comunicacao");
+  const [link, setLink] = useState<string | null>(null);
+  const [erroLink, setErroLink] = useState("");
+  const [gerando, setGerando] = useState(false);
+
+  async function gerarLink() {
+    setGerando(true); setErroLink("");
+    try {
+      const res = await fetch(`${API_BASE}/api/area-paciente/comunicacao/link`, {
+        method: "POST", headers: { Authorization: `Bearer ${client.token}` },
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error ?? "Não foi possível gerar o link.");
+      setLink(j.url);
+    } catch (e) { setErroLink((e as Error).message); }
+    finally { setGerando(false); }
+  }
+
+  if (loading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
+  if (error || !data) return <p className="text-sm text-destructive">{error || "Erro ao carregar."}</p>;
+  return (
+    <ComunicacaoPaineis
+      data={data} link={link} gerando={gerando} erroLink={erroLink} onGerar={gerarLink}
+      guiaHref={`${import.meta.env.BASE_URL}guia-digital${data.clinicaSlug ? `?tenant=${encodeURIComponent(data.clinicaSlug)}` : ""}`} />
+  );
+}
+
 function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => void }) {
   const { data, loading, error } = useApi<Resumo>(client, "resumo");
   if (loading) return <Loading />;
@@ -1119,6 +1274,11 @@ function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => 
           <FileText className="w-4 h-4" /> Documentos
         </button>
       </div>
+      {/* Acesso discreto: Meus Bolões (somente leitura) */}
+      <button onClick={() => onGo("boloes")}
+        className="w-full text-center text-accent text-[10px] font-black uppercase tracking-widest py-2 underline-offset-4 hover:underline">
+        Meus Bolões
+      </button>
     </div>
   );
 }
@@ -1598,22 +1758,22 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
 
   return (
     <div className="space-y-4">
+      <PedidosMedicosCliente token={client.token} />
+      <ExamesAvulsosCliente token={client.token} />
       {/* RAS */}
       {d && d.ras.length > 0 && (
-        <CategorySection label="REGISTROS DE APLICAÇÃO (RAS)" count={d.ras.length} defaultOpen>
+        <CategorySection label="REGISTROS DE APLICAÇÃO (RASP)" count={d.ras.length} defaultOpen>
           {d.ras.map((r) => (
-            <a key={r.id}
-              href={`${API_BASE}/api/area-paciente/ras/${r.id}/pdf?token=${client.token}`}
-              target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-muted transition-colors"
+            <div key={r.id}
+              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3"
             >
               <FileText className="w-5 h-5 text-accent flex-shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-primary font-semibold text-sm">RAS — {brDate(r.serviceDate)}</p>
+                <p className="text-primary font-semibold text-sm">RASP — {brDate(r.serviceDate)}</p>
                 <p className="text-muted-foreground text-xs truncate">{r.professionalName} · {r.unit}</p>
+                <p className="text-muted-foreground text-xs">Peça a segunda via à clínica.</p>
               </div>
-              <Download className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            </a>
+            </div>
           ))}
         </CategorySection>
       )}
@@ -1622,18 +1782,16 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
       {d && d.protocols.length > 0 && (
         <CategorySection label="PROTOCOLOS COMPLETOS (PDF)" count={d.protocols.length} defaultOpen>
           {d.protocols.map((p) => (
-            <a key={p.id}
-              href={`${API_BASE}/api/area-paciente/protocolo/${p.id}/pdf?token=${client.token}`}
-              target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-muted transition-colors"
+            <div key={p.id}
+              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3"
             >
               <FileText className="w-5 h-5 text-accent flex-shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="text-primary font-semibold text-sm truncate">{p.title}</p>
                 <p className="text-muted-foreground text-xs">Documento completo · {brDate(p.startDate)}</p>
+                <p className="text-muted-foreground text-xs">Peça a segunda via à clínica.</p>
               </div>
-              <Download className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            </a>
+            </div>
           ))}
         </CategorySection>
       )}
@@ -1642,10 +1800,9 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
       {e.length > 0 && (
         <CategorySection label="SOLICITAÇÕES DE EXAMES" count={e.length} defaultOpen={false}>
           {e.map((ex) => (
-            <a key={ex.id}
-              href={`${API_BASE}/api/exam-requests/file/${ex.token}`}
-              target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-muted transition-colors"
+            <button key={ex.id} type="button"
+              onClick={() => { abrirPdfExame(ex.token).catch((err: Error) => window.alert(err.message)); }}
+              className="flex w-full text-left items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-muted transition-colors"
             >
               <FlaskConical className="w-5 h-5 text-muted-foreground flex-shrink-0" />
               <div className="min-w-0 flex-1">
@@ -1653,7 +1810,7 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
                 <p className="text-muted-foreground text-xs">{ex.examCount} exame(s) · {brDate(ex.createdAt)}</p>
               </div>
               <Download className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            </a>
+            </button>
           ))}
         </CategorySection>
       )}
@@ -1744,7 +1901,12 @@ interface PAnalyte {
   zones: { key: string; name: string; color: string }[] | null;
   cells: Record<string, PCell>;
 }
-interface PColumn { key: string; date: string | null; lab: string | null; }
+interface PColumn {
+  key: string;
+  date: string | null;
+  lab: string | null;
+  confLevel: "ia" | "c1" | "c2" | null;
+}
 interface PEvolucaoData { columns: PColumn[]; analytes: PAnalyte[]; }
 
 function fmtDatePlanilha(iso: string | null | undefined): string {
@@ -1765,7 +1927,7 @@ function legendaZonas(analytes: PAnalyte[]): { name: string; color: string }[] {
   return Array.from(seen.entries()).map(([name, color]) => ({ name, color }));
 }
 
-function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
+function PlanilhaComparativaPortal({ token }: { token: string }) {
   const [data, setData]         = useState<PEvolucaoData | null>(null);
   const [filtro, setFiltro]     = useState("");
   const [carregando, setCarregando] = useState(true);
@@ -1773,13 +1935,14 @@ function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
   useEffect(() => {
     let ativo = true;
     setCarregando(true);
-    fetch(`${API_BASE}/api/exames-lab/evolucao/${clientId}`)
+    // Identificação só pelo token do portal: o número do cliente não é enviado.
+    fetch(`${API_BASE}/api/area-paciente/exames/evolucao`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : null))
       .then((json: PEvolucaoData | null) => { if (ativo) setData(json); })
       .catch(() => {})
       .finally(() => { if (ativo) setCarregando(false); });
     return () => { ativo = false; };
-  }, [clientId]);
+  }, [token]);
 
   if (carregando) {
     return (
@@ -1789,15 +1952,16 @@ function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
       </div>
     );
   }
-  if (!data || data.analytes.length === 0) {
+  if (!data || !Array.isArray(data.analytes) || data.analytes.length === 0) {
     return (
       <div className="panel-3d rounded-xl p-8 text-center text-muted-foreground text-sm">
-        Nenhum analito disponível ainda. Envie um exame para que o motor faça a extração.
+        Nenhum resultado está visível na evolução neste momento. Acompanhe o estado de cada envio na aba Upload Exames.
       </div>
     );
   }
 
   const { columns, analytes } = data;
+  const temPreliminares = columns.some((col) => col.confLevel === "ia" || col.confLevel === "c1");
 
   const analitosFiltrados = filtro.trim()
     ? analytes.filter((a) => a.name.toLowerCase().includes(filtro.toLowerCase()))
@@ -1806,7 +1970,17 @@ function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
   const legenda = legendaZonas(analytes);
 
   return (
-    <div className="panel-3d rounded-xl overflow-hidden">
+    <div className="panel-3d relative isolate z-0 rounded-xl overflow-hidden">
+      {temPreliminares && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="border-b border-amber-300 bg-amber-50 px-4 py-3 text-[11px] font-bold leading-relaxed text-amber-950"
+        >
+          PRELIMINAR — NÃO CONFERIDO PELO MÉDICO. IA significa extração automática; C1 significa primeira etapa de conferência.
+          As faixas e cores nesses valores são indicativas até a conferência.
+        </div>
+      )}
       {/* Cabeçalho */}
       <div className="login-card-topbar px-5 py-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -1835,6 +2009,14 @@ function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
               {columns.map((col) => (
                 <th key={col.key} className="text-center px-3 py-2 font-black whitespace-nowrap min-w-[80px]">
                   {fmtDatePlanilha(col.date)}
+                  {(col.confLevel === "ia" || col.confLevel === "c1") && (
+                    <div
+                      className="mt-1 rounded bg-amber-200 px-1 py-0.5 text-[8px] font-black text-amber-950"
+                      title="PRELIMINAR — NÃO CONFERIDO PELO MÉDICO"
+                    >
+                      PRELIMINAR · {col.confLevel === "ia" ? "IA" : "C1"}
+                    </div>
+                  )}
                   {col.lab && (
                     <div className="text-[9px] font-normal opacity-75 truncate max-w-[76px]">{col.lab}</div>
                   )}
@@ -1899,7 +2081,7 @@ function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
       {/* Legenda dinâmica — cores reais das 5 faixas configuradas */}
       {legenda.length > 0 && (
         <div className="flex flex-wrap gap-3 px-4 py-2 text-[10px] text-muted-foreground border-t border-border/30">
-          <span className="font-black uppercase tracking-wider text-primary/60 self-center">FAIXAS:</span>
+          <span className="font-black uppercase tracking-wider text-primary/60 self-center">FAIXAS DOS RESULTADOS CONFERIDOS:</span>
           {legenda.map((z) => (
             <span key={z.name} className="flex items-center gap-1">
               <span
@@ -1920,87 +2102,109 @@ function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
 // ---------------------------------------------------------------------------
 function UploadStatusPoller({
   fileName,
-  clientId,
+  documentoId,
+  processamento,
+  token,
   onReset,
 }: {
   fileName: string;
-  clientId: number;
+  documentoId: number | null;
+  processamento?: "iniciado" | "nao_iniciado" | "nao_aplicavel";
   token: string;
   onReset: () => void;
 }) {
-  const [fase, setFase] = useState<"processando" | "concluido" | "timeout">("processando");
-  const [analitos, setAnalitos] = useState<number | null>(null);
+  // Estado REAL vindo do servidor (nenhum progresso inventado, nenhum "tempo esgotado" prometido):
+  // a leitura pode demorar e o exame pode aguardar conferência da equipe.
+  const [envio, setEnvio] = useState<{
+    etapa: string;
+    situacao: string;
+    finalizado: boolean;
+    analitos: number;
+    inconsistenciaIdentidade?: PortalIdentityIssue | null;
+  } | null>(null);
+  const [semConexao, setSemConexao] = useState(false);
 
   useEffect(() => {
-    let tentativas = 0;
-    const MAX = 36; // ~3 minutos (36 × 5s)
-    let baseline: number | null = null;
-
-    async function checar() {
+    if (documentoId === null) return;
+    let ativo = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    async function consultar() {
       try {
-        const r = await fetch(`${API_BASE}/api/exames-lab/evolucao/${clientId}`);
-        if (!r.ok) return;
-        const json = await r.json();
-        const raw: unknown[] = Array.isArray(json) ? json : (json?.rows ?? json?.analitos ?? []);
-        const count = raw.length;
-        if (baseline === null) {
-          baseline = count;
-          return;
-        }
-        if (count > baseline) {
-          setAnalitos(count - baseline);
-          setFase("concluido");
-          return;
-        }
-      } catch {}
-      tentativas++;
-      if (tentativas >= MAX) setFase("timeout");
+        const r = await fetch(`${API_BASE}/api/area-paciente/exames/envios`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!r.ok) throw new Error(String(r.status));
+        const lista = (await r.json()) as Array<{
+          id: number;
+          etapa: string;
+          situacao: string;
+          finalizado: boolean;
+          analitos: number;
+          inconsistenciaIdentidade?: PortalIdentityIssue | null;
+        }>;
+        const meu = lista.find((i) => i.id === documentoId) ?? null;
+        if (!ativo) return;
+        setSemConexao(false);
+        setEnvio(meu);
+        if (meu?.finalizado) return;
+      } catch {
+        if (!ativo) return;
+        setSemConexao(true);
+      }
+      timer = setTimeout(() => { void consultar(); }, 5000);
     }
+    void consultar();
+    return () => { ativo = false; if (timer) clearTimeout(timer); };
+  }, [documentoId, token]);
 
-    void checar();
-    const t = setInterval(() => { void checar(); }, 5000);
-    return () => clearInterval(t);
-  }, [clientId]);
+  const concluido = envio?.etapa === "concluido";
+  const naoIncorporado = envio?.etapa === "identidade" && envio.finalizado;
+  const comErro = envio?.etapa === "erro";
+  const emAndamento = documentoId !== null && !envio?.finalizado;
 
-  const isProcessing = fase === "processando";
-  const isDone = fase === "concluido";
+  const titulo = documentoId === null ? "ARQUIVO RECEBIDO"
+    : concluido ? "EXAME CONCLUÍDO"
+    : naoIncorporado ? "EXAME NÃO INCORPORADO"
+    : comErro ? "NÃO FOI POSSÍVEL LER"
+    : "EXAME RECEBIDO";
+  const texto = documentoId === null
+    ? processamento === "nao_iniciado"
+      ? "O arquivo foi guardado no seu cadastro, mas a leitura automática não foi iniciada. A equipe fará a conferência."
+      : "O arquivo foi guardado no seu cadastro e será conferido pela equipe."
+    : semConexao && !envio ? "Não foi possível consultar a situação agora. O exame continua sendo processado; tentando novamente."
+    : comErro ? "Não foi possível ler este arquivo. Ele continua guardado no seu cadastro. Envie uma versão mais nítida em PDF ou fale com a clínica."
+    : envio ? `Situação: ${envio.situacao}.${concluido ? ` ${envio.analitos} resultado${envio.analitos !== 1 ? "s" : ""} na aba EVOLUÇÃO.` : ""}`
+    : "Consultando a situação do exame…";
 
   return (
-    <div className="panel-3d rounded-xl p-8 flex flex-col items-center text-center space-y-4">
+    <div className="panel-3d rounded-xl p-8 flex flex-col items-center text-center space-y-4" role="status" aria-live="polite">
       <div className={`w-16 h-16 rounded-full flex items-center justify-center border-2 ${
-        isDone ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200"
+        concluido ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200"
       }`}>
-        {isDone
+        {concluido
           ? <CheckCircle className="w-8 h-8 text-green-500" />
-          : <Clock className={`w-8 h-8 text-blue-400 ${isProcessing ? "animate-pulse" : ""}`} />}
+          : <Clock className={`w-8 h-8 text-blue-400 ${emAndamento ? "animate-pulse" : ""}`} />}
       </div>
 
-      <h2 className="text-primary font-black text-lg uppercase">
-        {isDone ? "EXAME PROCESSADO!" : fase === "timeout" ? "ARQUIVO RECEBIDO" : "PROCESSANDO…"}
-      </h2>
+      <h2 className="text-primary font-black text-lg uppercase">{titulo}</h2>
+      <p className="text-accent text-sm">{texto}</p>
 
-      <p className="text-accent text-sm">
-        {isDone
-          ? `Extração concluída — ${analitos ?? ""} analito${analitos !== 1 ? "s" : ""} identificado${analitos !== 1 ? "s" : ""} pela IA.`
-          : fase === "timeout"
-            ? "O arquivo está na fila de processamento. Os resultados aparecerão em breve na aba EVOLUÇÃO."
-            : "A inteligência artificial está lendo o seu exame. Aguarde alguns instantes…"}
-      </p>
+      {envio?.inconsistenciaIdentidade && (
+        <IdentidadeDivergentePanel
+          issue={envio.inconsistenciaIdentidade}
+          testId="upload-identity-issue"
+          onEnviarOutro={onReset}
+        />
+      )}
 
       <div className="concave-3d rounded-lg px-4 py-3 w-full text-left">
         <p className="text-muted-foreground text-xs uppercase font-black tracking-wider mb-1">ARQUIVO</p>
         <p className="text-primary text-sm font-mono truncate">{fileName}</p>
       </div>
 
-      {isProcessing && (
-        <div className="w-full bg-border/30 rounded-full h-1.5 overflow-hidden">
-          <div className="h-full bg-accent rounded-full animate-[pulse_2s_ease-in-out_infinite] w-1/2" />
-        </div>
+      {!envio?.inconsistenciaIdentidade && (
+        <button onClick={onReset} className="btn-3d-soft w-full h-12 text-sm font-black uppercase tracking-wider">
+          ENVIAR OUTRO ARQUIVO
+        </button>
       )}
-
-      <button onClick={onReset} className="btn-3d-soft w-full h-12 text-sm font-black uppercase tracking-wider">
-        ENVIAR OUTRO ARQUIVO
-      </button>
     </div>
   );
 }
@@ -2011,7 +2215,7 @@ function UploadStatusPoller({
 // Tipos de arquivo que são exames clínicos — exigem campo "Data do Exame"
 const TYPES_NEED_DATE = ["exame_sangue", "ultrassom", "tomografia", "ressonancia", "densitometria", "laudo", "outro"];
 
-function EnviarTab({ client }: { client: ClientInfo }) {
+function EnviarTabForm({ client }: { client: ClientInfo }) {
   const [fileType, setFileType]       = useState("");
   const [bodyRegion, setBodyRegion]   = useState("");
   const [description, setDescription] = useState("");
@@ -2019,7 +2223,7 @@ function EnviarTab({ client }: { client: ClientInfo }) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading]     = useState(false);
   const [error, setError]             = useState("");
-  const [done, setDone]               = useState<{ fileName: string } | null>(null);
+  const [done, setDone]               = useState<{ fileName: string; exameDocumentoId?: number | null; processamento?: "iniciado" | "nao_iniciado" | "nao_aplicavel" } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showBodyRegion = TYPES_WITH_BODY.includes(fileType);
@@ -2049,20 +2253,25 @@ function EnviarTab({ client }: { client: ClientInfo }) {
   };
 
   if (done) {
-    return <UploadStatusPoller
-      fileName={done.fileName}
-      clientId={client.id}
-      token={client.token}
-      onReset={reset}
-    />;
+    return (
+      <div id="formulario-upload-exame">
+        <UploadStatusPoller
+          fileName={done.fileName}
+          documentoId={done.exameDocumentoId ?? null}
+          processamento={done.processamento}
+          token={client.token}
+          onReset={reset}
+        />
+      </div>
+    );
   }
 
   return (
-    <div className="panel-3d rounded-xl overflow-hidden">
+    <div id="formulario-upload-exame" className="panel-3d rounded-xl overflow-hidden">
       {/* TOP BAR */}
       <div className="login-card-topbar px-5 py-4 flex items-center gap-3">
         <FileUp className="w-5 h-5 text-accent" />
-        <h2 className="text-primary font-black text-sm uppercase tracking-widest">ENVIAR ARQUIVO</h2>
+        <h2 className="text-primary font-black text-sm uppercase tracking-widest">UPLOAD DE EXAMES</h2>
       </div>
       <div className="p-5 space-y-4">
         <div>
@@ -2157,6 +2366,445 @@ function EnviarTab({ client }: { client: ClientInfo }) {
           {uploading ? <><Loader2 className="w-5 h-5 animate-spin" /> ENVIANDO...</> : <><Upload className="w-5 h-5" /> ENVIAR ARQUIVO</>}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TERCEIRO PAINEL: ENVIOS RECENTES (SPEC 3, adendo de 16/11/2026)
+// Mesma gramática do ProtocolCard do paciente: panel-3d + topbar + grade MetaField + "PROGRESSO" + SegmentedBar.
+// Etapas e percentual vêm do servidor, uma etapa só é "concluída" com evidência gravada (nada inferido aqui).
+// Atualização PERIÓDICA (consulta a cada 4 s ao servidor), não é transmissão em tempo real.
+// ---------------------------------------------------------------------------
+type EtapaEnvioUi = { chave: string; rotulo: string; estado: "pendente" | "executando" | "concluido" | "falhou"; em: string | null; metodo: string | null };
+type EnvioItem = {
+  id: number; arquivo: string; nomeOriginal?: string; nomeRenomeado?: string | null; enviadoEm: string; etapa: string; situacao: string; finalizado: boolean; analitos: number;
+  percentual: number; etapas: EtapaEnvioUi[]; etapaAvancada: { rotulo: string; estado: "pendente" };
+  /** Contagem REAL gravada/derivada pelos serviços existentes (null = sem leitura confiável, ex.: quarentena). */
+  resultados: ResumoResultadosUi | null;
+  inconsistenciaIdentidade: PortalIdentityIssue | null;
+};
+type PortalIdentityIssue = {
+  nome: { valor: string | null; status: "igual" | "variante" | "parcial" | "diferente" | "ausente" | "invalido" | "nao_avaliado" };
+  cpf: { valor: string | null; status: "igual" | "variante" | "parcial" | "diferente" | "ausente" | "invalido" | "nao_avaliado" };
+  dataNascimento: { valor: string | null; status: "igual" | "variante" | "parcial" | "diferente" | "ausente" | "invalido" | "nao_avaliado" };
+};
+type ResumoResultadosUi = {
+  total: number; elegiveis: number; convertidos: number; cincoZonas: number; simples: number; divergentes: number;
+  semClassificacao: number; faixaIncompleta: number; faltaSexo: number; pendentes: number;
+  excluidos: { naoMapeados: number; semUnidadeHomologada: number; semValorNumerico: number };
+  leituras: { leituras: string[]; reconciliacao: "nao_aplicavel" | "concluida" | "com_conflitos" | "indisponivel"; analitosRetiradosPorConflito: number };
+};
+const ESTADO_ETAPA_TXT: Record<EtapaEnvioUi["estado"], { t: string; cls: string }> = {
+  pendente: { t: "Pendente", cls: "text-muted-foreground" },
+  executando: { t: "Executando", cls: "text-cyan-500" },
+  concluido: { t: "Concluído", cls: "text-green-500" },
+  falhou: { t: "Falhou", cls: "text-red-600" },
+};
+function fmtEm(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+// Textos para o cliente, por etapa. O estado vem do servidor (registro real); aqui só se escolhe a frase.
+const FRASES_ETAPA: Record<string, { titulo: string; explica: string; agora: string }> = {
+  arquivo_recebido:    { titulo: "Exame recebido",            explica: "Seu exame chegou com segurança e já está guardado no seu cadastro.", agora: "Seu exame chegou com segurança e já está guardado no seu cadastro." },
+  leitura_preliminar:  { titulo: "Leitura do documento",      explica: "O documento é lido com atenção, página por página.", agora: "Estamos lendo o seu documento com atenção, página por página." },
+  dados_extraidos:     { titulo: "Resultados identificados",  explica: "Cada resultado é separado e organizado com a sua unidade de medida.", agora: "Estamos separando cada resultado e organizando-o com a sua unidade de medida." },
+  identidade_validada: { titulo: "Identidade confirmada",     explica: "Conferimos que o exame é seu: nome, CPF e data de nascimento.", agora: "Estamos confirmando que este exame pertence a você: nome, CPF e data de nascimento." },
+  revisao_c1:          { titulo: "Conferência dos dados",     explica: "Nossa equipe confere cada valor lido com o documento original.", agora: "Nossa equipe está conferindo cada valor com o documento original." },
+  revisao_c2:          { titulo: "Classificação e análise clínica", explica: "O motor clínico do sistema distribui cada resultado na sua faixa de referência da medicina de alta precisão, e o médico analisa o que já está catalogado, para explicar a você com clareza.", agora: "O motor clínico está distribuindo os seus resultados nas faixas de referência da medicina de alta precisão, e o médico fará a análise do que já está catalogado." },
+};
+const pl = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+/** Frase exata sobre a classificação, só com o que foi contado; nunca afirma "todos" sem prova. */
+function fraseClassificacao(r: ResumoResultadosUi | null): string {
+  if (!r) return "A contagem dos resultados não está disponível para este envio.";
+  if (r.total === 0) return "Nenhum resultado foi registrado neste envio.";
+  const exc = r.excluidos.naoMapeados + r.excluidos.semUnidadeHomologada + r.excluidos.semValorNumerico;
+  if (r.elegiveis === 0) return `Nenhum dos ${r.total} resultados pôde entrar na classificação ainda; ${exc === 1 ? "ele aguarda" : "eles aguardam"} a curadoria da equipe.`;
+  const partes = [`${r.cincoZonas} de ${pl(r.elegiveis, "resultado elegível foi classificado", "resultados elegíveis foram classificados")} nas faixas de referência`];
+  partes.push(r.pendentes === 0 ? "sem pendências" : `${pl(r.pendentes, "pendente", "pendentes")} de revisão ou curadoria`);
+  let t = `${partes.join("; ")}.`;
+  if (exc > 0) t += ` ${pl(exc, "resultado ficou", "resultados ficaram")} fora da classificação até a curadoria (sem cadastro no catálogo, sem unidade homologada ou sem valor numérico).`;
+  return t;
+}
+function legendaEnvio(e: EnvioItem): string {
+  if (e.percentual === 100) {
+    const base = "Verificações concluídas: o seu exame foi recebido e conferido com o seu nome.";
+    const fim = " Tudo fica à disposição de você e do seu médico, que analisará o que já está catalogado na consulta. Trabalho realizado pela nossa equipe técnica e pelo Cérebro Clínico do sistema.";
+    return base + " " + fraseClassificacao(e.resultados) + fim;
+  }
+  const falha = e.etapas.find((x) => x.estado === "falhou");
+  if (falha) return "Não conseguimos concluir esta etapa. Seu arquivo continua guardado; nossa equipe pode ajudar.";
+  const atual = e.etapas.find((x) => x.estado !== "concluido");
+  return atual ? (FRASES_ETAPA[atual.chave]?.agora ?? atual.rotulo) : "";
+}
+
+function BlocoResultados({ id, r }: { id: number; r: ResumoResultadosUi }) {
+  const linhas: Array<[string, string]> = [
+    ["Resultados lidos", String(r.total)],
+    ["Elegíveis para classificação", String(r.elegiveis)],
+    ["Unidades convertidas", String(r.convertidos)],
+    ["Classificados nas 5 faixas", `${r.cincoZonas} de ${r.elegiveis}`],
+  ];
+  if (r.simples > 0) linhas.push(["Só abaixo/dentro/acima do laudo", String(r.simples)]);
+  if (r.pendentes > 0) linhas.push(["Aguardam revisão ou curadoria", String(r.pendentes)]);
+  const exc = r.excluidos;
+  if (exc.naoMapeados > 0) linhas.push(["Fora: sem cadastro no catálogo", String(exc.naoMapeados)]);
+  if (exc.semUnidadeHomologada > 0) linhas.push(["Fora: unidade não homologada", String(exc.semUnidadeHomologada)]);
+  if (exc.semValorNumerico > 0) linhas.push(["Fora: sem valor numérico", String(exc.semValorNumerico)]);
+  if (r.faltaSexo > 0) linhas.push(["Falta o sexo no cadastro", String(r.faltaSexo)]);
+  const l = r.leituras;
+  const rec = l.reconciliacao === "concluida" ? "reconciliadas sem conflito" : l.reconciliacao === "com_conflitos" ? `reconciliadas; ${pl(l.analitosRetiradosPorConflito, "item retirado por divergência", "itens retirados por divergência")}` : l.reconciliacao === "nao_aplicavel" ? "leitura única" : "sem registro";
+  return (
+    <div className="px-4 pb-3" data-testid={`resultados-${id}`}>
+      <p className="text-accent text-[9px] font-black uppercase tracking-widest mb-1.5">RESULTADOS DO EXAME</p>
+      <div className="concave-3d rounded-xl p-3 space-y-1">
+        {linhas.map(([k, v]) => (
+          <div key={k} className="flex items-baseline justify-between gap-2">
+            <span className="text-muted-foreground text-[10px] leading-snug">{k}</span>
+            <span className="text-primary text-xs font-black shrink-0">{v}</span>
+          </div>
+        ))}
+        {l.leituras.length > 0 && <p className="text-muted-foreground text-[10px] pt-1">Leituras de IA registradas: {l.leituras.length} ({rec}).</p>}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// JORNADA DO EXAME (SPEC 3, adendo 16/11/2026): frases para o cliente por situação REAL.
+// Só lê o que o servidor já registrou (etapas, etapa, finalizado); nunca promete prazo de conferência.
+// ---------------------------------------------------------------------------
+type TomJornada = "andamento" | "espera" | "ok" | "atencao";
+type SituacaoJornada = { tom: TomJornada; selo: string; titulo: string; agora: string; proximo: string; voce: string };
+
+function situacaoJornada(e: EnvioItem): SituacaoJornada {
+  const etapas = e.etapas ?? [];
+  const feita = (k: string) => etapas.find((x) => x.chave === k)?.estado === "concluido";
+  if (e.etapa === "erro") {
+    return { tom: "atencao", selo: "PRECISA DE UMA AÇÃO", titulo: "Não conseguimos ler este arquivo",
+      agora: "O arquivo está guardado com segurança no seu cadastro, mas a leitura não foi possível.",
+      proximo: "Nada avança até recebermos uma versão legível.",
+      voce: "Envie novamente em PDF mais nítido, ou fale com a clínica." };
+  }
+  if (e.etapa === "identidade" && e.finalizado) {
+    return { tom: "atencao", selo: "NÃO INCORPORADO", titulo: "Este exame não foi incorporado ao seu histórico",
+      agora: "Não foi possível confirmar que o documento pertence a você (nome, CPF e data de nascimento).",
+      proximo: "Por segurança, ele não entra na sua evolução.",
+      voce: "Fale com a clínica para conferir o documento. Seu arquivo continua guardado." };
+  }
+  if (e.percentual === 100) {
+    return { tom: "ok", selo: "CONCLUÍDO", titulo: "Seu exame está na sua evolução",
+      agora: "Todas as verificações foram concluídas e os resultados já estão na planilha da evolução.",
+      proximo: "Seu médico analisa o que já está catalogado na consulta.",
+      voce: "Nada a fazer. Você pode comparar este exame com os anteriores na aba Evolução." };
+  }
+  if (e.etapa === "identidade") {
+    return { tom: "espera", selo: "CONFERÊNCIA DE IDENTIDADE", titulo: "Estamos confirmando que o exame é seu",
+      agora: "Nossa equipe compara nome, CPF e data de nascimento do documento com o seu cadastro.",
+      proximo: "Depois disso, os resultados seguem para conferência valor a valor.",
+      voce: "Nada a fazer agora. Cuidamos disso para proteger o seu histórico." };
+  }
+  if (feita("revisao_c1")) {
+    return { tom: "espera", selo: "ANÁLISE CLÍNICA", titulo: "Seu exame aguarda a análise clínica do médico",
+      agora: "Os valores já foram conferidos com o documento original pela nossa equipe.",
+      proximo: "Quando o médico concluir, os resultados entram na sua evolução automaticamente.",
+      voce: "Nada a fazer. Esta tela se atualiza sozinha." };
+  }
+  if (feita("dados_extraidos")) {
+    return { tom: "espera", selo: "CONFERÊNCIA DA EQUIPE", titulo: "Seu exame foi lido e aguarda a conferência da equipe",
+      agora: "Os resultados foram identificados no documento. Nossa equipe confere cada valor com o original.",
+      proximo: "Em seguida o médico faz a análise clínica, e então a evolução é liberada.",
+      voce: "Nada a fazer. A evolução aparece aqui assim que a conferência terminar." };
+  }
+  return { tom: "andamento", selo: "LENDO O DOCUMENTO", titulo: "Estamos lendo o seu exame",
+    agora: "O documento é lido página por página e cada resultado é separado com a sua unidade de medida.",
+    proximo: "Em seguida, a equipe confere os valores com o documento original.",
+    voce: "Nada a fazer. A leitura costuma levar cerca de dois minutos." };
+}
+
+const COR_TOM: Record<TomJornada, string> = { andamento: "text-cyan-600", espera: "text-amber-600", ok: "text-green-600", atencao: "text-red-600" };
+const LED_TOM: Record<TomJornada, string> = { andamento: "", espera: "paxter-led-amber", ok: "paxter-led-green", atencao: "paxter-led-red" };
+
+const ROTULO_CURTO: Record<string, string> = {
+  arquivo_recebido: "Recebido", leitura_preliminar: "Leitura", dados_extraidos: "Resultados",
+  identidade_validada: "Identidade", revisao_c1: "Conferência", revisao_c2: "Análise",
+};
+
+/** Régua de 6 marcos: concluído = navy com ✓; etapa atual = ouro com luz; pendente = côncavo; falha = vermelho. */
+function JornadaRegua({ e }: { e: EnvioItem }) {
+  const etapas = e.etapas ?? [];
+  const idxAtual = etapas.findIndex((x) => x.estado !== "concluido");
+  return (
+    <ol className="flex items-start" aria-label="Etapas do exame" data-testid={`jornada-regua-${e.id}`}>
+      {etapas.map((x, i) => {
+        const feito = x.estado === "concluido";
+        const falhou = x.estado === "falhou";
+        const atual = i === idxAtual && !falhou;
+        return (
+          <li key={x.chave} className="flex-1 min-w-0 flex flex-col items-center relative" aria-current={atual ? "step" : undefined}>
+            {i > 0 && (
+              <span aria-hidden className="absolute top-[13px] right-1/2 w-full h-[3px] -z-0"
+                style={{ background: feito || (etapas[i - 1]?.estado === "concluido" && atual) ? "#16284a" : "rgba(22,40,74,0.15)" }} />
+            )}
+            <span
+              className={`relative z-10 flex items-center justify-center w-[28px] h-[28px] rounded-[6px] text-[11px] font-black ${
+                falhou ? "bg-red-600 text-white" : feito ? "bg-primary text-white bevel-3d" : atual ? "panel-3d text-primary" : "concave-3d text-muted-foreground"
+              }`}
+              style={atual ? { boxShadow: "0 0 0 2px #c9a24b" } : undefined}
+            >
+              {falhou ? "!" : feito ? <CheckCircle className="w-4 h-4" /> : atual ? <span className="paxter-led paxter-led-amber paxter-led-breathe" aria-hidden /> : i + 1}
+            </span>
+            <span className={`mt-1.5 text-[8px] sm:text-[9px] font-black uppercase tracking-wider text-center leading-tight px-0.5 ${
+              falhou ? "text-red-600" : atual ? "text-primary" : feito ? "text-primary/80" : "text-muted-foreground"
+            }`}>{ROTULO_CURTO[x.chave] ?? x.rotulo}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function JornadaDoExame({ e }: { e: EnvioItem }) {
+  const s = situacaoJornada(e);
+  return (
+    <div className="px-4 pb-3 space-y-3" data-testid={`jornada-${e.id}`}>
+      <JornadaRegua e={e} />
+      <div className="concave-3d rounded-xl p-3 space-y-2" role="status" aria-live="polite">
+        <div className="flex items-center gap-2">
+          <span className={`paxter-led ${LED_TOM[s.tom]} ${s.tom === "ok" ? "" : "paxter-led-breathe"}`} aria-hidden />
+          <span className={`text-[9px] font-black uppercase tracking-widest ${COR_TOM[s.tom]}`} data-testid={`jornada-selo-${e.id}`}>{s.selo}</span>
+        </div>
+        <p className="text-primary text-sm font-black leading-snug">{s.titulo}</p>
+        <p className="text-primary/90 text-[11px] leading-snug">{s.agora}</p>
+        <div className="grid gap-2 pt-1 sm:grid-cols-2">
+          <div>
+            <p className="text-accent text-[9px] font-black uppercase tracking-widest leading-none mb-1">PRÓXIMO PASSO</p>
+            <p className="text-muted-foreground text-[11px] leading-snug">{s.proximo}</p>
+          </div>
+          <div>
+            <p className="text-accent text-[9px] font-black uppercase tracking-widest leading-none mb-1">O QUE VOCÊ PRECISA FAZER</p>
+            <p className={`text-[11px] leading-snug ${s.tom === "atencao" ? "text-red-600 font-semibold" : "text-muted-foreground"}`}>{s.voce}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const IDENTITY_STATUS: Record<PortalIdentityIssue["nome"]["status"], { label: string; color: string }> = {
+  igual: { label: "Compatível", color: "text-green-600" },
+  variante: { label: "Variação identificada", color: "text-green-600" },
+  parcial: { label: "Correspondência parcial", color: "text-amber-600" },
+  diferente: { label: "Diferente do cadastro", color: "text-red-600" },
+  ausente: { label: "Dado ausente", color: "text-amber-600" },
+  invalido: { label: "Formato inválido", color: "text-red-600" },
+  nao_avaliado: { label: "Aguardando conferência", color: "text-muted-foreground" },
+};
+
+function IdentidadeDivergentePanel({
+  issue,
+  testId,
+  onEnviarOutro,
+}: {
+  issue: PortalIdentityIssue;
+  testId: string;
+  onEnviarOutro: () => void;
+}) {
+  const campos = [
+    ["Nome no documento", issue.nome],
+    ["CPF no documento", issue.cpf],
+    ["Data de nascimento no documento", issue.dataNascimento],
+  ] as const;
+  const grave = campos.some(([, campo]) => campo.status === "diferente" || campo.status === "invalido");
+
+  return (
+    <section
+      className={`panel-3d-sub mx-4 mb-4 rounded-xl p-4 space-y-3 border ${
+        grave ? "border-red-300/70" : "border-amber-300/70"
+      }`}
+      role="alert"
+      data-testid={testId}
+    >
+      <div>
+        <p className={`text-[10px] font-black uppercase tracking-widest ${grave ? "text-red-600" : "text-amber-700"}`}>
+          {grave ? "DIVERGÊNCIA DE IDENTIDADE" : "IDENTIDADE AGUARDANDO CONFERÊNCIA"}
+        </p>
+        <p className="text-primary text-sm font-black mt-1">
+          Não foi possível confirmar automaticamente que este documento pertence a este cadastro.
+        </p>
+        <p className="text-muted-foreground text-[11px] leading-snug mt-1">
+          Os dados abaixo foram lidos automaticamente e podem conter erros. Por segurança, o documento não foi incluído na evolução.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {campos.map(([label, campo]) => (
+          <div key={label} className="concave-3d rounded-lg p-3 min-w-0">
+            <p className="text-muted-foreground text-[9px] font-black uppercase tracking-wider">{label}</p>
+            <p className="text-primary text-sm font-semibold break-words mt-1" data-testid={`identidade-valor-${label}`}>
+              {campo.valor ?? "Não identificado no documento"}
+            </p>
+            <p className={`text-[10px] font-black mt-1 ${IDENTITY_STATUS[campo.status].color}`}>
+              {IDENTITY_STATUS[campo.status].label}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-muted-foreground text-[10px] leading-snug">
+        O arquivo continua guardado e aguarda a conferência da equipe. Se este exame é de outra pessoa, envie o documento correto; se o cadastro estiver errado, fale com a clínica.
+      </p>
+      <button
+        type="button"
+        onClick={onEnviarOutro}
+        className="btn-3d-soft w-full min-h-11 px-3 text-xs font-black uppercase tracking-wider"
+      >
+        ENVIAR O EXAME CORRETO
+      </button>
+    </section>
+  );
+}
+
+function EnvioCard({ e, onEnviarOutro }: { e: EnvioItem; onEnviarOutro: () => void }) {
+  const [aberto, setAberto] = useState(e.percentual !== 100);
+  // Cartão inteiro recolhível (sanfona): nasce aberto; a pessoa minimiza os que já conferiu.
+  const [cartaoAberto, setCartaoAberto] = useState(true);
+  const pronto = e.percentual === 100;
+  const etapasEnvio = e.etapas ?? [];
+  const falhou = etapasEnvio.some((x) => x.estado === "falhou") || e.etapa === "erro" || (e.etapa === "identidade" && e.finalizado);
+  const concluidas = etapasEnvio.filter((x) => x.estado === "concluido").length;
+  const estadoTxt = e.etapa === "erro" ? "Falha na leitura" : e.etapa === "identidade" && e.finalizado ? "Não incorporado" : pronto ? (e.resultados && e.resultados.pendentes > 0 ? "Verificado, com pendências" : "Validado") : e.situacao;
+  return (
+    <div className="panel-3d rounded-xl overflow-hidden group" tabIndex={0} data-testid={`envio-${e.id}`}>
+      <button
+        type="button"
+        onClick={() => setCartaoAberto((x) => !x)}
+        aria-expanded={cartaoAberto}
+        aria-label={cartaoAberto ? "Recolher este envio" : "Abrir este envio"}
+        data-testid={`alternar-envio-${e.id}`}
+        className="login-card-topbar flex w-full items-center gap-3 px-4 pt-4 pb-3 text-left"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block text-primary font-black text-sm leading-snug break-words">{e.nomeOriginal ?? e.arquivo}</span>
+          {!cartaoAberto && (
+            <span className="mt-0.5 block text-[10px] font-black uppercase tracking-wider">
+              <span className={falhou ? "text-red-600" : pronto ? "text-green-600" : "text-cyan-600"}>{estadoTxt}</span>
+              <span className="text-muted-foreground"> · {fmtEm(e.enviadoEm)} · {e.percentual}%</span>
+            </span>
+          )}
+        </span>
+        <span className="concave-3d flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-accent" aria-hidden>
+          {cartaoAberto ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </span>
+      </button>
+      {cartaoAberto && (<>
+      <div className="px-4 pt-3 space-y-2" data-testid={`nomes-envio-${e.id}`}>
+        <MetaField label="NOME ORIGINAL DO ARQUIVO" quebrar value={e.nomeOriginal ?? e.arquivo} />
+        <MetaField
+          label="RENOMEADO PARA"
+          quebrar
+          value={e.nomeRenomeado ?? <span className="font-normal text-muted-foreground">Sem renomeação até agora</span>}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2 p-4 pb-3">
+        <MetaField label="ENVIADO EM" value={fmtEm(e.enviadoEm)} />
+        <MetaField label="SITUAÇÃO" value={<span className={`font-black text-xs ${falhou ? "text-red-600" : pronto ? "text-green-500" : "text-cyan-500"}`}>{estadoTxt}</span>} />
+      </div>
+      <JornadaDoExame e={e} />
+      {e.inconsistenciaIdentidade && (
+        <IdentidadeDivergentePanel
+          issue={e.inconsistenciaIdentidade}
+          testId={`identity-issue-${e.id}`}
+          onEnviarOutro={onEnviarOutro}
+        />
+      )}
+      <div className="px-4 pb-3">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-accent text-[9px] font-black uppercase tracking-widest">PROGRESSO</span>
+          <span className={`text-xs font-black ${falhou ? "text-red-600" : "text-accent"}`}>{e.percentual}%</span>
+        </div>
+        <SegmentedBar completed={concluidas} total={e.etapas.length} height={10} />
+        <p className={`text-[11px] leading-snug mt-2 ${falhou ? "text-red-600" : "text-primary"}`} data-testid={`legenda-${e.id}`} aria-live="polite">{legendaEnvio(e)}</p>
+      </div>
+      {e.resultados && e.resultados.total > 0 && <BlocoResultados id={e.id} r={e.resultados} />}
+      <div className="border-t border-border/40">
+        <button onClick={() => setAberto((x) => !x)} aria-expanded={aberto}
+          className="w-full flex items-center justify-between px-4 py-2.5 text-accent hover:text-primary transition-colors">
+          <span className="text-[10px] font-black uppercase tracking-widest">{concluidas} de {e.etapas.length} etapas</span>
+          {aberto ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+        {aberto && (
+          <div className="concave-3d mx-4 mb-4 rounded-xl p-3 space-y-2">
+            {e.etapas.map((x) => (
+              <div key={x.chave} className="flex items-start justify-between gap-2" data-testid={`etapa-${e.id}-${x.chave}`}>
+                <div className="min-w-0">
+                  <p className="text-primary text-xs font-black leading-tight">{FRASES_ETAPA[x.chave]?.titulo ?? x.rotulo}</p>
+                  {FRASES_ETAPA[x.chave] && <p className="text-muted-foreground text-[10px] leading-snug">{FRASES_ETAPA[x.chave].explica}</p>}
+                  {x.metodo && <p className="text-muted-foreground text-[10px] leading-snug">{x.metodo}</p>}
+                </div>
+                <div className="text-right shrink-0">
+                  <p className={`text-[10px] font-black uppercase tracking-wider ${ESTADO_ETAPA_TXT[x.estado].cls}`}>{ESTADO_ETAPA_TXT[x.estado].t}</p>
+                  {x.em && <p className="text-muted-foreground text-[9px]">{fmtEm(x.em)}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {falhou && e.etapa === "erro" && (
+          <p className="text-red-600 text-[10px] px-4 pb-3" role="alert">Não foi possível ler este arquivo. Ele continua guardado no seu cadastro. Envie uma versão mais nítida em PDF ou fale com a clínica.</p>
+        )}
+      </div>
+      </>)}
+    </div>
+  );
+}
+
+function EnviosRecentesPanel({ token, onEnviarOutro }: { token: string; onEnviarOutro: () => void }) {
+  const [lista, setLista] = useState<EnvioItem[] | null>(null);
+  const [falhou, setFalhou] = useState(false);
+
+  useEffect(() => {
+    let ativo = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    async function consultar() {
+      try {
+        const r = await fetch(`${API_BASE}/api/area-paciente/exames/envios`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!r.ok) throw new Error(String(r.status));
+        const dados = (await r.json()) as EnvioItem[];
+        if (!ativo) return;
+        setLista(Array.isArray(dados) ? dados.map((d) => ({ ...d, etapas: d.etapas ?? [] })) : []); setFalhou(false);
+      } catch { if (ativo) setFalhou(true); }
+      if (ativo) timer = setTimeout(() => { void consultar(); }, 4000);
+    }
+    void consultar();
+    return () => { ativo = false; if (timer) clearTimeout(timer); };
+  }, [token]);
+
+  return (
+    <div className="space-y-3" data-testid="painel-envios-recentes">
+      <div className="flex items-center justify-between">
+        <SecLabel label="ENVIOS RECENTES" count={lista?.length ?? 0} />
+      </div>
+      <p className="text-muted-foreground text-[10px]">Atualização automática a cada 4 segundos, a partir do estado registrado no servidor.</p>
+      {lista === null && !falhou && <Loading />}
+      {falhou && <ErrorBox msg="Não foi possível atualizar agora. Tentando novamente." />}
+      {lista !== null && lista.length === 0 && <Empty msg="Nenhum arquivo enviado ainda." />}
+      {(lista ?? []).map((e) => <EnvioCard key={e.id} e={e} onEnviarOutro={onEnviarOutro} />)}
+    </div>
+  );
+}
+
+function EnviarTab({ client }: { client: ClientInfo }) {
+  const irParaFormulario = () => {
+    document.getElementById("formulario-upload-exame")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  return (
+    <div className="space-y-4">
+      <EnviarTabForm client={client} />
+      <EnviosRecentesPanel token={client.token} onEnviarOutro={irParaFormulario} />
     </div>
   );
 }

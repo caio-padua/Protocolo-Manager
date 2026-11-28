@@ -1,0 +1,26 @@
+.cs-preview { display:flex; min-height:100vh; font-family:Inter,sans-serif; }
+.cs-sidebar { position:relative; width:210px; flex:0 0 auto; display:flex; flex-direction:column; background:#172946; color:#c6d0df; transition:width .2s; }
+.cs-sidebar--closed { width:64px; }
+.cs-brand { min-height:105px; display:flex; align-items:center; justify-content:center; gap:9px; color:#e2c27b; font:700 20px "EB Garamond",serif; letter-spacing:.14em; border-bottom:1px solid #d3b97330; }
+.cs-brand span { display:grid; place-items:center; width:38px; height:38px; border:1px solid #d3b97380; border-radius:8px; box-shadow:inset 0 2px 4px #ffffff35; }
+.cs-collapse { position:absolute; right:-13px; top:76px; z-index:5; width:26px; height:26px; display:grid; place-items:center; border:1px solid #dbbb7355; border-radius:50%; background:#284266; color:#f3e3ba; }
+.cs-sidebar-items { display:grid; gap:3px; padding:18px 10px; font-size:11px; }
+.cs-sidebar-items div { padding:9px 10px; border-radius:4px; white-space:nowrap; overflow:hidden; }
+.cs-sidebar-items small { padding:12px 10px 2px; font-size:8px; letter-spacing:.12em; color:#b3a57e; white-space:nowrap; overflow:hidden; }
+.cs-menu-current { color:#f9ead0; background:#2b4265; box-shadow:inset 3px 0 #d5b571; }
+.cs-sidebar--closed .cs-sidebar-items div, .cs-sidebar--closed .cs-sidebar-items small { text-align:center; padding-inline:0; }
+.cs-professional { margin:auto 10px 14px; padding:8px; display:flex; align-items:center; gap:8px; color:#f1e0bd; border:1px solid #d3b97355; border-radius:5px; background:#1e3556; }
+.cs-professional-photo { width:34px; height:34px; flex:none; display:grid; place-items:center; border:1px solid #d2b273; background:#10223c; border-radius:4px; }
+.cs-professional strong, .cs-professional small { display:block; font-size:8px; }
+.cs-professional small { display:flex; align-items:center; gap:3px; margin-top:4px; color:#d0deca; }
+.cs-page { min-width:0; flex:1; }
+.cs-notice { padding:7px 16px; color:#243b56; background:#f0e3bd; font-size:9px; font-weight:800; letter-spacing:.06em; }
+.cs-preview .cc-shell { min-height:calc(100vh - 26px); }
+.cs-preview .cc-header, .cs-preview .cc-rail-wrap { position:relative; }
+.cs-preview .cc-header { z-index:1; }
+.cs-preview .cc-rail-wrap { z-index:1; }
+.cs-theme-preview { display:grid; place-items:center; width:32px; height:32px; border:1px solid #c9a24e80; border-radius:5px; color:#e7cb88; background:#203858; }
+.cs-panel { padding:14px; margin-bottom:18px; border:1px solid #c6b18a; border-radius:7px; background:linear-gradient(#fffcf4,#f4eddf); box-shadow:0 5px 0 #cbbd9f,0 10px 16px #101c3030; color:#1b304e; }
+.cs-panel h2 { margin:0 0 10px; font:700 13px "EB Garamond",serif; letter-spacing:.12em; }
+.cs-well { min-height:62px; display:grid; place-items:center; color:#718096; background:linear-gradient(#e4dbca,#f5efe2); box-shadow:inset 0 3px 8px #998d774d; border-radius:4px; font-size:11px; }
+@media(max-width:700px) { .cs-sidebar { width:62px; } .cs-sidebar strong,.cs-sidebar-items small,.cs-professional > div:last-child { display:none; } .cs-sidebar-items div { overflow:hidden; font-size:0; } .cs-sidebar-items div:first-letter { font-size:12px; } }

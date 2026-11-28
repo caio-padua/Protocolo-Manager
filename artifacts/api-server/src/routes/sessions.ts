@@ -1,9 +1,18 @@
 import { Router, type IRouter } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
-import { db, sessionsTable, substanceApplicationsTable, clientsTable, professionalsTable, substancesTable, protocolsTable } from "@workspace/db";
+import { requireCollaborator } from "./collaborator";
+import { bookSession, rescheduleSession } from "../lib/agenda-booking";
+import {
+  refreshAfterApplication, refreshAfterReschedule, removeSessionEvent, waitForEventUpdateToSettle,
+} from "../lib/session-google-sync";
+import { db, sessionsTable, substanceApplicationsTable, clientsTable, professionalsTable, substancesTable, protocolsTable, locationsTable, locationProfessionalsTable, agendaResourcesTable } from "@workspace/db";
 import { buildVCalendar, durationFromProcedureTypes, type IcsEventInput } from "../lib/ics";
+import { estadoAplicacao } from "../lib/estado-aplicacao-protocolo";
+import { carregarItensDoProtocolo, resumirSubstanciasDaVisita, type ItemDoProtocolo } from "../lib/substancias-constantes";
+import { queueApplicationNotice } from "../lib/visit-application-notice";
+import { baixarEstoqueDaAplicacao } from "../lib/estoque-ganchos";
 import {
   ListSessionsQueryParams,
   CreateSessionBody,
@@ -17,9 +26,12 @@ import {
 const router: IRouter = Router();
 router.use(moduleGuard("agenda"));
 
-async function buildSessionResponse(session: typeof sessionsTable.$inferSelect) {
+async function buildSessionResponse(
+  session: typeof sessionsTable.$inferSelect, itemsMemo?: Map<number, Promise<ItemDoProtocolo[]>>,
+) {
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
-  const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, session.protocolId));
+  // Consulta avulsa (protocol_id nulo): sem protocolo, sem substâncias constantes, nada presumido.
+  const [protocol] = session.protocolId == null ? [] : await db.select().from(protocolsTable).where(eq(protocolsTable.id, session.protocolId));
 
   let professionalName: string | null = null;
   if (session.professionalId) {
@@ -37,11 +49,30 @@ async function buildSessionResponse(session: typeof sessionsTable.$inferSelect) 
 
   const applications = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, session.id));
 
+  // Agenda (recurso) da sessão: nome e cor para a linha do tempo. Sessão sem agenda ligada devolve null (nada é inventado).
+  let agendaNome: string | null = null;
+  let agendaCor: string | null = null;
+  if (session.resourceId) {
+    const [agenda] = await db.select({ name: agendaResourcesTable.name, color: agendaResourcesTable.color })
+      .from(agendaResourcesTable).where(eq(agendaResourcesTable.id, session.resourceId));
+    agendaNome = agenda?.name ?? null;
+    agendaCor = agenda?.color ?? null;
+  }
+
   const substanceMap: Record<number, typeof substancesTable.$inferSelect> = {};
   for (const app of applications) {
     if (!substanceMap[app.substanceId]) {
       const [s] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
       if (s) substanceMap[app.substanceId] = s;
+    }
+  }
+
+  // K7: demais substâncias do protocolo ficam constantes (mesma função do evento do Google).
+  const summary = resumirSubstanciasDaVisita(applications, session.protocolId == null ? [] : await carregarItensDoProtocolo(session.protocolId, session.empresaId, itemsMemo));
+  for (const item of summary?.constants ?? []) {
+    if (!substanceMap[item.substanceId]) {
+      const [s] = await db.select().from(substancesTable).where(eq(substancesTable.id, item.substanceId));
+      if (s) substanceMap[item.substanceId] = s;
     }
   }
 
@@ -63,6 +94,12 @@ async function buildSessionResponse(session: typeof sessionsTable.$inferSelect) 
     nurseName,
     serviceAddress: (session as any).serviceAddress ?? null,
     unit: session.unit ?? null,
+    resourceId: session.resourceId ?? null,
+    agendaNome,
+    agendaCor,
+    // Duração gravada na sessão; sem ela, a mesma regra do .ics (IV 30 / IM 15 / Implante 60 pelas aplicações do dia).
+    durationMinutes: session.durationMinutes
+      ?? durationFromProcedureTypes(applications.filter(a => a.availability === "disp").map(a => substanceMap[a.substanceId]?.procedureType ?? "iv")),
     serviceType: session.serviceType,
     weekNumber: session.weekNumber,
     notes: session.notes ?? null,
@@ -77,9 +114,23 @@ async function buildSessionResponse(session: typeof sessionsTable.$inferSelect) 
       totalSessions: app.totalSessions,
       status: app.status,
       availability: app.availability,
+      displayState: estadoAplicacao(app),
       appliedAt: app.appliedAt ?? null,
+      confirmedBy: app.confirmedBy ?? null,
+      confirmedAt: app.confirmedAt ?? null,
       notes: app.notes ?? null,
     })),
+    protocolSummary: summary ? {
+      visitCount: summary.visitCount,
+      protocolCount: summary.protocolCount,
+      constants: summary.constants.map(item => ({
+        substanceId: item.substanceId,
+        substanceName: substanceMap[item.substanceId]?.name ?? `Substância não cadastrada (${item.substanceId})`,
+        substanceColor: substanceMap[item.substanceId]?.color ?? "#888888",
+        dose: item.dose,
+        totalSessions: item.totalSessions,
+      })),
+    } : null,
     createdAt: session.createdAt.toISOString(),
   };
 }
@@ -126,6 +177,9 @@ router.get("/sessions", async (req, res): Promise<void> => {
   const empresaId = resolveEmpresaId(req);
   let sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.empresaId, empresaId));
 
+  // Consultas do prontuário por cliente/protocolo preservam o histórico clínico.
+  // A visão geral da agenda não inclui compromissos retirados.
+  if (!query.data.clientId && !query.data.protocolId) sessions = sessions.filter(s => !s.agendaArchived);
   if (query.data.clientId) sessions = sessions.filter(s => s.clientId === query.data.clientId);
   if (query.data.protocolId) sessions = sessions.filter(s => s.protocolId === query.data.protocolId);
   if (query.data.status) sessions = sessions.filter(s => s.status === query.data.status);
@@ -133,7 +187,8 @@ router.get("/sessions", async (req, res): Promise<void> => {
   if (query.data.dateFrom) sessions = sessions.filter(s => s.scheduledDate >= query.data.dateFrom!);
   if (query.data.dateTo) sessions = sessions.filter(s => s.scheduledDate <= query.data.dateTo!);
 
-  const results = await Promise.all(sessions.map(buildSessionResponse));
+  const itemsMemo = new Map<number, Promise<ItemDoProtocolo[]>>();
+  const results = await Promise.all(sessions.map(s => buildSessionResponse(s, itemsMemo)));
   res.json(results);
 });
 
@@ -141,7 +196,9 @@ router.get("/sessions", async (req, res): Promise<void> => {
 router.get("/sessions/ics", async (req, res): Promise<void> => {
   const { dateFrom, dateTo, professionalId, clientId, protocolId } = req.query as Record<string, string>;
 
-  let sessions = await db.select().from(sessionsTable);
+  const empresaId = resolveEmpresaId(req);
+  let sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.empresaId, empresaId));
+  sessions = sessions.filter(s => !s.agendaArchived);
 
   if (dateFrom) sessions = sessions.filter(s => s.scheduledDate >= dateFrom);
   if (dateTo) sessions = sessions.filter(s => s.scheduledDate <= dateTo);
@@ -151,7 +208,8 @@ router.get("/sessions/ics", async (req, res): Promise<void> => {
 
   sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.scheduledTime.localeCompare(b.scheduledTime));
 
-  const results = await Promise.all(sessions.map(buildSessionResponse));
+  const itemsMemo = new Map<number, Promise<ItemDoProtocolo[]>>();
+  const results = await Promise.all(sessions.map(s => buildSessionResponse(s, itemsMemo)));
 
   const icsContent = buildVCalendar(results.map(s => sessionToIcsInput(s)));
   const label = dateFrom && dateTo ? `${dateFrom}_a_${dateTo}` : "agenda";
@@ -171,7 +229,7 @@ router.get("/sessions/:id/ics", async (req, res): Promise<void> => {
   }
 
   const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, id));
-  if (!session) {
+  if (!session || session.agendaArchived || session.empresaId !== resolveEmpresaId(req)) {
     res.status(404).json({ error: "Session not found" });
     return;
   }
@@ -188,7 +246,7 @@ router.get("/sessions/:id/ics", async (req, res): Promise<void> => {
   res.send(icsContent);
 });
 
-router.post("/sessions", async (req, res): Promise<void> => {
+router.post("/sessions", requireCollaborator, async (req, res): Promise<void> => {
   const parsed = CreateSessionBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -196,8 +254,16 @@ router.post("/sessions", async (req, res): Promise<void> => {
   }
 
   const empresaId = resolveEmpresaId(req);
-  const [session] = await db.insert(sessionsTable).values({ ...parsed.data, empresaId }).returning();
-  const result = await buildSessionResponse(session);
+  if (!parsed.data.resourceId || parsed.data.status !== "scheduled") {
+    res.status(422).json({error:"Uma nova marcação exige agenda e status agendado; utilize a Agenda Configuração."}); return;
+  }
+  const booked = await bookSession({
+    resourceId: parsed.data.resourceId, clientId: parsed.data.clientId,
+    protocolId: parsed.data.protocolId, date: parsed.data.scheduledDate,
+    time: parsed.data.scheduledTime, empresaId, syncGoogle: false,
+  });
+  if (!booked.ok || !booked.session) {res.status(booked.status).json({error:booked.error});return;}
+  const result = await buildSessionResponse(booked.session);
   res.status(201).json(result);
 });
 
@@ -208,7 +274,9 @@ router.get("/sessions/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, params.data.id));
+  // Mesma regra da lista e do .ics: sessão de outra clínica é "não encontrada" (nunca expõe cliente nem aplicações).
+  const [session] = await db.select().from(sessionsTable)
+    .where(and(eq(sessionsTable.id, params.data.id), eq(sessionsTable.empresaId, resolveEmpresaId(req))));
   if (!session) {
     res.status(404).json({ error: "Session not found" });
     return;
@@ -218,7 +286,7 @@ router.get("/sessions/:id", async (req, res): Promise<void> => {
   res.json(result);
 });
 
-router.put("/sessions/:id", async (req, res): Promise<void> => {
+router.put("/sessions/:id", requireCollaborator, async (req, res): Promise<void> => {
   const params = UpdateSessionParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -231,17 +299,72 @@ router.put("/sessions/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [session] = await db.update(sessionsTable).set(parsed.data).where(eq(sessionsTable.id, params.data.id)).returning();
-  if (!session) {
-    res.status(404).json({ error: "Session not found" });
+  const [existing] = await db.select().from(sessionsTable).where(and(eq(sessionsTable.id,params.data.id),eq(sessionsTable.empresaId,resolveEmpresaId(req))));
+  if (!existing || existing.agendaArchived) {res.status(404).json({error:"Sessão não encontrada."});return;}
+  if (existing.googleSyncPendingOperation) {res.status(409).json({error:"A sincronização Google precisa ser concluída ou conferida antes de alterar a sessão."});return;}
+  if (parsed.data.professionalId !== undefined && parsed.data.professionalId !== existing.professionalId) {
+    res.status(422).json({error:"Troca de profissional exige selecionar uma agenda na remarcação."});return;
+  }
+  if (["scheduled","confirmed"].includes(parsed.data.status ?? "") && !["scheduled","confirmed"].includes(existing.status)) {
+    res.status(409).json({error:"Reativação exige nova marcação em uma vaga liberada."});return;
+  }
+  const changingSchedule = (parsed.data.scheduledDate && parsed.data.scheduledDate!==existing.scheduledDate)
+    || (parsed.data.scheduledTime && parsed.data.scheduledTime!==existing.scheduledTime);
+  if (changingSchedule) {
+    const otherChanges = Object.entries(parsed.data).some(([key, value]) =>
+      key !== "scheduledDate" && key !== "scheduledTime" && value !== undefined &&
+      value !== existing[key as keyof typeof existing],
+    );
+    if (otherChanges) {
+      res.status(422).json({error:"Remarque o horário separadamente das demais alterações; nenhuma mudança foi salva."});
+      return;
+    }
+    if (!existing.resourceId) {res.status(422).json({error:"Defina uma agenda antes de remarcar."});return;}
+    const moved = await rescheduleSession({sessionId:existing.id,clientId:existing.clientId,
+      resourceId:existing.resourceId,date:parsed.data.scheduledDate??existing.scheduledDate,
+      time:parsed.data.scheduledTime??existing.scheduledTime,syncGoogle:false});
+    if (!moved.ok) {res.status(moved.status).json({error:moved.error});return;}
+    if (!moved.session) {res.status(500).json({error:"Não foi possível confirmar a remarcação; confira a agenda antes de repetir."});return;}
+    // Visita de protocolo que ja esta no Google: o MESMO evento acompanha o novo dia/horario (aviso, nunca bloqueio).
+    const googleSyncWarning = moved.googleRefreshNeeded
+      ? await refreshAfterReschedule(moved.session.id, resolveEmpresaId(req)) : moved.googleSyncWarning;
+    res.json({ ...(await buildSessionResponse(moved.session)), ...(googleSyncWarning ? { googleSyncWarning } : {}) });
     return;
   }
+  const {scheduledDate:_date,scheduledTime:_time,...updates} = parsed.data;
+  const whereSession = and(eq(sessionsTable.id, params.data.id),eq(sessionsTable.empresaId,resolveEmpresaId(req)),
+    isNull(sessionsTable.googleSyncPendingOperation));
+  const [session] = Object.keys(updates).length
+    ? await db.update(sessionsTable).set(updates).where(whereSession).returning()
+    : await db.select().from(sessionsTable).where(whereSession);
+  if (!session) {
+    res.status(409).json({ error: "A sessão mudou ou está em sincronização. Confira a situação antes de continuar." });
+    return;
+  }
+  // K10: agenda o aviso logo após a gravação, antes de aguardar a sincronização do calendário.
+  if (parsed.data.status === "completed" && existing.status !== "completed") {
+    queueApplicationNotice(session.id, resolveEmpresaId(req));
+  }
 
+  // Cancelada pelo sistema: o evento sai do Google. Falha do Google mantem o rastro e vira aviso; o cancelamento vale.
+  let googleSyncWarning: string | undefined;
+  // Repetir o cancelamento de visita cancelada que ainda guarda o ponteiro do evento tenta remover o evento de novo.
+  if (parsed.data.status === "cancelled" && existing.googleEventId) {
+    googleSyncWarning = (await removeSessionEvent(session.id, resolveEmpresaId(req))).warning;
+  } else if ((parsed.data.status === "completed" || parsed.data.status === "missed") &&
+      parsed.data.status !== existing.status) {
+    // Visita concluída ou faltou: o MESMO evento muda de situação. Aviso, nunca bloqueio.
+    googleSyncWarning = await refreshAfterApplication(session.id, resolveEmpresaId(req), { what: "Situação da visita salva" });
+  }
   const result = await buildSessionResponse(session);
-  res.json(result);
+  res.json(googleSyncWarning ? { ...result, googleSyncWarning } : result);
 });
 
-router.post("/sessions/:id/confirm-substance", async (req, res): Promise<void> => {
+class ApplicationConfirmationError extends Error {
+  constructor(public statusCode: number, message: string) { super(message); }
+}
+
+router.post("/sessions/:id/confirm-substance", requireCollaborator, async (req, res): Promise<void> => {
   const params = ConfirmSubstanceApplicationParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -254,41 +377,88 @@ router.post("/sessions/:id/confirm-substance", async (req, res): Promise<void> =
     return;
   }
 
-  const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, params.data.id));
-  if (!session) {
-    res.status(404).json({ error: "Session not found" });
-    return;
+  try {
+    // O registro anterior da mesma visita pode ainda estar atualizando o evento no Google (1 a 2 s): espera um pouco.
+    await waitForEventUpdateToSettle(params.data.id, resolveEmpresaId(req));
+    const outcome = await db.transaction(async tx => {
+      const [current] = await tx.select().from(sessionsTable)
+        .where(eq(sessionsTable.id, params.data.id)).for("update");
+      const notFound = () => new ApplicationConfirmationError(404, "Registro não encontrado neste acesso.");
+      if (!current || current.agendaArchived) throw notFound();
+      if (current.googleSyncPendingOperation) {
+        throw new ApplicationConfirmationError(409, "A sincronização Google precisa ser concluída ou conferida antes de registrar a aplicação.");
+      }
+      const companyId = resolveEmpresaId(req);
+      if (current.empresaId !== null && current.empresaId !== companyId) throw notFound();
+      const [client] = await tx.select().from(clientsTable).where(eq(clientsTable.id, current.clientId)).for("update");
+      if (current.protocolId == null) throw notFound(); // consulta avulsa não tem aplicações a confirmar
+      const [protocol] = await tx.select().from(protocolsTable).where(eq(protocolsTable.id, current.protocolId)).for("update");
+      const [professional] = await tx.select().from(professionalsTable)
+        .where(eq(professionalsTable.id, req.collaborator!.professionalId)).for("update");
+      if (!client || client.empresaId !== companyId || client.status !== "active" || !client.locationId ||
+          !protocol || protocol.empresaId !== companyId || protocol.clientId !== client.id ||
+          !professional?.active || (professional.credentialVersion ?? 0) !== (req.collaborator!.credentialVersion ?? 0)) {
+        throw notFound();
+      }
+      const [location] = await tx.select().from(locationsTable).where(eq(locationsTable.id, client.locationId)).for("update");
+      const [membership] = await tx.select().from(locationProfessionalsTable).where(and(
+        eq(locationProfessionalsTable.locationId, client.locationId),
+        eq(locationProfessionalsTable.professionalId, professional.id),
+      )).for("update");
+      if (!location || location.active !== "true" || location.empresaId !== companyId || !membership) throw notFound();
+
+      const applications = await tx.select().from(substanceApplicationsTable)
+        .where(eq(substanceApplicationsTable.sessionId, current.id));
+      const candidates = applications.filter(a => a.substanceId === body.data.substanceId && a.availability === "disp");
+      const matches = body.data.applicationId === undefined
+        ? candidates : candidates.filter(a => a.id === body.data.applicationId);
+      if (matches.length === 0) throw notFound();
+      if (matches.length > 1) throw new ApplicationConfirmationError(409, "Selecione a ocorrência específica da aplicação.");
+      const target = matches[0];
+      const desiredStatus = body.data.confirmed ? "applied" : "missed";
+      if (target.status !== "pending" || target.appliedAt) {
+        const sameResult = target.status === desiredStatus &&
+          (desiredStatus === "applied" ? !!target.appliedAt : !target.appliedAt) &&
+          (body.data.notes === undefined || body.data.notes === target.notes);
+        if (sameResult) return { session: current, closedNow: false };
+        throw new ApplicationConfirmationError(409, "Esta aplicação já possui um registro. A correção exige retificação rastreável.");
+      }
+      if (["completed", "cancelled", "missed"].includes(current.status)) {
+        throw new ApplicationConfirmationError(409, "A sessão está encerrada ou cancelada; confira antes de alterar.");
+      }
+      await tx.update(substanceApplicationsTable).set({
+        status: desiredStatus,
+        appliedAt: body.data.confirmed ? new Date().toISOString() : null,
+        confirmedBy: professional.id,
+        confirmedAt: new Date().toISOString(),
+        notes: body.data.notes ?? null,
+      }).where(eq(substanceApplicationsTable.id, target.id));
+      // Aplicação feita: 1 unidade sai do dinâmico (reserva do protocolo) e do lote que vence primeiro.
+      if (desiredStatus === "applied") await baixarEstoqueDaAplicacao(tx, target.id);
+      const updated = applications.map(a => a.id === target.id ? { ...a, status: desiredStatus } : a);
+      const due = updated.filter(a => a.availability === "disp");
+      if (due.length > 0 && due.every(a => a.status === "applied" || a.status === "missed")) {
+        const [closed] = await tx.update(sessionsTable).set({ status: "completed" })
+          .where(eq(sessionsTable.id, current.id)).returning();
+        return { session: closed, closedNow: true };
+      }
+      return { session: current, closedNow: false };
+    });
+    const { session } = outcome;
+    // K10: somente a requisição que efetivamente fechou a visita agenda o aviso.
+    // Repetições idempotentes e novas chamadas sobre visita já fechada não reenviam.
+    if (outcome.closedNow) queueApplicationNotice(session.id, resolveEmpresaId(req));
+    // Depois do commit: o MESMO evento do Google acompanha a ação registrada (aviso, nunca desfaz o registro).
+    const googleSyncWarning = await refreshAfterApplication(session.id, resolveEmpresaId(req));
+    const result = await buildSessionResponse(session);
+    res.json(googleSyncWarning ? { ...result, googleSyncWarning } : result);
+  } catch (error) {
+    if (error instanceof ApplicationConfirmationError) {
+      res.status(error.statusCode).json({ error: error.message });
+      return;
+    }
+    throw error;
   }
-
-  const applications = await db.select().from(substanceApplicationsTable)
-    .where(eq(substanceApplicationsTable.sessionId, params.data.id));
-
-  const targetApp = applications.find(a => a.substanceId === body.data.substanceId && a.availability === "disp");
-  if (!targetApp) {
-    res.status(404).json({ error: "Substance application not found in this session" });
-    return;
-  }
-
-  await db.update(substanceApplicationsTable)
-    .set({
-      status: body.data.confirmed ? "applied" : "missed",
-      appliedAt: body.data.confirmed ? new Date().toISOString() : null,
-      notes: body.data.notes ?? null,
-    })
-    .where(eq(substanceApplicationsTable.id, targetApp.id));
-
-  const updatedApps = await db.select().from(substanceApplicationsTable)
-    .where(eq(substanceApplicationsTable.sessionId, params.data.id));
-
-  const dispApps = updatedApps.filter(a => a.availability === "disp");
-  const allDone = dispApps.every(a => a.status === "applied" || a.status === "missed");
-
-  if (allDone && dispApps.length > 0) {
-    await db.update(sessionsTable).set({ status: "completed" }).where(eq(sessionsTable.id, params.data.id));
-  }
-
-  const result = await buildSessionResponse(session);
-  res.json(result);
 });
 
 export default router;

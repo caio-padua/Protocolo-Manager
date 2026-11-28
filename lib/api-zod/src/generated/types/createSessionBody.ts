@@ -9,6 +9,8 @@ import type { CreateSessionBodyServiceType } from "./createSessionBodyServiceTyp
 import type { CreateSessionBodyStatus } from "./createSessionBodyStatus";
 
 export interface CreateSessionBody {
+  /** @minimum 1 */
+  resourceId?: number;
   protocolId: number;
   clientId: number;
   scheduledDate: string;

@@ -51,7 +51,42 @@ export type Perspective = {
   perSessionCents: number;
 };
 
-export type InstallmentOption = { installments: number; installmentCents: number };
+export type InstallmentOption = {
+  installments: number;
+  installmentCents: number; // parcelas 1..n-1
+  lastInstallmentCents: number; // ultima parcela: absorve a diferenca de centavos (soma sempre fecha o saldo)
+};
+
+// ---------------------------------------------------------------------------
+// ARITMETICA EXATA. Percentuais viram pontos-base inteiros (22,5% => 2250) e todo
+// valor e inteiro em centavos: Vf = arredondar(Vo * (1 - d), 2) sem erro de ponto flutuante.
+// Arredondamento: metade para cima, SO com inteiros. Nenhuma IA calcula dinheiro.
+// ---------------------------------------------------------------------------
+export function pctParaBps(pct: number): number {
+  if (!Number.isFinite(pct)) throw new Error("percentual_invalido");
+  return Math.round(pct * 100);
+}
+
+/** Vf = arredondar(Vo x (1 - d)). `cents` e inteiro de centavos; `pct` em % (ex.: 22). */
+export function aplicarDescontoCents(cents: number, pct: number): number {
+  const bps = Math.min(10_000, Math.max(0, pctParaBps(pct)));
+  return Math.floor((Math.round(cents) * (10_000 - bps) + 5_000) / 10_000);
+}
+
+/** Fatia `cents` por percentual com a mesma regra de arredondamento (ex.: valor da entrada). */
+export function parteCents(cents: number, pct: number): number {
+  const bps = Math.min(10_000, Math.max(0, pctParaBps(pct)));
+  return Math.floor((Math.round(cents) * bps + 5_000) / 10_000);
+}
+
+/** Divide em n parcelas: n-1 iguais (arredondadas) e a ultima absorve a diferenca de centavos. */
+export function dividirParcelas(totalCents: number, n: number): { parcelaCents: number; ultimaCents: number; todas: number[] } {
+  const total = Math.max(0, Math.round(totalCents));
+  const k = Math.max(1, Math.floor(n));
+  const parcelaCents = Math.floor((total * 2 + k) / (2 * k)); // round-half-up de total/k, so inteiros
+  const ultimaCents = total - parcelaCents * (k - 1);
+  return { parcelaCents, ultimaCents, todas: [...Array(k - 1).fill(parcelaCents), ultimaCents] };
+}
 
 // Resultado do desconto por volume de UM item (alinhado por indice aos itens incluidos).
 export type ItemVolumeResult = {
@@ -161,7 +196,8 @@ function perspectiveOf(valueCents: number, s: CalcSettings, totalSessions: numbe
 function buildInstallmentOptions(balanceCents: number, maxN: number): InstallmentOption[] {
   const opts: InstallmentOption[] = [];
   for (let n = 1; n <= Math.max(1, maxN); n++) {
-    opts.push({ installments: n, installmentCents: Math.round(balanceCents / n) });
+    const d = dividirParcelas(balanceCents, n);
+    opts.push({ installments: n, installmentCents: d.parcelaCents, lastInstallmentCents: d.ultimaCents });
   }
   return opts;
 }
@@ -223,7 +259,7 @@ export function calculateBudget(
 
   // --- 4) Cenarios de PAGAMENTO incidem sobre volumeDiscountedCents ---
   // Cenario A: a vista (PIX/dinheiro)
-  const aRaw = Math.round(volumeDiscountedCents * (1 - settings.cashDiscountPct / 100));
+  const aRaw = aplicarDescontoCents(volumeDiscountedCents, settings.cashDiscountPct);
   const aFinal = capFinal(aRaw);
   const scenarioA: CashScenario = {
     key: "A",
@@ -235,9 +271,9 @@ export function calculateBudget(
   };
 
   // Cenario B: entrada 50%
-  const bRaw = Math.round(volumeDiscountedCents * (1 - settings.down50DiscountPct / 100));
+  const bRaw = aplicarDescontoCents(volumeDiscountedCents, settings.down50DiscountPct);
   const bDiscounted = capFinal(bRaw);
-  const bDown = Math.round(bDiscounted * 0.5);
+  const bDown = parteCents(bDiscounted, 50);
   const bBalance = bDiscounted - bDown;
   const scenarioB: DownScenario = {
     key: "B",
@@ -253,9 +289,9 @@ export function calculateBudget(
   };
 
   // Cenario C: entrada 30%
-  const cRaw = Math.round(volumeDiscountedCents * (1 - settings.down30DiscountPct / 100));
+  const cRaw = aplicarDescontoCents(volumeDiscountedCents, settings.down30DiscountPct);
   const cDiscounted = capFinal(cRaw);
-  const cDown = Math.round(cDiscounted * 0.3);
+  const cDown = parteCents(cDiscounted, 30);
   const cBalance = cDiscounted - cDown;
   const scenarioC: DownScenario = {
     key: "C",
@@ -277,7 +313,7 @@ export function calculateBudget(
     const base = volumeDiscountedCents;
     const downPct = Math.max(0, Math.min(100, freeCalc.downPaymentPct));
     const n = Math.max(1, Math.min(10, Math.round(freeCalc.installments)));
-    const downCents = Math.round(base * (downPct / 100));
+    const downCents = parteCents(base, downPct);
     const balanceCents = base - downCents;
     const passFee = freeCalc.passCardFee ?? settings.passCardFeeDefault;
     const feeRow = settings.cardFees?.find((f) => f.installments === n);

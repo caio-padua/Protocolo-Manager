@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Link } from "wouter";
 import { CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import { tituloProprio, cn } from "@/lib/utils";
+import { AcoesTopo, useFraseAba } from "@/components/layout/abaTopo";
 
 type Tab = "ativos" | "desativados" | "apagados";
 type BulkAction = "activate" | "deactivate" | "delete" | "restore";
@@ -55,7 +57,7 @@ function formatBirthDate(birthDate: string | null | undefined): string {
 async function bulkAction(ids: number[], action: BulkAction): Promise<void> {
   const res = await fetch("/api/clients/bulk", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: collabAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ ids, action }),
   });
   if (!res.ok) {
@@ -73,6 +75,7 @@ export default function Clients() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [tabClients, setTabClients]       = useState<any[]>([]);
   const [tabLoading, setTabLoading]       = useState(false);
+  const [tabError, setTabError]           = useState<string | null>(null);
   const [displayCount, setDisplayCount]   = useState(PAGE_SIZE);
   const sentinelRef                       = useRef<HTMLDivElement>(null);
   const abortRef                          = useRef<AbortController | null>(null);
@@ -84,26 +87,45 @@ export default function Clients() {
     const signal = abortRef.current.signal;
 
     setTabLoading(true);
+    setTabError(null);
     const params = new URLSearchParams({ tab: currentTab });
     if (currentSearch) params.set("search", currentSearch);
-    fetch(`/api/clients?${params}`, { signal })
-      .then((r) => r.json())
+    fetch(`/api/clients?${params}`, { signal, headers: collabAuthHeaders() })
+      .then((r) => {
+        if (!r.ok) throw new Error(r.status === 401
+          ? "Entre com seu acesso profissional para consultar os clientes."
+          : "Não foi possível consultar os clientes. Tente novamente.");
+        return r.json();
+      })
       .then((data) => {
-        setTabClients(Array.isArray(data) ? data : []);
+        if (!Array.isArray(data)) throw new Error("A resposta da lista de clientes é inválida. Tente novamente.");
+        setTabClients(data);
         setTabLoading(false);
       })
       .catch((err) => {
-        if (err.name !== "AbortError") setTabLoading(false);
+        if (err.name !== "AbortError") {
+          setTabClients([]);
+          setTabError(err instanceof Error ? err.message : "Não foi possível consultar os clientes. Tente novamente.");
+          setTabLoading(false);
+        }
       });
   }, []);
+
+  // Busca aplicada: espera 250 ms depois da ultima tecla (evita uma consulta por letra).
+  const [buscaAplicada, setBuscaAplicada] = useState("");
+  useEffect(() => {
+    if (search === "") { setBuscaAplicada(""); return; }
+    const t = setTimeout(() => setBuscaAplicada(search.trim()), 250);
+    return () => clearTimeout(t);
+  }, [search]);
 
   useEffect(() => {
     setSelected(new Set());
     setConfirmDelete(false);
     setDisplayCount(PAGE_SIZE);
     setFilterLetra(null);
-    loadClients(tab, search);
-  }, [tab, search, loadClients]);
+    loadClients(tab, buscaAplicada);
+  }, [tab, buscaAplicada, loadClients]);
 
   useEffect(() => {
     setDisplayCount(PAGE_SIZE);
@@ -124,12 +146,22 @@ export default function Clients() {
   }, [tabClients, filterLetra]);
 
   // Ordena tudo alfabeticamente (pt-BR)
-  const sorted = useMemo(
-    () => [...tabClients].sort((a, b) =>
+  // Com busca ativa: quem COMEÇA com o texto vem primeiro, depois quem tem uma
+  // palavra começando com o texto, depois o resto (sempre A-Z dentro do grupo).
+  const sorted = useMemo(() => {
+    const termo = norm(buscaAplicada);
+    const rank = (nome: string) => {
+      if (!termo) return 0;
+      const n = norm(nome);
+      if (n.startsWith(termo)) return 0;
+      if (n.split(/\s+/).some((p) => p.startsWith(termo))) return 1;
+      return 2;
+    };
+    return [...tabClients].sort((a, b) =>
+      rank(a.name) - rank(b.name) ||
       tituloProprio(a.name).localeCompare(tituloProprio(b.name), "pt-BR"),
-    ),
-    [tabClients],
-  );
+    );
+  }, [tabClients, buscaAplicada]);
 
   // Letras disponíveis para a barra A-Z
   const disponíveis = useMemo(() => {
@@ -153,6 +185,8 @@ export default function Clients() {
   // Agrupa visible por letra
   const groups = useMemo(() => {
     const g: { letra: string; clientes: any[] }[] = [];
+    // Busca ativa: um unico bloco, na ordem de relevancia (sem quebrar por letra).
+    if (buscaAplicada) return visible.length ? [{ letra: "•", clientes: visible }] : g;
     for (const c of visible) {
       const l = tituloProprio(c.name).charAt(0).toUpperCase() || "#";
       const last = g[g.length - 1];
@@ -160,7 +194,7 @@ export default function Clients() {
       else g.push({ letra: l, clientes: [c] });
     }
     return g;
-  }, [visible]);
+  }, [visible, buscaAplicada]);
 
   function toggleSelect(id: number) {
     setSelected((prev) => {
@@ -193,27 +227,23 @@ export default function Clients() {
     }
   }
 
+  useFraseAba(afterLetter.length > 0 ? `${afterLetter.length} ${afterLetter.length === 1 ? "cliente listado" : "clientes listados"} nesta visão` : null);
+
   const allSelected  = visible.length > 0 && selected.size === visible.length;
   const someSelected = selected.size > 0;
 
   return (
     <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-      {/* Cabeçalho */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
-          <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px] mt-1">
-            Gerencie os pacientes da clínica e seus protocolos.
-          </p>
-        </div>
+      {/* Cabeçalho: título e frase vivem na aba do topo; o botão sobe para a faixa */}
+      <AcoesTopo>
         <Link href="/clients/new">
-          <Button className="btn-3d w-full sm:w-auto">
+          <Button className="btn-3d">
             <Plus className="w-4 h-4 mr-2" />
             NOVO CLIENTE
           </Button>
         </Link>
-      </div>
+      </AcoesTopo>
 
       {/* Sub-abas */}
       <div className="flex gap-1 border-b border-border/40 pb-0">
@@ -375,6 +405,17 @@ export default function Clients() {
             <Skeleton key={i} className="h-36 rounded-lg panel-3d-sub" />
           ))}
         </div>
+      ) : tabError ? (
+        <div role="alert" className="text-center py-16 panel-3d bg-white/50">
+          <h3 className="text-lg font-bold uppercase tracking-wide">Não foi possível carregar os clientes</h3>
+          <p className="mt-2 text-sm text-muted-foreground">{tabError}</p>
+          <Button className="btn-3d-soft mt-5" onClick={() => loadClients(tab, search)}>TENTAR NOVAMENTE</Button>
+          {tabError.startsWith("Entre com seu acesso") && (
+            <Link href="/login?returnTo=%2Fclients">
+              <Button className="btn-3d-soft mt-5 ml-2">ENTRAR</Button>
+            </Link>
+          )}
+        </div>
       ) : tabClients.length === 0 ? (
         <div className="text-center py-20 panel-3d bg-white/50">
           <User className="mx-auto h-12 w-12 text-muted-foreground opacity-20 mb-4" />
@@ -495,7 +536,15 @@ export default function Clients() {
                           )}
 
                           {/* Rodapé */}
-                          <div className="pt-2 border-t flex justify-end">
+                          <div className="pt-2 border-t flex justify-end gap-2">
+                            <Link
+                              href={`/clients/${client.id}/edit`}
+                              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                            >
+                              <div className="screen-3d px-2 py-1 text-[9px] font-bold text-primary uppercase tracking-wider" data-testid={`button-edit-client-${client.id}`}>
+                                Editar
+                              </div>
+                            </Link>
                             <Link
                               href={`/clients/${client.id}`}
                               onClick={(e: React.MouseEvent) => e.stopPropagation()}

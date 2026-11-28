@@ -163,6 +163,7 @@ export async function computeMotor(respostas: RespostaMotor[]): Promise<Resultad
     for (const r of rows) {
       const cod = (r.blocoId as unknown as string | null) ?? null;
       const nome = (r as unknown as { nomeExame?: string | null }).nomeExame ?? null;
+      if ((r as unknown as { ativo?: boolean | null }).ativo === false) continue;
       if (cod && blocosMotor.has(String(cod)) && nome) exames.add(nome);
     }
   }

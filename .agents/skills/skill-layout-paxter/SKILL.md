@@ -1,6 +1,6 @@
 ---
 name: skill-layout-paxter
-description: "Sistema de design Paxter (Padcon Conect / PADCOM). Linguagem visual skeuomorfica 3D, vocabulario oficial (Saliente/Bevel, Concavo/Well, Painel 3D), tokens da marca e padroes do Console de Orcamento. Ler ANTES de criar ou redesenhar qualquer tela do Manager para manter a essencia 3D."
+description: "Sistema de design Paxter (Padcon Conect / PADCOM). Linguagem visual skeuomorfica 3D, vocabulario oficial (Saliente/Bevel, Concavo/Well, Painel 3D), tokens da marca e padroes do Console de Orcamento. Ler ANTES de criar ou redesenhar qualquer tela do Manager para manter a essencia 3D. Tambem ler para QUALQUER previa de link (og:image, WhatsApp, Telegram, cartao de compartilhamento): seguir references/previa-de-link.md."
 ---
 
 # Skill Layout Paxter — Sistema de Design (Padcon Conect)
@@ -11,6 +11,8 @@ Toda mudanca e de APRESENTACAO; o motor de calculo e o payload de salvar nunca m
 
 ## 0. Arquivos de referencia (ler conforme a tarefa)
 
+**Pedido de PREVIA DE LINK (WhatsApp/Telegram/og:image): ler `references/previa-de-link.md` ANTES de desenhar. O padrao aprovado NAO se reinventa.**
+
 | Arquivo | Quando ler |
 |---|---|
 | `references/componentes-3d.md` | criar/redesenhar qualquer botao/controle 3D (receita + JSX de cada um) |
@@ -19,6 +21,8 @@ Toda mudanca e de APRESENTACAO; o motor de calculo e o payload de salvar nunca m
 | `references/grade-imaginaria.md` | construir QUALQUER card ou lista de itens (modelo mental de zonas, anti-padroes, receita JSX, checklist de 10 pontos) — ler ANTES de criar card/linha nova em QUALQUER sistema |
 | `references/marca/marca.md` | usar a LOGO: qual peca (loginho com vidro x logo sem vidro) usar em cada fundo; molde visual numerado (`molde-paxter.png`) + referencia de codigo de cada peca |
 | `references/relevo-3d-ouro/tecnica.md` | renderizar TEXTO/WORDMARK/selo em ALTO-RELEVO 3D DOURADO (ex.: "PAXTER" no topo claro): receita das 3 camadas (parede/face/halo), valores testados e armadilhas (contorno "carcomido", tema escuro intacto) + imagens antes/depois. Ler ANTES de mexer em wordmark/selo dourado em relevo |
+| `references/botao-ajuda-interrogacao.md` | QUALQUER botao "?" de ajuda, janela de parametros/referencias de grafico ou tela (molde unico JanelaAjuda, ordem fixa: botoes coloridos em cima, por que no meio, referencias bibliograficas embaixo). Ler ANTES; copiar igual, nao inventar |
+| `references/previa-de-link.md` | FLYER DE COMUNICACAO (Telegram/WhatsApp com dados) + QUALQUER previa de link (WhatsApp/Telegram, og:image): padrao "Receituario" aprovado (placa up bevel + gaveta, risca de giz, tagline), imagem e componente de referencia em `references/previa-de-link/`, passo a passo de exportar e subir `?v=N` |
 
 Fluxo de uso: para card/lista -> ler `references/grade-imaginaria.md` PRIMEIRO -> escolher controle por
 INTENCAO (secao 4) -> montar com receita (`componentes-3d.md`) -> alinhar e espacar
@@ -39,6 +43,27 @@ que virar regra ESCRITA aqui, senao nao se propaga aos primos (IHE, futuros sist
 
 Regra-mae: a SKILL e a fonte-da-verdade do design; o codigo da tela e so a APLICACAO dela. Tela
 pronta sem o padrao novo registrado = trabalho incompleto.
+
+## 0.2 LEI DIAMANTE DO LUGAR FIXO (decisao do CEO, 24/11/2026) — vale acima de qualquer padrao
+
+Origem: uma tela inteira (Sinapse Clinica) foi refeita varias vezes porque botoes mudavam de
+lugar, de texto e de largura. O CEO tem TDAH: movimento inesperado na tela e custo, nao detalhe.
+
+| # | Regra | Como cumprir |
+|---|---|---|
+| 1 | **Todo campo ocupa o MESMO lugar no espaco**, esteja selecionado ou nao, tenha conteudo ou nao. | Grade de colunas fixas (largura em rem) no cabecalho e nas linhas; coluna vazia continua reservada. |
+| 2 | **Botao NAO se transmuta.** Excluir nunca vira Confirmar. | O botao original permanece com o mesmo texto e na mesma posicao; o botao de confirmacao tem SLOT RESERVADO ao lado (`invisible`, nao `hidden`) e so aparece ali. |
+| 3 | **Nada some e reaparece empurrando o vizinho.** | Slot reservado + `invisible`; nunca renderizacao condicional que desloca irmaos. |
+| 4 | **Aviso, balao e confirmacao nascem JUNTO DO MOUSE** (ate ~16 px do ponteiro), nunca no canto da tela. | Guardar a ultima posicao do ponteiro; aviso `fixed` perto dela; acao de desfazer (Recuperar) dentro do proprio aviso, 6 s. |
+| 5 | **Acao destrutiva = 2 passos rapidos, perto do dedo**, sem janela modal. | Excluir -> Confirmar no slot ao lado (4 s) -> aviso com Recuperar. Nunca apagar: desativar. |
+| 6 | **Botao de acao fica PERTO do dado que ele afeta.** | Colunas de acao logo apos a coluna do nome (nome com largura maxima), nao na extrema direita da tela. |
+| 7 | **Estado selecionado usa a cor do proprio grupo**, nunca uma cor generica (rosa/ambar). | `color-mix` da cor do bloco a 14% + filete de 4 px na esquerda. |
+| 8 | **Ligado/desligado = Saliente (up) ou Concavo (afundado), nunca apagado** (sem opacidade baixa). | `tecla-3d` x `concave-3d`, opacidade 1. |
+| 9 | **Vidro = o vidro do medalhao da marca** (`.pax-medallion::after`, em `components/layout/paxter-fx/PaxterSymbolGlass.css`): brilho no aro superior, filete claro, SEM borda de aco/ouro. | Reusar o gradiente da cupula; nao inventar moldura. |
+| 10 | **Antes de QUALQUER pedido de tela: ler esta skill.** | Passo 1 obrigatorio da Lei 0.1. |
+
+Teste obrigatorio quando houver botao de duas etapas: medir `boundingBox` do botao antes e depois do
+clique (x igual) e confirmar que o botao de confirmacao aparece em x maior.
 
 ## 1. Vocabulario oficial (fala -> codigo)
 
@@ -562,6 +587,15 @@ de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO v
   vermelho=exige decisao, cinza=ignorado) + frase de UMA linha com seta "→" separando causa e efeito.
   Maximo ~5 passos; texto `text-[10px]` navy. Referencia viva: Sala de Triagem (`ConsoleExamesTool.tsx`).
 
+- **Padrao 30 — ESTADO DE INTEGRACAO EM CHIP FIXO + ACAO BLOQUEADA EXPLICADA (Agenda Configuração, 2026)**:
+  cada agenda externa mostra estado num chip `concave-3d` de largura FIXA (`w-[148px]`) com LED:
+  verde estavel = atualizada, ambar `-breathe` = aguardando, vermelho `-on` = erro (texto do erro
+  em `paxter-alert-red` logo abaixo), `paxter-led-off` = leitura desligada. "Ultima atualizacao" e
+  "Ultima tentativa" sempre presentes (slot com "—"). Acao sem autorizacao NUNCA some: o botao fica
+  desabilitado e um `paxter-alert paxter-alert-amber` explica quem pode e qual caminho alternativo
+  (ex.: solicitacao de expediente). Atualizacao assincrona (202) mostra "Atualizando…" ate o estado
+  real confirmar, nunca conclusao instantanea. Referencia: `pages/agenda/AgendaIntegrationPanel.tsx`.
+
 ## 4. Catalogo de Controles por Intencao (botao x toggle x acao)
 
 Paradigma travado pelo CEO (19/06/2026): cada INTENCAO tem UM controle e UMA cor. Ao criar ou
@@ -646,6 +680,42 @@ o seletor de cliente atual.
 Cockpit; reutilizar a tela original embutida quando isso preservar o fluxo e as
 validacoes existentes.
 
+### 4.4.1 Regua deslizante e acoes da identidade do Cockpit
+
+- Usar o padrao da regua deslizante aprovado na terceira previa do Cockpit para
+  os seus modos de visualizacao: mesmas ferramentas, ordem e identificacao clara
+  da ferramenta selecionada. Quando nao couberem, todas continuam acessiveis.
+- Editar cadastro e Pastas do Drive ocupam posicoes estaveis, alinhadas, com
+  controles de tamanho uniforme. Sem cliente selecionado, as acoes nao operam.
+- O atalho superior de protocolo nao compoe a nova proposta. A aba Protocolos e
+  o acesso ao gerador permanecem; nao apagar ferramentas ou entradas do menu.
+- Uma previa visual informa que suas acoes sao demonstrativas. Na integracao real,
+  preservar os efeitos existentes, as permissoes e a identidade do cliente.
+
+**Why:** em 08/11/2026, o responsavel aprovou a faixa deslizante do Cockpit 3 e
+pediu alinhamento fixo das acoes, sem duplicar o atalho superior de protocolo.
+
+**How to apply:** usar a mesma regua nas propostas e, quando o design for integrado,
+nas visualizacoes reais do Cockpit, mantendo suas ferramentas e protecoes.
+
+### 4.4.2 Cockpit — tecido contínuo e identificação do certificado
+
+- O responsável escolheu o modelo B: tecido azul mais claro com risca de giz
+  dupla igual à marcação de consulta, contínuo por trás do cabeçalho e da régua.
+- O tecido alcança a borda do menu aberto ou recolhido, sem faixa branca.
+  A régua mantém seu comportamento durante a rolagem; botões e abas não mudam.
+- A área de trabalho preserva os temas claro e escuro e os controles reais.
+- O certificado no Cockpit pertence ao médico autenticado e acompanha a
+  identidade da própria conta, nunca a fotografia ou identidade do cliente.
+- Um estado visual de certificado não substitui autorização e conferência do
+  médico responsável pelo documento no momento de sua emissão.
+
+**Why:** em 10/11/2026, o responsável escolheu o modelo B após relatar emenda
+no tecido e espaço branco junto ao menu.
+
+**How to apply:** usar uma pintura coordenada para a superfície e a régua
+fixa; conferir menu aberto e recolhido, contraste e estados reais do certificado.
+
 ### 4.5 Padrao 24 — Formulários do Corpo Clínico e ações no rodapé
 
 - A aba “Dados” é a referência visual para todas as abas do cadastro do profissional.
@@ -660,10 +730,206 @@ validacoes existentes.
 
 **How to apply:** usar este padrão ao alterar qualquer aba do diálogo de cadastro/edição do Corpo Clínico, em computador e celular.
 
+### 4.6 Padrão 25 — Identidade da conta no rodapé do menu
+
+- O rodapé do menu mostra a foto do perfil da própria conta autenticada; sem foto, mostra as iniciais da mesma pessoa.
+- A foto vem do registro próprio do colaborador no Corpo Clínico/Perfil; nunca usar a foto do médico responsável quando for outra pessoa.
+- O cartão claro em relevo usa texto navy escuro com contraste; ouro fica como detalhe de moldura, não como texto pequeno.
+- Exibir nome e função/categoria em slots fixos; não deixar o CPF visível permanentemente no menu.
+- Dados pessoais adicionais permanecem atrás da abertura explícita do cartão e mascarados por padrão.
+- O título da área é neutro (“Minha conta”), pois o titular pode ser médico, outro profissional ou administrador não clínico.
+- A categoria exibida descreve o cadastro; ela não concede nem prova autoridade administrativa ou clínica.
+
+**Why:** em 06/11/2026, o CEO apontou baixo contraste no rodapé e pediu uma foto da própria conta, observando que o administrador pode não ser médico.
+
+**How to apply:** reutilizar o registro autenticado em `/api/collaborator/me`, com iniciais como alternativa; manter foto, nome e função ligados à mesma pessoa, sem inferir privilégios.
+
+### 4.7 Padrão 26 — Prévia de identidade em documentos
+
+- Mostrar cabeçalho e rodapé lado a lado com os campos de identidade, com opção de ampliar e reduzir.
+- Mostrar o símbolo recém-escolhido antes de salvar, centralizado sem distorção e com o padrão de cor do documento.
+- Informar formatos aceitos e limite de tamanho junto ao botão de seleção; recusar fundo inadequado.
+- Exibir contagem de caracteres, mas validar a largura física real com a fonte da prova, sem cortar texto.
+- Diferenciar a ilustração aproximada da prova salva; identificar símbolos e dados de demonstração.
+
+**Why:** em 07/11/2026, o responsável pediu uma forma simples de conferir alinhamento e proporção da identidade antes de salvar.
+
+**How to apply:** usar este padrão ao configurar a identidade empresarial do Modelo 2B; não apresentar a ilustração como documento clínico aprovado.
+
 Nota tecnica (relevo 3D vence Tailwind): as classes de relevo (`bevel-3d`, `panel-3d`, etc.) ficam
 SEM `@layer` de proposito e por isso sobrepoem utilitarios `bg-*`/`border-*` do Tailwind. Para tingir
 um bloco em relevo (ex.: alerta "dentro do alvo" verde) NAO adianta por `bg-emerald-50` — crie/use
 uma classe unlayered companheira (ex.: `bevel-3d-ok`) que sobrescreve so `background`/`border-color`.
+
+### 4.8 Padrao 27 — Selo de modalidade do local (Sede / Local externo / Online / Indefinido)
+
+Atualizacao (correcao de cadastros): rotulos visiveis passaram a ser SEDE, LOCAL EXTERNO, ONLINE, INDEFINIDO (valores internos `sede`/`externo`/`online`/`definir` inalterados). SEDE deixou de ser navy chapado (lia como preto): agora navy claro `#e3e9f4` com texto navy. Estado ativo de botao bevel NAO usa mais `bg-primary text-primary-foreground` (o `bevel-3d` unlayered vence o fundo e sobra texto branco em face clara): usar `bevel-3d pax-escolha` com `aria-pressed` (ver Padrao 31).
+
+Lei promulgada em 07/11/2026 para a tela LOCAIS DE ATENDIMENTO (`/cadastros/clinicas`).
+- 4 estados, cada um com icone + cor fixa (fonte: `pages/cadastros/locais/locais-modo.ts`): SEDE = navy com texto ouro (Building2); OUTRO ENDERECO = ouro claro com borda ouro (MapPinned); ONLINE = azul claro com borda azul (Video); A DEFINIR = ambar (HelpCircle).
+- O selo mora na ZONA 1 (barra superior) do card, ao lado do LED de ativo; nunca ao lado do nome. Resumo por modalidade no cabecalho da empresa usa os mesmos selos com contagem (contagem nao leva LED).
+- Hierarquia: Empresa (painel recolhivel) > Estado > Cidade > Regiao; online e "a definir" ganham secao propria sem geografia.
+- Filtro por modalidade = botoes bevel com `aria-pressed`; ativo = `bg-primary text-primary-foreground ring-2 ring-[#b8892b]` (nunca so mudar a cor do texto).
+- Formulario: 3 botoes grandes (Presencial / Online / A definir) + Switch "O local fisico e o mesmo endereco da empresa" (aparece em Presencial e em Online; em Online o texto e "Usar o endereco da empresa como referencia"). Ligado: campos de endereco somem e o endereco da empresa e mostrado. Online guarda endereco so como referencia e pode ter "Observacao do local".
+- Modalidade nunca e presumida: sem informacao = A DEFINIR.
+
+### 4.8.1 Padrao 31 — Janela de altura estavel, legenda alinhada e resumo de slots fixos
+
+Fonte: `pages/cadastros/locais/locais.css` (classes unlayered `.pax-*`).
+- Dialogo de cadastro com secoes/abas: `DialogContent` recebe `pax-dialogo-fixo` (altura efetiva fixa `min(46rem, 100dvh - 2rem)`); cabecalho, barra de secoes e rodape `shrink-0`; so o miolo rola (`pax-dialogo-miolo` ou `TabsContent flex-1 overflow-y-auto`). Trocar secao nunca redimensiona a janela; o rodape com SALVAR fica sempre visivel.
+- Cabecalho de dialogo de registro filho mostra SEMPRE o dono (ex.: "Empresa proprietaria") num insert concavo; nunca depender de o usuario lembrar o contexto.
+- Filtro com legenda: UMA linha por significado (`pax-filtro-linha`): botao bevel de largura fixa a esquerda (mesma largura e altura em todas as linhas) + texto de ajuda a direita. Nada de chips em `flex-wrap` com legenda separada.
+- Estado ativo de escolha bevel: `bevel-3d pax-escolha` + `aria-pressed`/`data-state`. Claro = face ouro clara + texto navy + anel ouro; escuro = face navy + texto ouro. Nunca texto branco sobre face clara.
+- Resumo por categoria: `pax-resumo` com TODOS os slots sempre presentes na mesma ordem, inclusive contagem zero (`data-zero` so atenua). No celular os slots empilham em posicoes iguais (1 coluna); a partir de 768px viram colunas iguais. Rotulo nunca truncado com reticencias — se nao cabe, empilha.
+- Cabecalho de pagina com acao principal: no celular a acao desce abaixo do titulo em largura total (`flex-col sm:flex-row`); nunca sobrepor o titulo.
+- Toda variante tem `.dark`.
+
+### 4.9 Padrao 28 — Aba "Agenda Google" no cadastro do local
+
+Lei promulgada em 07/11/2026. Fonte: `pages/cadastros/locais/AgendaGoogleTab.tsx`.
+- A agenda do Google e ESCOLHIDA numa lista da conta conectada (bevel com amostra da cor real, `aria-pressed`, ocupadas desabilitadas dizendo "Ja usada em: ..."), nunca digitada. O campo de ID na aba Contato e somente leitura.
+- Papel da agenda (Local, Remoto, Externo, Pessoal, Geral) e obrigatorio e sempre confirmado pelo usuario; o nome da agenda apenas SUGERE.
+- Cor e endereco vem do Google por acao explicita (caixa "Usar a cor" e botao "Preencher a aba Endereco"). O endereco so preenche o formulario, nunca salva sozinho; texto fora do formato "Rua, n - bairro, cidade - UF, CEP" nao e chutado.
+- Importacao de .ics/link: SEMPRE em 2 passos. "VER PREVIA (NAO GRAVA NADA)" mostra tabela emoldurada (1a linha pastel) e so entao "CONFIRMAR IMPORTACAO DE N COMPROMISSOS". Eventos que o proprio sistema criou para sessoes de clientes aparecem separados e nunca sao importados.
+- Enter no campo de link nunca submete o formulario do local.
+
+**Why:** o CEO pediu cadastrar agendas dentro da tela do local, importar por arquivo ou link, e nunca triplicar compromissos.
+
+**How to apply:** qualquer nova fonte de agenda (outra conta Google, outro formato) entra nesta aba com previa antes de gravar.
+
+### 4.10 Padrao 32 — Vinculo empresarial do profissional (originario + ate 5 empresas)
+
+Lei promulgada em 09/11/2026. Fontes: `pages/professionals/empresas-vinculo.tsx` e `pages/professionals/index.tsx`; regra no servidor em `api-server/src/lib/professional-empresas.ts`; spec em `specs/vinculo-empresas-profissional.md`.
+- Posicao 1 = VINCULO ORIGINARIO: dropdown "Vinculo originario" na faixa Identidade da aba DADOS (`field-engraved`, obrigatorio no cadastro novo). E a unica porta para trocar a empresa de origem.
+- Posicoes 2 a 5 (Secundaria, Terciaria, Quaternaria, Quinaria) = empresas onde tambem presta servico, na aba VINCULOS, em painel `panel-3d-sub` com as 5 posicoes SEMPRE presentes e na mesma ordem. A Principal e espelho somente leitura (`concave-3d` com cadeado e "Altere na aba Dados"); posicao livre sem anterior preenchida fica desabilitada com "—"; sem lacunas.
+- Cada escolha salva na hora (indicador de carregando ao lado, nunca botao SALVAR escondido). Opcoes excluem empresas ja usadas; empresa inativa so aparece se ja estiver gravada; "— Remover este vinculo —" no fim da lista.
+- Agenda so abre nas empresas da lista: a aba VINCULOS agrupa os locais POR EMPRESA (cabecalho com nome, selo da posicao e "liberadas/total agendas"); empresa sem local mostra "Nenhum local cadastrado nesta empresa."; nunca listar locais de empresa fora do vinculo.
+- Remover (ou trocar) empresa que ainda tem agenda liberada = servidor recusa com 409 listando as agendas; a tela mostra o aviso inline (`role="alert"`) e nada some. A tela nunca desliga agenda sozinha.
+- Card da lista: linha fixa com chip `concave-3d` da empresa originaria ("—" se vazio) + selo `bevel-3d` "+N" de empresas adicionais ("+0" quando nenhuma; `title` com os nomes).
+- Apenas o dono da plataforma edita; os demais enxergam sem alterar. Erro do servidor sempre aparece com a mensagem real, nunca "Erro ao salvar" generico.
+
+**Why:** o CEO pediu que cada profissional tenha empresa de origem e ate 5 empresas de atuacao, e que a agenda so abra nas empresas onde ele esta cadastrado (antes a aba listava os 26 locais de todas as empresas).
+
+**How to apply:** qualquer tela que vincule profissional a local, agenda ou empresa (inclusive `cadastros/equipe`) filtra pelas empresas do profissional e repassa a mensagem de recusa do servidor.
+
+### 4.11 Padrao 33 — Campo ligado: titulo Saliente, resposta Concava, legenda de origem
+
+Lei promulgada em 11/11/2026 (pedido do CEO). Fontes: `components/CampoLigado.tsx` e `lib/legendas-origem-protocolo.ts`; aplicada em `pages/protocols/new.tsx` (Dados Gerais do lancador).
+- Todo dado que NAO e digitado (vem de cadastro ou do Agenda Configuração) e mostrado como `CampoLigado`: titulo na placa Saliente (`bevel-3d`), resposta em poco Concavo (`concave-3d`), somente leitura.
+- Legenda de origem: chip com LETRA + NUMERO no canto superior direito da placa e, em letra pequena logo abaixo, o caminho da tela/planilha de origem ("C3 = Cliente > Agenda de enfermagem"). Letras: C = cadastro do cliente, M = Agenda Configuração, E = Equipe. Codigo novo entra primeiro em `LEGENDAS_ORIGEM`.
+- "Local de atendimento" NAO e campo separado: a agenda comporta o local (o endereco aparece dentro da resposta da agenda).
+- Horario padrao nunca e digitado: vem do inicio do expediente (`agenda_windows`) da agenda. Regra: inicio mais cedo de cada dia; vale o inicio que mais se repete (empate = o mais cedo). Sem expediente cadastrado = mensagem em vermelho dizendo onde cadastrar; nunca um horario inventado.
+
+**Why:** o CEO se perdia sem saber de onde cada dado vinha e o bloco antigo era texto corrido numa caixa so.
+
+**How to apply:** qualquer tela que mostre dado ligado a outra tela/planilha usa `CampoLigado` com um codigo registrado.
+
+### 4.12 Padrao 34 — Sub-cadastro em abas dentro da janela fixa (aba "Locais Externos" da empresa)
+
+Lei promulgada em 11/11/2026 (pedido do CEO). Fonte: `components/empresa/LocaisExternosAba.tsx`, dentro de `pages/cadastros/empresas.tsx` (janela `pax-dialogo-fixo`).
+- Cadastro filho NUNCA vira menu separado: vive como aba do cadastro pai. A aba tem DUAS visoes: lista (cartoes `bevel-3d`, botao "NOVO ...") e edicao.
+- Edicao: faixa `panel-3d-sub` no topo com botao `btn-3d-soft` "Lista" (volta) + sub-abas `bevel-3d empresa-aba` (ativa navy/ouro, mesma pele do medico); miolo com rolagem propria (`overflow-y-auto`); rodape com nome do registro a esquerda e CANCELAR / SALVAR a direita.
+- A janela NAO muda de altura ao trocar de aba ou de visao: o miolo rola por dentro (medido: 736 px em todas as abas).
+- Enter dentro de campo e bloqueado (a aba mora dentro do formulario do pai). O rodape do pai troca para so "FECHAR" nessa aba.
+- Mensagens usam o `useToast` do app (o Toaster do sonner NAO esta montado: `toast` do sonner nao aparece).
+
+**Why:** o CEO quer cadastro filho dentro do pai, com cara do cadastro do medico e sem a janela pular de tamanho.
+
+**How to apply:** qualquer sub-cadastro dentro de janela de cadastro copia esta estrutura (lista -> edicao com sub-abas, altura fixa).
+
+### 4.13 Padrao 35 — Ativar/desativar por interruptor; excluir so com confirmacao do CEO
+
+- Cartao de cadastro (empresa, local, local externo) NUNCA tem lixeira solta. Ao lado de "Editar" vai um interruptor
+  (`Switch` dentro de `label.bevel-3d`, texto "Ativo/Inativo"; empresa: "Ativa/Inativa"). Reversivel, sem apagar nada.
+- Item desativado fica na lista (opacidade reduzida, LED ambar, selo DESATIVADO) para poder ser reativado.
+- Excluir, quando existir, e botao separado, so para o CEO (`isPlatformOwner`), habilitado so com o item ja desativado,
+  abre dialogo que exige digitar o nome exato. O servidor valida de novo e apenas carimba (`excluido_em`), nunca apaga a linha.
+- Desativar EMPRESA pede `window.confirm` (impacto maior); local e local externo desativam direto.
+
+### 4.14 Padrao 36 — Dialogo de cadastro com trilho de abas (posicao alta, altura fixa)
+
+Decisao do CEO (11/11/2026): abas internas "espalhadas" em varias linhas e dialogo que encolhia/subia ao trocar de aba.
+
+| Regra | Como fica | Onde vive |
+|---|---|---|
+| Trilho = UMA linha | Retangulos Salientes (`bevel-3d`) de mesma altura (`4.25rem`), icone em cima + nome CURTO embaixo, `flex-nowrap`; em tela estreita o trilho rola de lado, nunca quebra | `components/ui/trilho-abas.tsx` (`TrilhoAbas`) |
+| Grupos por assunto | Cada item tem `grupo`; entre grupos o respiro e maior (`ml-2`). Ordem = ordem de preenchimento (cadastro, fiscal, sistema, locais) | constante de abas da tela (ex.: `ABAS_EMPRESA`) |
+| Aba ativa | Navy com borda dourada (`.empresa-aba[data-state="active"]`) | `index.css` |
+| Altura FIXA | `pax-dialogo-fixo`: `min(52rem, 100dvh - 1rem)`, cabecalho e rodape fixos, so o miolo rola | `locais/locais.css` |
+| Posicao ALTA | `top-2 translate-y-0` no `DialogContent` (nunca centralizado na vertical) — trocar de aba nao move nem encolhe o dialogo | tela |
+| Cabecalho em 1 linha | Titulo + nome da entidade lado a lado (`flex-row items-baseline`), para sobrar altura ao miolo | tela |
+| Largura | `w-[calc(100vw-1rem)] max-w-5xl` quando o trilho tem 8 ou mais abas | tela |
+| Aba sem salvar proprio | Rodape mostra so FECHAR (aba de lista/consulta) | tela |
+
+Anti-padroes: `TabsList` com `flex-wrap` (altura do trilho muda conforme a largura); rotulo longo no trilho
+("Identidade dos documentos" vira "Identidade", o titulo completo vai no `title`); dado do cadastro mostrado
+na FRENTE do card quando o lugar dele e uma aba interna (ex.: lista de locais da empresa foi para a aba "Locais").
+Teste de aceite: mesmo `top` e mesma altura do dialogo em TODAS as abas, em 1024x576 e 1440x900.
+
+### 4.15 Padrao 37 — Cadastro "bater o olho" (TOC + TDAH): titulo Saliente, contador, selo por aba
+
+Pedido do CEO (11/11/2026): "os titulos tem que estar em up bevel" e "bater o olho e ja extrair a informacao".
+Erro que gerou o padrao: titulo de secao em texto solto com filete (`Divider`) dentro do cadastro — viola o Padrao 3.
+
+Base de pesquisa (validada em design de formularios e acessibilidade cognitiva): proximidade e agrupamento (Gestalt),
+posicao FIXA de cada elemento (memoria espacial), feedback de progresso sem precisar procurar (visibilidade do estado do
+sistema, Nielsen), uma coluna de leitura com rotulo acima do campo, divulgacao progressiva (so a aba aberta).
+
+| Camada | Regra | Componente |
+|---|---|---|
+| 1. Cabecalho | Titulo do dialogo em placa Saliente (`bevel-3d`) + NOME da entidade em negrito MAIUSCULO + #id + CNPJ em mono; a direita, contador do cadastro inteiro ("CADASTRO PREENCHIDO 18/31") | `ResumoCadastro` |
+| 2. Trilho | Uma linha (Padrao 36). Cada aba de cadastro tem SELO no canto: circulo verde com check = completa; circulo ambar com numero = quantos campos faltam. Abas sem campo contavel (lista, consulta, opcionais) ficam sem selo | `TrilhoAbas` com `pendencias` |
+| 3. Secao | Titulo SEMPRE em placa Saliente (altura `h-7`, MAIUSCULO, icone Lucide a esquerda, cor primary); filete fino leva o olho ate a direita; legenda curta opcional ("para a NF-e; pode ser igual ao comercial"); contador `n/total` num slot Concavo de largura fixa (`w-[4.5rem]`), verde com check quando completo, ambar quando parcial, cinza quando zero | `PlacaSecao` + `ContadorPreenchido` (`components/ui/placa-secao.tsx`) |
+| 4. Campo | Rotulo `.lbl` acima, campo gravado (`field-engraved`) abaixo; campos curtos (nome fantasia, razao social, bairro, cidade) lado a lado na grade, campo longo ocupa a linha | tela |
+
+Regras duras:
+1. Titulo de secao NUNCA e texto solto; sempre placa Saliente. `Divider` so serve para separar listas na tela principal.
+2. Titulo curto na placa (ate 3 palavras); explicacao longa vai na legenda a direita, nunca dentro da placa.
+3. Contador de preenchimento usa Check/numero e cor do texto — NUNCA LED (LED em contagem e proibido, Grade Imaginaria).
+4. O criterio "campo conta para o selo" fica numa tabela unica (`SECOES` + `SECOES_DA_ABA`); campo opcional (complemento, zona, apelido, slug) nao entra. Integracoes sao opcionais: sem selo.
+5. Contadores usam `useWatch` dentro do proprio componente: digitar nao re-renderiza o formulario inteiro.
+6. Placa dentro de grade usa `col-span-full` (ja embutido); um titulo preso numa celula da grade desalinha tudo.
+7. Slot do selo e do contador e fixo: nada aparece/some e desloca vizinhos.
+Aceite: abrir cada aba e, sem rolar, saber (a) qual empresa, (b) qual aba, (c) quantos campos faltam por secao e por aba.
+
+### 4.16 Padrao 38 — Classificacao por clique (nada digitado) e Padrao 39 — inativas no proprio grupo
+
+Pedido do CEO (11/11/2026): "eu nao quero digitar; deixe os tipos disponiveis para eu so clicar, em up bevel, e ao lado a explicacao".
+
+| Parte | Regra |
+|---|---|
+| Escolha por clique | Todo dado que e uma lista fechada (categoria, porte, grau, CNAE) e uma COLUNA de botoes Salientes (`bevel-3d pax-escolha`) um sobre o outro; nunca `Select`, nunca campo de digitar. Largura do botao fixa (`15.5rem`), altura minima `h-12` |
+| Estado | Nao escolhido = Saliente. Escolhido = AFUNDADO em ouro (`aria-pressed="true"`, classe `pax-escolha` em `locais/locais.css`). Clicar no escolhido desmarca, exceto dado obrigatorio (CNAE) |
+| Explicacao | Ao lado de cada botao, num poco Concavo da mesma altura. Linha escolhida: texto forte + barra ouro a esquerda; as demais em cinza. A explicacao diz o que a opcao SIGNIFICA, nunca repete o rotulo |
+| Eixos | Cada eixo (um assunto) tem placa Saliente de titulo + contador `0/1` ou `1/1` (Padrao 37). Ordem: do mais amplo para o mais especifico |
+| Resumo no topo | Faixa fixa (`sticky top-0`) com um chip por eixo mostrando a escolha atual ("nao escolhido" em ambar): da para ler a classificacao inteira sem rolar |
+| Valor fora da lista | Dado antigo que nao esta na lista aparece como linha escolhida "Outro: ..." com aviso; nunca e apagado nem convertido em silencio |
+| Nunca supor | Cadastro novo nasce SEM escolha (nada pre-marcado). Empresa antiga sem valor mostra "nao escolhido" |
+| Papel x classificacao | O papel no sistema (empresa independente x espelho Genesis) e uma FAIXA informativa, nunca uma opcao de tipo. Genesis = espelho do Instituto Padua: classificacao desabilitada, nada gravado |
+| Dados da aba principal | Onde a classificacao aparecia como `Select`, fica so um resumo somente leitura (titulo Saliente + resposta Concava) com o botao "Abrir classificacao" |
+
+Implementacao: `pages/cadastros/ClassificacaoEmpresa.tsx` (eixos em `EIXOS_CLASSIFICACAO`; para criar outro eixo, acrescentar la).
+Valores espelhados no servidor (`validarClassificacao` em `routes/empresas.ts`): mexeu num, mexa no outro.
+
+**Padrao 39 — empresa inativa fica no proprio grupo.** Em lista agrupada (cidade, zona), item desativado NAO vai para o fim da pagina:
+fica no mesmo grupo, depois dos ativos (se o grupo tem varias zonas, num bloco "Inativas de <grupo>" ao fim do grupo), com opacidade reduzida
+e interruptor "Inativa". Um interruptor no topo da lista, "Mostrar inativas (n)", esconde todas de uma vez (padrao: ligado, para nada "sumir").
+
+### 4.17 Padrao 40 — Tela de cadastro minimalista: texto escrito, linha vertical, sem simbolo e sem contador
+
+Pedido do CEO em 11/11/2026 ("eu nao gosto de simbolozinhos; eu gosto do escrito"). Vale para Empresas, Locais e todas as subtelas.
+
+1. **Zero simbolo.** Placas, cartoes, botoes e abas levam so texto. Unicos simbolos permitidos: `+` e `−` do controle de sanfona. Excecao: logotipo real da empresa no vidro `.vidro-logo` (quina de 6px, igual a foto de perfil, nunca bolha). Sem logotipo real, o vidro mostra as iniciais escritas, nunca um icone.
+2. **Zero contador.** Nada de "N ativas", numerozinho em chip, "n/total" nem selo numerico em aba. Isto SUBSTITUI os contadores n/total e os selos de aba do Padrao 37 e a contagem do Padrao 38. Tambem nao exibir `#id` nem LED de status em cartao.
+3. **Dado = `JanelaDado`.** Janela Concava com rotulo escrito (9px maiusculo) numa coluna fixa de 6,25rem + valor; todos os rotulos ficam na mesma linha vertical imaginaria. Mostrar so os dados que existem.
+4. **Titulo = `PlacaTitulo`.** Placa Saliente de largura unica (18rem), texto maiusculo, sem icone, sem clique. `PlacaSecao` = placa + linha fina + dica escrita opcional.
+5. **Grupo (cidade, empresa, painel recolhivel) = `BarraGrupo`.** UMA peca Saliente so, sem divisoes internas: titulo a esquerda e `+`/`−` no extremo direito; a barra inteira e o botao (`aria-expanded`). Fechado ou pressionado = afundado (insert bevel). Painel recolhivel (ex.: Codigos das empresas) usa a MESMA barra, fica no fim da lista e leva uma frase escrita dizendo para que serve. Corpo abre/fecha com `SanfonaVertical`.
+6. **Sem subdivisao de cidade.** Uma cidade e UM grupo (grade unica); nao criar placas de zona/bairro ("Centro") nem placa "Inativas": inativas ficam esmaecidas depois das ativas.
+7. **Selecao = insert bevel.** Aba ou botao escolhido fica AFUNDADO (gradiente claro, sombra interna forte, borda dourada) e NUNCA troca para azul/navy (`.empresa-aba` em index.css). Escolha de classificacao continua afundada em ouro (`.pax-escolha`).
+8. **Interruptor = `ChaveOuro`.** Trilho dourado quando ligado (igual ao toggle "liberado" da Governanca); substitui o `Switch` azul nas telas de Empresas e Locais. Item protegido (Instituto Padua) fica desabilitado, com explicacao em `title`, sem cadeado.
+9. **Botoes so com texto**: "EDITAR", "VER EQUIPE", "ABRIR TODAS AS CIDADES".
+
+Componentes: `components/ui/placa-titulo.tsx`, `placa-secao.tsx`, `barra-grupo.tsx(+css)`, `janela-dado.tsx`, `chave-ouro.tsx(+css)`, `sanfona-vertical.tsx`, `trilho-abas.tsx`. Classes 3D sao UNLAYERED: sobrescrever raio/fundo exige CSS proprio tambem fora de layer.
 
 ## 5. Console de Orcamento (referencia viva)
 
@@ -713,6 +979,141 @@ oficial nem batizar a tela so de "Console".
 - Nao remover o relevo 3D dos paineis/sub-paineis — e a essencia.
 - Ao mexer em classe 3D, mexer so no render (cor/sombra/forma), nunca na logica de dados.
 
+### 4.18 Padrao 41 — Cartao de AGENDA (um desenho, duas telas)
+
+Agenda e local de atendimento sao coisas distintas. O cartao de agenda e o MESMO componente
+(`components/CartaoAgenda.tsx`) na Agenda Configuracao (tecla da lista) e no cadastro interno da empresa (aba "Agendas", nunca "Locais").
+
+1. Vidro de cor (`VidroCor`) a esquerda; a cor e UMA so (`agenda_resources.color`, espelhada no local ligado pelo servidor nos dois sentidos).
+2. Tres linhas, titulo e valor lado a lado, SEM quebra de linha (valor longo corta com reticencias, o texto inteiro vai no title):
+   "Agenda profissional" + categoria gravada; "Forma" + Sede / Online / Outro local; "Título agenda" + nome livre.
+3. Titulos em EB Garamond semibold discreto (13px) numa coluna de largura fixa (7rem) para os valores alinharem na vertical; valores em Inter medium 10,5px maiusculo. Nada de negrito pesado.
+4. Sem categoria gravada = "categoria pendente" (nunca deduzir do nome). A palavra "remoto" nao existe mais.
+5. Na Agenda Configuracao a coluna da lista tem 400px (lg) e 520px (xl) para o titulo mais longo caber inteiro.
+6. Nenhum texto dessas telas chama a agenda de "local": local e o endereco fisico (aba Externos); agenda e agenda.
+
+### 4.19 Padrao 42 — Barra congelada da Agenda (comandos + faixa de agendas + cartao rapido)
+
+Telas de agenda com muito controle seguem UM bloco congelado no topo (`.ag-congelada`, `pages/agenda/BarraAgenda.tsx` + `agenda-barra.css`).
+
+1. Linha de comandos estreita (36px): seta anterior, periodo (2 linhas: "09 — 15 NOV 2026" + "Esta semana"), seta proxima, Hoje, segmentado Dia/Semana/Mes (Concavo com o ativo Saliente), forma de exibir, ICS e Google so com icone e dica, e "Novo agendamento" em `btn-3d`.
+2. "Hoje" fica apagado (`btn-3d-soft`) quando ja estamos no periodo atual e ganha destaque quando nao estamos.
+3. Faixa de agendas = UMA barra continua (`.ag-trilho`, Concavo) com um BOTAO RETANGULAR EM RELEVO (`bevel-3d`, `.ag-chip`) por agenda. Esquerda, 2 linhas: SO a categoria profissional tirada do campo da agenda ("Médico", "Enfermeira", "Biomédico"), maior e em negrito, e embaixo o nome da agenda MENOR, em 1 linha, sem repetir a categoria ("MEDICO - CAIO - SEDE" vira "CAIO - SEDE"; o nome inteiro fica na nuvenzinha). Canto direito: PORCENTAGEM de ocupacao (peca `Percentual` do Numeral, EB Garamond) com a sigla "OCUP" minuscula embaixo. Rodape: barrinha delgada de VIDRO ACETINADO (`.ag-vidro`) na cor da agenda. NUNCA faixa colorida na lateral (CEO reprovou). Desligada = afundada (`concave-3d`). Dois cliques = so esta.
+3.1. Ocupacao = vagas ocupadas / vagas previstas no periodo exibido (GET /agenda/ocupacao). 100% = porcentagem em ambar. Sem janela, Google ou falha = travessao (nunca zero inventado). A antiga barrinha "OCUPADO 4/6" acima do botao foi RETIRADA a pedido do CEO.
+3.15. Nuvenzinha (hover): pequena, TRANSLUCIDA (blur), `pointer-events:none`, ancorada no CANTO INFERIOR DIREITO do botao (nunca sobre as outras agendas). Abre em ~40 ms, fica ~2 s e esvanece em ~1 s; mexer o mouse de novo reabre; TIRAR o mouse NAO a fecha (ela segue o proprio tempo). Fica ~14 px abaixo do botao. Conteudo com titulo por linha: nome inteiro da agenda, Atendimentos (algarismos: "38 atendimentos"), Ocupacao ("4 de 6 vagas", SEM porcentagem: ela ja esta no botao), Tempo ("30 min"), Endereco (so agenda presencial da SEDE, atual da empresa, ou local externo que tenha endereco proprio; online e home care nunca) e Profissional (ou "Agenda compartilhada"). A categoria nao repete (ja esta na linha 1). Sem vagas = "0%", nunca travessao. Espessura do vidro aprovada: 0,72 rem.
+3.2. O aviso de agendas ocultas ocupa espaco FIXO (`.ag-ocultas`): aparecer ou sumir nunca desloca os botoes.
+4. "+" e "−" na ponta direita (`bevel-3d`, 34px) maximizam/minimizam: maximizado vira gaveta (`.ag-gaveta`, `panel-3d-sub`) por cima da grade, com grupos, "So esta", Mostrar todas e Limpar selecao; Esc fecha. Nasce minimizada em tela e celular.
+5. No celular o bloco ocupa 3 linhas (periodo, comandos, agendas); "Novo agendamento" vira so "+" (texto fica para leitor de tela).
+6. Cartao rapido (`CartaoRapido.tsx`): so de passar o mouse num atendimento abre um quadro `panel-3d` com nome do paciente (EB Garamond), horario, agenda, profissional, local e as aplicacoes (ou "Sem aplicacao nesta visita"); fecha ao sair. No toque nao abre sozinho. Compromisso do Google mostra so titulo, agenda e horario, nunca a descricao.
+
 RESUMO EM 1 LINHA: design Paxter = paineis 3D skeuomorficos, Saliente para a conclusao e
 Concavo para o dado, cores verde-petroleo/ciano, cantos quadrados, fluxos com setas — so
 apresentacao muda, o motor nunca.
+
+
+### Padrao 43 - Cadastro com campo de apelido + previa do botao (Agenda Configuracao)
+1. Nome da agenda nao muda (referencia do Google): campo com linha pequena embaixo "Referencia do Google".
+2. Apelido = "o nome que aparece na segunda linha" do botao; ja vem sugerido do nome (tira "AGENDA" e a profissao) e respeita o que a clinica digitar; vazio volta a sugestao. Cada clinica escolhe o seu (multiclinica).
+3. Previa do botao (PreviaBotaoAgenda) usa as MESMAS classes do botao real (ag-chip): cor + apelido + profissao ficam visiveis ao escolher. Campos empilhados, alinhados, com linha de altura fixa embaixo.
+4. Nuvenzinha sem titulo (nao repete o botao), 2 colunas, endereco na linha inteira embaixo; ~2 s.
+
+### Padrao 44 - Grade da Agenda: folhinha de dia, compromisso em up bevel, cantos limpos
+1. Cabecalho do dia = folhinha retangular de quinas quase retas (3px), sem aparencia de botao: faixa azul-marinho clara e alta com o MES, corpo creme com numero e dia da semana por extenso; HOJE = moldura dourada dupla em relevo, nunca circulo escuro.
+2. Compromisso = tom pastel da cor da agenda + moldura fina da MESMA cor + relevo para fora (luz no topo, assentamento embaixo). Faixa lateral ("giz") proibida. Google = mesma moldura + hachura fina.
+3. "Agora" e o som moram no canto superior esquerdo da grade (coluna das horas), sem linha propria; a faixa de cima so existe quando ha proximo atendimento.
+4. Barra de agendas: sem contador "N de N" e sem indicador de ocultas; botao apagado ja mostra o que esta desligado; "Mostrar todas" fica no painel do +.
+
+### Padrao 45 - Volante por toque (Meus Jogos)
+1. Dezena = botao redondo de no minimo 44 x 44 px (classe mj-bola), grade auto-fill sem rolagem horizontal; marcada = aro dourado + miolo dourado afundado + selo de visto no canto (nunca so cor), aria-pressed e foco visivel.
+2. Volante dentro de um poco concavo (concave-3d); faixa de selecao fica em painel-3d-sub fixada acima da barra inferior: dezenas marcadas, quantidade, texto de ajuda e preco em EB Garamond. Preco vem sempre do servidor; sem preco oficial = "—".
+3. Resultado sorteado = bola dourada pequena (mj-bola-resultado), so leitura. Estado de pedido = linha do tempo de 5 passos com icone + rotulo + texto para leitor de tela.
+4. Acoes em 2 colunas (Limpar/Aleatorio, Favorito/Ao pedido), alvo minimo 44 px; confirmacao em duas etapas com texto claro; botao desativado mostra o motivo escrito ao lado.
+
+### Padrao 46 - Fotos de evolucao corporal (Area do Cliente + Comparador do Cockpit)
+1. Envio (celular): 4 cartoes concavos em 2 colunas (Frente, Costas, Perfil esquerdo, Perfil direito), cada um com silhueta guia (componente Silhueta), texto de como posar e botao btn-3d-soft de 44 px; guia "Como tirar as fotos" recolhivel em bevel-3d; consentimento em caixa de 20 px.
+2. Historico = um poco concavo por data (DD/MM/AAAA, ouro), 4 miniaturas 3:4; vaga sem foto mostra "—", nunca espaco em branco.
+3. Comparador (modal panel-3d, maximizavel): abas de angulo (bevel-3d ativo), chips de data btn-3d-soft/bevel-3d com "n/4 fotos", modos Lado a lado / Cortina / Transicao, grade ouro com linhas ciano de cabeca e pes; data sem foto no angulo fica desabilitada com "—".
+4. Foto corporal so aparece por rota autenticada (blob local temporario); nunca por endereco publico.
+
+### Padrao 47 - Tela sobre tecido risca de giz + esteira horizontal retratil (Pedidos dos Clientes)
+Toda tela NOVA nasce assim. Definido pelo CEO em 20/11/2026.
+1. **Fundo = tecido risca de giz de ponta a ponta**: envolver a pagina em `<div className="pm-tecido">` (`pages/pedidos-medicos/pedidos-tecido.css`; mesmos valores do `--cc-fabric` do Cockpit: claro creme com giz dourado, escuro azul com giz platina). Sangra sobre o padding do Layout (margem negativa) e usa `background-attachment: fixed`: nunca aparece faixa branca ao expandir.
+2. **TUDO dentro de painel flutuante**: `panel-3d` (bloco), `panel-3d-sub` (cartao interno), `concave-3d` (janela de dado/area afundada). Nada solto no tecido.
+3. **Linha de producao = esteiras horizontais retrateis**: cada esteira e um `panel-3d` com `BarraGrupo` (+/-). Fechada vira faixa estreita vertical (`pm-esteira-fechada`); aberta ocupa o espaco ao lado. A ultima aberta vai primeiro (`order-first`).
+4. **PROIBIDO retangulo colorido solto** (vermelho/verde/azul de "etapa"). Status = sinal discreto: `bevel-3d` + texto (`pm-pendente` para pendente). Paleta so navy/ouro/creme.
+5. **Interruptor = `ChaveOuro` dentro de `concave-3d`**, com frase dizendo o que liga/desliga e o efeito. Nunca toggle feito a mao.
+6. **Linguagem clara**: verbo que o leigo entende ("Enviar orcamento ao cliente"), nunca "Publicar". Cada bloco diz em 1 frase para que serve.
+7. Secoes secundarias: `BarraGrupo` + `SanfonaVertical` dentro do painel.
+Referencia viva: `pages/pedidos-medicos/FilaPedidos.tsx` e `index.tsx`.
+
+### Padrao 48 — Sinapse clínica: polos, códigos e condução pendente
+
+Fonte: tela Sinapses Clínicas. Aplicar quando uma tela mostra perguntas ou sinais
+ligados a saídas de catálogo, sem confundir desenho do vínculo com aprovação clínica.
+
+1. **Faixa horizontal do neurônio:** pergunta/código à esquerda, destino/código à
+   direita e fio no centro. As extremidades recebem mais largura que o centro; o
+   centro mantém fundo branco nítido e espaço suficiente para distinguir os fios.
+2. **Código completo nos dois polos:** mostrar o código integral, como `C-GER03` e
+   `EXA-12`, não apenas a sigla. O nome completo fica visível na sanfona e também
+   pode ser lido ao apontar o mouse; o controle precisa conservar nome acessível
+   por teclado e toque.
+3. **Condução tem estados diferentes:** fio contínuo representa ligação ativa;
+   fio tracejado representa proposta ainda pendente. Proposta não acende simulação,
+   não entra na contagem de ligações ativas e não alimenta nenhum motor clínico.
+    Ligação ativa cujo destino esteja vazio, inativo ou ausente não é condução real:
+    permanece visível com fio vermelho tracejado e rótulo “sem saída”, mas não acende
+    simulação nem pode ser criada, aprovada, clonada ou reativada.
+4. **Sanfona vertical:** cada correspondência pode abrir para mostrar código,
+   nome, eixo de origem, justificativa da proposta e ações de revisão. “Aprovar” e
+   “Recusar” só aparecem para propostas; recusa preserva o registro.
+5. **Carga inicial auditável:** a carga é idempotente, mantém as ligações ativas,
+   ignora códigos ausentes e não escolhe destino por mera semelhança quando o
+   catálogo não oferece correspondência clara. Itens sem ligação permanecem
+   visíveis com motivo escrito.
+    Ao abrir, destacar uma pergunta ligada para que a corrente seja legível; deixar
+    os outros fios disponíveis, mas visualmente discretos.
+6. **Pele:** usar o padrão Paxter de painel Saliente/Concavo, tecido claro e navy/ouro.
+   Não usar retângulos coloridos soltos; cor de categoria identifica o fio, enquanto
+   o estado pendente é identificado por tracejado e texto.
+7. **Conexão por dois pontos no modo de edição:** clicar no ponto do polo de origem
+   ancora o fio; após soltar, ele continua seguindo o ponteiro. Clicar no ponto da
+   saída conclui a ligação. Escape cancela; começar por outro ponto de origem
+   reinicia o fio. Preservar o arraste para quem preferir esse gesto.
+8. **Confirmação da corrente:** somente após o servidor confirmar a gravação, o fio
+   acende com um brilho breve e a relação fica selecionada e visível. Erro, sessão
+   recusada, duplicidade ou destino inválido nunca recebem brilho de sucesso. A
+   animação respeita `prefers-reduced-motion`; no celular, cada ponto tem alvo de
+   toque mínimo de 40 px.
+
+9. **Aprovado pelo CEO em 24/11/2026 (Sinapse Clinica):** titulo da tela "Sinapse Clinica";
+   faixa inferior "Mapa das ligacoes" (antes "sanfona"), linha por correspondencia em grade fixa
+   (codigo em janela concava, nome, Excluir, slot de Confirmar); contadores como fichas;
+   termostato fino (15 px, trilho concavo e botao saliente, 3 px da borda, dentro da moldura,
+   sem passar por baixo do vidro); legenda de fios Ativas/Propostas/Sem saida em up/afundado;
+   fio e pino na cor do bloco da pergunta; pino quadrado vazado com respiracao suave (so em foco);
+   duas pancadas no pino de origem armam, uma na saida liga e continua armado, duas pancadas no
+   vidro ou Esc desarmam; balao do fio e aviso junto ao mouse; seta de menu em cada saida abre o
+   cadastro (substancias com dose alinhada, tomadas em andares, via/apresentacao lado a lado,
+   observacao embaixo); vidro puro sem moldura. Vale a Lei 0.2 em tudo isso.
+
+**Why:** o responsável quer enxergar a relação pergunta→saída como um neurônio
+conduzindo corrente, com correspondências legíveis e editáveis, sem ligar propostas
+não revisadas ao funcionamento clínico.
+
+**How to apply:** preservar os polos e a sanfona em telas semelhantes; separar
+visualmente dados ativos de propostas e manter a condução clínica bloqueada até
+aprovação explícita.
+
+## Gráfico de linha com faixas
+Antes de criar ou mexer em qualquer gráfico de linha (Pulso, antropometria, exames), ler `references/grafico-linha-faixas.md`: espessura, faixas, quadradinho preto vazado e setas vêm de `graficoPadrao.ts`.
+
+## Regras da tela Sinapse (acrescentadas em 24/11/2026)
+1. Botão apertado mantém a aparência de apertado e o texto nunca muda; botão não muda de lugar (Lei Diamante do Lugar Fixo).
+2. Títulos de painel ficam na mesma linha, em faixas Salientes separadas; botões de minimizar, maximizar e demais ficam no extremo direito do painel de título.
+3. Cor de seleção aparece só em quadradinho de vidro (`.sinapse-vidro-cor`), nunca pintando linha ou painel. Quadradinhos ficam na face medial (virados para o centro), espelhados nos dois lados.
+4. Fileiras de chips deslizantes: centralizadas, sem setas; bordas esmaecidas e fio fino arrastável embaixo mostram que há mais a rolar.
+5. Brilho (neon) sempre discreto; pontas de fio quadradas; o fio nasce dentro do quadradinho do pino e atravessa a abertura da moldura (nunca rabicho pré-desenhado).
+6. Legenda em vidro "picado" conforme o tipo da linha, com picado leve; o picado do fio dentro da craniotomia não muda.
+7. Craniotomia: três controles fixos (alongar na vertical em 3 níveis, alargar na tela inteira, tela inteira); clique no fio solta um cometa de luz.
+8. Fundo da faixa: forro claro de risca de giz (`leva-fabric`), com o conteúdo em `relative z-[1]`.

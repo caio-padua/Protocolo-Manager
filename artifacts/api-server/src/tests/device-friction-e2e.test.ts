@@ -16,7 +16,18 @@ import request from "supertest";
 // ── Mocks pesados (declarados ANTES do import do router) ─────────────────────
 
 const mockDbExecute = vi.fn();
-const mockDbSelect  = vi.fn(() => ({
+interface ClientLookup {
+  phone: string | null;
+  telegramChatId: string | null;
+}
+interface SelectChain {
+  from(): {
+    where(): {
+      limit(): ClientLookup[];
+    };
+  };
+}
+const mockDbSelect = vi.fn<(...args: unknown[]) => SelectChain>(() => ({
   from: () => ({ where: () => ({ limit: () => [] }) }),
 }));
 
@@ -154,6 +165,8 @@ function doVerify(app: ReturnType<typeof buildApp>, code: string, challengeId: n
 describe("Fluxo fim-a-fim: fricção de dispositivo → OTP → verificação", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDeriveFingerprint.mockReturnValue("fp-test-abc");
+    mockIsDeviceVerified.mockResolvedValue(false);
 
     // Fricção ativa (6ª oferta do dia, dispositivo não verificado).
     mockCheckDeviceThrottle.mockResolvedValue({
@@ -162,6 +175,13 @@ describe("Fluxo fim-a-fim: fricção de dispositivo → OTP → verificação", 
 
     // DB::execute — simula SELECT code FROM device_contact_verifications
     mockDbExecute.mockResolvedValue({ rows: [{ code: OTP_CODE }] });
+    mockDbSelect.mockReturnValue({
+      from: () => ({
+        where: () => ({
+          limit: () => [{ phone: PATIENT_PHONE, telegramChatId: null }],
+        }),
+      }),
+    });
   });
 
   // ── E1: concierge-offer isNew=true entrega o OTP e retorna challengeId ──────
@@ -213,7 +233,7 @@ describe("Fluxo fim-a-fim: fricção de dispositivo → OTP → verificação", 
   });
 
   // ── E3: isNew=false NÃO reemite OTP (cooldown de reenvio) ────────────────────
-  it("E3 — isNew=false: concierge-offer retorna challengeId mas NÃO chama sendWhatsapp", async () => {
+  it("E3 — desafio sem confirmação de envio não reenvia nem alega sucesso", async () => {
     mockGetOrCreateChallenge.mockResolvedValue({ challengeId: CHALLENGE_ID, isNew: false });
 
     const res = await doOffer(buildApp()).expect(200);
@@ -225,6 +245,67 @@ describe("Fluxo fim-a-fim: fricção de dispositivo → OTP → verificação", 
     expect(mockSendWhatsapp).not.toHaveBeenCalled();
     expect(mockSendTelegram).not.toHaveBeenCalled();
     expect(res.body.codeSent).toBe(false);
+  });
+
+  it("recarregar dez vezes preserva challengeId e codeSent=true com um único WhatsApp", async () => {
+    mockGetOrCreateChallenge
+      .mockResolvedValueOnce({ challengeId: CHALLENGE_ID, isNew: true })
+      .mockResolvedValue({ challengeId: CHALLENGE_ID, isNew: false });
+    mockSendWhatsapp.mockResolvedValue({ sent: true });
+    // Primeiro SELECT code, UPDATE de confirmação, depois SELECTs do marcador.
+    mockDbExecute
+      .mockResolvedValueOnce({ rows: [{ code: OTP_CODE }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValue({ rows: [{ code_sent_at: "2026-11-24T12:00:00Z" }] });
+
+    const app = buildApp();
+    for (let i = 0; i < 10; i++) {
+      const res = await doOffer(app).expect(200);
+      expect(res.body.challengeId).toBe(CHALLENGE_ID);
+      expect(res.body.codeSent).toBe(true);
+    }
+    expect(mockGetOrCreateChallenge).toHaveBeenCalledTimes(10);
+    for (const [opts] of mockGetOrCreateChallenge.mock.calls) {
+      expect(opts).toEqual({ cpf: PATIENT_CPF, fingerprint: "fp-test-abc" });
+    }
+    expect(mockSendWhatsapp).toHaveBeenCalledOnce();
+    expect(mockSendTelegram).not.toHaveBeenCalled();
+    expect(mockDbSelect).toHaveBeenCalledOnce();
+  });
+
+  it("rajada de dez acessos a desafio já enviado não dispara nenhum canal", async () => {
+    mockGetOrCreateChallenge.mockResolvedValue({ challengeId: CHALLENGE_ID, isNew: false });
+    mockDbExecute.mockResolvedValue({ rows: [{ code_sent_at: "2026-11-24T12:00:00Z" }] });
+    const app = buildApp();
+    const responses = await Promise.all(Array.from({ length: 10 }, () => doOffer(app)));
+    for (const res of responses) {
+      expect(res.status).toBe(200);
+      expect(res.body.challengeId).toBe(CHALLENGE_ID);
+      expect(res.body.codeSent).toBe(true);
+    }
+    expect(mockSendWhatsapp).not.toHaveBeenCalled();
+    expect(mockSendTelegram).not.toHaveBeenCalled();
+    expect(mockDbSelect).not.toHaveBeenCalled();
+  });
+
+  it("WhatsApp recusado não grava confirmação nem reenvia ao recarregar", async () => {
+    mockGetOrCreateChallenge
+      .mockResolvedValueOnce({ challengeId: CHALLENGE_ID, isNew: true })
+      .mockResolvedValue({ challengeId: CHALLENGE_ID, isNew: false });
+    mockSendWhatsapp.mockResolvedValue({ sent: false });
+    mockDbExecute
+      .mockResolvedValueOnce({ rows: [{ code: OTP_CODE }] })
+      .mockResolvedValue({ rows: [{ code_sent_at: null }] });
+    const app = buildApp();
+    for (let i = 0; i < 3; i++) {
+      const res = await doOffer(app).expect(200);
+      expect(res.body.challengeId).toBe(CHALLENGE_ID);
+      expect(res.body.codeSent).toBe(false);
+    }
+    // Só os três SELECTs: nenhum UPDATE de confirmação.
+    expect(mockDbExecute).toHaveBeenCalledTimes(3);
+    expect(mockSendWhatsapp).toHaveBeenCalledOnce();
+    expect(mockSendTelegram).not.toHaveBeenCalled();
   });
 
   // ── E4: código errado → verify-device rejeita ────────────────────────────────

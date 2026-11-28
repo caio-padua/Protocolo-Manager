@@ -1,6 +1,10 @@
 export * from "./clients";
+export * from "./sinapses-clinicas-propostas";
 export * from "./client-service-addresses";
 export * from "./substances";
+export * from "./fornecedores";
+export * from "./substance-variantes";
+export * from "./procedimentos";
 export * from "./substance-blend-components";
 export * from "./professionals";
 export * from "./professional-taxonomy";
@@ -37,6 +41,7 @@ export * from "./catalog-options";
 export * from "./budget";
 export * from "./agenda-motor";
 export * from "./agenda-calendars";
+export * from "./agenda-compromissos";
 export * from "./site-content";
 export * from "./scheduling";
 export * from "./collaborator-audit";
@@ -67,3 +72,9 @@ export * from "./telegram-inbox";
 // + deviceOfferLimitsTable (com verified_at). device-offer-limits.ts é redundante.
 export * from "./device-throttle";
 export * from "./pesquisas";
+export * from "./agent-integration-log";
+export * from "./client-avaliacoes";
+export * from "./antropometria-figuras";
+export * from "./client-body-photos";
+export * from "./evolution-accounts";
+export * from "./professional-papeis-empresa";

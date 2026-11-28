@@ -37,8 +37,22 @@ function buildAllowedOrigins(): string[] {
     .filter((d) => d.length > 0)
     .map((d) => (d.startsWith("http") ? d : `https://${d}`));
 
+  // Portas de entrada oficiais (lista fechada, nunca curinga *.lovable.app:
+  // qualquer pessoa pode publicar um site em lovable.app).
+  const fromOfficial = [
+    "https://paxmed.com.br",
+    "https://www.paxmed.com.br",
+    "https://paxcare.com.br",
+    "https://www.paxcare.com.br",
+    "https://lovable.app",
+    "https://paxmed.lovable.app",
+    "https://padaxor.lovable.app",
+    // Prévia oficial do Lovable (endereço exato; nunca curinga).
+    "https://id-preview--eb745d14-e232-4648-83f2-896318deef79.lovable.app",
+  ];
+
   // União sem duplicatas.
-  const merged = Array.from(new Set([...fromManual, ...fromReplit]));
+  const merged = Array.from(new Set([...fromManual, ...fromReplit, ...fromOfficial]));
 
   if (merged.length === 0) {
     logger.warn(
@@ -69,7 +83,8 @@ export const corsMiddleware = cors({
   },
   credentials: true,
   methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-scheduling-token"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-scheduling-token", "x-fin-company", "x-request-id"],
+  exposedHeaders: ["x-request-id"],
 });
 
 export const helmetMiddleware = helmet({

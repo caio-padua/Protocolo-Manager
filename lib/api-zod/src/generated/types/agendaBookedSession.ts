@@ -8,7 +8,9 @@
 
 export interface AgendaBookedSession {
   id: number;
-  protocolId: number;
+  /** Nulo na consulta avulsa (sem protocolo). */
+  protocolId: number | null;
+  durationMinutes?: number | null;
   clientId: number;
   resourceId?: number | null;
   scheduledDate: string;

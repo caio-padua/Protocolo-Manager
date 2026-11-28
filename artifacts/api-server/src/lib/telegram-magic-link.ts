@@ -132,7 +132,9 @@ export async function consumirLinkMagico(
     `));
   } catch (e) {
     // 23505 = violação de índice único: este chat já pertence a outro cadastro.
-    if ((e as { code?: string })?.code === "23505") return { status: "colisao" };
+    // O driver do Drizzle embrulha o erro do Postgres: o código pode estar em `cause`.
+    const err = e as { code?: string; cause?: { code?: string } };
+    if ((err?.code ?? err?.cause?.code) === "23505") return { status: "colisao" };
     throw e;
   }
 

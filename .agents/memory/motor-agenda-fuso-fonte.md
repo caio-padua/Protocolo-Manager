@@ -14,11 +14,13 @@ A clínica opera em Brasília (UTC-3, sem horário de verão desde 2019). O serv
 
 **How to apply:** qualquer cálculo de horário/agenda no Manager ancora no fuso da clínica; nunca confiar no fuso implícito do servidor.
 
-## Não inventar fonte de ocupação de fase futura
-A tabela `sessions` tem `professionalId` mas NÃO tem `resourceId` — o vínculo sessão↔recurso é a fase de marcação real (F2.3), ainda não construída.
-- Errado: derivar ocupação do `professionalId` do recurso (colide recursos do mesmo profissional; recurso sem profissional nunca ocupa).
-- Certo: a rota de slots recebe a ocupação por entrada explícita (query `occupied`, CSV HH:mm) para a Prova Viva demonstrar a cadeia, com comentário no código e no OpenAPI de que a ocupação real chega na marcação (F2.3).
+## Não inventar fonte de ocupação
+Conferir a implementação atual da ocupação antes de alterar a oferta de horários;
+não substituir disponibilidade real por dados inventados ou por um vínculo
+que não represente o recurso necessário.
 
-**Why:** inventar uma fonte semanticamente errada só para "ter dado" gera comportamento incorreto e enganoso; o motor anti-ilha aceita ocupação como entrada, então a fonte real pode plugar depois sem tocar o motor.
+**Why:** uma fonte semanticamente errada pode oferecer como livre um horário
+já comprometido.
 
-**How to apply:** quando o vínculo real de um dado pertence a uma fase futura, usar entrada explícita e marcar a fonte real como fase futura — nunca um proxy errado.
+**How to apply:** usar os vínculos e as fontes reais atuais; quando faltarem,
+informar a indisponibilidade em vez de fabricar ocupação.

@@ -1,0 +1,11 @@
+/* Aba construida como UMA peca: o contorno (ombro curvo + canto) e desenhado por um unico caminho vetorial
+   calculado a partir da largura real do conteudo. Plana, sem relevo: so cor do menu + fio dourado. */
+.m20-wrap { position: absolute; left: 0; top: 5px; }
+.m20-svg { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; filter: drop-shadow(0 5px 5px rgba(4,13,27,.45)); }
+.m20-conteudo { position: relative; display: inline-flex; align-items: baseline; gap: 12px; white-space: nowrap; }
+.m20-ouro { display: inline-block; font-family: "EB Garamond", Georgia, serif; font-weight: 800; letter-spacing: .045em; line-height: 1;
+  background-image: linear-gradient(180deg, #fff3c9 0%, #f2d98a 22%, #dcb458 46%, #b98b36 62%, #d7ae55 80%, #f0d286 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 0 rgba(5,14,30,.75)) drop-shadow(0 0 3px rgba(224,184,96,.22)); }
+.m20-sep { align-self: center; width: 1px; height: 14px; background: linear-gradient(180deg, transparent, rgba(214,176,92,.75), transparent); }
+.m20-resumo { font-family: "EB Garamond", Georgia, serif; font-style: italic; font-weight: 400; font-size: 11.5px; letter-spacing: .02em; color: #aebbd2; }

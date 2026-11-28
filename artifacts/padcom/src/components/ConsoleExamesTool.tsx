@@ -25,6 +25,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { BASE } from "@/pages/comunicacao/_shared";
+import { getCollabToken } from "@/lib/collab-auth";
 import {
   NAVY,
   GOLD,
@@ -38,6 +39,31 @@ import {
   type Direction,
   type ZoneLabel,
 } from "@/components/exames-faixas-shared";
+
+// Todos os pedidos deste componente são locais. Encaminhar a sessão permite
+// que o servidor verifique o colaborador e a permissão também nas escritas.
+function fetch(input: string, init?: RequestInit): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  const url = new URL(input, window.location.origin);
+  const token = getCollabToken();
+  if (token && url.origin === window.location.origin && url.pathname.includes("/api/exames-lab/")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return globalThis.fetch(input, { ...init, headers });
+}
+
+
+async function baixarArquivoAutenticado(url: string, nome: string): Promise<void> {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const objectUrl = URL.createObjectURL(await r.blob());
+    Object.assign(document.createElement("a"), { href: objectUrl, download: nome }).click();
+    URL.revokeObjectURL(objectUrl);
+  } catch (e) {
+    alert(`Falha ao baixar: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
 
 // ===========================================================================
 // CONSOLE DE EXAMES — tela ÚNICA que funde as DUAS ferramentas antigas:
@@ -462,13 +488,15 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                           <ExternalLink className="h-3 w-3" /> Abrir no Drive
                         </a>
                       )}
-                      <a
-                        href={`${BASE}/api/exames-lab/documento/${p.examDocumentId}/arquivo`}
+                      {/* Botão (não link): o arquivo exige a sessão do colaborador, que um link simples não envia. */}
+                      <button
+                        type="button"
+                        onClick={() => void baixarArquivoAutenticado(`${BASE}/api/exames-lab/documento/${p.examDocumentId}/arquivo`, `documento-${p.examDocumentId}.pdf`)}
                         className="btn-3d-soft inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide"
                         style={{ color: GOLD }}
                       >
                         <Download className="h-3 w-3" /> Baixar
-                      </a>
+                      </button>
                     </>
                   ) : (
                     <span className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: MUTED }}>

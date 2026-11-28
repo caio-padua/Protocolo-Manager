@@ -27,6 +27,9 @@
  *    (rotas protegidas /api/onboarding/stats e /api/onboarding/minha-config
  *     mantêm o basicAuth; passam via Bearer do colaborador)
  *
+ *  Compartilhamento de receita (token aleatório com validade e hash do PDF):
+ *    /api/recipes/share/:token
+ *
  * ATENÇÃO: este middleware deve vir DEPOIS do cors() em app.ts.
  * O preflight OPTIONS do navegador não carrega credencial; se o Basic Auth
  * vier antes do CORS, o padcom leva 401 no preflight e não fala com a API.
@@ -54,6 +57,7 @@ const BYPASS_PREFIXES = [
   "/api/whatsapp/status",
   "/api/asaas",
   "/api/vitrine-leads",    // POST público (captação); GET/PATCH com requireCollaborator interno
+  "/api/vitrine-convites", // POST público (pedido de convite PAXMED e consulta de status); GET/PATCH com requireCollaborator + titular
   "/api/vitrine-contatos", // POST público (formulário de contato da homepage Parxis/Lovable); GET/PATCH com requireCollaborator interno
   "/api/collaborator/login", // login de médicos licenciados (site Lovable chama sem Basic Auth; rota tem hash próprio)
   "/api/collaborator/me",    // revalidação da sessão pelo navegador; exige Bearer via requireCollaborator
@@ -62,10 +66,16 @@ const BYPASS_PREFIXES = [
   // Onboarding do paciente — público (Guia Digital abre no browser do paciente sem auth):
   "/api/onboarding/evento",  // POST analytics — paciente dispara ao abrir seção
   "/api/onboarding/config",  // GET config de UI por ?tenant=slug — sem dado sensível
+  "/api/recipes/share",      // QR impresso abre a cópia exata da receita sem login
 ];
 
+const BYPASS_EXACT_PATHS = new Set([
+  "/api/collaborator/password-recovery/request",
+  "/api/collaborator/password-recovery/complete",
+]);
+
 function isPublicPath(path: string): boolean {
-  return BYPASS_PREFIXES.some(
+  return BYPASS_EXACT_PATHS.has(path) || BYPASS_PREFIXES.some(
     (prefix) => path === prefix || path.startsWith(prefix + "/")
   );
 }
@@ -75,16 +85,20 @@ function toFixedBuffer(value: string): Buffer {
 }
 
 function buildMiddleware() {
-  const user = process.env.ADMIN_USERNAME;
-  const pass = process.env.ADMIN_PASSWORD;
+  // O CEO ja cadastrou o par de perimetro no cofre do Replit com o prefixo RAILWAY_
+  // (RAILWAY_ADMIN_USERNAME/PASSWORD). Os nomes ADMIN_* continuam mandando; o prefixo
+  // RAILWAY_ so vale quando ADMIN_* nao existe. Nenhuma credencial e logada.
+  // So em producao: no desenvolvimento o bypass continua como sempre foi.
   const isProd = process.env.NODE_ENV === "production";
+  const user = process.env.ADMIN_USERNAME || (isProd ? process.env.RAILWAY_ADMIN_USERNAME : undefined);
+  const pass = process.env.ADMIN_PASSWORD || (isProd ? process.env.RAILWAY_ADMIN_PASSWORD : undefined);
 
   // Produção: fail-closed — o servidor não sobe sem credenciais.
   // Desenvolvimento: warn + bypass (API não é pública no Replit).
   if (!user || !pass) {
     if (isProd) {
       logger.fatal(
-        "FATAL: ADMIN_USERNAME e/ou ADMIN_PASSWORD não definidas em produção. " +
+        "FATAL: ADMIN_USERNAME/ADMIN_PASSWORD (ou RAILWAY_ADMIN_USERNAME/RAILWAY_ADMIN_PASSWORD) não definidas em produção. " +
         "O servidor não pode subir sem porta travada. " +
         "Defina as variáveis de ambiente e reinicie."
       );
@@ -178,7 +192,7 @@ function buildMiddleware() {
 
     if (!userMatch || !passMatch) {
       res.setHeader("WWW-Authenticate", 'Basic realm="Padaxor"');
-      res.status(401).json({ error: "Credenciais inválidas." });
+      res.status(401).json({ error: !userMatch ? "Usuário errado." : "Senha errada." });
       return;
     }
 

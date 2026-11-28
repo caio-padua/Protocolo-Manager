@@ -1,0 +1,24 @@
+---
+name: Locais externos da clínica (consultórios sublocados)
+description: Aba "Locais Externos" dentro do cadastro da empresa; tabela própria com campos da empresa; copiado para a agenda EXTERNA; fora de locations
+---
+Locais externos NÃO são menu: são a aba "Locais Externos" do cadastro da empresa (`/cadastros/empresas`, empresa 5). Tabela própria `locais_externos` (SQL puro, migrações 20261116 + 20261117, sem Drizzle) com os mesmos campos da empresa (CNPJ, razão social, e-mails separados, endereço comercial e fiscal, dados de NF), CNPJ fictício, só cadastro interno, sem ligação com nada. Deliberadamente SEM integrações, tokens ou certificado. A agenda EXTERNA copia o endereço para as próprias colunas `external_*` (sem vínculo por id). Rotas `/agenda/locais-externos`, corpo `{nome, observacao, endereco, dados}`; `?empresaId=` só para o dono da plataforma; ativar/desativar por interruptor (PATCH /:id/ativo; GET ?todos=1 lista também inativos, a agenda lê só ativos); excluir só CEO + local já inativo + nome digitado, e só carimba excluido_em (migração 20261118). Lista de campos espelhada no cliente e no servidor (mexeu num, mexa no outro).
+**Why:** CEO pediu cadastro filho dentro do cadastro, igual ao do médico, sem tocar em `locations` (Regra de Ouro). Seed fictício (Jardins, São Miguel Paulista) em `scripts/seed-locais-externos-ficticios.sql`, só dev.
+**How to apply:** editar um local NÃO atualiza agendas que já copiaram o endereço. Nunca rodar o seed em produção. Toaster do sonner não está montado no app: usar `useToast` (radix). Teste Playwright com POST/PUT precisa de PADCOM_BASE_URL=https://$REPLIT_DEV_DOMAIN, senão o CORS recusa localhost.
+
+**Lição:** "Tirar de uso" sem confirmação foi clicado sem querer pelo CEO; botão destrutivo/ocultador nunca sem interruptor reversível e confirmação (skill Padrão 35). Trash de empresa e de local foram trocados por interruptor.
+
+**Locais de atendimento x Locais externos (esclarecido pelo CEO em 11/11/2026):** são coisas diferentes. "Locais" = locais próprios da empresa (tabela locations), "Externos" = profissionais da empresa-mãe atendendo noutro endereço sob o mesmo CNPJ e a mesma agenda de profissionais. Ambos moram em ABAS dentro do cadastro da empresa; o card da frente não mostra mais lista de locais. Abas do diálogo seguem o Padrão 36 (trilho de uma linha, diálogo alto e de altura fixa).
+
+**Cadastro "bater o olho" (CEO tem TOC e TDAH, 11/11/2026):** titulo de secao dentro do cadastro SEMPRE em placa Saliente (nunca texto solto/Divider), com contador n/total e selo por aba (verde completa, ambar = faltam n). Detalhe e regras no Padrão 37 da skill-layout-paxter. O criterio de "campo conta" (SECOES/SECOES_DA_ABA em empresas.tsx) foi escolha minha, ajustavel.
+
+**Classificação da empresa (11/11/2026):** aba "Classificação" por clique (4 eixos: categoria, porte assistencial, grau Anvisa, CNAE), colunas novas `classificacao_assistencial` e `grau_complexidade` (migração 20261119, opcionais, nada pré-marcado). Gênesis = ESPELHO do Instituto Pádua, nunca "tipo de clínica": servidor só aceita tipo=clinic em POST/PUT e nega PUT no Gênesis. Inativas ficam no próprio grupo de cidade, no fim; interruptor "Mostrar inativas" no topo. Skill: Padrões 38 e 39.
+**Risco real:** desativar a ÚNICA empresa ativa do profissional logado (Instituto Pádua, id 5) derruba o acesso (403 "Não há uma clínica ativa vinculada") e a tela não deixa reativar; já ocorreu duas vezes (reativado por SQL). Sugerir proteção no cartão do Pádua.
+
+**Lista de empresas (11/11/2026):** títulos = `PlacaTitulo` de largura fixa (18rem), sem etiqueta escrita; cidade vira sanfona vertical (estado no localStorage); cartão = nome em janela côncava + logotipo em vidro + cada dado em janelinha. Logotipo só se `simbolo_exemplo=false` (a maioria das empresas tem símbolo de exemplo → ícone neutro; só o Pádua tem real). Instituto Pádua protegido contra desativação (front + 409 no servidor), escolha A do CEO. Padrão 40 na skill.
+
+## Preferencia visual do CEO nas telas de cadastro (11/11/2026)
+Nao gosta de simbolos (icones) nem de contadores; quer rotulo escrito alinhado numa linha vertical, toggle dourado, selecao em insert bevel (nunca azul), cidade como UM grupo sem subdivisao, barra contigua com + / −.
+**Why:** pedido literal do CEO ("eu gosto do escrito", "nao e pra subdividir centro").
+**How to apply:** Padrao 40 da skill-layout-paxter; usar JanelaDado/BarraGrupo/ChaveOuro/PlacaTitulo em qualquer tela nova de cadastro. Specs e2e antigos de Locais/Empresas (apagar local, "Mostrar locais de") ja estavam desatualizados antes.
+- Decisão do CEO 11/11/2026: símbolos de exemplo (fictícios) PODEM aparecer no vidro do cartão de empresa; rota de cartão segue dev-only.

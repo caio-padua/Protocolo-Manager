@@ -19,12 +19,13 @@ import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 
 // Deve ser definido ANTES do import do módulo (hoisting do vi.mock).
 const mockDbSelect = vi.fn();
+const filtrosCliente: unknown[] = [];
 const mockDbInsert = vi.fn();
 const mockDbUpdate = vi.fn();
 
 vi.mock("@workspace/db", () => ({
   db: {
-    select: () => ({ from: () => ({ where: () => ({ limit: () => mockDbSelect() }) }) }),
+    select: () => ({ from: () => ({ where: (f: unknown) => { filtrosCliente.push(f); return { limit: () => mockDbSelect() }; } }) }),
     insert: () => ({
       values: (values: Record<string, unknown>) => ({
         returning: () => mockDbInsert(values),
@@ -33,12 +34,13 @@ vi.mock("@workspace/db", () => ({
     update: () => ({ set: () => ({ where: () => mockDbUpdate() }) }),
   },
   whatsappMensagensLogTable: { id: "id", clienteId: "client_id", via: "via", status: "status", criadoEm: "criado_em" },
-  clientsTable: { id: "id", telegramChatId: "telegram_chat_id" },
+  clientsTable: { id: "id", telegramChatId: "telegram_chat_id", deletedAt: "deleted_at", status: "status" },
 }));
 
 vi.mock("drizzle-orm", () => ({
   eq: (a: unknown, b: unknown) => ({ col: a, val: b }),
   and: (...args: unknown[]) => args,
+  isNull: (a: unknown) => ({ isNull: true, col: a }),
   desc: (a: unknown) => a,
   ne: (a: unknown, b: unknown) => ({ ne: true, col: a, val: b }),
   gt: (a: unknown, b: unknown) => ({ gt: true, col: a, val: b }),
@@ -84,6 +86,7 @@ function withLogInsert() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  filtrosCliente.length = 0;
   withLogInsert();
   // Por padrão, paciente TEM chatId (pior caso — queremos ver se o bloqueio é gravado)
   withChatId("chatId-123");
@@ -109,6 +112,18 @@ describe("sendWhatsapp — registro de espelho Telegram bloqueado", () => {
     // O select é chamado para verificar o chatId antes de inserir o bloqueio.
     expect(mockDbSelect).toHaveBeenCalled();
     expect(mockDbInsert).toHaveBeenCalledTimes(2);
+  });
+
+  it("a busca do chat do cliente exclui cadastro arquivado (deleted_at e status deleted)", async () => {
+    mockFetch.mockResolvedValueOnce(makeTwilioErrorResponse(400));
+    const sendWhatsapp = await getSendWhatsapp();
+    await sendWhatsapp("+5511999999999", "Olá", { clienteId: 42 });
+    const texto = JSON.stringify(filtrosCliente);
+    expect(filtrosCliente.length).toBeGreaterThan(0);
+    expect(texto).toContain('"isNull":true');
+    expect(texto).toContain("deleted_at");
+    expect(texto).toContain('"ne":true');
+    expect(texto).toContain("deleted");
   });
 
   it("HTTP não-2xx: NÃO registra bloqueio quando paciente NÃO tem chatId", async () => {

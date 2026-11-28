@@ -5,11 +5,13 @@ import { db } from "@workspace/db";
 import { clientsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { createPhotoToken, verifyPhotoToken } from "../lib/portal-token.js";
+import { lerTokenDeLink, protegerRespostaLink, auditarAcessoLink } from "../lib/link-acesso.js";
 import { ObjectStorageService } from "../lib/objectStorage.js";
 import { enviarMensagemPaxter, type PaxterDoc } from "../lib/messaging/index.js";
 import { requireCollaborator } from "./collaborator.js";
 import { ensureClientFolderStructure, uploadFileToDrive, formatCpfDisplay, removeDiacritics } from "../lib/google-drive.js";
 import { sendTelegram } from "../lib/telegram.js";
+import { chatAlertaOuNull } from "../lib/telegram-config.js";
 import { brtNow } from "../lib/brt.js";
 
 const router: IRouter = Router();
@@ -238,7 +240,7 @@ async function afterPhotoSaved(
 
   // 2. Notificação ao médico via Telegram
   try {
-    const chatId = process.env["PADAXOR_TELEGRAM_CHAT_ID"];
+    const chatId = await chatAlertaOuNull();
     if (chatId) {
       const cpfDisplay = formatCpfDisplay(cpf || "00000000000");
       const msg =
@@ -301,8 +303,10 @@ router.post("/client-photo/send-link/:id", requireCollaborator, async (req: Requ
 
 // ── GET /client-photo/info?token=... ─────────────────────────────────────────
 router.get("/client-photo/info", async (req: Request, res: Response): Promise<void> => {
-  const token = String(req.query.token || "");
+  protegerRespostaLink(res);
+  const { token, via } = lerTokenDeLink(req);
   const clientId = verifyPhotoToken(token);
+  await auditarAcessoLink(req, "foto", via, clientId ? "aceito" : "recusado", clientId);
   if (!clientId) { res.status(401).json({ error: "Link inválido ou expirado" }); return; }
   const [client] = await db
     .select({ id: clientsTable.id, name: clientsTable.name, photoUrl: clientsTable.photoUrl })
@@ -318,8 +322,10 @@ router.post(
   "/client-photo/upload",
   async (req: Request, res: Response): Promise<void> => {
     if (!(await runPhotoUpload(req, res))) return;
-    const token = String((req.body as Record<string, unknown>)?.token || req.query.token || "");
+    protegerRespostaLink(res);
+    const { token, via } = lerTokenDeLink(req);
     const clientId = verifyPhotoToken(token);
+    await auditarAcessoLink(req, "foto", via, clientId ? "aceito" : "recusado", clientId);
     if (!clientId) { res.status(401).json({ error: "Link inválido ou expirado" }); return; }
 
     const file = req.file;

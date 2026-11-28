@@ -11,7 +11,23 @@ export const agendaResourcesTable = pgTable("agenda_resources", {
   slotMinutes: integer("slot_minutes").notNull().default(30),
   professionalId: integer("professional_id"),
   locationId: integer("location_id"),
+  // Clinica dona da agenda. Obrigatoria nas agendas novas (que nao ligam a nenhum registro de local);
+  // nas legadas e preenchida a partir do local ligado. Adicionada por ALTER TABLE aditivo.
+  empresaId: integer("empresa_id"),
   googleCalendarId: text("google_calendar_id"),
+  // Categoria profissional (professional_areas.id). Nula nos recursos legados: ficam
+  // "pendentes" ate confirmacao auditada (nada e deduzido). Adicionada por ALTER TABLE aditivo.
+  categoryId: integer("category_id"),
+  // Endereco da agenda EXTERNA (modality = 'externo'): CEP preenche o resto; numero e complemento digitados.
+  externalCep: text("external_cep"),
+  externalLogradouro: text("external_logradouro"),
+  externalBairro: text("external_bairro"),
+  externalCidade: text("external_cidade"),
+  externalUf: text("external_uf"),
+  externalNumero: text("external_numero"),
+  externalComplemento: text("external_complemento"),
+  // Apelido de exibicao (o que o dono da clinica quer ver no botao da agenda). O nome completo (name) segue igual: e a referencia do Google.
+  displayName: text("display_name"),
   active: boolean("active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -23,6 +39,9 @@ export const agendaWindowsTable = pgTable("agenda_windows", {
   weekday: integer("weekday").notNull(),
   startTime: text("start_time").notNull(),
   endTime: text("end_time").notNull(),
+  repeatWeeks: integer("repeat_weeks").notNull().default(1),
+  anchorDate: text("anchor_date"),
+  active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

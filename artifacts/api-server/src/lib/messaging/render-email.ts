@@ -46,7 +46,7 @@ export function paxterEmailShell(innerHtml: string, baseUrl: string): string {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:540px; background:#0e1a34; border:1px solid rgba(201,162,79,.34); border-radius:18px; overflow:hidden; box-shadow:0 24px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(201,162,79,.06);">
 
         <tr><td style="background:linear-gradient(170deg,#16315a 0%,#102043 60%,#0e1a34 100%); padding:0; text-align:center; line-height:0;">
-          <img src="${bannerGifSrc}" width="540" alt="PAXTER — Clinical Intelligence System" style="display:block; margin:0 auto; width:100%; max-width:540px; height:auto;">
+          <img src="${bannerGifSrc}" width="540" alt="PaxMed — Clinical Intelligence System" style="display:block; margin:0 auto; width:100%; max-width:540px; height:auto;">
         </td></tr>
 
         <tr><td style="padding:0 32px;"><div style="height:1px; background:linear-gradient(90deg,rgba(201,162,79,0) 0%,rgba(201,162,79,.6) 50%,rgba(201,162,79,0) 100%);"></div></td></tr>
@@ -54,7 +54,7 @@ export function paxterEmailShell(innerHtml: string, baseUrl: string): string {
 ${innerHtml}
 
         <tr><td style="background:#0a1326; padding:18px 32px; text-align:center; color:#7686a3; font-family:${SERIF}; font-size:10px; letter-spacing:3px; text-transform:uppercase; border-top:1px solid rgba(201,162,79,.16);">
-          Paxter — Clinical Intelligence System
+          PaxMed — Clinical Intelligence System
         </td></tr>
 
       </table>

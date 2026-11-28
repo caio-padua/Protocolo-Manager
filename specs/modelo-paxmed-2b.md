@@ -1,0 +1,221 @@
+# Modelo PAXMED 2B para documentos clínicos
+
+## Objetivo
+
+Aplicar o modelo visual 2B, versão 1.1, aos documentos do Instituto Pádua,
+sem alterar dados clínicos, assinatura, decisões regulatórias ou a marca de
+outras clínicas.
+
+Em 07/11/2026, o responsável reiterou que o padrão é o modelo de cabeçalho
+azul e marca PAXMED no rodapé, para emissão automática sem botão de ativação.
+Receitas comuns e especiais compartilham esse cabeçalho e rodapé; suas
+diferenças regulatórias permanecem no corpo. A faixa de assinatura deve estar
+na parte inferior da última folha, sem sobreposição ao conteúdo ou ao rodapé.
+A imagem posterior com cabeçalho branco não substitui essa escolha.
+
+## Requisitos
+
+1. Cabeçalho com a arte fornecida do Instituto Pádua e títulos dinâmicos;
+   rodapé com as três imagens em ouro escovado, endereço e paginação real.
+2. Manter as imagens proporcionais, transparentes e sem efeitos adicionais.
+3. A margem inferior do conteúdo deve preservar 44 milímetros acima da base;
+   os blocos clínicos e a assinatura nunca devem invadir o rodapé.
+4. Páginas devem ser carimbadas uma única vez, depois da paginação e antes da
+   assinatura digital. Não modificar o arquivo assinado.
+5. O código de resposta rápida deve apontar para a cópia correta do documento
+   assinado ou para página de verificação real, com controle de acesso.
+   Endereço genérico ou fictício não comprova verificação.
+6. A identidade do Instituto Pádua não pode ser aplicada a outras clínicas.
+7. O modelo será automático para as clínicas autorizadas, sem seletor visual.
+   Não ativar a integração clínica enquanto a identidade empresarial, o acesso
+   protegido, a assinatura e a regressão não estiverem validados; demonstrações
+   continuam explicitamente identificadas e sem validade clínica.
+8. Integrar também os demais motores clínicos identificados no pacote, após
+   mapear seus consumidores e preservar assinaturas e regras regulatórias.
+9. Testar documentos de uma, duas, três e dez páginas, texto comprido,
+   assinatura, falhas de acesso e integridade após assinatura. A conferência
+   física impressa e a leitura com dispositivo não serão alegadas sem execução.
+
+## Impacto e riscos conhecidos
+
+- A fábrica compartilhada também produz atestados e encaminhamentos: a opção
+  de homologação deve ser explícita, não mudar esses geradores por padrão.
+- Em 07/11/2026, o responsável definiu que o símbolo, o nome e o endereço
+  pertencem à clínica e devem ser configurados em “Faixas do Receituário”.
+  O Instituto Pádua deve usar esse mesmo caminho, como uma clínica licenciada.
+  Não gravar sua identidade no modelo compartilhado de outras clínicas.
+- Em 07/11/2026, o responsável esclareceu que o símbolo enviado pela clínica
+  e o respectivo nome são substituíveis, mas devem assumir automaticamente o
+  dourado do Modelo 2B. Preservar desenho e proporções da marca de origem;
+  conservar o arquivo original e não deformá-lo ou redesenhá-lo.
+- O responsável reforçou que a transformação não pode depender da cor de
+  entrada: símbolos brancos, pretos ou coloridos devem receber o mesmo
+  tratamento quando tiverem a mesma forma e transparência. Comprovar a cadeia
+  de envio, salvamento do original e leitura tratada em ambiente isolado,
+  confrontando pixels de entrada e saída e produzindo evidência visual.
+- O envio atualmente aceita apenas arquivos PNG com transparência, até dois
+  megabytes; imagens totalmente opacas ou com fundo incorporado não têm
+  separação segura de forma e fundo e não devem ser declaradas convertidas.
+  O teste de cor não equivale à aprovação visual do relevo escovado ou à
+  integração com os documentos reais.
+- O arquivo do cabeçalho recebido incorpora o símbolo e o nome do Instituto
+  Pádua à imagem de fundo. O pacote não inclui o símbolo dourado isolado; há no
+  projeto uma imagem isolada transparente do mesmo desenho enviado pelo
+  responsável, adequada como original para aplicação da cor definida.
+- Uma imagem sem transparência ou com fundo não identificável não deve ser
+  transformada silenciosamente em um retângulo dourado. Orientar a pessoa e
+  recusar o uso inadequado, sem remover o original nem simular sucesso.
+- A tela atual salva sua configuração visual no modelo ativo compartilhado e
+  o seletor de clínica não é persistido nessa configuração. Isolar identidade
+  e autorização por clínica antes de disponibilizar a personalização real.
+- Cadastro do Modelo 2B: identificação, endereço e referência ao arquivo
+  original devem pertencer à unidade clínica e à empresa corretas. A edição
+  exige profissional ativo com permissão efetiva de administração da unidade;
+  uma categoria ou um identificador enviado pelo navegador não são prova de
+  permissão. Cada gravação precisa preservar a configuração anterior até a
+  nova imagem ser validada e armazenada com sucesso.
+- Arquivos novos devem ser enviados diretamente ao armazenamento por endereço
+  temporário, com controle de autoria da tentativa; o servidor valida os bytes
+  recebidos antes de associá-los à clínica. A tentativa não pode usar o arquivo
+  de outra clínica nem publicar arquivos privados em uma rota genérica.
+- Verificações mínimas do cadastro: ausência de login, sessão expirada,
+  clínica errada, permissão insuficiente, imagem inválida, arquivo ausente,
+  falha de armazenamento, gravações concorrentes, atualização e recarga.
+- A escolha expressa para acesso ao documento é login obrigatório. A sessão,
+  o vínculo com a clínica, a permissão de visualizar o documento e a identidade
+  do arquivo assinado precisam ser verificados no servidor. O código, por si
+  só, não deve conceder acesso; compatibilidade de acesso para profissionais
+  externos deve ser conferida antes da ativação.
+- A rota existente de documentos de exames utiliza token e entrega o arquivo a
+  quem o possui. Isso, por si só, não comprova o controle de acesso exigido
+  para o novo verificador. A integração clínica não pode presumir equivalência.
+- O receituário possui outro gerador e fluxo de assinatura; a alteração visual
+  da fábrica não garante que o receituário real tenha sido migrado.
+- A prova sintética pode mostrar espaço de verificação ainda não habilitado,
+  claramente identificado; não pode apresentar um endereço falso como válido.
+- O arquivo entregue após assinatura não pode ser regravado ou carimbado.
+- É proibido enviar mensagens reais, alterar prontuários ou produzir documentos
+  clínicos reais em testes.
+
+## Estado atual
+
+### Continuação autorizada pelo responsável
+
+Em 07/11/2026 o responsável pediu que o modelo seja integrado às receitas e
+solicitações de exames emitidas, com revisão independente, e solicitou uma
+receita e um pedido de exames de duas páginas assinados digitalmente para sua
+conferência. Esta ordem amplia o objetivo além da prova anterior, sem autorizar
+misturar identidades de empresas, inventar conteúdo clínico ou modificar arquivos
+assinados já existentes. O destino preciso dos documentos de conferência deve
+ser confirmado antes de qualquer entrega externa.
+
+Sequência obrigatória: identidade empresarial válida → paginação e desenho →
+vínculo verificável com o documento correto e acesso autorizado → assinatura →
+persistência e recuperação → revisão independente → testes de ponta a ponta.
+O modelo não será ativado em emissão clínica enquanto essas dependências
+permanecerem incompletas; a prova sintética existente continua isolada.
+
+### Emissão real e acesso protegido
+
+Em 07/11/2026 o responsável apresentou uma receita real com o modelo anterior,
+o nome da agenda no cabeçalho e três páginas. A causa observada é que a emissão
+real chama o motor de receituário sem selecionar o Modelo 2B. A identidade do
+cabeçalho deve vir da empresa clínica autenticada, não do nome de uma agenda.
+Os documentos históricos assinados permanecem intactos.
+
+O acesso à cópia para o novo modelo deve passar por uma tela de entrada que
+preserve a página de retorno e por uma rota que valide, no servidor, a sessão,
+o médico, a empresa, o cliente e o documento. Um identificador no endereço não
+é credencial. A página não deve expor dados clínicos antes da autorização e
+deve informar falhas sem tentar outros documentos. A existência de links
+legados de compartilhamento não equivale à proteção exigida para o Modelo 2B.
+
+A integração dos motores de receita e exames deve reservar uma identidade real
+do documento antes do desenho do código, finalizar todas as páginas antes da
+assinatura e gravar a cópia assinada vinculada a essa identidade. Uma falha deve
+impedir a emissão, sem cair silenciosamente no modelo antigo. A apresentação
+de teste deve usar a mesma cadeia, mantendo a marca de demonstração e sem
+produzir efeitos clínicos ou enviar ao cliente. A reconexão do Gmail é necessária
+para demonstrar a entrega ao endereço da clínica; não equivale à sua realização.
+
+Revisão independente de 07/11/2026: a rota protegida de consulta existente não
+comprova integridade de assinatura e admite receita sem assinatura. Pedidos de
+exames antigos não armazenam o vínculo imutável da unidade de emissão; o médico
+e o vínculo atual do cliente não provam a unidade original após transferência.
+Não usar essa rota como verificador 2B até vincular a origem e conferir a cópia
+assinada. Links legados públicos continuam existindo e não provam login.
+
+Conferência em 07/11/2026 de uma demonstração gerada pelo fluxo autenticado:
+uma página; verificação local da integridade da assinatura aprovada, mas sem
+confirmação de confiança na autoridade emissora pelo verificador local. Não
+equivale à verificação oficial nem ao par de demonstrações de duas páginas.
+O Modelo 2B passou a ser a seleção inicial da demonstração em desenvolvimento,
+inclusive após troca do cliente; teste visual automatizado com dados sintéticos
+confirmou a seleção e o envio da opção ao servidor simulado. Isso não altera o
+modelo da emissão clínica real nem configura uma prova de envio.
+
+Falhas impeditivas: identidade ausente, provisória ou de outra empresa; objeto
+de marca inacessível; acesso por código sem autenticação; documento recuperado
+não correspondente ao assinado; alteração posterior à assinatura; perda de
+conteúdo ou invasão de rodapé; uso de conteúdos clínicos inventados; envio a
+destinatário não identificado. Cada falha deve gerar recusa explícita e testes
+negativos, sem copiar a marca do Instituto para outras empresas.
+
+O responsável reforçou que a demonstração para sua conferência deve usar os
+motores e dados existentes do sistema, sem identificar pessoas por suposição
+e sem inventar fórmulas, posologias ou exames. O endereço informado para
+entrega é o e-mail da agenda do Instituto. Não se deve converter uma amostra
+em uma prescrição clínica não autorizada nem alterar prontuários para o teste.
+Testes de regressão e segurança continuam isolados com dados sintéticos.
+
+- Atualização de 07/11/2026: o responsável escolheu uma identidade por empresa,
+  compartilhada entre seus locais, configurada em Cadastro de Empresas. A antiga
+  configuração por unidade foi preservada. No desenvolvimento, o Instituto foi
+  copiado para a identidade empresarial sem sobrescrever outras configurações.
+  A prévia empresarial é sintética; o fundo reconstruído e o dourado são
+  aproximações, não uma aprovação visual nem uso clínico. A configuração empresarial
+  permanece restrita ao proprietário até existir concessão empresarial explícita.
+
+- Existe uma prova visual sintética para pedido de exames e um gerador alternativo
+  de receita. A arte fixa do Instituto é usada somente nessa prova, nunca como
+  identidade configurável de outra clínica. Nenhuma rota clínica ativa a prova.
+- Em desenvolvimento, há um cadastro independente de identidade por unidade na
+  tela de faixas; a imagem original do Instituto, seu nome e endereço foram
+  configurados sem substituir configurações existentes. A imagem original está
+  no armazenamento privado e o dourado é aplicado para exibição. A paleta foi
+  amostrada do símbolo fornecido; não equivale a recriar o relevo da imagem.
+- O cadastro e suas rotas ficam indisponíveis em produção. A identidade salva
+  ainda não alimenta o cabeçalho e o rodapé dos geradores clínicos.
+- Ainda não existe o código de verificação com login nesta implementação.
+- A prova visual original não tinha assinatura digital. Posteriormente, uma
+  opção explícita de prova em desenvolvimento passou a utilizar os motores
+  principais de receita e de exames, a identidade empresarial não exemplificativa
+  e o certificado do profissional autenticado. Continua sendo demonstração
+  sem validade clínica, isolada do histórico e sem envio automático. A emissão
+  clínica e a opção de prova em produção permanecem inalteradas.
+- Um teste isolado gerou uma receita e um pedido de exames com exatamente duas
+  páginas cada, assinados com certificado sintético. A assinatura foi verificada
+  após a paginação. Isso não comprova certificado real, conteúdo real,
+  recuperação ponta a ponta, verificação autenticada ou entrega por e-mail.
+- Houve testes automatizados com sessão e dados sintéticos simulados, conferência
+  do registro de desenvolvimento e do original armazenado, e prova da tela com
+  servidor simulado em computador e celular. O fluxo completo na tela com sessão
+  real, a concorrência com banco isolado e o uso clínico ainda não foram provados.
+- Em 07/11/2026, teste isolado percorreu a emissão de endereço de envio, envio
+  de arquivo, gravação da identidade e leitura do símbolo para três entradas
+  de mesma forma e transparência: preto, branco e duas cores. O banco e o
+  armazenamento eram simulados; as imagens douradas retornadas tiveram pixels
+  e transparência iguais entre si, e cada original foi preservado. Também foi
+  testada a recusa de imagem com fundo totalmente opaco. Esses testes não
+  comprovam o fluxo da tela autenticada real nem equivalência visual exata com
+  o ouro escovado do modelo aprovado.
+- A verificação física da impressão e a revisão independente ainda não ocorreram.
+- A verificação de tipos geral do servidor está com erros anteriores fora dos
+  arquivos alterados; não usar essa verificação como evidência de aprovação.
+
+## Critérios para homologação
+
+Todos os requisitos acima implementados e testados, isolamento por clínica,
+prova visual e física em tamanho real, assinatura conferida e verificação
+autorizada do documento correto, revisão independente e evidência vinculada.
+Sem isso, manter estado **em construção**, sem ativação clínica.

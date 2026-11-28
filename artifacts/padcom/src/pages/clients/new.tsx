@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useCreateClient, getListClientsQueryKey } from "@workspace/api-client-react";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2 } from "lucide-react";
 import { ClientPhotoCard } from "@/components/clients/photo-card";
+import { ClientRubricaCard } from "@/components/clients/rubrica-card";
+import { ClinicaOrigemField } from "@/components/clients/clinica-origem-field";
+import { ClientAgendaDefaults } from "@/components/clients/client-agenda-defaults";
 import { PreferredAgendasField } from "@/components/clients/preferred-agendas-field";
+import { VisitPreferencesField, emptyVisitPreferences, visitPreferencesSchema } from "@/components/clients/visit-preferences-field";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState, useCallback } from "react";
@@ -34,16 +38,14 @@ const formSchema = z.object({
   instagram: z.string().optional(),
   comoConheceu: z.string().optional(),
   status: z.enum(["active", "inactive", "pending"]),
+  clinicaOrigemEmpresaId: z.string().optional(),
   locationId: z.string().optional(),
+  agendaEnfermagemPadraoId: z.string().optional(),
+  agendaMedicoPadraoId: z.string().optional(),
   preferredAgendaResourceIds: z.array(z.number()).optional(),
+  visitPreferences: visitPreferencesSchema,
   notes: z.string().optional(),
 });
-
-interface LocationOption {
-  id: number;
-  name: string;
-  active: boolean;
-}
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -73,6 +75,7 @@ export default function NewClient() {
   const queryClient = useQueryClient();
   const createClient = useCreateClient();
   const [loadingCep, setLoadingCep] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -93,18 +96,17 @@ export default function NewClient() {
       instagram: "",
       comoConheceu: "",
       status: "active",
-      locationId: "8",
+      clinicaOrigemEmpresaId: "",
+      locationId: "",
+      agendaEnfermagemPadraoId: "",
+      agendaMedicoPadraoId: "",
       preferredAgendaResourceIds: [],
+      visitPreferences: emptyVisitPreferences(),
       notes: "",
     },
   });
 
   const apiBase = import.meta.env.VITE_API_URL || "/api";
-
-  const { data: locations } = useQuery<LocationOption[]>({
-    queryKey: ["locations"],
-    queryFn: async () => (await fetch(`${apiBase}/locations`)).json(),
-  });
 
   const lookupCep = useCallback(async () => {
     const cep = form.getValues("cep")?.replace(/\D/g, "");
@@ -134,6 +136,7 @@ export default function NewClient() {
   }, [form, apiBase]);
 
   const onSubmit = (values: FormValues) => {
+    setSaveError("");
     const addressParts = [
       values.logradouro,
       values.numero,
@@ -156,8 +159,14 @@ export default function NewClient() {
         instagram: values.instagram || undefined,
         comoConheceu: values.comoConheceu || undefined,
         status: values.status,
-        locationId: values.locationId ? Number(values.locationId) : 8,
+        ...(values.clinicaOrigemEmpresaId ? { clinicaOrigemEmpresaId: Number(values.clinicaOrigemEmpresaId) } : {}),
+        locationId: values.locationId ? Number(values.locationId) : null,
+        agendaEnfermagemPadraoId: values.agendaEnfermagemPadraoId ? Number(values.agendaEnfermagemPadraoId) : null,
+        agendaMedicoPadraoId: values.agendaMedicoPadraoId ? Number(values.agendaMedicoPadraoId) : null,
         preferredAgendaResourceIds: values.preferredAgendaResourceIds ?? [],
+        ...(form.formState.dirtyFields.visitPreferences
+          ? { visitPreferences: values.visitPreferences, visitPreferencesRevision: 0 }
+          : {}),
         notes: values.notes || undefined,
       }},
       {
@@ -167,6 +176,7 @@ export default function NewClient() {
           setLocation(`/clients/${client.id}`);
         },
         onError: () => {
+          setSaveError("Não foi possível cadastrar o cliente. Confira os dados e tente novamente.");
           toast.error("Erro ao cadastrar cliente.");
         },
       }
@@ -189,6 +199,7 @@ export default function NewClient() {
         <CardContent className="p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              {saveError && <p role="alert" className="text-sm font-semibold text-red-700 dark:text-red-300">{saveError}</p>}
               <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
                   <User className="h-3 w-3 text-primary" /> Informações Pessoais
@@ -302,53 +313,39 @@ export default function NewClient() {
 
                   <FormField
                     control={form.control}
-                    name="locationId"
-                    render={({ field }) => {
-                      const list = (locations ?? []).filter(
-                        (l) => l.active || String(l.id) === field.value,
-                      );
-                      return (
-                        <FormItem className="md:col-span-2">
-                          <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground flex items-center gap-1.5">
-                            <Building2 className="h-3 w-3 text-primary" /> Clínica de Origem
-                          </FormLabel>
-                          <div className="concave-3d p-1">
-                            <Select onValueChange={(v) => { if (v) field.onChange(v); }} value={field.value || ""}>
-                              <FormControl>
-                                <SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0">
-                                  <SelectValue placeholder="Selecione a clínica..." />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {list.map((l) => (
-                                  <SelectItem key={l.id} value={String(l.id)}>
-                                    {l.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      );
-                    }}
+                    name="clinicaOrigemEmpresaId"
+                    render={({ field }) => <ClinicaOrigemField value={field.value ?? ""} onChange={field.onChange} defaultToCurrent />}
                   />
+                  <ClientAgendaDefaults clinicaId={form.watch("clinicaOrigemEmpresaId") ?? ""}
+                    location={form.watch("locationId") ?? ""} nursing={form.watch("agendaEnfermagemPadraoId") ?? ""}
+                    doctor={form.watch("agendaMedicoPadraoId") ?? ""} applyDefaults
+                    onLocation={v => form.setValue("locationId", v, { shouldDirty: true })}
+                    onNursing={v => form.setValue("agendaEnfermagemPadraoId", v, { shouldDirty: true })}
+                    onDoctor={v => form.setValue("agendaMedicoPadraoId", v, { shouldDirty: true })} />
 
                   <FormField
                     control={form.control}
                     name="preferredAgendaResourceIds"
                     render={({ field }) => (
                       <PreferredAgendasField
+                        clinicaId={form.watch("clinicaOrigemEmpresaId")}
                         locationId={form.watch("locationId")}
                         value={field.value ?? []}
                         onChange={field.onChange}
                       />
                     )}
                   />
+                  <FormField control={form.control} name="visitPreferences" render={({ field }) => (
+                    <div className="col-span-full">
+                      <VisitPreferencesField value={field.value} onChange={field.onChange} />
+                    </div>
+                  )} />
                 </div>
               </div>
 
               <ClientPhotoCard photoUrl={null} onUpdated={() => {}} />
+
+              <ClientRubricaCard clientId={null} />
 
               <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">

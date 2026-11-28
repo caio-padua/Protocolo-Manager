@@ -1,15 +1,19 @@
 import { useRoute, useLocation } from "wouter";
-import { useGetProtocol, useValidateProtocol, useGenerateProtocolICS } from "@workspace/api-client-react";
+import { useGetProtocol, useGenerateProtocolICS } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatStatus } from "@/lib/status";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatCivilDate } from "@/lib/civil-date";
 import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2, FileText, Activity, TrendingDown, Calendar, CheckCircle2, ChevronDown, Layers, Hourglass, Mail, Award, Send, History, AlertTriangle } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getCollabToken } from "@/lib/collab-auth";
+import { ProcedimentosDoProtocolo } from "./ProcedimentosDoProtocolo";
+import { ProtocolSchedulingDialog } from "@/components/ProtocolSchedulingDialog";
+import { ProtocolGoogleSyncDialog } from "@/components/ProtocolGoogleSyncDialog";
+import { dosePrescritaExibivel, nomeSubstanciaProtocolo } from "@/lib/protocol-substance-selection";
 
 const PAST_STATUSES = ["completed", "cancelled", "expired", "refunded"];
 const FALLBACK_COLOR = "#94a3b8";
@@ -55,6 +59,8 @@ export default function ProtocolDetail() {
   const [emitirConfirm, setEmitirConfirm] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showBudget, setShowBudget] = useState(false);
+  const [schedulingMode, setSchedulingMode] = useState<"new" | "recovery" | null>(null);
+  const [googleSyncOpen, setGoogleSyncOpen] = useState(false);
 
   const { data: protocol, isLoading, refetch } = useGetProtocol(id, {
     query: { enabled: !!id, queryKey: ["protocol", id] }
@@ -76,18 +82,6 @@ export default function ProtocolDetail() {
   useEffect(() => {
     fetchRasFapLogs();
   }, [fetchRasFapLogs]);
-
-  const validateMutation = useValidateProtocol({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: "Protocolo validado!", description: "Sessões geradas com consolidação semanal." });
-        refetch();
-      },
-      onError: () => {
-        toast({ title: "Erro ao validar protocolo", variant: "destructive" });
-      }
-    }
-  });
 
   const icsMutation = useGenerateProtocolICS({
     mutation: {
@@ -121,6 +115,13 @@ export default function ProtocolDetail() {
 
   const isPast = PAST_STATUSES.includes(protocol.status);
   const hasSessions = protocol.sessions.length > 0;
+  const hasUnreservedSessions = protocol.sessions.some(session =>
+    !(session as any).resourceId || !(session as any).durationMinutes
+  );
+  const hasReservedSessions = hasSessions && !hasUnreservedSessions;
+  const hasOnlyUnreservedSessions = protocol.sessions.length > 0 && protocol.sessions.every(session =>
+    !(session as any).resourceId && !(session as any).durationMinutes
+  );
 
   const allApps = protocol.sessions.flatMap(s =>
     s.substanceApplications.map(a => ({ ...a, sessionDate: s.scheduledDate, weekNumber: s.weekNumber }))
@@ -151,17 +152,33 @@ export default function ProtocolDetail() {
           Voltar
         </Button>
         <div className="flex flex-wrap items-center gap-2">
-          {(protocol.status === "suggested" || protocol.status === "validated") && (
-            <Button className="btn-3d" onClick={() => validateMutation.mutate({ id })} disabled={validateMutation.isPending}>
-              <Zap className="h-4 w-4 mr-1" />
-              {validateMutation.isPending ? "Validando..." : "Validar e Gerar Sessões"}
+          {["suggested", "validated"].includes(protocol.status) && !hasSessions && (
+            <Button className="btn-3d" onClick={() => setSchedulingMode("new")} data-testid="button-protocol-schedule">
+              <Calendar className="h-4 w-4 mr-1" />
+              Validar e agendar sessões
             </Button>
           )}
-          {protocol.sessions.length > 0 && (
-            <>
-              <Button className="btn-3d-soft" onClick={() => icsMutation.mutate({ id })} disabled={icsMutation.isPending}>
+              <Button
+                  className="btn-3d-soft"
+                  disabled={!hasReservedSessions || protocol.status !== "validated"}
+                  title={!hasReservedSessions
+                    ? "Reserve as sessões no sistema antes de enviar ao Google Agenda."
+                    : protocol.status !== "validated"
+                      ? "Valide e reserve o protocolo antes de enviar ao Google Agenda."
+                      : undefined}
+                  onClick={() => setGoogleSyncOpen(true)}
+                >
+                  <Calendar className="h-4 w-4 mr-1" />
+                  Enviar ao Google Agenda
+                </Button>
+              <Button
+                className="btn-3d-soft"
+                onClick={() => icsMutation.mutate({ id })}
+                disabled={icsMutation.isPending || !hasReservedSessions}
+                title={!hasReservedSessions ? "Reserve as sessões antes de exportar os horários." : undefined}
+              >
                 <Download className="h-4 w-4 mr-1" />
-                Baixar ICS
+                {icsMutation.isPending ? "Gerando..." : "Baixar ICS"}
               </Button>
               <Button
                 className="btn-3d-soft"
@@ -174,7 +191,7 @@ export default function ProtocolDetail() {
                     });
                     if (!resp.ok) {
                       const err = await resp.json().catch(() => null);
-                      throw new Error(err?.details || "Erro ao gerar RAS FAP");
+                      throw new Error(err?.details || "Erro ao gerar RASP FAP");
                     }
                     const blob = await resp.blob();
                     const url = URL.createObjectURL(blob);
@@ -182,10 +199,10 @@ export default function ProtocolDetail() {
                     a.href = url;
                     const cd = resp.headers.get("Content-Disposition");
                     const m = cd?.match(/filename="(.+)"/);
-                    a.download = m?.[1] ?? `RAS_FAP_${id}.pdf`;
+                    a.download = m?.[1] ?? `RASP_FAP_${id}.pdf`;
                     a.click();
                     URL.revokeObjectURL(url);
-                    toast({ title: "RAS FAP baixado!", description: "Documento para impressao e controle manual." });
+                    toast({ title: "RASP FAP baixado!", description: "Documento para impressao e controle manual." });
                   } catch (err: any) {
                     toast({ title: "Erro", description: err.message, variant: "destructive" });
                   } finally {
@@ -194,7 +211,7 @@ export default function ProtocolDetail() {
                 }}
               >
                 {physicalRasLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
-                {physicalRasLoading ? "Gerando..." : "RAS FAP (Imprimir)"}
+                {physicalRasLoading ? "Gerando..." : "RASP FAP (Imprimir)"}
               </Button>
               <div className="flex flex-col items-start gap-0.5">
                 <Button
@@ -209,9 +226,9 @@ export default function ProtocolDetail() {
                       });
                       const body = await resp.json().catch(() => null);
                       if (!resp.ok) {
-                        throw new Error(body?.error || "Erro ao reenviar RAS FAP");
+                        throw new Error(body?.error || "Erro ao reenviar RASP FAP");
                       }
-                      toast({ title: "RAS FAP reenviado!", description: body?.message ?? "E-mail enviado ao paciente com sucesso." });
+                      toast({ title: "RASP FAP reenviado!", description: body?.message ?? "E-mail enviado ao paciente com sucesso." });
                       fetchRasFapLogs();
                     } catch (err: any) {
                       toast({ title: "Erro ao reenviar", description: err.message, variant: "destructive" });
@@ -221,7 +238,7 @@ export default function ProtocolDetail() {
                   }}
                 >
                   {reenviarRasLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Mail className="h-4 w-4 mr-1" />}
-                  {reenviarRasLoading ? "Enviando..." : "Reenviar RAS FAP"}
+                  {reenviarRasLoading ? "Enviando..." : "Reenviar RASP FAP"}
                 </Button>
                 {rasFapEmailLogs.length > 0 && (() => {
                   const last = rasFapEmailLogs[0];
@@ -242,10 +259,12 @@ export default function ProtocolDetail() {
                 onClick={async () => {
                   setDocumentPdfLoading(true);
                   try {
-                    const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/document-pdf`);
+                    const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/document-pdf`, {
+                      headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+                    });
                     if (!resp.ok) {
                       const err = await resp.json().catch(() => null);
-                      throw new Error(err?.details || "Erro ao gerar documento");
+                      throw new Error(err?.details || err?.error || "Erro ao gerar documento");
                     }
                     const blob = await resp.blob();
                     const url = URL.createObjectURL(blob);
@@ -286,7 +305,9 @@ export default function ProtocolDetail() {
                       setEmitirLoading(true);
                       setEmitirConfirm(false);
                       try {
-                        const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/emit-document`, { method: "POST" });
+                        const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/emit-document`, {
+                          method: "POST", headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+                        });
                         const body = await resp.json().catch(() => null);
                         if (body?.auditFailed) {
                           // Entrega ocorreu mas registro de auditoria falhou — mostrar aviso específico
@@ -303,8 +324,26 @@ export default function ProtocolDetail() {
                         }
                         if (body?.emailSent === false) {
                           toast({
-                            title: "Protocolo salvo no Drive, mas o paciente não tem e-mail cadastrado — entrega incompleta",
-                            description: "Cadastre o e-mail do paciente e reenvie manualmente.",
+                            title: body?.driveUploaded
+                              ? "Protocolo salvo no Drive; e-mail não confirmado"
+                              : "Entrega incompleta; Drive e e-mail não confirmados",
+                            description: `${body?.emailError || "Não foi possível confirmar o envio. Verifique o histórico antes de reenviar."}${body?.rasFapGenerated === false ? " O RASP FAP também não foi gerado." : ""}`,
+                            variant: "warning",
+                            duration: 8000,
+                          } as any);
+                        } else if (body?.rasFapGenerated === false) {
+                          toast({
+                            title: "E-mail aceito; RASP FAP não gerado",
+                            description: body?.driveUploaded
+                              ? "Somente o protocolo foi anexado ao e-mail."
+                              : "Somente o protocolo foi anexado; o arquivo no Drive também não foi confirmado.",
+                            variant: "warning",
+                            duration: 8000,
+                          } as any);
+                        } else if (!body?.driveUploaded) {
+                          toast({
+                            title: "E-mail aceito; arquivo não confirmado no Drive",
+                            description: "Verifique o histórico antes de emitir novamente.",
                             variant: "warning",
                             duration: 8000,
                           } as any);
@@ -344,7 +383,9 @@ export default function ProtocolDetail() {
                 onClick={async () => {
                   setCartaPdfLoading(true);
                   try {
-                    const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/carta-pdf`);
+                    const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/carta-pdf`, {
+                      headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+                    });
                     if (!resp.ok) {
                       const err = await resp.json().catch(() => null);
                       throw new Error(err?.details || err?.error || "Erro ao gerar Carta de Tratamento");
@@ -418,10 +459,26 @@ export default function ProtocolDetail() {
                 {cartaEmailLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Mail className="h-4 w-4 mr-1" />}
                 {cartaEmailLoading ? "Enviando..." : "Enviar Carta"}
               </Button>
-            </>
-          )}
+              {!hasReservedSessions && (
+                <p className="w-full basis-full text-xs text-muted-foreground" role="note">
+                  O envio ao Google Agenda e a exportação de horários ficam disponíveis após a reserva das sessões.
+                </p>
+              )}
         </div>
       </div>
+
+      {hasUnreservedSessions && (
+        <div className="panel-3d-sub p-4 text-sm" role="alert" data-testid="status-protocol-unreserved-sessions">
+          <p className="font-bold text-amber-700">Estas sessões não têm reserva de agenda.</p>
+          <p className="mt-1">Elas foram preservadas, mas não podem ser enviadas ao Google nem exportadas como compromissos. A recuperação confere cada aplicação e só atualiza as mesmas sessões após sua confirmação.</p>
+          {hasOnlyUnreservedSessions && protocol.status === "validated" && !isPast && (
+            <Button className="btn-3d-soft mt-3" onClick={() => setSchedulingMode("recovery")} data-testid="button-protocol-recovery">
+              <Calendar className="h-4 w-4 mr-1" />
+              Preparar recuperação segura
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* R2 — Painel-herói de identidade (ATUAL x PASSADO) */}
       <Card className="panel-3d" style={{ borderLeftWidth: "5px", borderLeftColor: isPast ? "#94a3b8" : "#16294a" }}>
@@ -488,7 +545,7 @@ export default function ProtocolDetail() {
                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px] font-bold uppercase tracking-widest">
                       <span className="flex items-center gap-1 text-muted-foreground"><User className="h-3 w-3" /> {e.autorizadoPor}</span>
                       <span className={e.emailSent ? "text-green-600 dark:text-green-400" : "text-rose-500 dark:text-rose-400"}>
-                        {e.emailSent ? "E-mail ✓" : e.emailError ? `E-mail ✗ ${e.emailError}` : "E-mail não enviado"}
+                        {e.emailSent ? "E-mail aceito ✓" : e.emailError ? `E-mail não confirmado — ${e.emailError}` : "E-mail não confirmado"}
                       </span>
                       <span className={e.driveUploaded ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
                         {e.driveUploaded ? "Drive ✓" : "Drive —"}
@@ -537,7 +594,7 @@ export default function ProtocolDetail() {
         <Card className="panel-3d-sub"><CardContent className="p-4">
           <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-1">Início</p>
           <div className="concave-3d px-3 py-1.5 mt-1 inline-block">
-            <p className="font-bold tabular-nums text-sm">{format(new Date(protocol.startDate), "dd/MM/yyyy", { locale: ptBR })}</p>
+            <p className="font-bold tabular-nums text-sm">{formatCivilDate(protocol.startDate, "dd/MM/yyyy", { locale: ptBR })}</p>
           </div>
           {protocol.professionalName && (
             <div className="flex items-center gap-1.5 mt-2">
@@ -576,7 +633,7 @@ export default function ProtocolDetail() {
                       name={app.substanceName}
                       counter={`${app.sessionNumber}/${app.totalSessions}`}
                       applied
-                      extra={format(new Date(app.sessionDate), "dd/MM/yyyy", { locale: ptBR })}
+                      extra={formatCivilDate(app.sessionDate, "dd/MM/yyyy", { locale: ptBR })}
                     />
                   ))
                 )}
@@ -599,7 +656,7 @@ export default function ProtocolDetail() {
                       name={app.substanceName}
                       counter={`${app.sessionNumber}/${app.totalSessions}`}
                       muted
-                      extra={format(new Date(app.sessionDate), "dd/MM/yyyy", { locale: ptBR })}
+                      extra={formatCivilDate(app.sessionDate, "dd/MM/yyyy", { locale: ptBR })}
                     />
                   ))
                 )}
@@ -608,6 +665,8 @@ export default function ProtocolDetail() {
           </CardContent>
         </Card>
       )}
+
+      <ProcedimentosDoProtocolo protocolId={protocol.id} />
 
       {/* R8 — Catálogo de substâncias do protocolo (kanban + progresso) */}
       <Card className="panel-3d">
@@ -628,10 +687,12 @@ export default function ProtocolDetail() {
                     <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                       <span className="font-bold uppercase tracking-tight text-lg inline-flex items-center gap-1.5 min-w-0" style={{ color: item.substanceColor || FALLBACK_COLOR }}>
                         {done && <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />}
-                        <span className="truncate">{item.substanceName}</span>
+                        <span className="truncate">{nomeSubstanciaProtocolo(item.substanceName)}</span>
                       </span>
                       <div className="flex items-center gap-3 flex-shrink-0">
-                        <span className="concave-3d px-2 py-0.5 text-[10px] font-bold tabular-nums">{item.dose}</span>
+                        <span className="concave-3d px-2 py-0.5 text-[10px] font-bold tabular-nums">
+                          {dosePrescritaExibivel(item.dose) || "Revisão clínica necessária"}
+                        </span>
                         <span className="text-sm font-bold text-primary tabular-nums">{item.completedSessions}/{item.totalSessions} <span className="text-[10px] text-muted-foreground uppercase tracking-widest">sessões</span></span>
                       </div>
                     </div>
@@ -748,8 +809,8 @@ export default function ProtocolDetail() {
                 {protocol.sessions.map(session => (
                   <div key={session.id} className="flex items-start gap-4 p-4 panel-3d-sub">
                     <div className="flex-shrink-0 text-center w-16 concave-3d p-2">
-                      <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{format(new Date(session.scheduledDate), "MMM", { locale: ptBR })}</div>
-                      <div className="text-2xl font-black leading-none tabular-nums text-primary">{format(new Date(session.scheduledDate), "dd")}</div>
+                      <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{formatCivilDate(session.scheduledDate, "MMM", { locale: ptBR })}</div>
+                      <div className="text-2xl font-black leading-none tabular-nums text-primary">{formatCivilDate(session.scheduledDate, "dd")}</div>
                       <div className="text-[9px] text-muted-foreground font-bold mt-1 uppercase tracking-widest">Semana {session.weekNumber}</div>
                     </div>
                     <div className="flex-1 min-w-0">
@@ -794,6 +855,16 @@ export default function ProtocolDetail() {
           )}
         </Card>
       )}
+
+      <ProtocolSchedulingDialog
+        protocolId={id}
+        clientId={protocol.clientId}
+        open={schedulingMode !== null}
+        recovery={schedulingMode === "recovery"}
+        onOpenChange={(open) => { if (!open) setSchedulingMode(null); }}
+        onScheduled={() => { void refetch(); setGoogleSyncOpen(true); }}
+      />
+      <ProtocolGoogleSyncDialog protocolId={id} open={googleSyncOpen} onOpenChange={setGoogleSyncOpen} />
     </div>
   );
 }

@@ -23,7 +23,7 @@ export default function ComunicacaoPlataformas() {
             exames, protocolos, financeiro, etc.).
           </ExplainRow>
           <ExplainRow>
-            Recebe automaticamente protocolos e RAS assinados, com nome padronizado por data.
+            Recebe automaticamente protocolos e RASP assinados, com nome padronizado por data.
           </ExplainRow>
           {!status?.drive && !loading && (
             <p className="text-[12px] text-amber-700 dark:text-amber-400">

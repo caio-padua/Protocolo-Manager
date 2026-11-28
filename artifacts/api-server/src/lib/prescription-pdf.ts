@@ -5,6 +5,7 @@
 // receituário usa o emissor "Instituto Pádua" (não PAXTER) — regra clínica.
 // O conteúdo regulatório (faixa Anvisa, SNCR, boilerplate, itens) continua aqui.
 import { rgb, PDFFont, PDFPage } from "pdf-lib";
+import { blocoDeveIrParaProximaPagina, separarTomadas } from "./pdf-bloco-integro";
 import { COR, iniciarFabrica, type CabecalhoOpts } from "./documentos/padrao";
 import type { RecipePlan, PrescriptionItemInput } from "./desmembramento";
 
@@ -34,6 +35,9 @@ export interface RecipePdfContext {
   sncrNumber?: string | null;
   sncrStatus?: string | null;
   homologationNotice?: boolean;
+  /** Exclusivo para prova sintética offline, não para emissão clínica. */
+  modelo2bProva?: boolean;
+  unsignedSignatureNotice?: boolean;
 }
 
 function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
@@ -60,19 +64,56 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
 }
 
 export async function generateRecipePdf(plan: RecipePlan, ctx: RecipePdfContext): Promise<Uint8Array> {
-  const fab = await iniciarFabrica();
+  if (ctx.modelo2bProva && !ctx.homologationNotice) {
+    throw new Error("Modelo 2B de prova exige documento de homologação.");
+  }
+  const fab = await iniciarFabrica(ctx.modelo2bProva ? { modeloProva: "paxmed-2b-sintetico" } : undefined);
   const { font, fontBold, margem, larguraConteudo } = fab;
 
   const cabecalho: CabecalhoOpts = {
-    titulo: ctx.homologationNotice ? "DOCUMENTO DE TESTE" : plan.title,
+    titulo: ctx.modelo2bProva ? "PRESCRIÇÃO MÉDICA" : ctx.homologationNotice ? "DOCUMENTO DE TESTE" : plan.title,
+    ...(ctx.modelo2bProva ? { subtitulo: "RECEITUÁRIO / MEDICAMENTOS" } : {}),
     emissor: "instituto_padua",
   };
 
-  let { page, y } = fab.novaPagina(cabecalho);
+  const novaPagina = () => {
+    const next = fab.novaPagina(cabecalho);
+    if (ctx.unsignedSignatureNotice) {
+      const bannerHeight = 34;
+      next.page.drawRectangle({
+        x: margem,
+        y: next.y - bannerHeight + 8,
+        width: larguraConteudo,
+        height: bannerHeight,
+        color: rgb(1, 0.93, 0.93),
+        borderColor: ALERTA,
+        borderWidth: 1,
+      });
+      next.page.drawText("GERADA SEM ASSINATURA DIGITAL — NÃO ASSINADA", {
+        x: margem + 8,
+        y: next.y - 9,
+        size: 8.5,
+        font: fontBold,
+        color: ALERTA,
+      });
+      next.page.drawText("Exige assinatura manual antes de uso clínico.", {
+        x: margem + 8,
+        y: next.y - 22,
+        size: 8,
+        font,
+        color: ALERTA,
+      });
+      next.y -= bannerHeight + 6;
+    }
+    return next;
+  };
+
+  let { page, y } = novaPagina();
+  const topoPagina = y;
 
   const ensureSpace = (needed: number) => {
-    if (y - needed < 72) {
-      const nova = fab.novaPagina(cabecalho);
+    if (y - needed < fab.limiteInferior) {
+      const nova = novaPagina();
       page = nova.page;
       y = nova.y;
     }
@@ -178,9 +219,9 @@ export async function generateRecipePdf(plan: RecipePlan, ctx: RecipePdfContext)
       page,
       item,
       idx,
-      { margem, larguraConteudo, font, fontBold },
+      { margem, larguraConteudo, font, fontBold, limiteInferior: fab.limiteInferior },
       () => {
-        const nova = fab.novaPagina(cabecalho);
+        const nova = novaPagina();
         page = nova.page;
         y = nova.y;
         return { page, y };
@@ -189,6 +230,7 @@ export async function generateRecipePdf(plan: RecipePlan, ctx: RecipePdfContext)
       (ny) => {
         y = ny;
       },
+      topoPagina,
     );
     idx++;
     y -= 8;
@@ -209,17 +251,39 @@ function drawItem(
   page: PDFPage,
   item: PrescriptionItemInput,
   idx: number,
-  cfg: { margem: number; larguraConteudo: number; font: PDFFont; fontBold: PDFFont },
+  cfg: { margem: number; larguraConteudo: number; font: PDFFont; fontBold: PDFFont; limiteInferior: number },
   newPage: () => { page: PDFPage; y: number },
   getY: () => number,
   setY: (y: number) => void,
+  topoPagina: number,
 ) {
   const { margem, larguraConteudo, font, fontBold } = cfg;
+  // Cada tomada em sua própria linha ("Posologia:" abre o grupo).
+  const linhasPosologia = (texto: string) => {
+    const tomadas = separarTomadas(texto);
+    return [
+      "Posologia:",
+      ...tomadas.flatMap((t) => wrapText(`  ${t}`, font, 9, larguraConteudo - 12)),
+    ];
+  };
   let curPage = page;
   let y = getY();
 
+  // Regra do CEO: item inteiro (até o fim da posologia) + 1 linha em branco, senão página nova.
+  const posPrevia = item.posologia || buildPosologia(item);
+  const altura = 16
+    + (item.ativos ? wrapText(item.ativos, font, 9, larguraConteudo - 12).length * 11 : 0)
+    + (posPrevia ? 2 + linhasPosologia(posPrevia).length * 11 : 0);
+  if (blocoDeveIrParaProximaPagina({
+    y, alturaBloco: altura, limiteInferior: cfg.limiteInferior, linhaEmBranco: 11, topoPaginaNova: topoPagina,
+  })) {
+    const np = newPage();
+    curPage = np.page;
+    y = np.y;
+  }
+
   const ensure = (needed: number) => {
-    if (y - needed < 72) {
+    if (y - needed < cfg.limiteInferior) {
       const np = newPage();
       curPage = np.page;
       y = np.y;
@@ -250,7 +314,7 @@ function drawItem(
   const pos = item.posologia || buildPosologia(item);
   if (pos) {
     y -= 2;
-    for (const l of wrapText(`Posologia: ${pos}`, font, 9, larguraConteudo - 12)) {
+    for (const l of linhasPosologia(pos)) {
       ensure(11);
       curPage.drawText(l, { x: margem + 12, y, size: 9, font, color: COR.navy700 });
       y -= 11;

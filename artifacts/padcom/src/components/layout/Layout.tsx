@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, Redirect } from "wouter";
 import { usePermissoes } from "@/lib/permissoes";
+import { HOMOLOGACAO_PERMISSOES, PERFIS_SIMULADOS, usePerfilSimuladoId, simulaPodeVer, type PerfilMapaFront } from "@/lib/transmutacao";
+import { SeletorTransmutacao, ItemTravado } from "./SeletorTransmutacao";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useClerkActions } from "@/lib/clerk-app";
 import { clearCollabSession, getCollabToken } from "@/lib/collab-auth";
 import {
@@ -12,6 +15,7 @@ import {
 } from "@/lib/format-professional-identity";
 import {
   LayoutDashboard,
+  Flag,
   LayoutTemplate,
   Users,
   FlaskConical,
@@ -80,16 +84,28 @@ import {
   Eye,
   EyeOff,
   ChevronDown,
+  MessageCircle,
+  Ticket,
+  Table2,
+  Award,
+  Pill,
+  Lock,
+  UserPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PaxterLogo } from "./PaxterLogo";
+import { MenuBusca, type ItemBusca } from "./MenuBusca";
+import { AbaTitulo } from "./AbaTitulo";
+import { RESUMO_ABA } from "./resumosAba";
+import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
 type NavLeaf = { name: string; href: string; icon: typeof LayoutDashboard; external?: boolean };
-type NavGroup = { name: string; icon: typeof LayoutDashboard; children: NavLeaf[] };
+type NavGroup = { name: string; icon: typeof LayoutDashboard; children: NavLeaf[]; moduloBloqueado?: string };
 type NavEntry = NavLeaf | NavGroup;
 
 function isGroup(e: NavEntry): e is NavGroup {
@@ -97,7 +113,7 @@ function isGroup(e: NavEntry): e is NavGroup {
 }
 
 const navigation: NavEntry[] = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   {
     name: "Agenda & Recepção",
     icon: Calendar,
@@ -105,7 +121,9 @@ const navigation: NavEntry[] = [
       { name: "Marcação de Consulta", href: "/agendar", icon: CalendarDays },
       { name: "Marcação (Modelo Antigo)", href: "/agendar-antigo", icon: CalendarDays },
       { name: "Agenda Diária", href: "/agenda", icon: Calendar },
-      { name: "Motor de Agenda", href: "/agenda/motor", icon: CalendarCog },
+      { name: "Central Telegram", href: "/central-telegram", icon: MessageCircle },
+      { name: "Pit Stop", href: "/pit-stop", icon: Flag },
+      { name: "Agenda Configuração", href: "/agenda/motor", icon: CalendarCog },
       { name: "Clientes", href: "/clients", icon: Users },
     ],
   },
@@ -115,6 +133,9 @@ const navigation: NavEntry[] = [
     children: [
       { name: "Radar Clínico",       href: "/radar-clinico",   icon: Radar       },
       { name: "Cockpit da Consulta", href: "/cockpit", icon: Stethoscope },
+      { name: "Pit Stop", href: "/pit-stop", icon: Flag },
+      { name: "Curadoria Clínica", href: "/pedidos-medicos", icon: FileText },
+      { name: "Medicações & Adesão", href: "/medicacoes-adesao", icon: Pill },
       { name: "Cockpit da Anamnese", href: "/cockpit-anamnese", icon: Brain },
       { name: "Cartório", href: "/cartorio", icon: Stamp },
       { name: "Craniotomia", href: "/craniotomia", icon: BrainCircuit },
@@ -131,18 +152,33 @@ const navigation: NavEntry[] = [
       { name: "Procedência de Exames", href: "/procedencia-exames", icon: MapPin },
       { name: "Prescritor de Exames", href: "/exames", icon: ClipboardListIcon },
       { name: "Monitor do Motor", href: "/exames/monitor", icon: Activity },
-      { name: "Exames & Blocos", href: "/cadastros/exames", icon: TestTube },
-      { name: "Console de Exames", href: "/cadastros/console-exames", icon: Compass },
+      { name: "Cadastro de Exames", href: "/cadastros/cadastro-exames", icon: FolderTree },
+      { name: "Sinapse Clínica", href: "/sinapses-clinicas", icon: Network },
+      // "Exames & Blocos" (/cadastros/exames) e "Console de Exames" (/cadastros/console-exames): rotas preservadas, ocultas do menu (unificadas em "Cadastro de Exames").
       { name: "Configuração de Exames", href: "/cadastros/config-exames", icon: FlaskConical },
       { name: "Importar Exames do Drive", href: "/importar-drive", icon: DownloadCloud },
     ],
   },
   {
-    name: "Área do Cliente",
+    name: "PaxCare (App do Paciente)",
     icon: Smartphone,
     children: [
       { name: "Experiência do Cliente (Admin Preview)", href: "/experiencia-cliente", icon: Sparkles },
-      { name: "Área do Paciente (Direto)", href: "/area", icon: Users },
+      { name: "PaxCare (Direto)", href: "/area", icon: Users },
+      { name: "Planos PaxCare", href: "/paxcare-planos", icon: Award },
+      { name: "Convites PAXMED", href: "/convites-paxmed", icon: UserPlus },
+      { name: "Convites a Médicos", href: "/paxcare-convites-medico", icon: Users },
+      { name: "Acolhimento", href: "/acolhimento", icon: Users },
+      { name: "Convites de Pacientes (Médico)", href: "/paxcare-convite", icon: Stethoscope },
+    ],
+  },
+  // GRUPO VIP (gestão): programa por convite, independente da categoria Prata/Ouro/Platinum/Diamond.
+  // CONEXÃO MILIONÁRIA reaproveita a tela e o backend de Bolões (/boloes); não existe convite/aceite persistido.
+  {
+    name: "GRUPO VIP",
+    icon: Crown,
+    children: [
+      { name: "Conexão Milionária", href: "/boloes", icon: Ticket },
     ],
   },
   {
@@ -150,7 +186,6 @@ const navigation: NavEntry[] = [
     icon: ClipboardList,
     children: [
       { name: "Prescrição", href: "/prescricao", icon: ClipboardList },
-      { name: "Fórmulas & Substâncias", href: "/substances", icon: Beaker },
       { name: "Dieta", href: "/dieta", icon: Salad },
       { name: "Central de Pesquisa", href: "/central-pesquisa", icon: Search },
       { name: "Treino", href: "/treino", icon: Dumbbell },
@@ -177,7 +212,11 @@ const navigation: NavEntry[] = [
     children: [
       { name: "Portfólio Clínico", href: "/portfolio-clinico", icon: FlaskConical },
       { name: "Protocolos", href: "/protocols", icon: FlaskConical },
-      { name: "RAS", href: "/ras", icon: FileText },
+      { name: "Procedimentos", href: "/procedimentos", icon: ClipboardList },
+      { name: "Fornecedores e Fabricantes", href: "/fornecedores", icon: Building2 },
+      { name: "Substâncias e Fornecedores — Cadastro", href: "/substances", icon: Beaker },
+      { name: "Substâncias e Fornecedores — Matriz", href: "/matriz-fornecedores", icon: Table2 },
+      { name: "RASP", href: "/ras", icon: FileText },
       { name: "Catálogos", href: "/catalogos", icon: Library },
       { name: "Estoque", href: "/stock", icon: Box },
     ],
@@ -192,7 +231,14 @@ const navigation: NavEntry[] = [
       { name: "Transferências", href: "/financeiro/transferencias", icon: ArrowLeftRight },
       { name: "Pagamentos", href: "/payments", icon: CreditCard },
       { name: "Conciliação", href: "/financeiro/conciliacao", icon: Scale },
-      { name: "Metas & Crescimento", href: "/financeiro/metas", icon: Target },
+    ],
+  },
+  {
+    name: "PAX FINANCE",
+    icon: Scale,
+    children: [
+      { name: "Metas & Crédito", href: "/financeiro/pax-goals", icon: Target },
+      { name: "Impostos & CNPJs", href: "/financeiro/pax-tax", icon: Landmark },
     ],
   },
   {
@@ -201,13 +247,16 @@ const navigation: NavEntry[] = [
     children: [
       { name: "Plataforma Gateway de Comunicação", href: "/comunicacao/gateways", icon: Network },
       { name: "Mensageria", href: "/comunicacao/mensageria", icon: MessageSquareText },
+      { name: "Dúvidas e Orientações", href: "/comunicacao/duvidas-orientacoes", icon: Library },
       { name: "Carta de Encantamento", href: "/comunicacao/carta-encantamento", icon: Sparkles },
       { name: "Central de Lembretes", href: "/comunicacao/central-lembretes", icon: BellRing },
       { name: "Comunicação Digital", href: "/comunicacao/digital", icon: Smartphone },
       { name: "E-mails", href: "/comunicacao/emails", icon: Mail },
       { name: "Plataformas Digitais", href: "/comunicacao/plataformas", icon: Cloud },
       { name: "Status WhatsApp", href: "/comunicacao/whatsapp-status", icon: MessageSquareText },
+      { name: "WhatsApp por QR Code", href: "/comunicacao/whatsapp-qr", icon: MessageSquareText },
       { name: "Central de Auditoria", href: "/comunicacao/central-auditoria", icon: ShieldCheck },
+      { name: "Frases do Assistente", href: "/comunicacao/frases-assistente", icon: MessageSquareText },
       { name: "Guia Digital — Enviar ao Paciente", href: "/comunicacao/guia-paciente", icon: BookOpen },
       { name: "Painel de Domínios & Aliases", href: "/comunicacao/dominios", icon: Globe },
       { name: "Avatares — Motor de Voz", href: "/comunicacao/avatares", icon: Bot },
@@ -220,19 +269,21 @@ const navigation: NavEntry[] = [
       { name: "Cadastro de Empresas", href: "/cadastros/empresas", icon: Building2 },
       { name: "Cadastro legado de empresas — desativado", href: "/cadastros/empresas-licenciadas", icon: Building2 },
       { name: "Empresa & Clínicas", href: "/configuracoes/empresa", icon: Building2 },
-      { name: "Clínicas & Locais", href: "/cadastros/clinicas", icon: Building2 },
+      { name: "Locais de Atendimento", href: "/cadastros/clinicas", icon: Building2 },
       { name: "Corpo Clínico", href: "/professionals", icon: Stethoscope },
       { name: "Equipe (Cadastro Interno)", href: "/cadastros/equipe", icon: Users },
       { name: "Agendas Google", href: "/cadastros/agendas-google", icon: CalendarDays },
       { name: "Listas (Categorias/Tipos)", href: "/cadastros/listas", icon: Library },
       { name: "Textos & Vídeos", href: "/cadastros/textos", icon: MessageSquareText },
       { name: "Auditoria", href: "/cadastros/auditoria", icon: ClipboardListIcon },
+      { name: "Central de Erros", href: "/cadastros/central-erros", icon: ShieldCheck },
       { name: "Cadernos Jurídicos", href: "/juridico/contratos", icon: Scale },
       { name: "Certificados Digitais", href: "/configuracoes/certificados", icon: ShieldCheck },
       { name: "Assinatura Eletrônica (ZapSign)", href: "/configuracoes/assinatura", icon: PenTool },
       { name: "Portas de Pagamento", href: "/configuracoes/pagamentos", icon: CreditCard },
-      { name: "Médico Responsável", href: "/configuracoes/medico", icon: Stethoscope },
+      { name: "CEO da Pax Med", href: "/configuracoes/medico", icon: Stethoscope },
       { name: "Perfil do Administrador", href: "/professionals?selfAccess=1", icon: UserRound },
+      { name: "Parâmetros de Saúde", href: "/configuracoes/parametros-saude", icon: Stethoscope },
       { name: "Faixas do Receituário", href: "/configuracoes/receituario", icon: LayoutTemplate },
       { name: "Modelo de Receituários", href: "/modelo-receituario", icon: LayoutTemplate },
       { name: "Vitrine (Pública)", href: "/vitrine", icon: Sparkles },
@@ -243,9 +294,11 @@ const navigation: NavEntry[] = [
     icon: Network,
     children: [
       { name: "CEO Command Center", href: "/ceo/command-center", icon: Crown },
+      { name: "Cabine de Comando", href: "/ceo/cabine", icon: Compass },
       { name: "Penalidades Concierge", href: "/ceo/concierge-penalidades", icon: ShieldOff },
       { name: "Prova de Valor", href: "/prova-de-valor", icon: TrendingUp },
       { name: "Leads da Vitrine", href: "/vitrine-leads", icon: Sparkles },
+      { name: "Contatos da Vitrine", href: "/vitrine-contatos", icon: UserPlus },
       { name: "PADTEAM — Equipe & Demandas", href: "/padteam", icon: Users },
       { name: "Agentes Virtuais", href: "/agentes", icon: Bot },
       { name: "Visão de Empresas Independentes", href: "/hierarquia", icon: Network },
@@ -268,11 +321,13 @@ const GRUPO_MODULO: Record<string, string | null> = {
   "Agenda & Recepção":             "agenda",
   "O Ato Médico":                  null,     // cockpit e anamnese têm acesso universal
   "Exames":                        "exames_lab",
-  "Área do Cliente":               null,
+  "PaxCare (App do Paciente)":     null,
+  "GRUPO VIP":                     null,     // acesso à tela vem do CollaboratorGate da rota /boloes
   "Órgãos de Prescrição":         "protocolos",
   "Arsenal Clínico":               "protocolos",
   "Cadastros Clínicos":            null,
   "Financeiro":                    "financeiro",
+  "PAX FINANCE":                   "financeiro",
   "Comunicação":                   "comunicacao",
   "Configurações & Administração": null,
   "Estrutura & Governança":        null,
@@ -282,14 +337,16 @@ function filtrarNavegacao(
   nav: NavEntry[],
   modulosAtivos: Set<string> | null
 ): NavEntry[] {
-  // Null = módulos não carregados ainda → mostrar tudo (fail-open)
-  if (modulosAtivos === null) return nav;
+  // Null = módulos ainda não confirmados pelo servidor → NÃO mostrar grupos que dependem de módulo (fail-closed).
+  // O cadeado é só indicação visual; a autorização real é do servidor.
+  if (modulosAtivos === null) return nav.filter((item) => !isGroup(item) || (GRUPO_MODULO[item.name] ?? null) === null);
 
   return nav.reduce<NavEntry[]>((acc, item) => {
     if (isGroup(item)) {
       const modulo = GRUPO_MODULO[item.name] ?? null;
       // Grupo sem módulo = universal; com módulo = mostrar só se ativo
-      if (modulo !== null && !modulosAtivos.has(modulo)) return acc;
+      // Módulo não contratado: o grupo continua visível, com cadeado dourado que abre a tela de ativação.
+      if (modulo !== null && !modulosAtivos.has(modulo)) { acc.push({ ...item, moduloBloqueado: modulo }); return acc; }
       acc.push(item);
     } else {
       acc.push(item); // Folhas (Dashboard, etc.) sempre visíveis
@@ -310,6 +367,9 @@ const HREF_FERRAMENTA: Record<string, string> = {
   "/importar-drive": "exames_importar",
   "/exames-cliente": "exames_mesa",
   "/cadastros/console-exames": "exames_faixas",
+  "/cadastros/cadastro-exames": "exames_faixas",
+  "/sinapses-clinicas": "exames_faixas",
+  "/sinapses-clinicas/v4": "exames_faixas",
   "/cadastros/config-exames": "exames_config",
   // Documentos (Arsenal Clinico)
   "/arsenal/atestados": "atestado",
@@ -333,12 +393,34 @@ const HREF_FERRAMENTA: Record<string, string> = {
   "/payments": "financeiro",
   "/financeiro/conciliacao": "financeiro",
   "/financeiro/metas": "financeiro",
+  "/financeiro/pax-goals": "financeiro",
+  "/financeiro/pax-tax": "financeiro",
 };
 
 export function Layout({ children }: LayoutProps) {
   const [location, navigate] = useLocation();
+  const isCockpit = location === "/cockpit" || location.startsWith("/cockpit/");
   const { available: clerkAvailable, signOut: signOutGoogle } = useClerkActions();
-  const { pode, me } = usePermissoes();
+  const { pode, me, loading: identityLoading } = usePermissoes();
+
+  // Seletor de Transmutação (simulação visual, só CEO). O servidor continua decidindo o acesso real.
+  const perfilSimId = usePerfilSimuladoId();
+  const ehCeo = !!me?.isPlatformOwner;
+  const simulando = ehCeo && perfilSimId !== "ceo";
+  const [mapaPerfis, setMapaPerfis] = useState<PerfilMapaFront[] | null>(null);
+  useEffect(() => {
+    if (!ehCeo) return;
+    let vivo = true;
+    fetch("/api/ceo/permissoes/mapa", { headers: collabAuthHeaders() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { perfis?: PerfilMapaFront[] } | null) => { if (vivo) setMapaPerfis(d?.perfis ?? null); })
+      .catch(() => { if (vivo) setMapaPerfis(null); });
+    return () => { vivo = false; };
+  }, [ehCeo]);
+  const perfilAtual = PERFIS_SIMULADOS.find((p) => p.id === perfilSimId) ?? PERFIS_SIMULADOS[0];
+  const perfilMapa = mapaPerfis?.find((m) => m.id === perfilAtual.mapaId) ?? null;
+  const bloqueadoSim = (href: string): boolean => simulando && !simulaPodeVer(perfilMapa, href);
+  const itemVisivel = (href: string): boolean => podeVer(href) && (HOMOLOGACAO_PERMISSOES || !bloqueadoSim(href));
   const [profileOpen, setProfileOpen] = useState(false);
   const [cpfVisible, setCpfVisible] = useState(false);
   const [profileActionBusy, setProfileActionBusy] = useState(false);
@@ -358,7 +440,7 @@ export function Layout({ children }: LayoutProps) {
   };
 
   // ─── Menu dinâmico: busca /api/menu para filtrar por módulos ativos ────────
-  // null = carregando (fail-open: mostra tudo); Set = módulos confirmados pelo servidor.
+  // null = carregando (módulos pagos ocultos até confirmar); Set = módulos confirmados pelo servidor.
   const [modulosAtivos, setModulosAtivos] = useState<Set<string> | null>(null);
   const menuFetched = useRef(false);
 
@@ -376,7 +458,8 @@ export function Layout({ children }: LayoutProps) {
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { items?: { moduloRequerido?: string | null }[] } | null) => {
-        if (!data?.items) return;
+        // Resposta inválida ou recusada: módulos pagos ficam trancados (nunca liberados por erro).
+        if (!data?.items) { setModulosAtivos(new Set()); return; }
         // Extrai os módulos com acesso permitido
         const ativos = new Set<string>();
         for (const item of data.items) {
@@ -385,7 +468,7 @@ export function Layout({ children }: LayoutProps) {
         setModulosAtivos(ativos);
       })
       .catch(() => {
-        // Fail-open: se a API falhar, não filtrar nada
+        // Fail-closed: se a API falhar, os módulos pagos ficam trancados
         setModulosAtivos(new Set());
       });
   }, []);
@@ -423,6 +506,17 @@ export function Layout({ children }: LayoutProps) {
       return false;
     }
   });
+  // O recolhimento persistido vale para o computador. Ao abrir a gaveta no
+  // celular, ela sempre mostra os nomes, mesmo que o menu do computador esteja
+  // recolhido.
+  const compactMenu = collapsed && !sidebarOpen;
+
+  // Ao trocar de tela pelo menu, volta ao topo (janela e area interna)
+  const conteudoRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0 });
+    conteudoRef.current?.scrollTo({ top: 0, left: 0 });
+  }, [location]);
 
   useEffect(() => {
     try {
@@ -477,61 +571,135 @@ export function Layout({ children }: LayoutProps) {
     }
   }
 
+  // Itens que o seletor de menus pode abrir: os mesmos que o papel enxerga na barra.
+  const itensBuscaveis: ItemBusca[] = [];
+  for (const e of navFiltrada) {
+    for (const l of isGroup(e) ? e.children : [e]) {
+      if (isGroup(e) && e.moduloBloqueado) continue;
+      if (itemVisivel(l.href) && !bloqueadoSim(l.href)) itensBuscaveis.push({ name: l.name, href: l.href, group: isGroup(e) ? e.name : "Menu", icon: l.icon, external: l.external });
+    }
+  }
+
+  // Nome do menu ativo (maior href que casa com a rota) para a aba do topo
+  const tituloAba = (() => {
+    let melhor: { name: string; len: number; href: string } | null = null;
+    for (const e of navFiltrada) {
+      for (const l of isGroup(e) ? e.children : [e]) {
+        if (l.external) continue;
+        const casa = location === l.href || (l.href === "/dashboard" && location === "/") || (l.href !== "/" && location.startsWith(`${l.href}/`));
+        if (casa && (!melhor || l.href.length > melhor.len)) melhor = { name: l.name, len: l.href.length, href: l.href };
+      }
+    }
+    if (!melhor) return { titulo: null as string | null, resumo: null as string | null };
+    // "Nome — complemento": o nome vai na 1a linha e o complemento vira o resumo
+    const [nome, ...resto] = melhor.name.split(" — ");
+    return { titulo: nome, resumo: RESUMO_ABA[melhor.href] ?? (resto.join(" — ") || null) };
+  })();
+
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
       {/* Barra superior — mobile */}
       <div className="md:hidden flex items-center justify-between p-4 border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
         <PaxterLogo size="sm" />
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="text-sidebar-foreground"
-        >
-          {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </Button>
+        {!sidebarOpen && (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Abrir menu"
+            onClick={() => setSidebarOpen(true)}
+            className="h-11 w-11 text-sidebar-foreground"
+          >
+            <Menu className="w-5 h-5" />
+          </Button>
+        )}
       </div>
 
       {/* Sidebar */}
       <div
         className={`
           fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-sidebar-foreground
-          transition-all duration-300 ease-in-out md:relative md:translate-x-0
+          transition-all duration-300 ease-in-out md:translate-x-0
+          md:sticky md:top-0 md:h-screen md:self-start
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
           ${collapsed ? "md:w-[78px]" : "md:w-64"}
         `}
       >
         {/* Botao recolher/expandir (desktop) */}
-        <button
-          type="button"
-          onClick={() => setCollapsed((c) => !c)}
-          aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
-          title={collapsed ? "Expandir menu" : "Recolher menu"}
-          className="hidden md:flex absolute -right-3 top-[78px] z-50 h-7 w-7 items-center justify-center rounded-full bg-sidebar-accent border border-sidebar-primary/50 text-sidebar-primary shadow-lg hover:bg-sidebar-primary hover:text-sidebar-primary-foreground transition-colors"
-        >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-        </button>
+        {/* Faixa de altura total: o botao e sticky e acompanha a janela ao rolar */}
+        <div className="hidden md:block absolute inset-y-0 -right-[22px] w-11 z-50 pointer-events-none">
+          <button
+            type="button"
+            onClick={() => setCollapsed((c) => !c)}
+            aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+            title={collapsed ? "Expandir menu" : "Recolher menu"}
+            className="pointer-events-auto sticky top-[78px] flex h-11 w-11 items-center justify-center rounded-full bg-sidebar-accent border border-sidebar-primary/50 text-sidebar-primary shadow-lg hover:bg-sidebar-primary hover:text-sidebar-primary-foreground transition-colors"
+          >
+            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
+        </div>
 
-        <div className="h-full flex flex-col">
+        <div className="h-full flex flex-col overflow-y-clip">
+          <div className="md:hidden flex items-center justify-between p-4 border-b border-sidebar-border">
+            <PaxterLogo size="sm" />
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Fechar menu"
+              onClick={() => setSidebarOpen(false)}
+              className="h-11 w-11 min-w-[44px] shrink-0 text-sidebar-foreground"
+            >
+              <X className="w-5 h-5" />
+            </Button>
+          </div>
+
           {/* Logo */}
           <div
-            className={`hidden md:flex items-center justify-center border-b border-sidebar-border ${
+            className={`hidden md:flex items-center justify-center ${
               collapsed ? "py-5 px-2" : "py-6 px-4"
             }`}
           >
             <PaxterLogo collapsed={collapsed} />
           </div>
 
+          {/* Seletor de menus: fixo sob o logo, fora da rolagem do menu */}
+          <div className="hidden md:block shrink-0">
+            <MenuBusca
+              itens={itensBuscaveis}
+              compacto={collapsed}
+              onExpandir={() => setCollapsed(false)}
+              onAbrir={(i) => { if (i.external) window.open(i.href, "_blank", "noopener,noreferrer"); else navigate(i.href); }}
+            />
+          </div>
+
+          {ehCeo && (
+            <div className="shrink-0">
+              <SeletorTransmutacao perfilId={perfilSimId} compacto={compactMenu} />
+            </div>
+          )}
+
           {/* Navegacao */}
-          <nav className="flex-1 px-2.5 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden">
+          <nav className={`flex-1 px-2.5 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${isCockpit ? "min-h-0" : ""}`}>
             {navFiltrada.map((item) => {
               const Icon = item.icon;
+
+              if (isGroup(item) && item.moduloBloqueado) {
+                const alvo = `/ativar-modulo/${item.moduloBloqueado}`;
+                return (
+                  <Link key={item.name} href={alvo} onClick={() => setSidebarOpen(false)}>
+                    <div title={`${item.name} — módulo não ativo. Toque para ver como ativar.`} data-testid={`modulo-bloqueado-${item.moduloBloqueado}`}
+                      className="mt-1 flex items-center gap-2 px-3 py-2 rounded-[5px] border border-sidebar-border/60 text-sidebar-foreground/60 hover:bg-sidebar-accent/50 cursor-pointer">
+                      <Lock className="w-4 h-4 shrink-0" style={{ color: "#C9A227" }} />
+                      {!compactMenu && <span className="text-[10px] font-semibold uppercase tracking-[0.14em]">{item.name}</span>}
+                    </div>
+                  </Link>
+                );
+              }
 
               if (isGroup(item)) {
                 const SectionIcon = item.icon;
 
                 // Recolhida: separador fino + so os icones dos itens (todos a mostra).
-                if (collapsed) {
+                if (compactMenu) {
                   return (
                     <div key={item.name} className="pt-1">
                       <div
@@ -539,7 +707,7 @@ export function Layout({ children }: LayoutProps) {
                         title={item.name}
                       />
                       <div className="space-y-0.5">
-                        {item.children.filter((c) => podeVer(c.href)).map((child) => {
+                        {item.children.filter((c) => itemVisivel(c.href)).map((child) => {
                           const ChildIcon = child.icon;
                           const isActive =
                             location === child.href || location.startsWith(`${child.href}/`);
@@ -566,6 +734,9 @@ export function Layout({ children }: LayoutProps) {
                               )}
                             </div>
                           );
+                          if (bloqueadoSim(child.href)) {
+                            return <ItemTravado key={child.name} nome={child.name} Icon={ChildIcon} compacto />;
+                          }
                           if (child.external) {
                             return (
                               <a
@@ -604,7 +775,7 @@ export function Layout({ children }: LayoutProps) {
                       </span>
                     </div>
                     <div className="space-y-0.5">
-                      {item.children.filter((c) => podeVer(c.href)).map((child) => {
+                      {item.children.filter((c) => itemVisivel(c.href)).map((child) => {
                         const ChildIcon = child.icon;
                         const isActive =
                           location === child.href || location.startsWith(`${child.href}/`);
@@ -634,6 +805,9 @@ export function Layout({ children }: LayoutProps) {
                             )}
                           </div>
                         );
+                        if (bloqueadoSim(child.href)) {
+                          return <ItemTravado key={child.name} nome={child.name} Icon={ChildIcon} compacto={false} />;
+                        }
                         if (child.external) {
                           return (
                             <a
@@ -663,21 +837,21 @@ export function Layout({ children }: LayoutProps) {
               }
 
               const isActive =
-                location === item.href || (item.href !== "/" && location.startsWith(item.href));
+                location === item.href || (item.href === "/dashboard" && location === "/") || (item.href !== "/" && location.startsWith(item.href));
 
               return (
                 <Link key={item.name} href={item.href} onClick={() => setSidebarOpen(false)}>
                   <div
-                    title={collapsed ? item.name : undefined}
+                    title={compactMenu ? item.name : undefined}
                     className={`relative flex items-center ${
-                      collapsed ? "justify-center" : "gap-3"
+                      compactMenu ? "justify-center" : "gap-3"
                     } px-3 py-2.5 rounded-[5px] border transition-all cursor-pointer ${
                       isActive
                         ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium border-sidebar-primary/40 shadow-sm"
                         : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground border-transparent"
                     }`}
                   >
-                    {isActive && !collapsed && (
+                    {isActive && !compactMenu && (
                       <span className="absolute -left-2.5 top-2 bottom-2 w-[3px] rounded-r-full bg-sidebar-primary" />
                     )}
                     <Icon
@@ -685,7 +859,7 @@ export function Layout({ children }: LayoutProps) {
                         isActive ? "text-sidebar-primary" : "text-sidebar-foreground/50"
                       }`}
                     />
-                    {!collapsed && <span className="text-sm tracking-wide">{item.name}</span>}
+                    {!compactMenu && <span className="text-sm tracking-wide">{item.name}</span>}
                   </div>
                 </Link>
               );
@@ -693,36 +867,42 @@ export function Layout({ children }: LayoutProps) {
           </nav>
 
           {/* Rodape — identidade profissional, acesso e troca de usuario */}
-          <div className="relative border-t border-sidebar-border p-2">
+          {/* Lingueta: so uma faixa fina do perfil fica visivel; ao passar o mouse (ou focar, ou com o menu aberto) ela sobe. */}
+          <div className="group/perfil relative h-[18px] shrink-0">
+          <div
+            className={`absolute inset-x-0 bottom-0 z-[60] rounded-t-md border-t border-sidebar-border bg-sidebar px-2 pb-2 pt-1.5 shadow-[0_-6px_12px_-6px_rgba(0,0,0,.45)] transition-transform duration-200 ease-out group-hover/perfil:translate-y-0 focus-within:translate-y-0 ${
+              profileOpen && hasCollaboratorSession ? "translate-y-0" : "translate-y-[calc(100%-18px)]"
+            }`}
+          >
             {profileOpen && hasCollaboratorSession ? (
               <section
                 id="collaborator-profile-actions"
                 aria-label="Identidade e ações do colaborador"
-                className={`panel-3d-sub absolute bottom-full z-[70] mb-2 w-[calc(100%-1rem)] p-3 ${
-                  collapsed ? "md:left-full md:right-auto md:ml-2 md:bottom-2 md:w-64" : "left-2 right-2 md:left-2 md:right-2 md:w-auto"
+                className={`panel-3d-sub absolute bottom-full z-[70] mb-2 w-[calc(100%-1rem)] p-2 ${
+                  compactMenu ? "md:left-full md:right-auto md:ml-2 md:bottom-2 md:w-64" : "left-2 right-2 md:left-2 md:right-2 md:w-auto"
                 }`}
               >
-                <div className="border-b border-sidebar-border/70 pb-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-primary">
-                    Identidade profissional
+                <div className="border-b border-sidebar-border/70 pb-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#16284a]">
+                    Minha conta
                   </p>
-                  <p className="mt-1 truncate text-xs font-medium text-sidebar-foreground">
-                    {me ? formatProfessionalName(me.name) : "Verificando cadastro…"}
+                  <p className="truncate text-xs font-medium text-slate-900">
+                    {me ? formatProfessionalName(me.name) : identityLoading ? "Validando sessão…" : "Sessão não validada"}
                   </p>
                 </div>
 
-                <div className="mt-2 grid grid-cols-[48px_minmax(0,1fr)] items-center gap-x-2 gap-y-1 text-[11px]">
-                  <span className="text-sidebar-foreground/45">Cargo</span>
-                  <span className="truncate text-sidebar-foreground/80">
+                <div className="mt-1.5 grid grid-cols-[48px_minmax(0,1fr)] items-center gap-x-2 gap-y-0.5 text-[10px]">
+                  <span className="text-slate-600">Cargo</span>
+                  <span className="truncate text-slate-900">
                     {me ? formatProfessionalRole(me.role, me.category) : "—"}
                   </span>
                   <span
-                    className="text-sidebar-foreground/45"
+                    className="text-slate-600"
                     title="Cadastro de Pessoas Físicas"
                   >
                     CPF
                   </span>
-                  <span className="flex min-w-0 items-center justify-between gap-2 text-sidebar-foreground/80">
+                  <span className="flex min-w-0 items-center justify-between gap-2 text-slate-900">
                     <span className="truncate font-mono">
                       {formatProfessionalCpf(me?.cpf, cpfVisible)}
                     </span>
@@ -732,14 +912,14 @@ export function Layout({ children }: LayoutProps) {
                         onClick={() => setCpfVisible((visible) => !visible)}
                         aria-label={cpfVisible ? "Ocultar CPF" : "Mostrar CPF"}
                         title={cpfVisible ? "Ocultar CPF" : "Mostrar CPF"}
-                        className="bevel-3d flex h-7 w-7 shrink-0 items-center justify-center text-sidebar-primary"
+                        className="bevel-3d flex h-5 w-5 shrink-0 items-center justify-center text-[#16284a]"
                       >
-                        {cpfVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        {cpfVisible ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                       </button>
                     ) : null}
                   </span>
-                  <span className="text-sidebar-foreground/45">Validação</span>
-                  <span className="truncate text-sidebar-foreground/80">
+                  <span className="text-slate-600">Validação</span>
+                  <span className="truncate text-slate-900">
                     {me?.googleLinked ? "Google validado" : "Vínculo Google pendente"}
                   </span>
                 </div>
@@ -750,13 +930,13 @@ export function Layout({ children }: LayoutProps) {
                   </p>
                 ) : null}
 
-                <div className="mt-3 grid gap-2">
+                <div className="mt-2 grid gap-1.5">
                   {me && !me.googleLinked ? (
                     <button
                       type="button"
                       disabled={profileActionBusy}
                       onClick={() => void beginGoogleLink()}
-                      className="btn-3d flex min-h-9 w-full items-center justify-center gap-2 px-3 text-[11px] font-semibold disabled:opacity-60"
+                      className="btn-3d flex min-h-7 w-full items-center justify-center gap-2 px-2 text-[10px] font-semibold disabled:opacity-60"
                     >
                       <Link2 className="h-3.5 w-3.5" />
                       Vincular conta Google
@@ -769,7 +949,7 @@ export function Layout({ children }: LayoutProps) {
                       setProfileOpen(false);
                       navigate("/professionals?selfAccess=1");
                     }}
-                    className="btn-3d-soft flex min-h-9 w-full items-center justify-center gap-2 px-3 text-[11px] disabled:opacity-60"
+                    className="btn-3d-soft flex min-h-7 w-full items-center justify-center gap-2 px-2 text-[10px] disabled:opacity-60"
                   >
                     <UserRound className="h-3.5 w-3.5" />
                     Abrir meu cadastro
@@ -778,7 +958,7 @@ export function Layout({ children }: LayoutProps) {
                     type="button"
                     disabled={profileActionBusy}
                     onClick={() => void switchCollaboratorUser()}
-                    className="btn-3d-soft flex min-h-9 w-full items-center justify-center gap-2 px-3 text-[11px] disabled:opacity-60"
+                    className="btn-3d-soft flex min-h-7 w-full items-center justify-center gap-2 px-2 text-[10px] disabled:opacity-60"
                   >
                     <UserRound className="h-3.5 w-3.5" />
                     Trocar usuário
@@ -802,11 +982,14 @@ export function Layout({ children }: LayoutProps) {
                     : "Abrir menu do colaborador"
                   : "Entrar no sistema"
               }
-              title={collapsed
+              title={compactMenu
                 ? me
                   ? formatProfessionalName(me.name)
-                  : "Entrar no sistema"
+                  : hasCollaboratorSession
+                    ? "Validando sessão"
+                    : "Entrar no sistema"
                 : undefined}
+              data-testid="button-sidebar-account"
               onClick={() => {
                 setProfileActionError(null);
                 if (!hasCollaboratorSession) {
@@ -815,39 +998,56 @@ export function Layout({ children }: LayoutProps) {
                 }
                 setProfileOpen((open) => !open);
               }}
-              className={`bevel-3d flex min-h-[54px] w-full items-center ${
-                collapsed ? "justify-center px-2" : "gap-3 px-2.5"
-              } py-2 text-left`}
+              className={`bevel-3d flex min-h-[44px] w-full items-center ${
+                compactMenu ? "justify-center px-2" : "gap-3 px-2.5"
+              } py-1.5 text-left`}
             >
-              <span
-                className="flex h-9 w-9 shrink-0 items-center justify-center border border-sidebar-primary/40 bg-sidebar-primary/15 text-xs font-bold text-sidebar-primary"
-                style={{ borderRadius: "4px" }}
+              <Avatar
+                data-testid="img-sidebar-account-avatar"
+                className="h-9 w-9 border border-[#c6a35a]/80 bg-[#16284a] shadow-sm"
               >
-                {me ? (
-                  formatProfessionalInitials(me.name)
-                ) : hasCollaboratorSession ? (
-                  <UserRound className="h-4 w-4" />
-                ) : (
-                  <LogIn className="h-4 w-4" />
-                )}
-              </span>
-              {!collapsed ? (
+                {me?.photoUrl ? (
+                  <AvatarImage
+                    src={me.photoUrl}
+                    alt={`Foto de ${me.name}`}
+                    className="object-cover"
+                  />
+                ) : null}
+                <AvatarFallback className="bg-[#16284a] text-xs font-bold text-[#f0d488]">
+                  {me ? (
+                    formatProfessionalInitials(me.name)
+                  ) : hasCollaboratorSession ? (
+                    <UserRound className="h-4 w-4" />
+                  ) : (
+                    <LogIn className="h-4 w-4" />
+                  )}
+                </AvatarFallback>
+              </Avatar>
+              {!compactMenu ? (
                 <>
-                  <span className="grid min-w-0 flex-1 grid-rows-3 leading-tight">
-                    <span className="truncate text-xs font-semibold text-sidebar-foreground">
+                  <span className="grid min-w-0 flex-1 grid-rows-2 leading-tight">
+                    <span
+                      data-testid="text-sidebar-account-name"
+                      className="truncate text-xs font-semibold text-[#16284a]"
+                    >
                       {me
                         ? formatProfessionalName(me.name)
                         : hasCollaboratorSession
-                          ? "Verificando cadastro…"
+                          ? identityLoading
+                            ? "Validando sessão…"
+                            : "Sessão não validada"
                           : "Entrar no sistema"}
                     </span>
-                    <span className="truncate text-[10px] text-sidebar-foreground/55">
-                      {me ? formatProfessionalRole(me.role, me.category) : "Acesso profissional"}
-                    </span>
-                    <span className="truncate font-mono text-[10px] text-sidebar-foreground/45">
-                      {formatProfessionalCpf(me?.cpf)}
+                    <span
+                      data-testid="text-sidebar-account-role"
+                      className="truncate text-[10px] font-medium text-slate-700"
+                    >
+                      {me ? formatProfessionalRole(me.role, me.category) : hasCollaboratorSession ? "Perfil em conferência" : "Acesso profissional"}
                     </span>
                   </span>
+                  {hasCollaboratorSession ? (
+                    <ClinicalCertificateStatus badge responsibleProfessionalId={me?.id ?? null} />
+                  ) : null}
                   {hasCollaboratorSession ? (
                     <ChevronDown
                       className={`h-4 w-4 shrink-0 text-sidebar-foreground/50 transition-transform ${
@@ -859,14 +1059,23 @@ export function Layout({ children }: LayoutProps) {
               ) : null}
             </button>
           </div>
+          </div>
         </div>
       </div>
 
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <main className={`flex-1 flex flex-col min-w-0 ${isCockpit ? "overflow-x-clip" : "overflow-hidden"}`}>
         {/* A marca PAXTER vive no canto superior ESQUERDO (topo do menu lateral)
             dentro do sistema. O canto superior DIREITO e reservado so para os
             PDFs emitidos (decisao do CEO em 26/06/2026, sobre a spec do Manus). */}
-        <div className="flex-1 overflow-y-auto p-4 md:px-8 md:pb-8 md:pt-6">{children}</div>
+        <AbaTitulo titulo={tituloAba.titulo} resumo={tituloAba.resumo} />
+        <div key={perfilSimId} ref={conteudoRef} className={isCockpit ? "flex-1" : "flex-1 overflow-y-auto p-4 md:px-8 md:pb-8 md:pt-6"}>
+          {bloqueadoSim(location) ? (
+            <div role="alert" data-testid="aviso-acesso-restrito" className="panel-3d-sub p-6 max-w-xl mx-auto text-center space-y-2">
+              <h2 className="font-semibold uppercase">Acesso restrito neste perfil</h2>
+              <p className="text-sm text-muted-foreground">Simulação visual de &quot;{perfilAtual.rotulo}&quot;. Esta tela fica bloqueada para esse perfil. Volte ao Dashboard Geral para sair da simulação.</p>
+            </div>
+          ) : children}
+        </div>
       </main>
 
       {sidebarOpen && (

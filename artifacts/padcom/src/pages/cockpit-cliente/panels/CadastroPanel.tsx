@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { format } from "date-fns";
-import { useGetClient } from "@workspace/api-client-react";
+import { useGetClient, getGetClientQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,6 +8,7 @@ import { Loader2, Pencil, FileText, FolderOpen, Phone, Mail, Calendar, MapPin, H
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { ClientServiceAddresses } from "@/components/ClientServiceAddresses";
+import CategoriaCliente from "@/components/clients/categoria-cliente";
 import TelegramUnlinkButton from "../TelegramUnlinkButton";
 
 const API = import.meta.env.VITE_API_URL || "/api";
@@ -17,7 +18,7 @@ interface Props { clientId: number; }
 export default function CadastroPanel({ clientId }: Props) {
   const { toast } = useToast();
   const { data: client, isLoading } = useGetClient(clientId, {
-    query: { enabled: !!clientId },
+    query: { queryKey: getGetClientQueryKey(clientId), enabled: !!clientId },
   });
 
   const driveSetup = useMutation({
@@ -59,6 +60,8 @@ export default function CadastroPanel({ clientId }: Props) {
           </Button>
         </div>
       </div>
+
+      <CategoriaCliente key={`${client.id}-${client.classificacao}-${client.plano}`} client={client} />
 
       {/* Info pessoal + locais */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

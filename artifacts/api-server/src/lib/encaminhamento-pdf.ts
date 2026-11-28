@@ -5,6 +5,7 @@
 // "instituto_padua". O conteúdo específico (destino, urgência, motivo, resumo,
 // corpo editável, assinatura) fica aqui. Texto longo quebra em novaPagina —
 // nunca escreve fora da folha.
+import { blocoDeveIrParaProximaPagina } from "./pdf-bloco-integro";
 import { PDFFont } from "pdf-lib";
 import { COR, iniciarFabrica, type CabecalhoOpts } from "./documentos/padrao";
 
@@ -74,6 +75,7 @@ export async function gerarEncaminhamentoPdf(ctx: EncaminhamentoPdfContext): Pro
   };
 
   let { page, y } = fab.novaPagina(cabecalho);
+  const topoPagina = y;
 
   const ensureSpace = (needed: number) => {
     if (y - needed < 72) {
@@ -90,7 +92,16 @@ export async function gerarEncaminhamentoPdf(ctx: EncaminhamentoPdfContext): Pro
   };
 
   const drawParagrafo = (text: string, size: number, useFont: PDFFont, color = COR.tinta, indent = 0) => {
-    for (const l of wrapText(text, useFont, size, larguraConteudo - indent)) {
+    const linhasPar = wrapText(text, useFont, size, larguraConteudo - indent);
+    // Regra do CEO: parágrafo inteiro + 1 linha em branco, senão página nova.
+    if (blocoDeveIrParaProximaPagina({
+      y, alturaBloco: linhasPar.length * (size + 3), limiteInferior: 72, linhaEmBranco: size + 3, topoPaginaNova: topoPagina,
+    })) {
+      const nova = fab.novaPagina(cabecalho);
+      page = nova.page;
+      y = nova.y;
+    }
+    for (const l of linhasPar) {
       ensureSpace(size + 3);
       page.drawText(l, { x: margem + indent, y, size, font: useFont, color });
       y -= size + 3;

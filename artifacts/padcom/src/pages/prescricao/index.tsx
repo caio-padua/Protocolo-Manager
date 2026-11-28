@@ -16,10 +16,12 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { PaxterClientSelector, type PaxterClientOption } from "@/components/PaxterClientSelector";
 import { useListPharmacies, usePreviewPrescription, useEmitPrescription } from "@workspace/api-client-react";
+import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 import type { PrescriptionItemInput, RecipePlan, EmitResult } from "@workspace/api-client-react";
 import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
 import { useToast } from "@/hooks/use-toast";
 import { BASE } from "../comunicacao/_shared";
+import { useProtocolosSalvos } from "./useProtocolosSalvos";
 import {
   ReceituarioPreview,
   type RealFormula,
@@ -79,7 +81,7 @@ export default function PrescricaoPage(
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch] = useState("");
   const [leftTab, setLeftTab] = useState<"cat" | "proto">("cat");
-  const [customProtocolos, setCustomProtocolos] = useState<Protocolo[]>([]);
+  const { salvos: customProtocolos, salvar: salvarProtocolo, remover: removerProtocolo } = useProtocolosSalvos();
   const [copied, setCopied] = useState(false);
   // Faixa ornamental do receituário
   const [bandOpen, setBandOpen] = useState(false);
@@ -90,7 +92,7 @@ export default function PrescricaoPage(
   const { data: clientData } = useQuery<ClientData>({
     queryKey: ["prescricao-client", clientId],
     queryFn: async () => {
-      const r = await fetch(`${BASE}/api/clients/${clientId}`);
+      const r = await fetch(`${BASE}/api/clients/${clientId}`, { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("Falha ao carregar cliente");
       return r.json();
     },
@@ -111,7 +113,7 @@ export default function PrescricaoPage(
   // Standalone: carrega lista de clientes para o ClientPicker (A-Z + busca)
   useEffect(() => {
     if (clientId) return; // modo embutido — picker não é necessário
-    fetch(`${BASE}/api/clients?limit=5000`)
+    fetch(`${BASE}/api/clients?limit=5000`, { headers: collabAuthHeaders() })
       .then((r) => r.json())
       .then((d) => {
         const arr: ClientData[] = Array.isArray(d) ? d : (d.clients ?? []);
@@ -136,7 +138,7 @@ export default function PrescricaoPage(
     let cancelled = false;
     setPatient({ nome: "", cpf: "", telefone: "", email: "", dataNascimento: "" });
     if (!selectedClientId) return;
-    fetch(`${BASE}/api/clients/${selectedClientId}`)
+    fetch(`${BASE}/api/clients/${selectedClientId}`, { headers: collabAuthHeaders() })
       .then((r) => {
         if (!r.ok) throw new Error("Falha ao carregar cliente");
         return r.json();
@@ -365,12 +367,7 @@ export default function PrescricaoPage(
   const removeTomada = (id: string, ti: number) =>
     setSelected((prev) => prev.map((s) => (s.id === id ? { ...s, tomadas: s.tomadas.filter((_, i) => i !== ti) } : s)));
 
-  const saveAsProtocolo = () => {
-    if (selected.length === 0) return;
-    const nome = window.prompt("Nome do protocolo:");
-    if (!nome) return;
-    setCustomProtocolos((prev) => [...prev, { id: "c-" + Date.now(), nome, formulaIds: selected.map((s) => s.id) }]);
-  };
+  const saveAsProtocolo = () => { void salvarProtocolo(selected.map((s) => s.id)); };
 
   const handleClear = () => {
     if (window.confirm("Limpar receita inteira?")) setSelected([]);
@@ -576,6 +573,7 @@ export default function PrescricaoPage(
               <p className="text-[11px] tracking-[0.22em] uppercase text-primary font-semibold">
                 Montador de Receitas Manipuladas
               </p>
+              <ClinicalCertificateStatus />
             </div>
           </div>
           <span className="text-sm text-muted-foreground hidden md:block">Dr. Caio Henrique Pádua</span>
@@ -732,7 +730,10 @@ export default function PrescricaoPage(
               <div key={p.id} className="panel-3d-sub p-3">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="font-semibold text-foreground text-sm flex items-center gap-1.5"><Layers className="w-4 h-4 text-primary" />{p.nome}</h3>
-                  <button onClick={() => addProtocolo(p)} className="btn-3d shrink-0 px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1"><Plus className="w-3.5 h-3.5" />Adicionar</button>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {p.id.startsWith("db-") && <button onClick={() => void removerProtocolo(p.id)} title="Remover da minha lista" className="p-1 text-destructive hover:opacity-80"><Trash2 className="w-3.5 h-3.5" /></button>}
+                    <button onClick={() => addProtocolo(p)} className="btn-3d px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1"><Plus className="w-3.5 h-3.5" />Adicionar</button>
+                  </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1.5">{p.formulaIds.map((id) => allFormulas.find((f) => f.id === id)?.name).filter(Boolean).join(" • ")}</p>
               </div>
@@ -828,11 +829,11 @@ export default function PrescricaoPage(
             {copied ? "Copiado!" : "Copiar texto"}
           </button>
           <button
-            onClick={handleGerarReceituario}
-            disabled={!selected.length || gerandoPdf}
+            onClick={handleEmit}
+            disabled={!selected.length || emitMutation.isPending}
             className="btn-3d font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-40"
           >
-            {gerandoPdf
+            {emitMutation.isPending
               ? <><span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full inline-block" />Gerando...</>
               : <><FileSignature className="w-4 h-4" />Gerar Receituário Assinado</>
             }
@@ -845,8 +846,8 @@ export default function PrescricaoPage(
         <section className="no-print panel-3d p-5">
           <BlockTitle icon={Eye} color="text-primary">Modelo Visual do PDF</BlockTitle>
           <p className="text-[11px] text-muted-foreground mt-1 mb-3">
-            Este é o motor completo — arabescos, boxes ANVISA e fórmulas reais.
-            O botão "Gerar Receituário Assinado" captura exatamente este layout.
+            Visualização histórica das faixas.
+            A emissão usa o novo modelo de receituário; esta visualização não representa o arquivo emitido.
           </p>
           {/* Wrapper capturável pelo html2canvas — largura A4 em px */}
           <div
@@ -1099,7 +1100,7 @@ export default function PrescricaoPage(
                       <div className="mt-3 rounded-md border border-cyan-300 bg-cyan-50 p-3">
                         <h3 className="text-[11px] font-bold uppercase tracking-wide text-cyan-800 flex items-center gap-1 mb-2">
                           <FileSignature className="w-3.5 h-3.5" />
-                          Cópia visual do paciente — Motor Único PAXTER
+                          Cópia visual do paciente — Motor Único PaxMed
                         </h3>
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="min-w-0">
@@ -1176,7 +1177,7 @@ function PdfModel({ patient, idade, today, duracao, cid, selected, print }: PdfM
     <div style={{ fontSize: print ? "11pt" : "12px", color: "#0f172a" }}>
       <div style={{ textAlign: "center", borderBottom: `3px solid ${NAVY}`, paddingBottom: "8px", marginBottom: "14px" }}>
         <div style={{ fontSize: print ? "20pt" : "20px", fontWeight: 700, color: NAVY, letterSpacing: "0.04em" }}>INSTITUTO PÁDUA</div>
-        <div style={{ fontSize: print ? "8pt" : "9px", color: OURO, letterSpacing: "0.22em", textTransform: "uppercase", fontWeight: 600 }}>Paxter — desenvolvido pela Padcon</div>
+        <div style={{ fontSize: print ? "8pt" : "9px", color: OURO, letterSpacing: "0.22em", textTransform: "uppercase", fontWeight: 600 }}>PaxMed — desenvolvido pela Padcon</div>
         <div style={{ fontSize: print ? "10pt" : "11px", color: "#475569", marginTop: "2px" }}>Dr. Caio Henrique Pádua — CRM-SP 125475</div>
       </div>
       {patient.nome && (

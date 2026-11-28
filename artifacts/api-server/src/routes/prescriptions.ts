@@ -1,7 +1,10 @@
+import { createHash, randomBytes } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
 import {
   db,
+  clientsTable,
+  locationsTable,
   prescriptionsTable,
   prescriptionItemsTable,
   recipesTable,
@@ -10,18 +13,27 @@ import {
   catalogoItensTable,
   catalogoFormulasTable,
 } from "@workspace/db";
-import { eq, desc, asc } from "drizzle-orm";
+import { eq, desc, asc, or, and, inArray } from "drizzle-orm";
 import { requireCollaborator } from "./collaborator";
+import { registrarErroSistema } from "../lib/system-error-log";
 import { PreviewPrescriptionBody, EmitPrescriptionBody } from "@workspace/api-zod";
 import { brtDisplayDate, brtISODate } from "../lib/brt";
+import { itensLembreteDeMedicacoes, mesclarItensSemDuplicar } from "../lib/cliente-medicacoes.js";
+import { pool as medicacoesPool } from "@workspace/db";
+import { nomeArquivoReceita } from "../lib/nome-arquivo-receita";
 import { planDesmembramento, type PrescriptionItemInput } from "../lib/desmembramento";
 import { consumeSncrNumber } from "../lib/sncr";
 import { handleSncrAlert } from "../lib/sncr-alerts";
-import { generateRecipePdf } from "../lib/prescription-pdf";
+import { generateRecipePdf } from "../lib/prescription-pdf"; // demonstração sintética sem persistência
+import { generateReceituarioPdfV2 } from "../lib/receituario-pdf";
+import { prescriptionItemForDocument } from "../lib/prescription-rendering";
+import { ObjectStorageService } from "../lib/objectStorage";
+import { baseUrlFromEnv } from "../lib/messaging/base-url";
+import QRCode from "qrcode";
 // ── MOTOR ÚNICO: cópia visual para o paciente (além do PDF regulatório M3) ──
-import { emitirReceituarioPdf } from "../lib/receituario-motor.js";
+import { carregarIdentidadeClinica2b, IdentidadeEmpresa2bError, type IdentidadeClinica2b } from "../lib/documentos/paxmed-2b-identidade-clinica";
 // ── Motor de lembretes por período (portado do IHE) ──
-import { sincronizarLembretePrescricao } from "../lib/lembrete-periodo";
+import { sincronizarLembretePrescricao, type ItemLembretePrescricao } from "../lib/lembrete-periodo";
 import { mapPeriodosTextoToCanonicos } from "../lib/prescription-reminder-message";
 import { resolvePrescriptionClient } from "../lib/prescription-client";
 import { ClinicalIdentityError, medicalRegistration, resolveClinicalEmitter, resolveClinicalMember } from "../lib/clinical-emitter";
@@ -31,12 +43,20 @@ import {
   completeApprovalInTransaction,
   loadApprovalForEmission,
 } from "../lib/clinical-approval-execution";
-import { resolvePrescriptionSigner, signExistingPrescriptionPdf, type PrescriptionSigner } from "../lib/prescription-signing";
+import {
+  requireExpiredPrescriptionCertificate,
+  resolvePrescriptionSigner,
+  type PrescriptionSigner,
+} from "../lib/prescription-signing";
 import deliveryRouter, { authorizedPrescription, authorizedPrescriptionFilter } from "./prescription-delivery";
 
 const router: IRouter = Router();
 router.use(moduleGuard("protocolos"));
 router.use(deliveryRouter);
+
+const QR_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
+export const protectedRecipeHash = (token: string) =>
+  createHash("sha256").update(`receita-protegida:${token}`, "utf8").digest("hex");
 
 function todayBR(): string {
   return brtISODate();
@@ -68,10 +88,54 @@ router.get("/prescriptions", requireCollaborator, async (req, res): Promise<void
       clientCpf: p.clientCpf ?? null,
       professionalName: p.professionalName ?? null,
       status: p.status,
+      signatureStatus: p.signatureStatus,
+      certificateValidTo: p.certificateValidTo?.toISOString() ?? null,
       createdAt: p.createdAt.toISOString(),
       emittedAt: p.emittedAt ? p.emittedAt.toISOString() : null,
     })),
   );
+});
+
+/** Histórico completo do cliente com as fórmulas de cada receita (sem os PDFs), para a tela expandida e a comparação. */
+router.get("/prescriptions/historico/:clientId", requireCollaborator, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const identity = await resolveClinicalEmitter(req, Number(req.params.clientId));
+    const rows = await db.select().from(prescriptionsTable).where(and(
+      eq(prescriptionsTable.clientId, identity.client.id),
+      eq(prescriptionsTable.empresaId, identity.clinic.empresaId),
+      inArray(prescriptionsTable.status, ["emitted", "emitted_unsigned"]),
+      authorizedPrescriptionFilter(req.collaborator!.professionalId),
+    )).orderBy(desc(prescriptionsTable.createdAt)).limit(500);
+    const recipes = rows.length ? await db.select({
+      id: recipesTable.id, prescriptionId: recipesTable.prescriptionId, title: recipesTable.title,
+      recipeType: recipesTable.recipeType, itemsJson: recipesTable.itemsJson,
+    }).from(recipesTable).where(inArray(recipesTable.prescriptionId, rows.map((p) => p.id))).orderBy(asc(recipesTable.id)) : [];
+    res.json(rows.map((p) => ({
+      id: p.id,
+      createdAt: p.createdAt.toISOString(),
+      emittedAt: p.emittedAt ? p.emittedAt.toISOString() : null,
+      status: p.status,
+      signatureStatus: p.signatureStatus,
+      professionalName: p.professionalName ?? null,
+      recipes: recipes.filter((r) => r.prescriptionId === p.id).map((r) => ({
+        id: r.id,
+        title: r.title ?? "Receita",
+        recipeType: r.recipeType,
+        items: (Array.isArray(r.itemsJson) ? r.itemsJson : []).map((i) => {
+          const it = i as { name?: unknown; ativos?: unknown; posologia?: unknown };
+          return {
+            name: typeof it.name === "string" ? it.name : "",
+            ativos: typeof it.ativos === "string" ? it.ativos : null,
+            posologia: typeof it.posologia === "string" ? it.posologia : null,
+          };
+        }),
+      })),
+    })));
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) { res.status(error.status).json({ error: error.message }); return; }
+    throw error;
+  }
 });
 
 router.get("/prescriptions/:id", requireCollaborator, async (req, res): Promise<void> => {
@@ -88,6 +152,8 @@ router.get("/prescriptions/:id", requireCollaborator, async (req, res): Promise<
     clientCpf: p.clientCpf ?? null,
     professionalName: p.professionalName ?? null,
     status: p.status,
+    signatureStatus: p.signatureStatus,
+    certificateValidTo: p.certificateValidTo?.toISOString() ?? null,
     createdAt: p.createdAt.toISOString(),
     emittedAt: p.emittedAt ? p.emittedAt.toISOString() : null,
     recipes: recipes.map((r) => ({
@@ -155,8 +221,15 @@ router.get("/clinical-context/:clientId", requireCollaborator, async (req, res):
 
 router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promise<void> => {
   let identity: Awaited<ReturnType<typeof resolveClinicalEmitter>>;
-  let signer: PrescriptionSigner;
+  let signer: PrescriptionSigner | undefined;
+  let signatureStatus: "signed" | "unsigned_expired" = "signed";
+  let certificateValidTo: string | null = null;
   let approval: Awaited<ReturnType<typeof loadApprovalForEmission>> | null = null;
+  const requestedSignatureMode = req.body?.signatureMode ?? "signed";
+  if (requestedSignatureMode !== "signed" && requestedSignatureMode !== "unsigned_expired") {
+    res.status(400).json({ error: "Modo de assinatura inválido." });
+    return;
+  }
   const requestedApprovalId = req.body?.approvalRequestId == null ? null : Number(req.body.approvalRequestId);
   try {
     if (requestedApprovalId !== null) {
@@ -164,7 +237,11 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
         throw new ClinicalAccessError(400, "Identificador da conferência inválido.");
       }
       approval = await loadApprovalForEmission(req, requestedApprovalId, "prescricao");
-      req.body = { ...approval.request.payload, approvalRequestId: approval.request.id };
+      req.body = {
+        ...approval.request.payload,
+        approvalRequestId: approval.request.id,
+        signatureMode: requestedSignatureMode,
+      };
       if (approval.request.status === "aprovado") {
         const [existingPrescription] = await db.select().from(prescriptionsTable)
           .where(eq(prescriptionsTable.approvalRequestId, approval.request.id)).limit(1);
@@ -173,6 +250,11 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
           .where(eq(recipesTable.prescriptionId, existingPrescription.id));
         res.status(200).json({
           prescriptionId: existingPrescription.id,
+          signatureStatus: existingPrescription.signatureStatus,
+          certificateValidTo: existingPrescription.certificateValidTo?.toISOString() ?? null,
+          warning: existingPrescription.signatureStatus === "unsigned_expired"
+            ? "Documento gerado sem assinatura digital; não foi enviado."
+            : undefined,
           recipes: recipes.map((recipe) => ({
             id: recipe.id,
             recipeType: recipe.recipeType,
@@ -205,8 +287,15 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       throw new ClinicalIdentityError(403, "O prescritor deve ser o médico autenticado.");
     }
     if (!identity.canPrescribe) throw new ClinicalIdentityError(422, identity.issue!);
-    // Certificate authorization precedes persistence, regulatory numbering and delivery.
-    signer = await resolvePrescriptionSigner(identity);
+    if (requestedSignatureMode === "unsigned_expired") {
+      const certificate = await requireExpiredPrescriptionCertificate(identity);
+      signatureStatus = "unsigned_expired";
+      certificateValidTo = certificate.validTo;
+    } else {
+      // Certificate authorization precedes persistence, regulatory numbering and delivery.
+      signer = await resolvePrescriptionSigner(identity);
+      certificateValidTo = signer.meta.validTo;
+    }
   } catch (error) {
     if (error instanceof ClinicalIdentityError || error instanceof ClinicalAccessError) {
       res.status(error.status).json({ error: error.message });
@@ -234,6 +323,16 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
 
   // Validates the patient before any prescription record is written.
   const empresaId = identity.clinic.empresaId;
+  let identidade2bClinica: IdentidadeClinica2b;
+  try {
+    identidade2bClinica = await carregarIdentidadeClinica2b(empresaId);
+  } catch (error) {
+    if (error instanceof IdentidadeEmpresa2bError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
   const resolvedClientId = await resolvePrescriptionClient(body, empresaId);
   if (resolvedClientId === null) {
     res.status(422).json({
@@ -244,10 +343,75 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
   // Todos os consumidores abaixo usam o vínculo validado.
   body.clientId = resolvedClientId;
   const plans = planDesmembramento(items);
+  if (signatureStatus === "unsigned_expired" &&
+    (items.some((item) => item.isControlled) ||
+      plans.some((plan) => plan.recipeType === "controlado_isolado" || plan.needsSncr))) {
+    res.status(422).json({
+      error: "Receitas controladas não podem ser geradas sem assinatura digital. Nenhuma numeração foi consumida.",
+    });
+    return;
+  }
 
+  const [professionalRecord] = await db.select({
+    signatureUrl: professionalsTable.signatureUrl,
+  }).from(professionalsTable)
+    .where(eq(professionalsTable.id, identity.professional.id)).limit(1);
+  let assinaturaImagem: { bytes: Buffer; mime: "image/png" | "image/jpeg" } | undefined;
+  if (professionalRecord?.signatureUrl) {
+    const signatureObjectPath = professionalRecord.signatureUrl.replace(/^\/api\/storage/, "");
+    if (!signatureObjectPath.startsWith("/objects/uploads/signatures/")) {
+      res.status(422).json({ error: "O caminho da assinatura cadastrada não é válido." });
+      return;
+    }
+    try {
+      // O upload grava em "<privado>/uploads/signatures/..."; o caminho público tem o
+      // prefixo "/objects/". Resolver pelo mesmo método do servidor de arquivos.
+      const signatureFile = await new ObjectStorageService().getObjectEntityFile(signatureObjectPath);
+      const [bytes] = await signatureFile.download();
+      if (!bytes.length || bytes.length > 2_000_000) {
+        res.status(422).json({ error: "A imagem de assinatura cadastrada está vazia ou excede o limite permitido." });
+        return;
+      }
+      assinaturaImagem = {
+        bytes,
+        mime: professionalRecord.signatureUrl.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg",
+      };
+    } catch {
+      res.status(422).json({ error: "A imagem de assinatura cadastrada não pôde ser lida. Atualize o cadastro antes de emitir." });
+      return;
+    }
+  }
+
+  const [clientRecord] = body.clientId
+    ? await db.select({
+      name: clientsTable.name,
+      cpf: clientsTable.cpf,
+      address: clientsTable.address,
+      birthDate: clientsTable.birthDate,
+      phone: clientsTable.phone,
+    }).from(clientsTable).where(eq(clientsTable.id, body.clientId)).limit(1)
+    : [];
+  const [clinicRecord] = await db.select({
+    name: locationsTable.name,
+    address: locationsTable.address,
+    phone: locationsTable.phone,
+  }).from(locationsTable)
+    .where(eq(locationsTable.id, identity.clinic.id)).limit(1);
   // Mapa de farmácias para nome/tipo.
   const pharmRows = await db.select().from(pharmaciesTable);
   const pharmMap = new Map(pharmRows.map((p) => [p.id, p]));
+
+  let publicBase: URL;
+  try {
+    publicBase = new URL(baseUrlFromEnv());
+    if (!["https:", "http:"].includes(publicBase.protocol) ||
+        (publicBase.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(publicBase.hostname))) {
+      throw new Error("Endereço inválido");
+    }
+  } catch {
+    res.status(503).json({ error: "Não foi possível montar o endereço protegido da receita. Verifique o domínio do ambiente." });
+    return;
+  }
 
   let transactionResult: Awaited<ReturnType<typeof runPrescriptionTransaction>>;
   async function runPrescriptionTransaction() {
@@ -274,7 +438,9 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
         durationDays: body.durationDays ?? null,
         cid: body.cid ?? null,
         message: body.message ?? null,
-        status: "emitted",
+        status: signatureStatus === "unsigned_expired" ? "emitted_unsigned" : "emitted",
+        signatureStatus,
+        certificateValidTo: certificateValidTo ? new Date(certificateValidTo) : null,
         emittedAt: new Date(),
         empresaId,
       })
@@ -332,27 +498,50 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       }
     }
 
-    // 2b) Gera PDF.
+    // 2b) Gera o PDF do modelo ativo, com QR apontando para a cópia exata.
     const pharmacy = plan.pharmacyId != null ? pharmMap.get(plan.pharmacyId) : undefined;
-    const pdfBytes = await signExistingPrescriptionPdf(await generateRecipePdf(plan, {
-      clientName: body.clientName,
-      clientCpf: body.clientCpf ?? null,
-      professionalName: body.professionalName ?? null,
-      professionalCrm: body.professionalCrm ?? null,
-      professionalUf: body.professionalUf ?? null,
+    const qrToken = randomBytes(32).toString("base64url");
+    const qrTokenHash = protectedRecipeHash(qrToken);
+    const qrExpiresAt = new Date(Date.now() + QR_LIFETIME_MS);
+    const qrUrl = new URL(`/documento-clinico-receita/${qrToken}`, publicBase).toString();
+    const pdfBytes = await generateReceituarioPdfV2({
+      medicoName: identity.professional.name,
+      medicoCrm: [identity.professional.crm, identity.professional.uf].filter(Boolean).join(" / "),
+      clinicaNome: clinicRecord?.name ?? identity.clinic.name,
+      clinicaEndereco: clinicRecord?.address ?? undefined,
+      clinicaTelefone: clinicRecord?.phone ?? undefined,
+      pacienteNome: clientRecord?.name ?? identity.client.name,
+      pacienteCpf: clientRecord?.cpf ?? identity.client.cpf ?? undefined,
+      pacienteNascimento: clientRecord?.birthDate ?? undefined,
+      pacienteTelefone: clientRecord?.phone ?? undefined,
+      pacienteEndereco: clientRecord?.address ?? undefined,
+      formulas: plan.items.map(prescriptionItemForDocument),
+      tipoReceita: plan.recipeType === "controlado_isolado" ? "especial" : "simples",
+      dataEmissao: todayBR(),
+      validadeDias: 30,
+      numeroReceita: sncrNumber ?? undefined,
+      modeloGrandFinaleClinico: true,
+      contextoGrandFinale: identity,
+      consultaUrl: qrUrl,
+      tituloSubtitulo: plan.title,
+      assinaturaDigitalEstado: signatureStatus === "signed" ? "assinado" : "sem_certificado_vencido",
+      certificadoValidoAte: certificateValidTo,
+      duracaoDias: body.durationDays ?? null,
       cid: body.cid ?? null,
-      durationDays: body.durationDays ?? null,
-      dateBR: dateBRfull(),
-      pharmacyName: pharmacy?.name ?? null,
-      pharmacyType: pharmacy?.type ?? null,
-      sncrNumber,
-      sncrStatus,
-    }), signer);
+      farmaciaNome: pharmacy?.name ?? null,
+      farmaciaTipo: pharmacy?.type ?? null,
+      assinaturaImagem,
+      identidade2bClinica,
+      rodapeLinhas: [
+        clinicRecord?.name ?? identity.clinic.name,
+        clinicRecord?.address ?? "",
+        clinicRecord?.phone ? `Telefone: ${clinicRecord.phone}` : "",
+      ].filter(Boolean),
+    }, signer);
     const pdfBuffer = Buffer.from(pdfBytes);
     const pdfBase64 = pdfBuffer.toString("base64");
+    const qrPdfSha256 = createHash("sha256").update(pdfBuffer).digest("hex");
 
-    const safeClient = body.clientName.replace(/[^a-zA-Z0-9 ]/g, "").trim().toUpperCase();
-    const kind = plan.recipeType === "controlado_isolado" ? `CONTROLADO ${plan.anvisaType ?? ""}` : "MANIPULACAO";
 
     // 2c) Persiste receita PRIMEIRO para obter um id estavel — o id entra no nome
     //     do arquivo, garantindo unicidade (sem colisao/sobrescrita no Drive
@@ -372,12 +561,15 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
         title: plan.title,
         itemsJson: plan.items,
         pdfData: pdfBase64,
+        qrTokenHash,
+        qrExpiresAt,
+        qrPdfSha256,
         batchDate,
         status: "generated",
       })
       .returning();
 
-    const fileName = `${batchDate} RECEITA ${kind} ${safeClient} #${recipe.id}.pdf`.replace(/\s+/g, " ");
+    const fileName = `${nomeArquivoReceita(batchDate, body.clientName, plan.recipeType)}.pdf`;
 
     // 2d) Upload Drive (best-effort). allowDuplicates=true: nunca apaga homonimo
     //     (o id ja torna o nome unico; protege PDFs anteriores do mesmo dia).
@@ -428,18 +620,53 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       res.status(error.status).json({ error: error.message });
       return;
     }
-    throw error;
+    const errorName = error instanceof Error ? error.name : "ErroDesconhecido";
+    const errorCode = error && typeof error === "object" && "code" in error
+      ? String((error as { code: unknown }).code)
+      : undefined;
+    // Erros do Postgres (com code) podem conter dados do paciente: so a mensagem de
+    // erros internos da aplicacao (sem code) e registrada, para diagnostico.
+    const errorMessage = !errorCode && error instanceof Error ? error.message.slice(0, 300) : undefined;
+    const errorStack = !errorCode && error instanceof Error ? error.stack?.split("\n").slice(0, 4).join(" | ") : undefined;
+    req.log.error({ errorName, errorCode, errorMessage, errorStack }, "Falha transacional ao emitir prescrição");
+    // Central de Erros: motivo real (so mensagens internas, nunca erro do Postgres).
+    res.locals.erroRegistrado = true;
+    registrarErroSistema({
+      method: req.method, path: req.originalUrl, status: 500,
+      message: errorMessage ?? `Erro ${errorName}${errorCode ? ` (código ${errorCode})` : ""} ao emitir prescrição`,
+      code: errorCode ?? errorName, professionalId: req.collaborator?.professionalId ?? null,
+    });
+    res.status(500).json({
+      error: "Não foi possível confirmar a gravação da prescrição. O rascunho foi preservado; confira o histórico antes de tentar novamente.",
+    });
+    return;
+  }
+  if (!transactionResult) {
+    res.status(500).json({
+      error: "A emissão não foi confirmada pelo banco. O rascunho foi preservado; confira o histórico antes de tentar novamente.",
+    });
+    return;
   }
   const { prescription, emittedRecipes, sncrAlerts } = transactionResult;
 
   // Reminders and alerts are attempted only after the clinical documents commit.
-  if (!approval) {
+  if (!approval && signatureStatus === "signed") {
     try {
-      await sincronizarLembretePrescricao(body.clientId, items.map(it => ({
+      const itensPrescricao = items.map(it => ({
         tipo: "formula" as const, nome: it.name,
         ativoPrincipal: it.ativos?.split("\n")[0]?.trim() ?? undefined,
         dose: it.dose ?? undefined, periodos: mapPeriodosTextoToCanonicos(it.periodo ?? ""),
-      })));
+      }));
+      // Medicações validadas do cliente (PaxCare) acompanham a prescrição; falha não bloqueia.
+      const extrasMedicacao = await itensLembreteDeMedicacoes(medicacoesPool, body.clientId, brtISODate()).catch((err: unknown) => {
+        // Falha visível (não silenciosa): a prescrição segue, mas o time é avisado de que as medicações do cliente ficaram fora do lembrete.
+        req.log.error(
+          { evento: "lembrete_medicacoes_cliente_falhou", clientId: body.clientId, errorType: err instanceof Error ? err.constructor.name : typeof err },
+          "Medicações do cliente não incluídas no lembrete da prescrição",
+        );
+        return [] as ItemLembretePrescricao[];
+      });
+      await sincronizarLembretePrescricao(body.clientId, mesclarItensSemDuplicar(itensPrescricao, extrasMedicacao));
     } catch (err) {
       req.log.warn({ err }, "Conteúdo do lembrete não preparado; emissão clínica continua sem envios");
     }
@@ -468,49 +695,8 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     tipoMotor: string;
   } | null = null;
 
-  if (!approval) {
-    try {
-      // Consolida todos os itens da prescrição para o motor único (ignora desmembramento —
-      // o paciente recebe UMA receita visual completa com todas as substâncias).
-      const formulasParaMotor = items.map((it) => ({
-        nome:      it.name,
-        ativos:    it.ativos ?? undefined,
-        posologia: it.posologia ?? "",
-        via:       it.via ?? undefined,
-        forma:     it.observacao ?? undefined,
-        dose:      it.dose ?? undefined,
-      }));
-
-      // Generation only: email is a separate confirmed delivery action.
-      const emailDestinatarios: string[] = [];
-      const motorResult = await emitirReceituarioPdf({
-        identity,
-        medicoId: identity.professional.id,
-        clinicaId: identity.clinic.id,
-        patient: {
-          nome:          body.clientName,
-          cpf:           body.clientCpf ?? undefined,
-          telefone:      body.clientPhone ?? undefined,
-          email:         body.clientEmail ?? undefined,
-        },
-        formulas:    formulasParaMotor,
-        tipoReceita: "especial",
-        emailTo:     emailDestinatarios,
-      });
-
-      pacientePdfMotorUnico = {
-        fileName:    motorResult.fileName,
-        driveUrl:    motorResult.driveUrl,
-        emailSent:   motorResult.emailSent,
-        modeloUsado: motorResult.modeloUsado,
-        tipoMotor:   motorResult.tipoMotor,
-      };
-      req.log.info({ fileName: motorResult.fileName, tipoMotor: motorResult.tipoMotor }, "prescriptions/emit: cópia motor único gerada para o paciente");
-    } catch (motorErr) {
-      // Falha na cópia visual NÃO cancela a emissão regulatória M3
-      req.log.warn({ err: motorErr instanceof Error ? motorErr.message : String(motorErr) }, "prescriptions/emit: motor único falhou — receita M3 regulatória intacta");
-    }
-  }
+  // A cópia alternativa foi suspensa: era outro documento, com modelo distinto.
+  // As receitas persistidas acima são a fonte de verdade para consulta e entrega.
 
   // Entregas são ações separadas, confirmadas por destinatário.
   const pharmacyDispatches: Array<{
@@ -525,6 +711,11 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
 
   res.status(201).json({
     prescriptionId:      prescription.id,
+    signatureStatus,
+    certificateValidTo,
+    warning: signatureStatus === "unsigned_expired"
+      ? "GERADA SEM ASSINATURA DIGITAL. Não enviada; exige assinatura manual antes de uso clínico."
+      : undefined,
     recipes:             emittedRecipes,
     sncrAlerts,
     pharmacyDispatches,
@@ -534,6 +725,41 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
 });
 
 // PDF binário (fora do OpenAPI — acesso direto por link).
+router.get("/recipes/secure/:token", requireCollaborator, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const token = typeof req.params.token === "string" ? req.params.token : "";
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
+    res.status(404).json({ error: "Documento indisponível." }); return;
+  }
+  const hash = protectedRecipeHash(token);
+  const legacyHash = createHash("sha256").update(token, "utf8").digest("hex");
+  const matches = await db.select().from(recipesTable).where(or(
+    eq(recipesTable.qrTokenHash, hash), eq(recipesTable.qrTokenHash, legacyHash),
+  )).limit(2);
+  const recipe = matches.length === 1 ? matches[0] : undefined;
+  if (!recipe || recipe.status !== "generated" || !recipe.pdfData || !recipe.qrPdfSha256 ||
+      !recipe.qrExpiresAt || recipe.qrExpiresAt.getTime() <= Date.now()) {
+    res.status(404).json({ error: "Documento indisponível." }); return;
+  }
+  try {
+    const { pres, identity } = await authorizedPrescription(req, recipe.prescriptionId);
+    if (pres.status !== "emitted" || pres.signatureStatus !== "signed" ||
+        pres.professionalId !== identity.professional.id) {
+      res.status(404).json({ error: "Documento indisponível." }); return;
+    }
+    const bytes = Buffer.from(recipe.pdfData, "base64");
+    if (!bytes.length || createHash("sha256").update(bytes).digest("hex") !== recipe.qrPdfSha256) {
+      res.status(404).json({ error: "Documento indisponível." }); return;
+    }
+    res.type("application/pdf").send(bytes);
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError || error instanceof ClinicalAccessError) {
+      res.status(404).json({ error: "Documento indisponível." }); return;
+    }
+    throw error;
+  }
+});
+
 router.get("/recipes/:id/pdf", requireCollaborator, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (Number.isNaN(id)) {

@@ -71,7 +71,7 @@ export function requireAiTenant(
   // ── Guard de clone ───────────────────────────────────────────────────────
   if (!bypass && !token) {
     throw new Error(
-      "[PADAXOR] Chamada de IA bloqueada: este ambiente não tem PADAXOR_AI_BYPASS nem " +
+      "[PaxMed] Chamada de IA bloqueada: este ambiente não tem PADAXOR_AI_BYPASS nem " +
       "PADAXOR_TENANT_TOKEN configurados.\n" +
       "• Instância CEO: defina PADAXOR_AI_BYPASS=true nos Replit Secrets.\n" +
       "• Clone licenciado: solicite PADAXOR_TENANT_TOKEN em suporte@padaxor.com.br.",
@@ -145,7 +145,7 @@ export function checkAiSetup(log: { warn: (msg: string) => void; info: (msg: str
 
   if (!bypass && !token) {
     log.warn(
-      "[PADAXOR AI] AVISO: PADAXOR_AI_BYPASS e PADAXOR_TENANT_TOKEN estão ausentes. " +
+      "[PaxMed AI] AVISO: PADAXOR_AI_BYPASS e PADAXOR_TENANT_TOKEN estão ausentes. " +
       "Todas as chamadas de IA vão falhar. " +
       "Defina PADAXOR_AI_BYPASS=true (instância CEO) ou PADAXOR_TENANT_TOKEN (clone licenciado).",
     );
@@ -153,14 +153,14 @@ export function checkAiSetup(log: { warn: (msg: string) => void; info: (msg: str
   }
 
   if (bypass) {
-    log.info("[PADAXOR AI] Modo CEO (PADAXOR_AI_BYPASS=true) — IA direta via Replit integrations.");
+    log.info("[PaxMed AI] Modo CEO (PADAXOR_AI_BYPASS=true) — IA direta via Replit integrations.");
   } else {
-    log.info(`[PADAXOR AI] Modo Clone licenciado (token: ${token!.slice(0, 4)}…).`);
+    log.info(`[PaxMed AI] Modo Clone licenciado (token: ${token!.slice(0, 4)}…).`);
   }
 
   if (token && !gatewayUrl) {
     log.warn(
-      "[PADAXOR AI] PADAXOR_TENANT_TOKEN configurado mas CF_AI_GATEWAY_URL ausente. " +
+      "[PaxMed AI] PADAXOR_TENANT_TOKEN configurado mas CF_AI_GATEWAY_URL ausente. " +
       "Metering via CF AI Gateway não vai funcionar. " +
       "Configure CF_AI_GATEWAY_URL quando o CEO criar o gateway (Decisão 11).",
     );
@@ -179,13 +179,13 @@ export function checkAiSetup(log: { warn: (msg: string) => void; info: (msg: str
     ] as const) {
       if (base && !base.startsWith(gw)) {
         log.warn(
-          `[PADAXOR AI] CF_AI_GATEWAY_URL configurado mas AI_INTEGRATIONS_${name.toUpperCase()}_BASE_URL ` +
+          `[PaxMed AI] CF_AI_GATEWAY_URL configurado mas AI_INTEGRATIONS_${name.toUpperCase()}_BASE_URL ` +
           `(${base}) não aponta para o gateway. ` +
           `Esperado: ${gw}/${suffix}. Chamadas ${name} passam pelo Replit, não pelo gateway.`,
         );
       }
     }
 
-    log.info(`[PADAXOR AI] CF AI Gateway ativo: ${gw}. Headers cf-aig-metadata serão injetados.`);
+    log.info(`[PaxMed AI] CF AI Gateway ativo: ${gw}. Headers cf-aig-metadata serão injetados.`);
   }
 }

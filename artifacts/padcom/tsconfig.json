@@ -11,12 +11,17 @@
     "moduleResolution": "bundler",
     "types": ["node", "vite/client"],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@paxcare/*": ["./src/vitrines/paxcare/*"],
+      "@paxmed/*": ["./src/vitrines/paxmed/*"]
     }
   },
   "references": [
     {
       "path": "../../lib/api-client-react"
+    },
+    {
+      "path": "../../lib/procedimentos-shared"
     }
   ]
 }

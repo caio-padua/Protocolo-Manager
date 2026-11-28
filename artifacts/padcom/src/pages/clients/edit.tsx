@@ -3,19 +3,29 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useGetClient, useUpdateClient, getGetClientQueryKey, getListClientsQueryKey } from "@workspace/api-client-react";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Switch } from "@/components/ui/switch";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2 } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2, Crown, Camera, Share2 } from "lucide-react";
+import RedesSociaisCampos from "@/components/RedesSociaisCampos";
+import { AbasRolaveis } from "@/components/AbasRolaveis";
+import CategoriaCliente from "@/components/clients/categoria-cliente";
 import { ClientPhotoCard } from "@/components/clients/photo-card";
+import { ClientRubricaCard } from "@/components/clients/rubrica-card";
+import { SexoRegistradoField } from "@/components/clients/sexo-registrado-field";
+import { ClinicaOrigemField } from "@/components/clients/clinica-origem-field";
+import { ClientAgendaDefaults } from "@/components/clients/client-agenda-defaults";
 import { PreferredAgendasField } from "@/components/clients/preferred-agendas-field";
+import { VisitPreferencesField, emptyVisitPreferences, visitPreferencesSchema } from "@/components/clients/visit-preferences-field";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { tituloProprio } from "@/lib/utils";
 
 const formSchema = z.object({
@@ -35,16 +45,14 @@ const formSchema = z.object({
   instagram: z.string().optional(),
   comoConheceu: z.string().optional(),
   status: z.enum(["active", "inactive", "pending"]),
+  clinicaOrigemEmpresaId: z.string().optional(),
   locationId: z.string().optional(),
+  agendaEnfermagemPadraoId: z.string().optional(),
+  agendaMedicoPadraoId: z.string().optional(),
   preferredAgendaResourceIds: z.array(z.number()).optional(),
+  visitPreferences: visitPreferencesSchema,
   notes: z.string().optional(),
 });
-
-interface LocationOption {
-  id: number;
-  name: string;
-  active: boolean;
-}
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -97,14 +105,54 @@ function parseAddressToFields(address: string | null | undefined): { cep: string
   return result;
 }
 
+import { MarcaEmpresaQuadro } from "@/components/clients/MarcaEmpresaQuadro";
+
 export default function EditClient() {
   const [, params] = useRoute("/clients/:id/edit");
   const [, setLocation] = useLocation();
   const id = parseInt(params?.id || "0", 10);
   const queryClient = useQueryClient();
-  const { data: client, isLoading } = useGetClient(id, { query: { enabled: !!id, queryKey: getGetClientQueryKey(id) } });
+  const { data: client, isLoading, isError, error } = useGetClient(id, { query: { enabled: !!id, queryKey: getGetClientQueryKey(id) } });
   const updateClient = useUpdateClient();
+  const canalApi = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api`;
+  const canalQuery = useQuery<{ ativo: boolean; cnpj: string | null; podeAlterar: boolean; empresa?: { nome: string; nomeFantasia: string | null; razaoSocial: string | null; cnpj: string | null; endereco: string | null; numero: string | null; bairro: string | null; cidade: string | null; estado: string | null; cep: string | null } | null }>({
+    queryKey: ["cliente-canal-clinica", id],
+    enabled: !!id,
+    retry: false,
+    queryFn: async () => {
+      const r = await fetch(`${canalApi}/clients/${id}/canal-clinica`, { headers: collabAuthHeaders() });
+      if (!r.ok) throw new Error("canal");
+      return r.json();
+    },
+  });
+  const [canalErro, setCanalErro] = useState("");
+  const [canalSalvando, setCanalSalvando] = useState(false);
+  const canalAtivo = canalQuery.data?.ativo === true;
+  // Cadastro marcado como celular oficial da empresa: so os campos de contato (WhatsApp/Telegram) ficam editaveis.
+  const trava = canalAtivo ? "opacity-50 grayscale pointer-events-none select-none" : "";
+  const inertProps = (canalAtivo ? { inert: "" } : {}) as Record<string, unknown>;
+  const [canalPedeConfirmar, setCanalPedeConfirmar] = useState(false);
+  async function alternarCanal(ativo: boolean, confirmarHistorico = false) {
+    setCanalErro(""); setCanalSalvando(true); setCanalPedeConfirmar(false);
+    try {
+      const r = await fetch(`${canalApi}/clients/${id}/canal-clinica`, {
+        method: "PUT", headers: collabAuthHeaders({ "Content-Type": "application/json" }), body: JSON.stringify({ ativo, confirmarHistorico }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 409 && j.code === "HISTORICO_CLINICO") { setCanalErro(j.error); setCanalPedeConfirmar(true); return; }
+      if (!r.ok) throw new Error(j.error ?? "Não foi possível alterar.");
+      queryClient.setQueryData(["cliente-canal-clinica", id], j);
+    } catch (e) { setCanalErro((e as Error).message); }
+    finally { setCanalSalvando(false); }
+  }
+  const [aba, setAba] = useState<"dados" | "vinculo" | "preferencias" | "endereco" | "midia" | "notas" | "redes" | "cadastro">("dados");
   const [loadingCep, setLoadingCep] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const loadedClientId = useRef<number | null>(null);
+  const visitRevision = useRef<number | null>(null);
+  const clinicaOrigemInicial = useRef<number | null | undefined>(undefined);
+  const enfermagemInicial = useRef<number | null | undefined>(undefined);
+  const medicoInicial = useRef<number | null | undefined>(undefined);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -125,20 +173,22 @@ export default function EditClient() {
       instagram: "",
       comoConheceu: "",
       status: "active",
+      clinicaOrigemEmpresaId: "",
       locationId: "",
+      agendaEnfermagemPadraoId: "",
+      agendaMedicoPadraoId: "",
       preferredAgendaResourceIds: [],
+      visitPreferences: emptyVisitPreferences(),
       notes: "",
     },
   });
 
-  const apiBaseLoc = import.meta.env.VITE_API_URL || "/api";
-  const { data: locations } = useQuery<LocationOption[]>({
-    queryKey: ["locations"],
-    queryFn: async () => (await fetch(`${apiBaseLoc}/locations`)).json(),
-  });
-
   useEffect(() => {
-    if (client) {
+    if (client && client.id === id && (loadedClientId.current !== id || !form.formState.isDirty)) {
+      visitRevision.current = typeof client.visitPreferencesRevision === "number" ? client.visitPreferencesRevision : null;
+      clinicaOrigemInicial.current = client.clinicaOrigemEmpresaId ?? null;
+      enfermagemInicial.current = client.agendaEnfermagemPadraoId ?? null;
+      medicoInicial.current = client.agendaMedicoPadraoId ?? null;
       const addrFields = parseAddressToFields(client.address);
       form.reset({
         name: client.name,
@@ -157,12 +207,17 @@ export default function EditClient() {
         instagram: (client as any).instagram || "",
         comoConheceu: (client as any).comoConheceu || "",
         status: (client.status as "active" | "inactive" | "pending") || "active",
-        locationId: (client as any).locationId != null ? String((client as any).locationId) : "8",
+        clinicaOrigemEmpresaId: client.clinicaOrigemEmpresaId != null ? String(client.clinicaOrigemEmpresaId) : "",
+        locationId: (client as any).locationId != null ? String((client as any).locationId) : "",
+        agendaEnfermagemPadraoId: client.agendaEnfermagemPadraoId != null ? String(client.agendaEnfermagemPadraoId) : "",
+        agendaMedicoPadraoId: client.agendaMedicoPadraoId != null ? String(client.agendaMedicoPadraoId) : "",
         preferredAgendaResourceIds: (client as any).preferredAgendaResourceIds ?? [],
+        visitPreferences: client.visitPreferences ?? emptyVisitPreferences(),
         notes: client.notes || "",
       });
+      loadedClientId.current = id;
     }
-  }, [client, form]);
+  }, [client, form, id, form.formState.isDirty]);
 
   const apiBase = import.meta.env.VITE_API_URL || "/api";
 
@@ -194,6 +249,15 @@ export default function EditClient() {
   }, [form, apiBase]);
 
   const onSubmit = (values: FormValues) => {
+    setSaveError("");
+    if (form.formState.dirtyFields.clinicaOrigemEmpresaId && clinicaOrigemInicial.current === undefined) {
+      setSaveError("Não foi possível conferir a clínica de origem. Recarregue o cadastro antes de salvar.");
+      return;
+    }
+    if (form.formState.dirtyFields.visitPreferences && visitRevision.current === null) {
+      setSaveError("Não foi possível confirmar a versão das preferências. Recarregue o cadastro antes de salvar.");
+      return;
+    }
     const addressParts = [
       values.logradouro,
       values.numero,
@@ -204,8 +268,12 @@ export default function EditClient() {
     ].filter(Boolean);
     const address = addressParts.join(", ");
 
+    // Celular oficial da empresa: so nome e telefone seguem; o servidor tambem recusa o resto.
+    const dadosEnviados = canalAtivo
+      ? ({ name: tituloProprio(values.name), phone: values.phone } as unknown as Parameters<typeof updateClient.mutate>[0]["data"])
+      : null;
     updateClient.mutate(
-      { id, data: {
+      { id, data: dadosEnviados ?? {
         name: tituloProprio(values.name),
         cpf: values.cpf,
         email: values.email,
@@ -213,11 +281,26 @@ export default function EditClient() {
         birthDate: values.birthDate || undefined,
         address: address || undefined,
         pais: values.pais || "BRASIL",
-        instagram: values.instagram || undefined,
         comoConheceu: values.comoConheceu || undefined,
         status: values.status,
-        locationId: values.locationId ? Number(values.locationId) : undefined,
-        preferredAgendaResourceIds: values.preferredAgendaResourceIds ?? [],
+        ...(form.formState.dirtyFields.clinicaOrigemEmpresaId
+          ? { clinicaOrigemEmpresaId: values.clinicaOrigemEmpresaId ? Number(values.clinicaOrigemEmpresaId) : null }
+          : {}),
+        ...(form.formState.dirtyFields.clinicaOrigemEmpresaId || form.formState.dirtyFields.agendaEnfermagemPadraoId || form.formState.dirtyFields.agendaMedicoPadraoId
+          ? { clinicaOrigemEsperada: clinicaOrigemInicial.current, agendaEnfermagemEsperada: enfermagemInicial.current, agendaMedicoEsperada: medicoInicial.current } : {}),
+        ...(form.formState.dirtyFields.agendaEnfermagemPadraoId
+          ? { agendaEnfermagemPadraoId: values.agendaEnfermagemPadraoId ? Number(values.agendaEnfermagemPadraoId) : null } : {}),
+        ...(form.formState.dirtyFields.agendaMedicoPadraoId
+          ? { agendaMedicoPadraoId: values.agendaMedicoPadraoId ? Number(values.agendaMedicoPadraoId) : null } : {}),
+        ...(form.formState.dirtyFields.locationId
+          ? { locationId: values.locationId ? Number(values.locationId) : null }
+          : {}),
+        ...(form.formState.dirtyFields.preferredAgendaResourceIds
+          ? { preferredAgendaResourceIds: values.preferredAgendaResourceIds ?? [] }
+          : {}),
+        ...(form.formState.dirtyFields.visitPreferences && visitRevision.current !== null
+          ? { visitPreferences: values.visitPreferences, visitPreferencesRevision: visitRevision.current }
+          : {}),
         notes: values.notes || undefined,
       }},
       {
@@ -227,8 +310,9 @@ export default function EditClient() {
           toast.success("Cliente atualizado com sucesso!");
           setLocation(`/clients/${id}`);
         },
-        onError: () => {
-          toast.error("Erro ao atualizar cliente.");
+        onError: (error) => {
+          setSaveError("Não foi possível salvar o cadastro. Confira os dados e, se houver alteração concorrente, recarregue antes de tentar novamente.");
+          toast.error(error instanceof Error ? error.message : "Erro ao atualizar cliente.");
         },
       }
     );
@@ -243,7 +327,16 @@ export default function EditClient() {
     );
   }
 
-  if (!client) return <div className="p-8 text-center font-bold uppercase tracking-widest text-muted-foreground">Cliente nao encontrado.</div>;
+  if (isError) {
+    const status = (error as { status?: number } | null)?.status;
+    const message = status === 401 || status === 403
+      ? "Entre com seu acesso profissional para consultar este cadastro."
+      : status === 404
+        ? "Cliente não encontrado neste acesso."
+        : "Não foi possível carregar o cadastro. Tente novamente.";
+    return <div role="alert" className="p-8 text-center font-bold text-muted-foreground">{message}</div>;
+  }
+  if (!client) return <div className="p-8 text-center font-bold text-muted-foreground">Cliente não encontrado.</div>;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -254,13 +347,56 @@ export default function EditClient() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight uppercase">EDITAR CLIENTE</h1>
           <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-1">{client.name}</p>
+          {canalAtivo && (
+            <span className="bevel-3d mt-2 inline-flex items-center gap-2 px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest" data-testid="canal-clinica-selo">
+              <Building2 className="h-3 w-3 text-primary" /> Canal oficial · {canalQuery.data?.empresa?.nomeFantasia ?? canalQuery.data?.empresa?.nome}
+            </span>
+          )}
         </div>
       </div>
 
-      <Card className="panel-3d border-none">
+      {/* Abas lado a lado, no mesmo padrao do cadastro do Corpo Clinico */}
+      <AbasRolaveis ativa={aba} onChange={(v) => setAba(v as typeof aba)} abas={[
+          { value: "dados", label: "DADOS", Icon: User },
+          { value: "vinculo", label: "VÍNCULO", Icon: Building2 },
+          { value: "preferencias", label: "PREFERÊNCIAS", Icon: Crown },
+          { value: "endereco", label: "ENDEREÇO", Icon: MapPin },
+          { value: "midia", label: "FOTO E ASSINATURA", Icon: Camera },
+          { value: "notas", label: "ADICIONAIS E NOTAS", Icon: Plus },
+          { value: "redes", label: "REDES SOCIAIS", Icon: Share2 },
+          { value: "cadastro", label: "CADASTRO", Icon: Crown },
+      ]} />
+
+      {aba === "cadastro" && (
+        <Card className="panel-3d border-none">
+          <CardContent className="p-6">
+            <CategoriaCliente key={`${client.id}-${client.classificacao}-${client.plano}`} client={client} />
+          </CardContent>
+        </Card>
+      )}
+
+      {aba === "redes" && (
+        <Card className="panel-3d border-none"><CardContent className="p-6">
+          <RedesSociaisCampos tipo="clients" id={id} aoSalvar={() => queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) })} />
+        </CardContent></Card>
+      )}
+
+      <Card className={`panel-3d border-none ${aba === "cadastro" || aba === "redes" ? "hidden" : ""}`}>
         <CardContent className="p-6">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <form onSubmit={form.handleSubmit(onSubmit, (erros) => {
+              // Campo com erro numa aba escondida: abre a aba certa para o erro aparecer
+              const campos = Object.keys(erros);
+              if (campos.includes("clinicaOrigemEmpresaId") || campos.includes("preferredAgendaResourceIds") || campos.includes("locationId")) { setAba("vinculo"); return; }
+              if (campos.includes("visitPreferences")) { setAba("preferencias"); return; }
+              const enderecoCampos = ["cep", "logradouro", "numero", "complemento", "bairro", "cidade", "estado", "pais"];
+              const notasCampos = ["comoConheceu", "notes"];
+              if (campos.some((c) => !enderecoCampos.includes(c) && !notasCampos.includes(c))) setAba("dados");
+              else if (campos.some((c) => enderecoCampos.includes(c))) setAba("endereco");
+              else setAba("notas");
+            })} className="space-y-8">
+              {saveError && <p role="alert" className="text-sm font-semibold text-red-700 dark:text-red-300">{saveError}</p>}
+              <div className={aba === "dados" ? "space-y-8" : "hidden"}>
               <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
                   <User className="h-3 w-3 text-primary" /> Informações Pessoais
@@ -281,6 +417,60 @@ export default function EditClient() {
                     )}
                   />
                   
+                  {canalQuery.data && (
+                    <div className="col-span-full bevel-3d rounded-[6px] px-4 py-3 flex items-start gap-3" data-testid="canal-clinica">
+                      <Switch
+                        checked={canalAtivo}
+                        disabled={!canalQuery.data.podeAlterar || canalSalvando}
+                        onCheckedChange={(v) => alternarCanal(v)}
+                        aria-label="Este cadastro é o celular oficial da empresa"
+                        data-testid="canal-clinica-toggle"
+                      />
+                      <div className="space-y-2">
+                        <p className="m-0 text-[11px] font-black uppercase tracking-widest">Canal oficial da clínica (WhatsApp e Telegram)</p>
+                        <ul className="m-0 list-none space-y-1 p-0 text-xs text-muted-foreground" data-testid="canal-clinica-regra">
+                          <li>1. Ligue só se este cadastro é o celular da própria clínica, e não uma pessoa.</li>
+                          <li>2. O CNPJ e os dados mostrados são sempre os da empresa de quem está logado, nunca de outra.</li>
+                          <li>3. Este celular conversa com o bot do Telegram da clínica.</li>
+                          <li>4. Ligado: só número, WhatsApp e Telegram ficam editáveis; o resto fica cinza.</li>
+                          <li>5. Só pode haver um por empresa, e só o CEO liga ou desliga. {canalQuery.data.podeAlterar ? "" : "Somente o CEO pode alterar esta chave."}</li>
+                        </ul>
+                        {canalErro && <p role="alert" className="m-0 text-xs font-semibold text-red-700 dark:text-red-300">{canalErro}</p>}
+                        {canalPedeConfirmar && (
+                          <Button type="button" size="sm" className="btn-3d" disabled={canalSalvando} onClick={() => alternarCanal(true, true)} data-testid="canal-clinica-confirmar">
+                            Confirmar: marcar como celular oficial
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {canalAtivo && canalQuery.data?.empresa && (
+                    <div className="col-span-full panel-3d-sub p-4 space-y-3" data-testid="canal-clinica-empresa">
+                      <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2">
+                        <Building2 className="h-3 w-3 text-primary" /> Dados da empresa (somente leitura)
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <MarcaEmpresaQuadro tipo="simbolo" rotulo="Símbolo" podeTrocar={false} />
+                        <MarcaEmpresaQuadro tipo="logo" rotulo="Logo" podeTrocar={canalQuery.data.podeAlterar} />
+                      </div>
+                      <dl className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        {([
+                          ["CNPJ", canalQuery.data.empresa.cnpj ?? "CNPJ não cadastrado na empresa", "canal-clinica-cnpj"],
+                          ["Nome da clínica", canalQuery.data.empresa.nome, null],
+                          ["Nome fantasia", canalQuery.data.empresa.nomeFantasia ?? "—", null],
+                          ["Razão social", canalQuery.data.empresa.razaoSocial ?? "—", null],
+                          ["Endereço", [canalQuery.data.empresa.endereco, canalQuery.data.empresa.bairro, canalQuery.data.empresa.cidade && `${canalQuery.data.empresa.cidade}/${canalQuery.data.empresa.estado ?? ""}`, canalQuery.data.empresa.cep].filter(Boolean).join(" · ") || "—", null],
+                        ] as [string, string, string | null][]).map(([rot, val, tid]) => (
+                          <div key={rot} className="concave-3d rounded-[6px] px-3 py-2">
+                            <dt className="text-[9px] font-extrabold uppercase tracking-widest text-muted-foreground">{rot}</dt>
+                            <dd className="m-0 font-semibold" data-testid={tid ?? undefined}>{val}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  )}
+
                   <FormField
                     control={form.control}
                     name="cpf"
@@ -289,7 +479,8 @@ export default function EditClient() {
                         <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">CPF *</FormLabel>
                         <FormControl>
                           <Input
-                            className="field-engraved"
+                            className={`field-engraved ${trava}`}
+                            disabled={canalAtivo}
                             value={field.value}
                             onChange={(e) => field.onChange(formatCPF(e.target.value))}
                           />
@@ -298,7 +489,7 @@ export default function EditClient() {
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={form.control}
                     name="email"
@@ -306,7 +497,7 @@ export default function EditClient() {
                       <FormItem>
                         <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Email *</FormLabel>
                         <FormControl>
-                          <Input type="email" {...field} className="field-engraved" />
+                          <Input type="email" {...field} className={`field-engraved ${trava}`} disabled={canalAtivo} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -338,12 +529,14 @@ export default function EditClient() {
                       <FormItem>
                         <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Data de Nascimento</FormLabel>
                         <FormControl>
-                          <Input type="date" {...field} className="field-engraved" />
+                          <Input type="date" {...field} className={`field-engraved ${trava}`} disabled={canalAtivo} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+
+                  <SexoRegistradoField clientId={id} />
 
                   <FormField
                     control={form.control}
@@ -352,9 +545,9 @@ export default function EditClient() {
                       <FormItem>
                         <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Status *</FormLabel>
                         <div className="concave-3d p-1">
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value} disabled={canalAtivo}>
                             <FormControl>
-                              <SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0">
+                              <SelectTrigger className={`border-none bg-transparent shadow-none focus:ring-0 ${trava}`}>
                                 <SelectValue />
                               </SelectTrigger>
                             </FormControl>
@@ -370,45 +563,34 @@ export default function EditClient() {
                     )}
                   />
 
+                </div>
+              </div>
+              </div>
+
+              <div className={aba === "vinculo" ? `space-y-8 ${trava}` : "hidden"} {...inertProps}>
+              <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
+                <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
+                  <Building2 className="h-3 w-3 text-primary" /> Vínculo
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                   <FormField
                     control={form.control}
-                    name="locationId"
-                    render={({ field }) => {
-                      const list = (locations ?? []).filter(
-                        (l) => l.active || String(l.id) === field.value,
-                      );
-                      return (
-                        <FormItem className="md:col-span-2">
-                          <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground flex items-center gap-1.5">
-                            <Building2 className="h-3 w-3 text-primary" /> Clínica de Origem
-                          </FormLabel>
-                          <div className="concave-3d p-1">
-                            <Select onValueChange={(v) => { if (v) field.onChange(v); }} value={field.value || ""}>
-                              <FormControl>
-                                <SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0">
-                                  <SelectValue placeholder="Selecione a clínica..." />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {list.map((l) => (
-                                  <SelectItem key={l.id} value={String(l.id)}>
-                                    {l.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      );
-                    }}
+                    name="clinicaOrigemEmpresaId"
+                    render={({ field }) => <ClinicaOrigemField value={field.value ?? ""} onChange={field.onChange} />}
                   />
+                  <ClientAgendaDefaults clinicaId={form.watch("clinicaOrigemEmpresaId") ?? ""}
+                    location={form.watch("locationId") ?? ""} nursing={form.watch("agendaEnfermagemPadraoId") ?? ""}
+                    doctor={form.watch("agendaMedicoPadraoId") ?? ""}
+                    onLocation={v => form.setValue("locationId", v, { shouldDirty: true })}
+                    onNursing={v => form.setValue("agendaEnfermagemPadraoId", v, { shouldDirty: true })}
+                    onDoctor={v => form.setValue("agendaMedicoPadraoId", v, { shouldDirty: true })} />
 
                   <FormField
                     control={form.control}
                     name="preferredAgendaResourceIds"
                     render={({ field }) => (
                       <PreferredAgendasField
+                        clinicaId={form.watch("clinicaOrigemEmpresaId")}
                         locationId={form.watch("locationId")}
                         value={field.value ?? []}
                         onChange={field.onChange}
@@ -417,7 +599,24 @@ export default function EditClient() {
                   />
                 </div>
               </div>
+              </div>
 
+              <div className={aba === "preferencias" ? `space-y-8 ${trava}` : "hidden"} {...inertProps}>
+              <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
+                <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
+                  <Crown className="h-3 w-3 text-primary" /> Preferências
+                </div>
+                <div className="grid grid-cols-1 gap-6 pt-2">
+                  <FormField control={form.control} name="visitPreferences" render={({ field }) => (
+                    <div className="col-span-full">
+                      <VisitPreferencesField value={field.value} onChange={field.onChange} disabled={visitRevision.current === null} />
+                    </div>
+                  )} />
+                </div>
+              </div>
+              </div>
+
+              <div className={aba === "midia" ? "space-y-8" : "hidden"}>
               <ClientPhotoCard
                 clientId={id}
                 photoUrl={(client as any).photoUrl}
@@ -425,6 +624,10 @@ export default function EditClient() {
                 onUpdated={() => queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) })}
               />
 
+              <ClientRubricaCard clientId={id} />
+              </div>
+
+              <div className={aba === "endereco" ? `space-y-8 ${trava}` : "hidden"} {...inertProps}>
               <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
                   <MapPin className="h-3 w-3 text-primary" /> Endereço
@@ -563,26 +766,15 @@ export default function EditClient() {
                   />
                 </div>
               </div>
+              </div>
 
+              <div className={aba === "notas" ? `space-y-8 ${trava}` : "hidden"} {...inertProps}>
               <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
                   <Plus className="h-3 w-3 text-primary" /> Adicionais e Notas
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-                  <FormField
-                    control={form.control}
-                    name="instagram"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Instagram</FormLabel>
-                        <FormControl>
-                          <Input placeholder="@usuario" {...field} className="field-engraved" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                   <FormField
                     control={form.control}
                     name="comoConheceu"
@@ -629,6 +821,7 @@ export default function EditClient() {
                     </FormItem>
                   )}
                 />
+              </div>
               </div>
 
               <div className="flex justify-end gap-4 pt-4">

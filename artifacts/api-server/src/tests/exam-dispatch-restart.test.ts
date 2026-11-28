@@ -13,6 +13,13 @@ import { syntheticDispatchDocuments } from "./helpers/exam-dispatch-documents";
 import { syntheticDispatchDocuments as multipartDispatchDocuments } from "./helpers/exam-dispatch-fixtures";
 import { renderTelegramCaption } from "../lib/messaging/render-text";
 
+function asJsonRecord(value: unknown): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("Resposta JSON de teste não é um objeto.");
+  }
+  return value as Record<string, unknown>;
+}
+
 // Bounded event waits, not sleeps. Listener is installed before the action that
 // produces the event, and an early exit reports the child's captured stderr.
 function waitForMessage(child: ChildProcess, type: string, stderr: () => string) {
@@ -235,7 +242,7 @@ it.each(["before-audit-write", "after-first-channel-persist", "before-completed-
       if (result.status === "rejected") throw result.reason;
       const response = result.value;
       expect(response.status).toBe(200);
-      const recovered = await response.json();
+      const recovered = asJsonRecord(await response.json());
       if (completed) {
         expect(recovered).toEqual({
           ...barrier.body, replayed: true,

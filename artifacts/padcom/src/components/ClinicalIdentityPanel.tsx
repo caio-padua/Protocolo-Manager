@@ -1,6 +1,22 @@
 import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
+import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 
-export function ClinicalIdentityPanel({ identity }: { identity: ReturnType<typeof useClinicalIdentity> }) {
+export function ClinicalIdentityPanel({
+  identity,
+  allowUnsignedPrescription = false,
+  ocultarQuandoNormal = false,
+  canGenerateUnsigned = false,
+  unsignedGenerationPending = false,
+  onGenerateUnsigned,
+}: {
+  identity: ReturnType<typeof useClinicalIdentity>;
+  allowUnsignedPrescription?: boolean;
+  /** Esconde o painel quando a identidade está válida; carregando, erro e pendência continuam visíveis. */
+  ocultarQuandoNormal?: boolean;
+  canGenerateUnsigned?: boolean;
+  unsignedGenerationPending?: boolean;
+  onGenerateUnsigned?: () => void;
+}) {
   if (identity.isPending) return <div className="concave-3d p-3 text-sm" role="status">Validando cliente, médico e clínica…</div>;
   if (identity.error) return (
     <div className="concave-3d p-3 text-sm" role="alert">
@@ -10,7 +26,9 @@ export function ClinicalIdentityPanel({ identity }: { identity: ReturnType<typeo
   );
   if (!identity.data) return null;
   const { client, professional, clinic, issue } = identity.data;
+  if (ocultarQuandoNormal && !issue && identity.data.canPrescribe) return null;
   return (
+    <>
     <section className="panel-3d-sub p-3" aria-label="Identificação clínica validada">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
@@ -30,5 +48,15 @@ export function ClinicalIdentityPanel({ identity }: { identity: ReturnType<typeo
       </div>
       {issue && <p className="mt-3 text-sm text-amber-700" role="alert">{issue}</p>}
     </section>
+    <ClinicalCertificateStatus
+      ocultarSeValido
+      professionalType={professional.professionalType}
+      responsibleDoctorName={identity.data.responsibleDoctorName}
+      allowUnsignedPrescription={allowUnsignedPrescription && identity.data.canPrescribe}
+      canGenerateUnsigned={canGenerateUnsigned}
+      pending={unsignedGenerationPending}
+      onGenerateUnsigned={onGenerateUnsigned}
+    />
+    </>
   );
 }
