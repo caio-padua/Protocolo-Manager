@@ -26,6 +26,26 @@ import {
 } from "@workspace/db";
 import { verifyCollaboratorToken } from "../lib/collaborator-auth.js";
 
+/**
+ * Perfil de plataforma a partir da categoria cadastrada. Os cadastros gravam a categoria em minúsculas e sem acento
+ * (medico, enfermagem, administrador_clinica...); a comparação ignora acento, caixa e separadores, e exige a PALAVRA
+ * inteira (médico/médica) para não reconhecer termos parecidos (ex.: "paramedico", "medicamento").
+ * Categoria desconhecida cai no perfil MENOR (recepcionista): nunca amplia permissão.
+ */
+export function perfilPlataformaDaCategoria(
+  categoria: string | null | undefined,
+  isPlatformOwner = false,
+): TenantContext["perfilPlataforma"] {
+  if (isPlatformOwner) return "platform_owner";
+  const palavras = (categoria ?? "")
+    .normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()
+    .split(/[^a-z]+/).filter(Boolean);
+  if (palavras.some((w) => w === "medico" || w === "medica")) return "medico";
+  if (palavras.some((w) => w === "enfermagem" || w === "enfermeiro" || w === "enfermeira")) return "enfermeira";
+  if (palavras.some((w) => w === "admin" || w === "administrador" || w === "administradora" || w === "administrativo" || w === "administrativa")) return "admin";
+  return "recepcionista";
+}
+
 export interface TenantContext {
   empresaId: number;
   isPlatformOwner: boolean;
@@ -183,16 +203,7 @@ async function resolveTenantContext(req: Request, res: Response): Promise<void> 
     return;
   }
 
-  const category = professional.category.toLowerCase();
-  const perfilPlataforma: TenantContext["perfilPlataforma"] = professional.isPlatformOwner
-    ? "platform_owner"
-    : category.includes("medic")
-      ? "medico"
-      : category.includes("enferm")
-        ? "enfermeira"
-        : category.includes("admin")
-          ? "admin"
-          : "recepcionista";
+  const perfilPlataforma = perfilPlataformaDaCategoria(professional.category, professional.isPlatformOwner);
 
   req.tenantContext = {
     empresaId,
