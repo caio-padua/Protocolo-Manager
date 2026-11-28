@@ -198,3 +198,4 @@
 - [Teste real Telegram Dayana/Carlúcia](teste-telegram-dayana-carlucia.md) — rota enviar-teste + três listas de autorização distintas; envio pelo Cockpit pausa a IA.
 - [Primeiro acesso e acolhimento](acolhimento-primeiro-acesso.md) — só login real conta; sem registro ≠ nunca acessou; mensagens manuais, nada enviado.
 - [Teste de servidor completo](teste-servidor-completo.md) — app real em PG descartável; helper cria sequência/colunas fora do drizzle; processos em background; 127.0.0.1.
+- [Trava de tarefas: falha só alerta](trava-tarefas-falha-alerta.md) — opção C: manter carimbo, alertar falha sem dado sensível; nunca apagar carimbo nem reenviar.
