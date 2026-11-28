@@ -352,9 +352,14 @@ if (Number.isNaN(port) || port <= 0) {
     runSeedMensageriaPaxmed((m) => logger.info({ seed: "mensageria-paxmed" }, m)).catch((e) =>
       logger.error({ err: e }, "Falha ao semear mensageria-paxmed"),
     );
-    runSeedDemoRogerio((m) => logger.info({ seed: "demo-rogerio" }, m)).catch((e) =>
-      logger.error({ err: e }, "Falha ao semear demo Rogério Juarez"),
-    );
+    // Cliente fictício de demonstração: nunca é criado no banco real de produção.
+    if (process.env.NODE_ENV !== "production") {
+      runSeedDemoRogerio((m) => logger.info({ seed: "demo-rogerio" }, m)).catch((e) =>
+        logger.error({ err: e }, "Falha ao semear demo Rogério Juarez"),
+      );
+    } else {
+      logger.info({ seed: "demo-rogerio" }, "Seed de demonstração ignorada em produção");
+    }
     // Curadoria laboratorial não é semeada no boot: rotinas anteriores podiam
     // sobrescrever escolhas médicas ou fabricar faixas. A retomada depende de
     // revisão dos valores e de importação explícita, preservando o que existe.
