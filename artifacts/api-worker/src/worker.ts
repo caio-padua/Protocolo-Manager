@@ -218,8 +218,8 @@ export function iniciarJobConciliacaoAsaas(logger: pino.Logger, scheduler: CronS
  * Job 2: lembrete por período (tick a cada minuto). Função própria apenas para poder ser executada
  * isoladamente em verificação; é o MESMO agendamento e o MESMO motor usados pelo worker completo.
  */
-export function iniciarJobLembretes(logger: pino.Logger): void {
-  cron.schedule(
+export function iniciarJobLembretes(logger: pino.Logger, scheduler: CronScheduler = cron): void {
+  scheduler.schedule(
     "* * * * *",
     async () => {
       try {
@@ -320,7 +320,8 @@ export function iniciarJobCalendarioMeusJogos(logger: pino.Logger, scheduler: Cr
 export function startWorkerJobs(
   logger: pino.Logger,
   profile: WorkerProfile = "full",
-  scheduler: CronScheduler = cron
+  scheduler: CronScheduler = cron,
+  opcoes: { exclusividadeTemporizadores?: boolean } = {}
 ): void {
   if (startedProfile) {
     if (startedProfile !== profile) {
@@ -331,6 +332,19 @@ export function startWorkerJobs(
     return;
   }
   startedProfile = profile;
+
+  // Exclusividade entre processos e réplicas: os agendamentos cron chegam por `scheduler`, que o ponto de entrada (index.ts)
+  // embrulha com agendadorExclusivo; os temporizadores abaixo usam comJanela. Ver api-server/src/lib/exclusividade-tarefas.ts.
+  const logExcl = (msg: string, extra?: Record<string, unknown>) => logger.info(extra ?? {}, `Worker: ${msg}`);
+  const exclusividade = (): Promise<{ executarUmaVezPorJanela: (nome: string, janelaMs: number, fn: () => Promise<unknown>, o?: { log?: (m: string, e?: Record<string, unknown>) => void }) => Promise<{ executou: boolean; motivo?: string }> }> =>
+    import("../../api-server/src/lib/exclusividade-tarefas.js" as string);
+  // Ligado pelo ponto de entrada (index.ts). Desligado por padrão só para os testes que exercitam o boot sem banco.
+  const comJanela = <T>(nome: string, janelaMs: number, fn: () => Promise<T>): Promise<void> =>
+    !opcoes.exclusividadeTemporizadores ? fn().then(() => undefined) :
+    exclusividade()
+      .then(({ executarUmaVezPorJanela }) => executarUmaVezPorJanela(nome, janelaMs, fn, { log: logExcl }))
+      .then((r) => { if (!r.executou) logExcl(`${nome} não executada (${r.motivo})`); })
+      .catch((err) => logger.error({ err: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200) }, `Worker: falha em ${nome}`));
 
   if (profile === "telegram-relay-dev") {
     // atendimento=true: o atendimento por IA/agendamento só age para os clientes da lista restrita
@@ -346,7 +360,7 @@ export function startWorkerJobs(
   }
 
   // ─── Job 1: Farmácia 22h BRT ────────────────────────────────────────────
-  cron.schedule(
+  scheduler.schedule(
     "0 22 * * *",
     async () => {
       logger.info("Worker: disparando lote noturno de farmácias (22:00 BRT)");
@@ -366,12 +380,12 @@ export function startWorkerJobs(
   );
 
   // ─── Job 2: Lembrete por período — tick a cada minuto ───────────────────
-  iniciarJobLembretes(logger);
+  iniciarJobLembretes(logger, scheduler);
   iniciarJobCalendarioMeusJogos(logger, scheduler);
   iniciarJobAgendaMedicacaoDiaria(logger, scheduler);
 
   // ─── Job 3: Receituário magistral 06h BRT ───────────────────────────────
-  cron.schedule(
+  scheduler.schedule(
     "0 6 * * *",
     async () => {
       logger.info("Worker: cron receituário 06:00 BRT — iniciando processamento diário");
@@ -392,10 +406,10 @@ export function startWorkerJobs(
 
   // ─── Job 3b: Retomada dos repasses do Telegram ao chat de alerta — a cada minuto ───
   // Reenvia o que ficou pendente/falhou (com espera crescente). "incerto" NUNCA é reenviado sozinho.
-  iniciarJobRepasseTelegram(logger, cron, true);
+  iniciarJobRepasseTelegram(logger, scheduler, true);
 
   // ─── Job 3c: Conciliação Asaas por leitura — a cada 3 minutos ───
-  iniciarJobConciliacaoAsaas(logger, cron);
+  iniciarJobConciliacaoAsaas(logger, scheduler);
 
   // ─── Job 4: Drive Watcher — a cada 5 minutos ────────────────────────────
   let driveRunning = false;
@@ -418,9 +432,10 @@ export function startWorkerJobs(
     }
   }
 
-  setTimeout(() => void runDriveWatcher(), 2 * 60 * 1000);
-  void runDriveWatcher();
-  setInterval(() => void runDriveWatcher(), 5 * 60 * 1000);
+  const driveWatcherExclusivo = () => comJanela("worker-drive-watcher", 4 * 60_000, runDriveWatcher);
+  setTimeout(() => void driveWatcherExclusivo(), 2 * 60 * 1000);
+  void driveWatcherExclusivo();
+  setInterval(() => void driveWatcherExclusivo(), 5 * 60 * 1000);
 
   // ─── Job 4b: Bolões — recebimento assistido da pasta do Drive de cada clínica — a cada 5 minutos ───
   // Só age em clínica com pasta configurada pelo gestor (sem pasta = não faz nada). Sem CAIXA, sem login, sem compra.
@@ -445,8 +460,9 @@ export function startWorkerJobs(
     }
   }
 
-  setTimeout(() => void runBoloesRobo(), 3 * 60 * 1000);
-  setInterval(() => void runBoloesRobo(), 5 * 60 * 1000);
+  const boloesExclusivo = () => comJanela("worker-boloes-robo", 4 * 60_000, runBoloesRobo);
+  setTimeout(() => void boloesExclusivo(), 3 * 60 * 1000);
+  setInterval(() => void boloesExclusivo(), 5 * 60 * 1000);
 
   // ─── Job 5: Monitor horário de LLMs + planilha no Slack ────────────────
   // Roda todo início de hora (XX:00), 24h/dia.
@@ -455,7 +471,7 @@ export function startWorkerJobs(
   // A lógica de despacho dual-canal vive em llm-monitor-dispatch.ts (testável).
   // Quando o Telegram falha, postTelegramReport posta aviso de fallback no Slack
   // usando slackFallbackChannelId (Task 34 — retry automático + fallback).
-  cron.schedule(
+  scheduler.schedule(
     "0 * * * *",
     async () => {
       if (process.env.PADAXOR_AI_BYPASS !== "true") return; // clone: ignora silenciosamente
@@ -531,7 +547,7 @@ export function startWorkerJobs(
 
   // ─── Job 7: Limpeza de device_offer_limits — diária às 03h BRT ────────────
   // O corte usa o calendário BRT no SQL da purga; falhas alertam o CEO.
-  iniciarJobLimpezaDeviceOfferLimits(logger, cron);
+  iniciarJobLimpezaDeviceOfferLimits(logger, scheduler);
 
   // ─── Job 9: Limpeza de device_contact_verifications e device_verified_sessions ─
   // Apaga linhas com expires_at < NOW() das duas tabelas de verificação OTP.
@@ -559,7 +575,7 @@ export function startWorkerJobs(
 
   void runDeviceVerificationPurge();
 
-  cron.schedule(
+  scheduler.schedule(
     "15 3 * * *",
     async () => {
       logger.info("Worker: limpeza diária 03:15 BRT — device_contact_verifications e device_verified_sessions");
@@ -594,7 +610,7 @@ export function startWorkerJobs(
     }
   };
 
-  cron.schedule(
+  scheduler.schedule(
     "30 3 1 * *",
     () => runPurgaEventos("cron"),
     { timezone: "America/Sao_Paulo" }
@@ -602,7 +618,7 @@ export function startWorkerJobs(
 
   // Purga imediata no boot — garante o log de boot exigido pela spec e limpa
   // registros acumulados antes do primeiro cron mensal.
-  void runPurgaEventos("boot");
+  void runPurgaEventos("boot"); // apagar o que venceu é idempotente: repetir não causa efeito duplicado
 
   // ─── Job 10: Verificação diária do certificado ICP-Brasil (PAdES) ──────────
   // Carrega o cache do certificado (Object Storage / cofre) e verifica o prazo.
@@ -642,10 +658,10 @@ export function startWorkerJobs(
   }
 
   // Verificação imediata no boot do worker.
-  void runCertExpiryCheck("boot");
+  void comJanela("worker-cert-expiry-boot", 20 * 60_000, () => runCertExpiryCheck("boot"));
 
   // Cron diário às 08:00 BRT — garante alerta mesmo após o boot.
-  cron.schedule(
+  scheduler.schedule(
     "0 8 * * *",
     () => runCertExpiryCheck("cron"),
     { timezone: "America/Sao_Paulo" }
@@ -658,7 +674,7 @@ export function startWorkerJobs(
   // As tabelas são garantidas aqui também: o worker pode subir antes da API.
   let visitConfirmationsReady = false;
   let visitConfirmationsRunning = false;
-  cron.schedule(
+  scheduler.schedule(
     "*/10 * * * *",
     async () => {
       if (visitConfirmationsRunning) return;
@@ -698,7 +714,7 @@ export function startWorkerJobs(
   if (process.env.PADAXOR_FILA_PDF_ATIVA === "true") {
     let filaPdfRodando = false;
     const workerId = `api-worker-${process.pid}`;
-    cron.schedule(
+    scheduler.schedule(
       "*/30 * * * * *",
       async () => {
         if (filaPdfRodando) return;

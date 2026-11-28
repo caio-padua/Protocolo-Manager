@@ -154,7 +154,10 @@ export function syncGoogleAgenda() {
   return running;
 }
 export function startGoogleAgendaSync() {
-  const run = () => void syncGoogleAgenda().catch(() => logger.warn("Agenda: integração Google indisponível"));
+  // Exclusividade entre réplicas: uma leitura do Google por janela em todo o banco.
+  const run = () => void import("./exclusividade-tarefas.js")
+    .then(({ executarUmaVezPorJanela }) => executarUmaVezPorJanela("api-agenda-google-sync", 48_000, () => syncGoogleAgenda()))
+    .catch(() => logger.warn("Agenda: integração Google indisponível"));
   run();
   const timer = setInterval(run, 60_000);
   timer.unref();

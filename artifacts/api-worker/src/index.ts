@@ -137,5 +137,13 @@ void (async () => {
       "api-worker: falha ao hidratar o cofre (jobs seguem com o ambiente)"
     );
   }
-  startWorkerJobs(logger, workerProfile);
+  // Cada disparo cron passa pela exclusividade (trava + janela no banco): réplicas ou a API não repetem a tarefa.
+  const { agendadorExclusivo } = await import("../../api-server/src/lib/exclusividade-tarefas.js" as string);
+  const cron = (await import("node-cron")).default;
+  startWorkerJobs(
+    logger,
+    workerProfile,
+    agendadorExclusivo(cron, `worker-${workerProfile}`, { log: (m: string, extra?: object) => logger.info(extra ?? {}, `Worker: ${m}`) }),
+    { exclusividadeTemporizadores: true },
+  );
 })();

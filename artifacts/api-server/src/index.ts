@@ -401,11 +401,21 @@ if (Number.isNaN(port) || port <= 0) {
           logger.error({ err: e }, "[dieta-pdfs] Falha na limpeza de PDFs antigos"),
         );
     }
-    runPurgeDietaPdfs();
-    setInterval(runPurgeDietaPdfs, 24 * 60 * 60 * 1000);
+    // Exclusividade entre réplicas da API: uma execução por janela em todo o banco.
+    const purgaDietaExclusiva = () => {
+      void import("./lib/exclusividade-tarefas.js")
+        .then(({ executarUmaVezPorJanela }) => executarUmaVezPorJanela("api-purga-dieta-pdfs", 20 * 60 * 60_000, async () => runPurgeDietaPdfs()))
+        .catch((e) => logger.error({ err: e }, "[dieta-pdfs] Falha no controle de exclusividade"));
+    };
+    purgaDietaExclusiva();
+    setInterval(purgaDietaExclusiva, 24 * 60 * 60 * 1000);
 
     // Liberação automática de pedido de exames (só com a validação médica desligada). Ciclo de 60 s.
-    setInterval(() => { void rodarLiberacaoAutomatica(); }, 60 * 1000);
+    setInterval(() => {
+      void import("./lib/exclusividade-tarefas.js")
+        .then(({ executarUmaVezPorJanela }) => executarUmaVezPorJanela("api-liberacao-automatica-exames", 48_000, async () => { await rodarLiberacaoAutomatica(); }))
+        .catch((e) => logger.error({ err: e }, "[liberacao-exames] Falha no controle de exclusividade"));
+    }, 60 * 1000);
 
   });
 })();
