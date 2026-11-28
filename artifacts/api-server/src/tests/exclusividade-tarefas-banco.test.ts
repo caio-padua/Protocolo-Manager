@@ -70,6 +70,76 @@ describe("uma execução por janela entre processos", () => {
   });
 });
 
+
+describe("falha após a reserva e retomada (impedir duplicação NÃO é garantir entrega)", () => {
+  const carimbo = async (nome: string) => (await poolA.query(`SELECT value FROM app_settings WHERE key=$1`, [PREFIXO_CARIMBO + nome])).rows[0]?.value as string | undefined;
+
+  it("tarefa que falha: o carimbo da reserva permanece e OUTRO processo não repete dentro da janela (no máximo uma vez por janela)", async () => {
+    let tentativas = 0, relogio = 5_000_000;
+    await expect(executarUmaVezPorJanela("t-falha-reserva", 60_000, async () => { tentativas++; throw new Error("envio-falhou"); }, { pool: poolA as any, agora: () => relogio })).rejects.toThrow("envio-falhou");
+    expect(await carimbo("t-falha-reserva")).toBe(String(relogio));
+    relogio += 10_000; // ainda dentro da janela
+    const r = await executarUmaVezPorJanela("t-falha-reserva", 60_000, async () => { tentativas++; }, { pool: poolB as any, agora: () => relogio });
+    expect(r).toEqual({ executou: false, motivo: "janela_nao_vencida" });
+    expect(tentativas, "não houve segunda tentativa na janela: isto impede duplicação, mas a entrega ficou pendente").toBe(1);
+  });
+
+  it("retomada: vencida a janela, qualquer processo tenta de novo e, tendo sucesso, a entrega acontece", async () => {
+    let entregas = 0, relogio = 6_000_000;
+    await expect(executarUmaVezPorJanela("t-retoma", 60_000, async () => { throw new Error("falha"); }, { pool: poolA as any, agora: () => relogio })).rejects.toThrow();
+    relogio += 61_000;
+    const r = await executarUmaVezPorJanela("t-retoma", 60_000, async () => { entregas++; return "ok"; }, { pool: poolB as any, agora: () => relogio });
+    expect(r).toEqual({ executou: true, valor: "ok" });
+    expect(entregas).toBe(1);
+    expect(await carimbo("t-retoma")).toBe(String(relogio));
+    // e a repetição imediata volta a ser barrada
+    expect((await executarUmaVezPorJanela("t-retoma", 60_000, async () => { entregas++; }, { pool: poolA as any, agora: () => relogio + 1000 })).executou).toBe(false);
+    expect(entregas).toBe(1);
+  });
+
+  it("processo que morre no meio da tarefa: a trava é solta pelo PostgreSQL, a reserva fica, e só a janela vencida libera a retomada", async () => {
+    const poolMorre = new pg.Pool({ connectionString: banco.url, max: 1 });
+    poolMorre.on("error", () => {});
+    // a queda simulada chega como evento de erro da conexão emprestada; é esperada e não deve derrubar o teste
+    const poolComTratamento = { connect: async () => { const c = await poolMorre.connect(); c.on("error", () => {}); return c; } };
+    let relogio = 7_000_000, pidDaTarefa = 0, entregas = 0;
+    const executando = executarUmaVezPorJanela("t-morte", 60_000, async () => {
+      const pid = (await poolA.query(`SELECT pid FROM pg_locks WHERE locktype='advisory' AND classid=19872027 AND granted LIMIT 1`)).rows[0]?.pid;
+      pidDaTarefa = pid ? 1 : 0; // a trava existe e tem dono enquanto a tarefa roda
+      await poolA.query("SELECT pg_terminate_backend($1)", [pid]); // simula queda do processo
+      await dorme(200);
+      throw new Error("conexão perdida");
+    }, { pool: poolComTratamento as any, agora: () => relogio }).catch(() => "caiu");
+    expect(await executando).toBe("caiu");
+    expect(pidDaTarefa).toBe(1);
+    await Promise.race([poolMorre.end().catch(() => {}), dorme(500)]);
+    expect(await carimbo("t-morte")).toBe(String(relogio));
+    const livre = await poolB.query("SELECT pg_try_advisory_lock(19872027, hashtext('t-morte')) AS ok");
+    expect(livre.rows[0].ok, "trava não ficou presa").toBe(true);
+    await poolB.query("SELECT pg_advisory_unlock_all()");
+    const dentro = await executarUmaVezPorJanela("t-morte", 60_000, async () => { entregas++; }, { pool: poolB as any, agora: () => relogio + 5_000 });
+    expect(dentro).toEqual({ executou: false, motivo: "janela_nao_vencida" });
+    const depois = await executarUmaVezPorJanela("t-morte", 60_000, async () => { entregas++; }, { pool: poolB as any, agora: () => relogio + 61_000 });
+    expect(depois.executou).toBe(true);
+    expect(entregas).toBe(1);
+  });
+
+  it("agendador: falha de um disparo é registrada, não derruba o agendador, e a próxima janela retoma", async () => {
+    const lista: Array<() => Promise<void>> = []; const logs: string[] = [];
+    let relogio = 8_000_000, n = 0;
+    const falso = { schedule: (_e: string, fn: any) => { lista.push(fn); } };
+    agendadorExclusivo(falso, "retoma", { pool: poolA as any, agora: () => relogio, log: (m) => logs.push(m) })
+      .schedule("* * * * *", async () => { n++; if (n === 1) throw new Error("primeira falha"); });
+    await lista[0]();
+    expect(logs.some((m) => m.includes("falhou"))).toBe(true);
+    await lista[0](); // dentro da janela de 48 s: barrado
+    expect(n).toBe(1);
+    relogio += 60_000;
+    await lista[0]();
+    expect(n).toBe(2);
+  });
+});
+
 describe("agendador exclusivo (duas réplicas do mesmo código)", () => {
   it("o mesmo disparo cron em dois agendadores executa o job uma vez só", async () => {
     const falso = (lista: Array<() => Promise<void>>) => ({ schedule: (_e: string, fn: any) => { lista.push(fn); } });
